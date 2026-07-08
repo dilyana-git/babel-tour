@@ -52,6 +52,30 @@ const NODES = [
       attr: 'J. L. BORGES — THE LIBRARY OF BABEL',
     },
   },
+  {
+    slug: 'vertigo',
+    title: 'The Vertigo',
+    subtitle: 'Shelves without end',
+    summary: 'The eye falls through gallery after gallery, and the count of the books refuses to close.',
+    accent: '#b98a3e',
+    folio: {
+      eyebrow: 'NODE V — THE VERTIGO',
+      line: '"The certitude that everything has been written negates us or turns us into phantoms."',
+      attr: 'J. L. BORGES — THE LIBRARY OF BABEL',
+    },
+  },
+  {
+    slug: 'silence',
+    title: 'The Silence',
+    subtitle: 'Where the lamps grow faint',
+    summary: 'At the deepest reach the air stills, and only a distant gold remains to mark the way.',
+    accent: '#8f6f3a',
+    folio: {
+      eyebrow: 'NODE VI — THE SILENCE',
+      line: '"Light is provided by spherical fruit which bear the name of lamps."',
+      attr: 'J. L. BORGES — THE LIBRARY OF BABEL',
+    },
+  },
 ];
 
 const SCENE = {

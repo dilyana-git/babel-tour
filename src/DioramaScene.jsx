@@ -19,7 +19,10 @@ const frustumH = (dist) => 2 * dist * Math.tan(THREE.MathUtils.degToRad(FOV / 2)
 const PLANE_Z = 26;
 // Total inward drift from the entry (z=0) to the deepest dwell point. Kept modest
 // and always short of the plane so the camera never reaches or clips the relief.
-const MAX_INWARD = 15;
+// Scales with chapter count so each step keeps a similar sense of movement.
+// Stays safely short of PLANE_Z (26) minus the relief displacement so the camera
+// never clips into the nearest relief bumps.
+const MAX_INWARD = 19;
 // Camera world-z as a function of descent phase p in [0,1].
 const camZ = (p) => -MAX_INWARD * p;
 // Spacing of the suspended light rings along the corridor.
