@@ -1,3 +1,13 @@
+// TODO(beauty-12): descent grading — drive uExposure + fog color from descentRef so
+// light genuinely dims/cools toward The Silence; shrink the lamp Glow to an ember.
+// TODO(beauty-13): postprocessing — EffectComposer with Noise (film grain ~0.05,
+// hides banding in the dark gradients), Vignette (offset ~0.3, darkness ~0.65),
+// Bloom (high threshold so only the corridor core blooms), GodRays anchored to a
+// small emissive disc at the glowing door (~[0.53, 0.55] of frame, just in front of
+// the relief's deepest point), intensity rising as descent approaches max.
+// TODO(beauty-14): gl powerPreference 'high-performance'; drop plane segments to
+// ~[420, 236] on coarse-pointer devices.
+// TODO(beauty-15): SCENE textures — switch to .webp once converted.
 import { useRef, useMemo } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { useTexture } from '@react-three/drei';

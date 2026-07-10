@@ -1,0 +1,425 @@
+/* All HUD chrome for the tour. The current chapter accent arrives as --accent
+   on .tour-root, so color transitions ride a single CSS variable. */
+
+.tour-root {
+  position: fixed;
+  inset: 0;
+  background: var(--night);
+  overflow: hidden;
+  --accent: var(--gold);
+}
+
+/* --- Chapter card (top-left) ------------------------------------------- */
+
+.chapter-card {
+  position: fixed;
+  left: 2rem;
+  top: 2rem;
+  z-index: 35;
+  max-width: 22rem;
+  padding: 1rem 1.1rem;
+  border-radius: 1rem;
+  background: rgba(12, 10, 8, 0.72);
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.28);
+  transition: border-color 600ms ease;
+}
+
+.chapter-card .swap-stage,
+.folio .swap-stage {
+  position: relative;
+}
+
+.chapter-title {
+  font: 400 0.67rem/1 var(--mono);
+  letter-spacing: 0.24em;
+  color: var(--accent);
+  text-transform: uppercase;
+  margin-bottom: 0.45rem;
+  transition: color 600ms ease;
+}
+
+.chapter-subtitle {
+  font: italic 500 1.15rem/1.35 var(--serif);
+  color: var(--ink);
+  margin-bottom: 0.45rem;
+}
+
+.chapter-summary {
+  font: 400 0.8rem/1.6 var(--mono);
+  color: var(--ink-dim);
+}
+
+/* --- Folio (bottom-left quote) ------------------------------------------ */
+
+.folio {
+  position: fixed;
+  left: 2.2rem;
+  bottom: 4.5rem;
+  max-width: 30rem;
+  pointer-events: none;
+  z-index: 35;
+}
+
+.folio-eyebrow {
+  font: 400 0.66rem/1 var(--mono);
+  letter-spacing: 0.22em;
+  color: var(--accent);
+  margin-bottom: 0.7rem;
+  transition: color 600ms ease;
+}
+
+.folio-line {
+  font: italic 500 1.35rem/1.5 var(--serif);
+  color: var(--ink);
+}
+
+.folio-attr {
+  font: 400 0.62rem/1 var(--mono);
+  letter-spacing: 0.18em;
+  color: var(--ink-dim);
+  margin-top: 0.55rem;
+}
+
+/* Each word of the quote surfaces on its own slight delay. */
+.folio-word {
+  display: inline-block;
+  animation: folio-word 600ms ease both;
+}
+
+@keyframes folio-word {
+  from {
+    opacity: 0;
+    filter: blur(3px);
+    transform: translateY(0.2em);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(0);
+  }
+}
+
+/* --- Cross-fade between chapters ----------------------------------------
+   The camera sinks, so the world drifts upward: outgoing text rises away,
+   incoming text surfaces from below. */
+
+.swap-enter {
+  animation: swap-in 700ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+.swap-leave {
+  position: absolute;
+  inset: 0 0 auto 0;
+  pointer-events: none;
+  animation: swap-out 550ms ease both;
+}
+
+@keyframes swap-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes swap-out {
+  to {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+
+/* --- Controls (top-right) ------------------------------------------------ */
+
+.controls {
+  position: fixed;
+  inset: 1.25rem 1.25rem auto auto;
+  z-index: 40;
+  display: flex;
+  gap: 0.75rem;
+}
+
+.pill {
+  border: 1px solid rgba(201, 162, 76, 0.35);
+  background: rgba(21, 18, 13, 0.82);
+  color: var(--ink);
+  padding: 0.65rem 0.9rem;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  line-height: 1;
+  transition: background 300ms ease, border-color 300ms ease, opacity 300ms ease;
+}
+
+.pill:hover:not(:disabled) {
+  border-color: rgba(201, 162, 76, 0.7);
+  background: rgba(201, 162, 76, 0.14);
+}
+
+.pill:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.pill.is-on {
+  background: rgba(201, 162, 76, 0.2);
+}
+
+/* --- Depth dots (bottom-left) -------------------------------------------- */
+
+.depth {
+  position: fixed;
+  left: 2rem;
+  bottom: 2rem;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  pointer-events: none;
+}
+
+.depth-label {
+  font: 400 0.66rem/1 var(--mono);
+  letter-spacing: 0.22em;
+  color: var(--accent);
+  text-transform: uppercase;
+  transition: color 600ms ease;
+}
+
+.depth-dots {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* Borges' galleries are hexagonal; so are the markers. The button stays a
+   plain rect (so the focus ring isn't clipped) and the hexagon lives inside. */
+.hex-btn {
+  pointer-events: auto;
+  width: 1rem;
+  height: 1.1rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.hex-btn .hex {
+  display: block;
+  width: 100%;
+  height: 100%;
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+  background: rgba(236, 228, 210, 0.18);
+  transition: background 400ms ease;
+}
+
+.hex-btn:hover .hex {
+  background: rgba(236, 228, 210, 0.38);
+}
+
+.hex-btn.is-active .hex {
+  background: var(--accent);
+}
+
+/* --- Progress bar (bottom) ------------------------------------------------ */
+
+.progress {
+  position: fixed;
+  left: 2rem;
+  right: 2rem;
+  bottom: 1rem;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  pointer-events: none;
+}
+
+.progress-track {
+  flex: 1;
+  height: 0.18rem;
+  border-radius: 999px;
+  background: rgba(168, 156, 130, 0.24);
+  overflow: hidden;
+}
+
+.progress-fill {
+  width: 0%;
+  height: 100%;
+  background: linear-gradient(90deg, var(--gold), var(--ink));
+}
+
+.progress-label {
+  font: 400 0.66rem/1 var(--mono);
+  letter-spacing: 0.16em;
+  color: var(--ink-dim);
+  text-transform: uppercase;
+}
+
+/* --- Help overlay ---------------------------------------------------------- */
+
+.help-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(8, 8, 8, 0.64);
+  backdrop-filter: blur(8px);
+}
+
+.help-panel {
+  width: min(32rem, calc(100vw - 2rem));
+  border-radius: 1rem;
+  background: rgba(21, 18, 13, 0.95);
+  border: 1px solid rgba(201, 162, 76, 0.3);
+  padding: 1.25rem 1.35rem;
+  color: var(--ink);
+}
+
+.help-title {
+  font: 400 0.7rem/1 var(--mono);
+  letter-spacing: 0.26em;
+  color: var(--gold);
+  margin-bottom: 0.7rem;
+  text-transform: uppercase;
+}
+
+.help-body {
+  font: 400 0.95rem/1.6 var(--mono);
+  color: var(--ink);
+}
+
+.help-close {
+  margin-top: 1rem;
+  border: 1px solid rgba(201, 162, 76, 0.36);
+  background: rgba(201, 162, 76, 0.16);
+  color: var(--ink);
+  padding: 0.6rem 0.9rem;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+/* --- Entry veil -------------------------------------------------------------
+   The overture: title card over black, dissolving into node I on first click. */
+
+.entry-veil {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 1.4rem;
+  padding: 2rem;
+  background: radial-gradient(ellipse at 50% 60%, #1c1710 0%, #0b0906 70%);
+  cursor: pointer;
+  transition: opacity 1100ms ease;
+}
+
+.entry-veil.is-leaving {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.entry-eyebrow {
+  font: 400 0.68rem/1 var(--mono);
+  letter-spacing: 0.34em;
+  color: var(--ink-dim);
+  text-transform: uppercase;
+  animation: veil-rise 1400ms 200ms ease both;
+}
+
+.entry-title {
+  font: italic 500 clamp(2.1rem, 6vw, 3.6rem) / 1.15 var(--serif);
+  color: var(--ink);
+  margin: 0;
+  animation: veil-rise 1400ms 500ms ease both;
+}
+
+.entry-rule {
+  width: 4.5rem;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--gold), transparent);
+  animation: veil-rise 1400ms 800ms ease both;
+}
+
+.entry-status {
+  font: 400 0.72rem/1 var(--mono);
+  letter-spacing: 0.26em;
+  color: var(--gold);
+  text-transform: uppercase;
+  animation: veil-rise 1400ms 1100ms ease both, entry-breathe 3200ms 2000ms ease-in-out infinite;
+}
+
+@keyframes veil-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes entry-breathe {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+/* --- Small screens ----------------------------------------------------------- */
+
+@media (max-width: 720px) {
+  .chapter-card {
+    left: 1rem;
+    top: 1rem;
+    right: 1rem;
+    max-width: none;
+    padding: 0.8rem 0.9rem;
+  }
+
+  .chapter-summary {
+    display: none;
+  }
+
+  .folio {
+    left: 1rem;
+    right: 1rem;
+    bottom: 6rem;
+    max-width: none;
+  }
+
+  .folio-line {
+    font-size: 1.05rem;
+  }
+
+  .depth {
+    left: 1rem;
+    bottom: 2.6rem;
+  }
+
+  .progress {
+    left: 1rem;
+    right: 1rem;
+    bottom: 0.8rem;
+  }
+
+  .progress-label {
+    display: none;
+  }
+
+  .controls {
+    inset: auto 1rem 6.4rem auto;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+}
