@@ -1,12 +1,10 @@
 // TODO(beauty) — REMAINING PLAN (delete each item when done; see matching
 // TODO(beauty-N) comments in DioramaScene.jsx):
-//  12. DioramaScene: descent-driven grading — exposure and fog cool/darken toward
-//      The Silence, lamp glow shrinks to an ember.
 //  13. DioramaScene: postprocessing pass — film grain, soft vignette, high-threshold
-//      bloom, god rays from the glowing door. (@react-three/postprocessing installed.)
+//      bloom. (@react-three/postprocessing installed.)
 //  14. DioramaScene/Canvas: powerPreference 'high-performance', fewer plane segments
 //      on coarse-pointer devices.
-//  15. Convert public/nodes/descent/{color,depth_soft}.png to .webp, update SCENE
+//  15. Convert public/nodes/descent/impossible_*.png to .webp, update `scene`
 //      paths below (color lossy q~88, depth lossless).
 //  16. README: describe the actual project + how to add per-chapter artwork
 //      (nodes/<slug>/ color+depth pairs — needs new art, stays documented).
@@ -17,15 +15,26 @@ import DioramaScene from './DioramaScene';
 import TransitionVideo from './TransitionVideo';
 import AmbientSound from './ambientSound';
 
+// Four galleries, four artworks. Each node owns its relief (color + depth pair),
+// the [u, v] anchor of its light source (where the lamp glow hangs), its fog
+// mood, and its accent — so descending re-grades the whole world, not just the
+// picture.
 const NODES = [
   {
-    slug: 'descent',
-    title: 'The Descent',
+    slug: 'vestibule',
+    title: 'The Vestibule',
     subtitle: 'Threshold of the archive',
-    summary: 'A slow entry into the stack, where each corridor seems to breathe with memory.',
+    summary: 'Twin stairways rise into the dark, chains hang like plumb lines, and one robed reader waits at the door of fire.',
     accent: '#c9a24c',
+    scene: {
+      color: '/nodes/descent/impossible_1.png',
+      depth: '/nodes/descent/impossible_1_depth.png',
+      glowAt: [0.515, 0.84],
+      glowScale: 0.85,
+      fog: '#16110a',
+    },
     folio: {
-      eyebrow: 'NODE I — THE DESCENT',
+      eyebrow: 'NODE I — THE VESTIBULE',
       line: '"The universe (which others call the Library)…"',
       attr: 'J. L. BORGES — LA BIBLIOTECA DE BABEL, 1941',
     },
@@ -34,8 +43,15 @@ const NODES = [
     slug: 'echo',
     title: 'The Echo',
     subtitle: 'A corridor of repeated forms',
-    summary: 'The scene tilts inward as the fog gathers and the path becomes less certain.',
-    accent: '#d7b26d',
+    summary: 'Stairs cross stairs and arcades answer arcades — every passage insists it has been walked before.',
+    accent: '#d9b06a',
+    scene: {
+      color: '/nodes/descent/impossible_2.png',
+      depth: '/nodes/descent/impossible_2_depth.png',
+      glowAt: [0.655, 0.72],
+      glowScale: 1.0,
+      fog: '#141009',
+    },
     folio: {
       eyebrow: 'NODE II — THE ECHO',
       line: '"To speak is to fall into tautology."',
@@ -43,37 +59,20 @@ const NODES = [
     },
   },
   {
-    slug: 'hexagon',
-    title: 'The Hexagon',
-    subtitle: 'Geometry in the dark',
-    summary: 'The camera slips toward a wider geometry, framing the archive like a ritual chamber.',
-    accent: '#f0dba1',
-    folio: {
-      eyebrow: 'NODE III — THE HEXAGON',
-      line: '"A sphere whose exact center is any one of its hexagons and whose circumference is inaccessible."',
-      attr: 'J. L. BORGES — THE LIBRARY OF BABEL',
-    },
-  },
-  {
-    slug: 'return',
-    title: 'The Return',
-    subtitle: 'A closing of the loop',
-    summary: 'The passage narrows once more, and the archive opens like a hand closing around light.',
-    accent: '#e2c17a',
-    folio: {
-      eyebrow: 'NODE IV — THE RETURN',
-      line: '"The Library is unlimited and cyclical… the same volumes are repeated in the same disorder."',
-      attr: 'J. L. BORGES — THE LIBRARY OF BABEL',
-    },
-  },
-  {
     slug: 'vertigo',
     title: 'The Vertigo',
     subtitle: 'Shelves without end',
-    summary: 'The eye falls through gallery after gallery, and the count of the books refuses to close.',
-    accent: '#b98a3e',
+    summary: 'The galleries curl into a spiral pit under a shaft of cold light, and the count of the books refuses to close.',
+    accent: '#aabdd4',
+    scene: {
+      color: '/nodes/descent/impossible_3.png',
+      depth: '/nodes/descent/impossible_3_depth.png',
+      glowAt: [0.42, 0.3],
+      glowScale: 1.25,
+      fog: '#0b0f15',
+    },
     folio: {
-      eyebrow: 'NODE V — THE VERTIGO',
+      eyebrow: 'NODE III — THE VERTIGO',
       line: '"The certitude that everything has been written negates us or turns us into phantoms."',
       attr: 'J. L. BORGES — THE LIBRARY OF BABEL',
     },
@@ -82,20 +81,22 @@ const NODES = [
     slug: 'silence',
     title: 'The Silence',
     subtitle: 'Where the lamps grow faint',
-    summary: 'At the deepest reach the air stills, and only a distant gold remains to mark the way.',
-    accent: '#8f6f3a',
+    summary: 'At the deepest reach the stairways still their crossing, and a single lamp keeps the dark honest.',
+    accent: '#c98a3e',
+    scene: {
+      color: '/nodes/descent/impossible_4.png',
+      depth: '/nodes/descent/impossible_4_depth.png',
+      glowAt: [0.57, 0.86],
+      glowScale: 0.8,
+      fog: '#0f0d0b',
+    },
     folio: {
-      eyebrow: 'NODE VI — THE SILENCE',
+      eyebrow: 'NODE IV — THE SILENCE',
       line: '"Light is provided by spherical fruit which bear the name of lamps."',
       attr: 'J. L. BORGES — THE LIBRARY OF BABEL',
     },
   },
 ];
-
-const SCENE = {
-  color: '/nodes/descent/color.png',
-  depth: '/nodes/descent/depth_soft.png',
-};
 
 const MAX = NODES.length - 1;
 const clamp = (v) => Math.min(Math.max(v, 0), MAX);
@@ -140,7 +141,9 @@ function EntryVeil({ leaving, onEnter }) {
   const { active, progress } = useProgress();
   const [timedOut, setTimedOut] = useState(false);
   useEffect(() => {
-    const timer = setTimeout(() => setTimedOut(true), 3500);
+    // Four galleries' worth of textures stream in behind the veil; give them a
+    // generous window before letting an impatient reader through regardless.
+    const timer = setTimeout(() => setTimedOut(true), 15000);
     return () => clearTimeout(timer);
   }, []);
   const ready = timedOut || (!active && progress === 100);
@@ -168,7 +171,9 @@ function EntryVeil({ leaving, onEnter }) {
       <h1 className="entry-title">La Biblioteca de Babel</h1>
       <div className="entry-rule" />
       <div className="entry-status">
-        {ready ? 'Click to descend' : 'The Library is assembling…'}
+        {ready
+          ? 'Click to descend'
+          : `The Library is assembling… ${Math.min(99, Math.round(progress))}%`}
       </div>
     </div>
   );
@@ -259,18 +264,24 @@ export default function Tour() {
   // and only pokes React state when the settled chapter actually changes.
   useEffect(() => {
     let frame;
-    const tick = () => {
+    let last = performance.now();
+    const tick = (now) => {
+      // Wall-clock easing so the glide keeps the same meditative pace on any
+      // refresh rate (clamped so a background tab doesn't lurch on return).
+      const dt = Math.min((now - last) / 1000, 0.1);
+      last = now;
       const d = descentRef.current;
       const t = targetRef.current;
       // Very slow ease toward the target depth — a long, meditative glide, so a
       // full chapter move unfolds over many seconds rather than a quick lurch.
-      descentRef.current = Math.abs(t - d) < 0.0004 ? t : d + (t - d) * 0.012;
+      const glide = 1 - Math.exp(-dt * 0.72);
+      descentRef.current = Math.abs(t - d) < 0.0004 ? t : d + (t - d) * glide;
       const cur = descentRef.current;
 
       // Look-around: gaze eases toward its target, which itself drifts slowly back
       // to center — so the view always settles to facing down the corridor.
-      yawTarget.current += (0 - yawTarget.current) * 0.004;
-      yawRef.current += (yawTarget.current - yawRef.current) * 0.03;
+      yawTarget.current += (0 - yawTarget.current) * (1 - Math.exp(-dt * 0.24));
+      yawRef.current += (yawTarget.current - yawRef.current) * (1 - Math.exp(-dt * 1.8));
 
       // Interpolate accent between the two bracketing chapters.
       const lo = Math.floor(cur);
@@ -320,7 +331,7 @@ export default function Tour() {
     const timer = window.setInterval(() => {
       const atEnd = Math.round(targetRef.current) >= MAX;
       setTarget(atEnd ? 0 : Math.round(targetRef.current) + 1);
-    }, 7000);
+    }, 9000);
     return () => window.clearInterval(timer);
   }, [autoplay, setTarget]);
 
@@ -422,9 +433,7 @@ export default function Tour() {
       onPointerUp={handlePointerUp}
     >
       <DioramaScene
-        color={SCENE.color}
-        depth={SCENE.depth}
-        chapters={NODES.length}
+        scenes={NODES.map((n) => n.scene)}
         descentRef={descentRef}
         accentRef={accentRef}
         yawRef={yawRef}
