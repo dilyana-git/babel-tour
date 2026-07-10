@@ -4,8 +4,6 @@
 //      bloom. (@react-three/postprocessing installed.)
 //  14. DioramaScene/Canvas: powerPreference 'high-performance', fewer plane segments
 //      on coarse-pointer devices.
-//  15. Convert public/nodes/descent/impossible_*.png to .webp, update `scene`
-//      paths below (color lossy q~88, depth lossless).
 //  16. README: describe the actual project + how to add per-chapter artwork
 //      (nodes/<slug>/ color+depth pairs — needs new art, stays documented).
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -27,8 +25,8 @@ const NODES = [
     summary: 'Twin stairways rise into the dark, chains hang like plumb lines, and one robed reader waits at the door of fire.',
     accent: '#c9a24c',
     scene: {
-      color: '/nodes/descent/impossible_1.png',
-      depth: '/nodes/descent/impossible_1_depth.png',
+      color: '/nodes/descent/impossible_1.webp',
+      depth: '/nodes/descent/impossible_1_depth.webp',
       glowAt: [0.515, 0.84],
       glowScale: 0.85,
       fog: '#16110a',
@@ -46,8 +44,8 @@ const NODES = [
     summary: 'Stairs cross stairs and arcades answer arcades — every passage insists it has been walked before.',
     accent: '#d9b06a',
     scene: {
-      color: '/nodes/descent/impossible_2.png',
-      depth: '/nodes/descent/impossible_2_depth.png',
+      color: '/nodes/descent/impossible_2.webp',
+      depth: '/nodes/descent/impossible_2_depth.webp',
       glowAt: [0.655, 0.72],
       glowScale: 1.0,
       fog: '#141009',
@@ -65,8 +63,8 @@ const NODES = [
     summary: 'The galleries curl into a spiral pit under a shaft of cold light, and the count of the books refuses to close.',
     accent: '#aabdd4',
     scene: {
-      color: '/nodes/descent/impossible_3.png',
-      depth: '/nodes/descent/impossible_3_depth.png',
+      color: '/nodes/descent/impossible_3.webp',
+      depth: '/nodes/descent/impossible_3_depth.webp',
       glowAt: [0.42, 0.3],
       glowScale: 1.25,
       fog: '#0b0f15',
@@ -84,8 +82,8 @@ const NODES = [
     summary: 'At the deepest reach the stairways still their crossing, and a single lamp keeps the dark honest.',
     accent: '#c98a3e',
     scene: {
-      color: '/nodes/descent/impossible_4.png',
-      depth: '/nodes/descent/impossible_4_depth.png',
+      color: '/nodes/descent/impossible_4.webp',
+      depth: '/nodes/descent/impossible_4_depth.webp',
       glowAt: [0.57, 0.86],
       glowScale: 0.8,
       fog: '#0f0d0b',

@@ -3,7 +3,6 @@
 // Bloom (high threshold so only the lamp cores bloom).
 // TODO(beauty-14): gl powerPreference 'high-performance'; drop plane segments to
 // ~[420, 200] on coarse-pointer devices.
-// TODO(beauty-15): scene textures — switch to .webp once converted.
 import { useRef, useMemo } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { useTexture } from '@react-three/drei';
