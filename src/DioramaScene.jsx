@@ -3,7 +3,7 @@
 // Bloom (high threshold so only the lamp cores bloom).
 // TODO(beauty-14): gl powerPreference 'high-performance'; drop plane segments to
 // ~[420, 200] on coarse-pointer devices.
-import { useRef, useMemo } from 'react';
+import { useRef, useMemo, useEffect } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { useTexture } from '@react-three/drei';
 import * as THREE from 'three';
@@ -34,6 +34,10 @@ const camZ = (descent) => -descent * SCENE_SPACING;
 // World-z of gallery plane i.
 const planeZ = (i) => -(PLANE_Z + i * SCENE_SPACING);
 
+// Plane tessellation. Fine enough that the depth relief reads as smooth stone.
+const SEG_X = 600;
+const SEG_Y = 280;
+
 const paintingVert = /* glsl */`
   uniform sampler2D depthMap;
   uniform float relief;
@@ -42,13 +46,26 @@ const paintingVert = /* glsl */`
   uniform float uBreath;
   uniform float uFogNear;
   uniform float uFogFar;
+  uniform float uNearKnee;    // depth above which the nearest relief is eased off
+  uniform float uNearSquash;  // how hard that nearest band is compressed (1 = off)
   varying vec2 vUv;
   varying float vDepth;
   varying float vFog;
+  // Ease only the very nearest depths back toward the knee. Foreground rails,
+  // rings and chains sit at a hard depth cliff against the far pit; left at full
+  // relief they pop so far forward that the flat plane can only span the gap by
+  // stretching a triangle edge-on toward the camera — the molten "rubber-sheet"
+  // smear. Pulling the nearest band back shortens that span at the source. The
+  // squash fades in smoothly from the knee to white (no crease where the relief
+  // crosses the knee) and leaves the galleries' own depth, below the knee,
+  // untouched — so the descent keeps its drama while the smears mostly close up.
+  float relief_remap(float x) {
+    float t = smoothstep(uNearKnee, 1.0, x);
+    return mix(x, uNearKnee + (x - uNearKnee) * uNearSquash, t);
+  }
   void main() {
     vUv = uv;
-    float d = texture2D(depthMap, uv).r;
-    d = pow(d, depthGamma);
+    float d = relief_remap(pow(texture2D(depthMap, uv).r, depthGamma));
     vDepth = d;
     float breath = 1.0 + sin(uTime * 0.5) * 0.06 * uBreath;
     float ripple = sin(d * 9.0 - uTime * 0.7) * 0.015 * uBreath;
@@ -61,6 +78,8 @@ const paintingVert = /* glsl */`
 `;
 const paintingFrag = /* glsl */`
   uniform sampler2D map;
+  uniform sampler2D mapVideo;
+  uniform float uLive;
   uniform float uTime;
   uniform float uBreath;
   uniform float uFade;
@@ -71,6 +90,12 @@ const paintingFrag = /* glsl */`
   varying float vFog;
   void main() {
     vec4 tex = texture2D(map, vUv);
+    // The living surface: while the camera dwells here, the still painting
+    // exhales into its own image-to-video render — same artwork, in motion —
+    // and inhales back to stillness as the camera leaves.
+    if (uLive > 0.001) {
+      tex = mix(tex, texture2D(mapVideo, vUv), uLive);
+    }
     float pulse = 0.5 + 0.5 * sin(uTime * 0.35 + vDepth * 3.14159);
     tex.rgb += tex.rgb * pulse * 0.05 * uBreath * smoothstep(0.2, 1.0, vDepth);
 
@@ -98,12 +123,19 @@ const paintingFrag = /* glsl */`
 
 // One gallery relief. `index` fixes its station along the corridor; its own
 // useFrame drives the dissolve as the camera crosses it and keeps its fog
-// color in step with the graded background.
+// color in step with the graded background. If the artwork has a `video`
+// (an image-to-video render of this exact image), the surface wakes into it
+// while the camera is near and settles back to the still when it leaves.
 function Painting({
-  color, depth, index, chapters, aspect, relief, depthGamma, overscan,
+  color, depth, video, videoRate = 1, index, chapters, aspect, relief, depthGamma, overscan,
   reduced, descentRef, accentRef, fogRef,
 }) {
   const mesh = useRef();
+  // el: the <video>; tex: its VideoTexture; playing: true while it is running
+  // through its single pass; ended: true once that pass finished (the surface
+  // holds on the last frame, then settles to the still); armed: whether a new
+  // arrival is allowed to trigger a play (re-armed each time the camera leaves).
+  const live = useRef({ el: null, tex: null, playing: false, ended: false, armed: true });
   const [colorMap, depthMap] = useTexture([color, depth], (texes) => {
     texes[0].colorSpace = THREE.SRGBColorSpace;
     texes.forEach((t) => (t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping));
@@ -113,10 +145,14 @@ function Painting({
     const h = frustumH(PLANE_Z) * overscan;
     const w = h * aspect;
     return {
-      geo: new THREE.PlaneGeometry(w, h, 600, 280),
+      geo: new THREE.PlaneGeometry(w, h, SEG_X, SEG_Y),
       mat: new THREE.ShaderMaterial({
         uniforms: {
           map: { value: colorMap },
+          // Placeholder until the video's first frame is decodable; uLive
+          // stays 0 until then, so the sampler is never visibly wrong.
+          mapVideo: { value: colorMap },
+          uLive: { value: 0 },
           depthMap: { value: depthMap },
           relief: { value: relief },
           depthGamma: { value: depthGamma },
@@ -124,8 +160,16 @@ function Painting({
           uBreath: { value: reduced ? 0 : 1 },
           uFade: { value: 0 },
           uAccent: { value: new THREE.Color('#c9a24c') },
+          // Foreground-smear tamer: ease the nearest depths (rings, chains, near
+          // rails) back toward the knee so their silhouettes tear into shorter
+          // smears; below the knee the galleries keep full relief.
+          uNearKnee: { value: 0.6 },
+          uNearSquash: { value: 0.4 },
           uFogNear: { value: PLANE_Z - relief * 0.5 },
-          uFogFar: { value: PLANE_Z + SCENE_SPACING * 1.35 },
+          // Far enough that the next gallery already breathes faintly through
+          // the fog while you dwell — the corridor visibly continues, so a
+          // crossing reads as approach rather than apparition.
+          uFogFar: { value: PLANE_Z + SCENE_SPACING * 1.6 },
           uFogColor: { value: new THREE.Color('#15120d') },
         },
         vertexShader: paintingVert,
@@ -135,7 +179,23 @@ function Painting({
     };
   }, [colorMap, depthMap, aspect, relief, depthGamma, overscan, reduced]);
 
-  useFrame(({ clock }) => {
+  // Release the video and its texture with the painting.
+  useEffect(() => {
+    const state = live.current;
+    return () => {
+      if (state.el) {
+        state.el.pause();
+        state.el.removeAttribute('src');
+        state.el.load();
+        state.el.remove();
+      }
+      if (state.tex) {
+        state.tex.dispose();
+      }
+    };
+  }, []);
+
+  useFrame(({ clock }, delta) => {
     const descent = descentRef.current;
     // f > 0 once the camera has begun crossing this gallery.
     const f = descent - index;
@@ -147,6 +207,62 @@ function Painting({
     // Skip galleries fully dissolved behind us or still buried in full fog
     // ahead — at most two or three reliefs render at once.
     mesh.current.visible = f < 0.96 && index - descent < 1.4;
+
+    if (video && !reduced) {
+      const dist = Math.abs(descent - index);
+      const state = live.current;
+      // Begin streaming while still a gallery away, so the surface is ready
+      // to wake the moment the camera arrives.
+      if (!state.el && dist < 1.8) {
+        const el = document.createElement('video');
+        el.src = video;
+        el.muted = true;
+        el.loop = false; // one pass only — the surface animates, then holds
+        el.playsInline = true;
+        el.preload = 'auto';
+        el.playbackRate = videoRate; // <1 stretches the pass into a slow drift
+        el.style.display = 'none';
+        el.addEventListener('ended', () => {
+          state.playing = false;
+          state.ended = true;
+        });
+        document.body.appendChild(el);
+        state.el = el;
+      }
+      if (state.el) {
+        // On arrival, play the clip once. `armed` gates it to a single pass
+        // per visit; leaving re-arms it so a return replays the awakening.
+        if (state.armed && !state.playing && !state.ended && dist < 0.9) {
+          state.armed = false;
+          state.playing = true;
+          state.el.currentTime = 0;
+          state.el.playbackRate = videoRate; // reassert (load can reset it)
+          const p = state.el.play();
+          if (p && typeof p.catch === 'function') {
+            p.catch(() => { state.playing = false; });
+          }
+        }
+        // Once the camera has clearly left, reset to a still and re-arm so the
+        // next arrival can wake it again from its first frame.
+        if (dist > 1.1 && (state.playing || state.ended || !state.armed)) {
+          state.playing = false;
+          state.ended = false;
+          state.armed = true;
+          state.el.pause();
+        }
+        if (!state.tex && state.el.readyState >= state.el.HAVE_CURRENT_DATA) {
+          state.tex = new THREE.VideoTexture(state.el);
+          state.tex.colorSpace = THREE.SRGBColorSpace;
+          state.tex.wrapS = state.tex.wrapT = THREE.ClampToEdgeWrapping;
+          mat.uniforms.mapVideo.value = state.tex;
+        }
+      }
+      // The still exhales into motion while the single pass runs; the moment
+      // it ends (or the camera leaves) it settles gently back to the painting.
+      const awake = state.tex && state.playing ? 1 : 0;
+      const u = mat.uniforms.uLive;
+      u.value += (awake - u.value) * Math.min(delta * 0.7, 1);
+    }
   });
 
   return (
@@ -514,7 +630,13 @@ function DescentRig({ descentRef, yawRef, parallax, reduced }) {
 export default function DioramaScene({
   scenes,
   aspect = 3376 / 1440,
-  relief = 4.4,
+  // Depth-displacement strength. The artwork already reads as deep, so the mesh
+  // relief only adds parallax on top — and the smear a near silhouette drags
+  // across the void grows directly with it. These plates hang thin dark chains
+  // and rings against lit stone (the worst case), which streak into rubber-sheet
+  // smears at any strong displacement, so this is kept gentle. Raise toward ~2
+  // for more sculptural pop at the cost of those silhouettes smearing again.
+  relief = 1.0,
   depthGamma = 1.0,
   // Overscan keeps the relief past the frame edges so panning the gaze never
   // reveals the dark border — but stays modest so each artwork's whole
@@ -539,8 +661,9 @@ export default function DioramaScene({
       <GradeRig scenes={scenes} descentRef={descentRef} fogRef={fogRef} />
       {scenes.map((scene, i) => (
         <Painting
-          key={scene.color}
-          color={scene.color} depth={scene.depth}
+          key={`painting-${i}`}
+          color={scene.color} depth={scene.depth} video={scene.video}
+          videoRate={scene.videoRate}
           index={i} chapters={chapters} aspect={aspect}
           relief={relief} depthGamma={depthGamma} overscan={overscan}
           reduced={reduced} descentRef={descentRef}
@@ -549,7 +672,7 @@ export default function DioramaScene({
       ))}
       {scenes.map((scene, i) => (
         <Glow
-          key={`glow-${scene.color}`}
+          key={`glow-${i}`}
           scene={scene} index={i} aspect={aspect} overscan={overscan}
           accentRef={accentRef} descentRef={descentRef} reduced={reduced}
         />

@@ -10,14 +10,14 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import * as THREE from 'three';
 import { useProgress } from '@react-three/drei';
 import DioramaScene from './DioramaScene';
-import TransitionVideo from './TransitionVideo';
 import AmbientSound from './ambientSound';
 
-// Four galleries, four artworks. Each node owns its relief (color + depth pair),
+// Two worlds on one corridor. Each node owns its relief (color + depth pair),
 // the [u, v] anchor of its light source (where the lamp glow hangs), its fog
 // mood, and its accent — so descending re-grades the whole world, not just the
-// picture.
-const NODES = [
+// picture. The library's four galleries come first; dwelling in the deepest
+// one opens a door onto the garden's four paths (see GARDEN.md).
+const LIBRARY_NODES = [
   {
     slug: 'vestibule',
     title: 'The Vestibule',
@@ -96,8 +96,175 @@ const NODES = [
   },
 ];
 
+// The garden — Borges' other 1941 labyrinth, from the collection that gave
+// the Library its home. Warm amber cools into jade, flares gold once at the
+// pavilion, then dissolves into moon-silver.
+//
+// Each node offers several Midjourney variants; one is drawn per page load.
+// A variant's `videos` are image-to-video renders OF THAT EXACT ARTWORK —
+// when the camera dwells at the node, DioramaScene crossfades the relief's
+// surface from the still to its playing video, so the world itself stirs
+// (matched by content, not filename: the "library_*.mp4" clips are all Door
+// artwork and must never play elsewhere).
+const GARDEN_NODE_VARIANTS = {
+  door: {
+    title: 'The Door',
+    subtitle: 'One volume was a gate',
+    summary: 'Between two shelves the stone gives way; beyond the jamb, hedges breathe under a green moon.',
+    accent: '#9fc48a',
+    variants: [
+      {
+        color: '/nodes/garden/04-gothic-library-var0.webp',
+        depth: '/nodes/garden/04-gothic-library-var0-depth.webp',
+        videos: ['/video/library_1.mp4', '/video/library_2.mp4'],
+        glowAt: [0.5, 0.45], glowScale: 1.1,
+      },
+      {
+        color: '/nodes/garden/04-gothic-library-var2.webp',
+        depth: '/nodes/garden/04-gothic-library-var2-depth.webp',
+        videos: ['/video/library_3.mp4'],
+        glowAt: [0.47, 0.7], glowScale: 0.9,
+      },
+      {
+        color: '/nodes/garden/04-gothic-library-var3.webp',
+        depth: '/nodes/garden/04-gothic-library-var3-depth.webp',
+        videos: ['/video/library_4.mp4', '/video/library_5.mp4'],
+        glowAt: [0.49, 0.5], glowScale: 1.0,
+      },
+    ],
+    fog: '#0b1209',
+    folio: {
+      eyebrow: 'NODE V — THE DOOR',
+      line: '"I leave to the various futures (not to all) my garden of forking paths."',
+      attr: 'J. L. BORGES — THE GARDEN OF FORKING PATHS, 1941',
+    },
+  },
+  fork: {
+    title: 'The Fork',
+    subtitle: 'Every path taken at once',
+    summary: 'The pale gravel divides and divides again, and each branch insists it is the one you chose.',
+    accent: '#7fbf8e',
+    variants: [
+      {
+        color: '/nodes/garden/01-moonlit-labyrinth-var1.webp',
+        depth: '/nodes/garden/01-moonlit-labyrinth-var1-depth.webp',
+        videos: ['/video/garden_4.mp4', '/video/garden_5.mp4'],
+        glowAt: [0.74, 0.55], glowScale: 0.85,
+      },
+      {
+        color: '/nodes/garden/01-moonlit-labyrinth-var2.webp',
+        depth: '/nodes/garden/01-moonlit-labyrinth-var2-depth.webp',
+        videos: ['/video/labyrinth_1.mp4', '/video/labyrinth_2.mp4', '/video/labyrinth_3.mp4', '/video/labyrinth_4.mp4'],
+        glowAt: [0.585, 0.56], glowScale: 0.9,
+      },
+    ],
+    fog: '#0a140d',
+    folio: {
+      eyebrow: 'NODE VI — THE FORK',
+      line: '"In the fiction of Ts\'ui Pên, he chooses — simultaneously — all of them."',
+      attr: 'J. L. BORGES — THE GARDEN OF FORKING PATHS',
+    },
+  },
+  pavilion: {
+    title: 'The Pavilion',
+    subtitle: 'Where the lamp keeps every future',
+    summary: 'Over black water a single pavilion burns warm, and its music seems to arrive from all your lives at once.',
+    accent: '#e0b45c',
+    variants: [
+      { color: '/nodes/garden/03-solitary-pavilion-var0.webp', depth: '/nodes/garden/03-solitary-pavilion-var0-depth.webp', glowAt: [0.5, 0.55], glowScale: 1.15 },
+      { color: '/nodes/garden/03-solitary-pavilion-var1.webp', depth: '/nodes/garden/03-solitary-pavilion-var1-depth.webp', glowAt: [0.56, 0.55], glowScale: 1.1 },
+      { color: '/nodes/garden/03-solitary-pavilion-var2.webp', depth: '/nodes/garden/03-solitary-pavilion-var2-depth.webp', glowAt: [0.3, 0.52], glowScale: 1.0 },
+      { color: '/nodes/garden/03-solitary-pavilion-var3.webp', depth: '/nodes/garden/03-solitary-pavilion-var3-depth.webp', glowAt: [0.55, 0.55], glowScale: 1.1 },
+    ],
+    fog: '#0d1309',
+    folio: {
+      eyebrow: 'NODE VII — THE PAVILION',
+      line: '"The Garden of Forking Paths is an enormous riddle, or parable, whose theme is time."',
+      attr: 'J. L. BORGES — THE GARDEN OF FORKING PATHS',
+    },
+  },
+  web: {
+    title: 'The Web of Time',
+    subtitle: 'Strands that bifurcate and ignore each other',
+    summary: 'The paths stop pretending to be paths: in every direction you are already walking, choosing otherwise.',
+    accent: '#a9c9d8',
+    variants: [
+      {
+        color: '/nodes/garden/02-endless-garden-starry-var1.webp',
+        depth: '/nodes/garden/02-endless-garden-starry-var1-depth.webp',
+        videos: ['/video/garden_2.mp4', '/video/garden_3.mp4'],
+        glowAt: [0.48, 0.31], glowScale: 0.7,
+      },
+      {
+        color: '/nodes/garden/02-endless-garden-starry-var2.webp',
+        depth: '/nodes/garden/02-endless-garden-starry-var2-depth.webp',
+        videos: ['/video/garden_1.mp4'],
+        glowAt: [0.53, 0.33], glowScale: 0.7,
+      },
+    ],
+    fog: '#0c1114',
+    folio: {
+      eyebrow: 'NODE VIII — THE WEB OF TIME',
+      line: '"This web of time — the strands of which approach one another, bifurcate, intersect or ignore each other — embraces every possibility."',
+      attr: 'J. L. BORGES — THE GARDEN OF FORKING PATHS',
+    },
+  },
+};
+
+// Per-clip playback rate. Every source .mp4 is 5.21s; slowing a clip stretches
+// its single awakening pass into a longer, more dreamlike drift (the still
+// settles whenever the pass truly ends, so this just lengthens the motion).
+// Clips omitted here play at 1.0×. The hero, contemplative shots run slowest.
+const VIDEO_RATE = {
+  '/video/library_3.mp4': 0.5,   // the lone reader before the far moon → ~10.4s
+  '/video/library_4.mp4': 0.6,   // grand candlelit hall reveal → ~8.7s
+  '/video/library_5.mp4': 0.6,
+  '/video/garden_1.mp4': 0.55,   // starry delta, ghost figures → ~9.5s
+  '/video/garden_2.mp4': 0.55,
+  '/video/garden_3.mp4': 0.55,
+  '/video/labyrinth_3.mp4': 0.6, // the wide 1080p labyrinth → ~8.7s
+};
+
+const selectRandomVariant = (slug) => {
+  const node = GARDEN_NODE_VARIANTS[slug];
+  const variant = node.variants[Math.floor(Math.random() * node.variants.length)];
+  const video = variant.videos
+    ? variant.videos[Math.floor(Math.random() * variant.videos.length)]
+    : undefined;
+  return {
+    slug,
+    title: node.title,
+    subtitle: node.subtitle,
+    summary: node.summary,
+    accent: node.accent,
+    scene: {
+      color: variant.color,
+      depth: variant.depth,
+      glowAt: variant.glowAt,
+      glowScale: variant.glowScale,
+      video,
+      videoRate: video ? (VIDEO_RATE[video] ?? 1) : undefined,
+      fog: node.fog,
+    },
+    folio: node.folio,
+  };
+};
+
+const GARDEN_NODES = ['door', 'fork', 'pavilion', 'web'].map(selectRandomVariant);
+
+const GARDEN_ART_READY = true;
+
+const NODES = [
+  ...LIBRARY_NODES,
+  ...GARDEN_NODES.map((node, i) => (GARDEN_ART_READY ? node : {
+    ...node,
+    scene: { ...LIBRARY_NODES[i].scene, fog: node.scene.fog },
+  })),
+];
+
+const LIBRARY_MAX = LIBRARY_NODES.length - 1;
 const MAX = NODES.length - 1;
-const clamp = (v) => Math.min(Math.max(v, 0), MAX);
+const clamp = (v, max) => Math.min(Math.max(v, 0), max);
 
 // Pre-parse accent colors once for continuous interpolation between chapters.
 const ACCENTS = NODES.map((n) => new THREE.Color(n.accent));
@@ -118,7 +285,7 @@ function FadeSwap({ id, render }) {
     });
     const timer = setTimeout(
       () => setLayers((prev) => prev.filter((l) => !l.leaving)),
-      750,
+      1200,
     );
     return () => clearTimeout(timer);
   }, [id]);
@@ -185,6 +352,7 @@ export default function Tour() {
   // Live, render-free state driving the persistent canvas.
   const descentRef = useRef(0);   // current camera depth (float)
   const targetRef = useRef(0);    // where we're easing toward
+  const velRef = useRef(0);       // descent velocity (spring integration)
   const accentRef = useRef(ACCENTS[0].clone());
   const barRef = useRef(null);    // progress bar fill (mutated directly)
   const settledRef = useRef(0);   // last chapter the camera settled on
@@ -193,15 +361,22 @@ export default function Tour() {
   const [chapter, setChapter] = useState(0);
   const [autoplay, setAutoplay] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
-  const [videoFlash, setVideoFlash] = useState(0); // 0..1 flash envelope
   const [veil, setVeil] = useState('shown'); // 'shown' | 'leaving' | 'gone'
   const [muted, setMuted] = useState(false);
+
+  // The door to the garden. Sealed until the reader has dwelled in The
+  // Silence for a few breaths; once open it stays open. The ref mirrors the
+  // state for the render-free tick and input callbacks.
+  const [doorOpen, setDoorOpen] = useState(false);
+  const doorOpenRef = useRef(false);
+  // The reachable end of the corridor, eased — when the door opens, the
+  // progress bar relaxes from "journey complete" back to "the road goes on".
+  const unlockedEased = useRef(LIBRARY_MAX);
 
   const enteredRef = useRef(false);
   const audioRef = useRef(null);
 
   const pointerStart = useRef(null); // { x, y, yaw, swiped }
-  const flashStart = useRef(0);
 
   // Horizontal look-around. `yawRef` is the live gaze angle (radians); `yawTarget`
   // is where we're panning toward. Left/right pan the view without moving. The range
@@ -216,15 +391,12 @@ export default function Tour() {
   }, []);
 
   const setTarget = useCallback((next) => {
-    const to = clamp(next);
+    const to = clamp(next, doorOpenRef.current ? MAX : LIBRARY_MAX);
     const from = targetRef.current;
     targetRef.current = to;
-    // A change of destination triggers a video flash + audio swell bridging the move.
-    if (Math.round(to) !== Math.round(from) && !reduced) {
-      flashStart.current = performance.now();
-      if (audioRef.current) {
-        audioRef.current.swell();
-      }
+    // A new destination chapter: swell the ambience across the crossing.
+    if (Math.round(to) !== Math.round(from) && !reduced && audioRef.current) {
+      audioRef.current.swell();
     }
   }, [reduced]);
 
@@ -270,10 +442,21 @@ export default function Tour() {
       last = now;
       const d = descentRef.current;
       const t = targetRef.current;
-      // Very slow ease toward the target depth — a long, meditative glide, so a
-      // full chapter move unfolds over many seconds rather than a quick lurch.
-      const glide = 1 - Math.exp(-dt * 0.72);
-      descentRef.current = Math.abs(t - d) < 0.0004 ? t : d + (t - d) * glide;
+      // Critically damped spring toward the target depth: the camera gathers
+      // itself out of one gallery, crests mid-corridor, and brakes softly into
+      // the next — one continuous breath instead of a lurch-and-crawl. A full
+      // chapter crossing unfolds over roughly seven seconds.
+      const K = 0.55;                 // stiffness — sets the crossing's tempo
+      const C = 2 * Math.sqrt(K);     // critical damping — no overshoot
+      let v = velRef.current;
+      v += (K * (t - d) - C * v) * dt;
+      let next = d + v * dt;
+      if (Math.abs(t - next) < 0.0006 && Math.abs(v) < 0.002) {
+        next = t;
+        v = 0;
+      }
+      velRef.current = v;
+      descentRef.current = Math.min(Math.max(next, 0), MAX);
       const cur = descentRef.current;
 
       // Look-around: gaze eases toward its target, which itself drifts slowly back
@@ -286,29 +469,26 @@ export default function Tour() {
       const hi = Math.min(lo + 1, MAX);
       accentRef.current.copy(ACCENTS[lo]).lerp(ACCENTS[hi], cur - lo);
 
-      // Progress bar, updated by direct DOM write (no React render).
+      // Progress bar, updated by direct DOM write (no React render). Measured
+      // against the *reachable* end of the corridor, which itself eases out
+      // when the door opens — the full bar slowly gives way to a longer road.
+      unlockedEased.current +=
+        ((doorOpenRef.current ? MAX : LIBRARY_MAX) - unlockedEased.current) *
+        (1 - Math.exp(-dt * 1.6));
       if (barRef.current) {
-        barRef.current.style.width = `${(cur / (MAX || 1)) * 100}%`;
+        const frac = Math.min(cur / (unlockedEased.current || 1), 1);
+        barRef.current.style.width = `${frac * 100}%`;
       }
 
-      // The soundscape darkens with depth alongside the light.
+      // The soundscape darkens through the library, then the garden opens the
+      // air back up: leaf-hiss in, drone weight out, across the crossing.
       if (audioRef.current) {
-        audioRef.current.setDescent(MAX ? cur / MAX : 0);
+        audioRef.current.setDescent(Math.min(cur, LIBRARY_MAX) / (LIBRARY_MAX || 1));
+        audioRef.current.setGarden(Math.min(Math.max(cur - LIBRARY_MAX, 0), 1));
       }
 
-      // Video dissolve phase: linear 0->1 over ~4s; TransitionVideo shapes a slow,
-      // faint bloom that lingers softly rather than a bright pulse.
-      if (flashStart.current) {
-        const age = (performance.now() - flashStart.current) / 4000;
-        if (age >= 1) {
-          flashStart.current = 0;
-          setVideoFlash(0);
-        } else {
-          setVideoFlash(age);
-        }
-      }
-
-      // Update HUD chapter when we cross a rounded boundary.
+      // Update HUD chapter when we cross a rounded boundary — right at the
+      // bridge's peak, so the card swap happens under the video's cover.
       const nearest = Math.round(cur);
       if (nearest !== settledRef.current) {
         settledRef.current = nearest;
@@ -321,13 +501,31 @@ export default function Tour() {
     return () => cancelAnimationFrame(frame);
   }, []);
 
-  // Autoplay: drift forward, loop back to the top at the end.
+  // The door: once the reader has settled in The Silence and dwelled for a
+  // few breaths, a green light kindles between the shelves and the garden
+  // unlocks. Leaving before the dwell completes keeps it sealed.
+  useEffect(() => {
+    if (doorOpen || chapter !== LIBRARY_MAX) {
+      return undefined;
+    }
+    const timer = setTimeout(() => {
+      doorOpenRef.current = true;
+      setDoorOpen(true);
+      if (audioRef.current) {
+        audioRef.current.announce();
+      }
+    }, 4500);
+    return () => clearTimeout(timer);
+  }, [chapter, doorOpen]);
+
+  // Autoplay: drift forward, loop back to the top at the reachable end.
   useEffect(() => {
     if (!autoplay || NODES.length <= 1) {
       return undefined;
     }
     const timer = window.setInterval(() => {
-      const atEnd = Math.round(targetRef.current) >= MAX;
+      const end = doorOpenRef.current ? MAX : LIBRARY_MAX;
+      const atEnd = Math.round(targetRef.current) >= end;
       setTarget(atEnd ? 0 : Math.round(targetRef.current) + 1);
     }, 9000);
     return () => window.clearInterval(timer);
@@ -420,6 +618,7 @@ export default function Tour() {
   };
 
   const node = NODES[chapter];
+  const inGarden = chapter > LIBRARY_MAX;
 
   return (
     <div
@@ -437,8 +636,6 @@ export default function Tour() {
         yawRef={yawRef}
         reduced={reduced}
       />
-
-      <TransitionVideo active={videoFlash > 0.001} progress={videoFlash} reduced={reduced} />
 
       <div className="chapter-card">
         <FadeSwap
@@ -508,7 +705,7 @@ export default function Tour() {
           className="pill"
           aria-label="Descend one gallery"
           onClick={(e) => { e.stopPropagation(); go(1); }}
-          disabled={chapter === MAX}
+          disabled={chapter === (doorOpen ? MAX : LIBRARY_MAX)}
         >
           ↓
         </button>
@@ -523,21 +720,44 @@ export default function Tour() {
       </div>
 
       <div className="depth">
-        <div className="depth-label">{`DEPTH ${chapter + 1} / ${NODES.length}`}</div>
+        <div className="depth-label">
+          {inGarden
+            ? `PATH ${chapter - LIBRARY_MAX} / ${GARDEN_NODES.length}`
+            : `DEPTH ${chapter + 1} / ${LIBRARY_NODES.length}`}
+        </div>
         <div className="depth-dots">
-          {NODES.map((n, index) => (
-            <button
-              key={n.slug}
-              type="button"
-              className={`hex-btn${index === chapter ? ' is-active' : ''}`}
-              onClick={(e) => { e.stopPropagation(); jumpTo(index); }}
-              aria-label={`Descend to ${n.slug}`}
-            >
-              <span className="hex" />
-            </button>
-          ))}
+          {NODES.map((n, index) => {
+            const isGarden = index > LIBRARY_MAX;
+            if (isGarden && !doorOpen) {
+              return null;
+            }
+            return (
+              <button
+                key={n.slug}
+                type="button"
+                className={`hex-btn${index === chapter ? ' is-active' : ''}${isGarden ? ' is-garden' : ''}`}
+                onClick={(e) => { e.stopPropagation(); jumpTo(index); }}
+                aria-label={isGarden ? `Follow the path to ${n.slug}` : `Descend to ${n.slug}`}
+              >
+                <span className="hex" />
+              </button>
+            );
+          })}
         </div>
       </div>
+
+      {doorOpen && chapter === LIBRARY_MAX && (
+        <button
+          type="button"
+          className="door-call"
+          onClick={(e) => { e.stopPropagation(); jumpTo(LIBRARY_MAX + 1); }}
+          aria-label="Step through the door into the Garden of Forking Paths"
+        >
+          <span className="door-caption">
+            A door has opened — the garden of forking paths
+          </span>
+        </button>
+      )}
 
       {showHelp && (
         <div className="help-overlay">
@@ -549,7 +769,8 @@ export default function Tour() {
               • Swipe up or down to move between galleries on touch screens<br />
               • Click to drift one gallery deeper<br />
               • Press H to hide or show this guide<br />
-              • Use the depth hexagons for direct jumps
+              • Use the depth hexagons for direct jumps<br />
+              • In the deepest gallery, wait — something opens
             </div>
             <button
               type="button"
@@ -566,7 +787,7 @@ export default function Tour() {
         <div className="progress-track">
           <div ref={barRef} className="progress-fill" />
         </div>
-        <div className="progress-label">Descending</div>
+        <div className="progress-label">{inGarden ? 'Branching' : 'Descending'}</div>
       </div>
 
       {veil !== 'gone' && <EntryVeil leaving={veil === 'leaving'} onEnter={enter} />}

@@ -106,14 +106,14 @@
    incoming text surfaces from below. */
 
 .swap-enter {
-  animation: swap-in 700ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+  animation: swap-in 1600ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
 }
 
 .swap-leave {
   position: absolute;
   inset: 0 0 auto 0;
   pointer-events: none;
-  animation: swap-out 550ms ease both;
+  animation: swap-out 1100ms ease both;
 }
 
 @keyframes swap-in {
@@ -223,6 +223,79 @@
 
 .hex-btn.is-active .hex {
   background: var(--accent);
+}
+
+/* The garden's markers are stepping stones, not galleries: round, green-lit,
+   and they surface one by one when the door opens. */
+.hex-btn.is-garden .hex {
+  clip-path: none;
+  border-radius: 50%;
+  background: rgba(159, 196, 138, 0.22);
+  animation: dot-sprout 900ms ease both;
+}
+
+.hex-btn.is-garden:nth-child(6) .hex { animation-delay: 150ms; }
+.hex-btn.is-garden:nth-child(7) .hex { animation-delay: 300ms; }
+.hex-btn.is-garden:nth-child(8) .hex { animation-delay: 450ms; }
+
+.hex-btn.is-garden:hover .hex {
+  background: rgba(159, 196, 138, 0.45);
+}
+
+.hex-btn.is-garden.is-active .hex {
+  background: var(--accent);
+}
+
+@keyframes dot-sprout {
+  from {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* --- The door to the garden -------------------------------------------------
+   A thin slit of green light standing in the dark of The Silence — the one
+   element of the HUD that belongs to the *next* world. */
+
+.door-call {
+  position: fixed;
+  right: 20%;
+  top: 46%;
+  transform: translateY(-50%);
+  z-index: 38;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  animation: door-appear 2600ms ease both;
+}
+
+.door-caption {
+  font: 400 0.66rem/1.7 var(--mono);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: #bfe3a6;
+  max-width: 13rem;
+  text-shadow: 0 0 12px rgba(159, 196, 138, 0.4);
+}
+
+@keyframes door-appear {
+  from {
+    opacity: 0;
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+  }
 }
 
 /* --- Progress bar (bottom) ------------------------------------------------ */
@@ -421,5 +494,15 @@
     inset: auto 1rem 6.4rem auto;
     flex-direction: column;
     gap: 0.5rem;
+  }
+
+  .door-call {
+    right: 8%;
+    top: 42%;
+  }
+
+  .door-caption {
+    max-width: 9rem;
+    font-size: 0.6rem;
   }
 }
