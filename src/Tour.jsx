@@ -116,19 +116,19 @@ const GARDEN_NODE_VARIANTS = {
       {
         color: '/nodes/garden/04-gothic-library-var0.webp',
         depth: '/nodes/garden/04-gothic-library-var0-depth.webp',
-        videos: ['/video/library_1.mp4', '/video/library_2.mp4'],
+        videos: ['/video/04-gothic-library-var0-clip1.mp4', '/video/04-gothic-library-var0-clip2.mp4'],
         glowAt: [0.5, 0.45], glowScale: 1.1,
       },
       {
         color: '/nodes/garden/04-gothic-library-var2.webp',
         depth: '/nodes/garden/04-gothic-library-var2-depth.webp',
-        videos: ['/video/library_3.mp4'],
+        videos: ['/video/04-gothic-library-var2-clip1.mp4'],
         glowAt: [0.47, 0.7], glowScale: 0.9,
       },
       {
         color: '/nodes/garden/04-gothic-library-var3.webp',
         depth: '/nodes/garden/04-gothic-library-var3-depth.webp',
-        videos: ['/video/library_4.mp4', '/video/library_5.mp4'],
+        videos: ['/video/04-gothic-library-var3-clip1.mp4', '/video/04-gothic-library-var3-clip2.mp4'],
         glowAt: [0.49, 0.5], glowScale: 1.0,
       },
     ],
@@ -148,13 +148,13 @@ const GARDEN_NODE_VARIANTS = {
       {
         color: '/nodes/garden/01-moonlit-labyrinth-var1.webp',
         depth: '/nodes/garden/01-moonlit-labyrinth-var1-depth.webp',
-        videos: ['/video/garden_4.mp4', '/video/garden_5.mp4'],
+        videos: ['/video/01-moonlit-labyrinth-var1-clip2.mp4'],
         glowAt: [0.74, 0.55], glowScale: 0.85,
       },
       {
         color: '/nodes/garden/01-moonlit-labyrinth-var2.webp',
         depth: '/nodes/garden/01-moonlit-labyrinth-var2-depth.webp',
-        videos: ['/video/labyrinth_1.mp4', '/video/labyrinth_2.mp4', '/video/labyrinth_3.mp4', '/video/labyrinth_4.mp4'],
+        videos: ['/video/01-moonlit-labyrinth-var2-clip1.mp4', '/video/01-moonlit-labyrinth-var2-clip2.mp4', '/video/01-moonlit-labyrinth-var2-clip3.mp4', '/video/01-moonlit-labyrinth-var2-clip4.mp4'],
         glowAt: [0.585, 0.56], glowScale: 0.9,
       },
     ],
@@ -171,10 +171,30 @@ const GARDEN_NODE_VARIANTS = {
     summary: 'Over black water a single pavilion burns warm, and its music seems to arrive from all your lives at once.',
     accent: '#e0b45c',
     variants: [
-      { color: '/nodes/garden/03-solitary-pavilion-var0.webp', depth: '/nodes/garden/03-solitary-pavilion-var0-depth.webp', glowAt: [0.5, 0.55], glowScale: 1.15 },
-      { color: '/nodes/garden/03-solitary-pavilion-var1.webp', depth: '/nodes/garden/03-solitary-pavilion-var1-depth.webp', glowAt: [0.56, 0.55], glowScale: 1.1 },
-      { color: '/nodes/garden/03-solitary-pavilion-var2.webp', depth: '/nodes/garden/03-solitary-pavilion-var2-depth.webp', glowAt: [0.3, 0.52], glowScale: 1.0 },
-      { color: '/nodes/garden/03-solitary-pavilion-var3.webp', depth: '/nodes/garden/03-solitary-pavilion-var3-depth.webp', glowAt: [0.55, 0.55], glowScale: 1.1 },
+      {
+        color: '/nodes/garden/03-solitary-pavilion-var0.webp',
+        depth: '/nodes/garden/03-solitary-pavilion-var0-depth.webp',
+        videos: ['/video/03-solitary-pavilion-var0-clip0.mp4', '/video/03-solitary-pavilion-var0-clip1.mp4', '/video/03-solitary-pavilion-var0-clip2.mp4'],
+        glowAt: [0.5, 0.55], glowScale: 1.15,
+      },
+      {
+        color: '/nodes/garden/03-solitary-pavilion-var1.webp',
+        depth: '/nodes/garden/03-solitary-pavilion-var1-depth.webp',
+        videos: ['/video/03-solitary-pavilion-var1-clip0.mp4'],
+        glowAt: [0.56, 0.55], glowScale: 1.1,
+      },
+      {
+        color: '/nodes/garden/03-solitary-pavilion-var2.webp',
+        depth: '/nodes/garden/03-solitary-pavilion-var2-depth.webp',
+        videos: ['/video/03-solitary-pavilion-var2-clip0.mp4', '/video/03-solitary-pavilion-var2-clip1.mp4'],
+        glowAt: [0.3, 0.52], glowScale: 1.0,
+      },
+      {
+        color: '/nodes/garden/03-solitary-pavilion-var3.webp',
+        depth: '/nodes/garden/03-solitary-pavilion-var3-depth.webp',
+        videos: ['/video/03-solitary-pavilion-var3-clip0.mp4', '/video/03-solitary-pavilion-var3-clip1.mp4', '/video/03-solitary-pavilion-var3-clip3.mp4'],
+        glowAt: [0.55, 0.55], glowScale: 1.1,
+      },
     ],
     fog: '#0d1309',
     folio: {
@@ -192,13 +212,13 @@ const GARDEN_NODE_VARIANTS = {
       {
         color: '/nodes/garden/02-endless-garden-starry-var1.webp',
         depth: '/nodes/garden/02-endless-garden-starry-var1-depth.webp',
-        videos: ['/video/garden_2.mp4', '/video/garden_3.mp4'],
+        videos: ['/video/02-endless-garden-starry-var1-clip1.mp4', '/video/02-endless-garden-starry-var1-clip2.mp4'],
         glowAt: [0.48, 0.31], glowScale: 0.7,
       },
       {
         color: '/nodes/garden/02-endless-garden-starry-var2.webp',
         depth: '/nodes/garden/02-endless-garden-starry-var2-depth.webp',
-        videos: ['/video/garden_1.mp4'],
+        videos: ['/video/02-endless-garden-starry-var2-clip1.mp4'],
         glowAt: [0.53, 0.33], glowScale: 0.7,
       },
     ],
@@ -214,15 +234,19 @@ const GARDEN_NODE_VARIANTS = {
 // Per-clip playback rate. Every source .mp4 is 5.21s; slowing a clip stretches
 // its single awakening pass into a longer, more dreamlike drift (the still
 // settles whenever the pass truly ends, so this just lengthens the motion).
-// Clips omitted here play at 1.0×. The hero, contemplative shots run slowest.
+// Clips omitted here fall back to VIDEO_RATE_DEFAULT. The hero, contemplative
+// shots run slowest. At these rates the garden's surfaces breathe for ~11–13s
+// before settling, so the motion carries the whole dwell rather than a brief
+// flicker at the top of it.
+const VIDEO_RATE_DEFAULT = 0.42; // → ~12.4s per pass
 const VIDEO_RATE = {
-  '/video/library_3.mp4': 0.5,   // the lone reader before the far moon → ~10.4s
-  '/video/library_4.mp4': 0.6,   // grand candlelit hall reveal → ~8.7s
-  '/video/library_5.mp4': 0.6,
-  '/video/garden_1.mp4': 0.55,   // starry delta, ghost figures → ~9.5s
-  '/video/garden_2.mp4': 0.55,
-  '/video/garden_3.mp4': 0.55,
-  '/video/labyrinth_3.mp4': 0.6, // the wide 1080p labyrinth → ~8.7s
+  '/video/04-gothic-library-var2-clip1.mp4': 0.38,  // the lone reader before the far moon → ~13.7s
+  '/video/04-gothic-library-var3-clip1.mp4': 0.42,  // grand candlelit hall reveal → ~12.4s
+  '/video/04-gothic-library-var3-clip2.mp4': 0.42,
+  '/video/02-endless-garden-starry-var2-clip1.mp4': 0.38,   // starry delta, ghost figures → ~13.7s
+  '/video/02-endless-garden-starry-var1-clip1.mp4': 0.38,
+  '/video/02-endless-garden-starry-var1-clip2.mp4': 0.38,
+  '/video/01-moonlit-labyrinth-var2-clip3.mp4': 0.42, // the wide 1080p labyrinth → ~12.4s
 };
 
 const selectRandomVariant = (slug) => {
@@ -243,7 +267,7 @@ const selectRandomVariant = (slug) => {
       glowAt: variant.glowAt,
       glowScale: variant.glowScale,
       video,
-      videoRate: video ? (VIDEO_RATE[video] ?? 1) : undefined,
+      videoRate: video ? (VIDEO_RATE[video] ?? VIDEO_RATE_DEFAULT) : undefined,
       fog: node.fog,
     },
     folio: node.folio,
@@ -353,6 +377,13 @@ export default function Tour() {
   const descentRef = useRef(0);   // current camera depth (float)
   const targetRef = useRef(0);    // where we're easing toward
   const velRef = useRef(0);       // descent velocity (spring integration)
+  // Immersion: how far the camera has walked INTO the gallery it dwells before
+  // (0 = at the mouth, 1 = pressed deep among its cards). Separate from descent,
+  // so stepping in parallaxes the slab stack without dissolving the veil. The
+  // forward gesture fills this first and only rolls on to the next chapter once
+  // it tops out.
+  const immersionRef = useRef(0);
+  const immersionTargetRef = useRef(0);
   const accentRef = useRef(ACCENTS[0].clone());
   const barRef = useRef(null);    // progress bar fill (mutated directly)
   const settledRef = useRef(0);   // last chapter the camera settled on
@@ -394,13 +425,39 @@ export default function Tour() {
     const to = clamp(next, doorOpenRef.current ? MAX : LIBRARY_MAX);
     const from = targetRef.current;
     targetRef.current = to;
-    // A new destination chapter: swell the ambience across the crossing.
-    if (Math.round(to) !== Math.round(from) && !reduced && audioRef.current) {
-      audioRef.current.swell();
+    // A new destination chapter: swell the ambience across the crossing and
+    // reset immersion so you arrive at the mouth of the next room, not already
+    // buried in it.
+    if (Math.round(to) !== Math.round(from)) {
+      immersionTargetRef.current = 0;
+      if (!reduced && audioRef.current) {
+        audioRef.current.swell();
+      }
     }
   }, [reduced]);
 
+  // The single forward/back axis. A positive step walks deeper INTO the current
+  // gallery; once immersion tops out the next step crosses to the following
+  // chapter. Backing out empties immersion first, then retreats a chapter.
+  const advance = useCallback((step) => {
+    const next = immersionTargetRef.current + step;
+    if (next > 1) {
+      setTarget(Math.round(targetRef.current) + 1); // resets immersion to 0
+    } else if (next < 0) {
+      if (immersionTargetRef.current <= 0.001) {
+        setTarget(Math.round(targetRef.current) - 1);
+      } else {
+        immersionTargetRef.current = 0;
+      }
+    } else {
+      immersionTargetRef.current = next;
+    }
+  }, [setTarget]);
+
   const go = useCallback((dir) => {
+    // Whole-chapter jump (used by autoplay / chapter dots): clear immersion so
+    // the crossing reads cleanly, then step the target chapter.
+    immersionTargetRef.current = 0;
     setTarget(Math.round(targetRef.current) + dir);
   }, [setTarget]);
 
@@ -458,6 +515,13 @@ export default function Tour() {
       velRef.current = v;
       descentRef.current = Math.min(Math.max(next, 0), MAX);
       const cur = descentRef.current;
+
+      // Immersion eases toward its target, but only while the camera is settled
+      // on a chapter — mid-crossing it is pulled to 0 so the walk-in doesn't
+      // fight the veil dissolving between rooms.
+      const settled = Math.abs(cur - Math.round(cur)) < 0.02;
+      const immT = settled ? immersionTargetRef.current : 0;
+      immersionRef.current += (immT - immersionRef.current) * (1 - Math.exp(-dt * 2.4));
 
       // Look-around: gaze eases toward its target, which itself drifts slowly back
       // to center — so the view always settles to facing down the corridor.
@@ -544,11 +608,11 @@ export default function Tour() {
       }
       if (['ArrowDown', ' '].includes(event.key)) {
         event.preventDefault();
-        go(1);
+        advance(0.5); // step deeper into the room, then on to the next chapter
       }
       if (event.key === 'ArrowUp') {
         event.preventDefault();
-        go(-1);
+        advance(-0.5); // step back out toward the mouth, then to the previous
       }
       if (event.key === 'ArrowRight') {
         event.preventDefault();
@@ -561,20 +625,21 @@ export default function Tour() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [go, panYaw]);
+  }, [advance, panYaw]);
 
-  // Scroll wheel nudges descent gently — small increments, so the glide stays calm.
+  // Scroll wheel walks the camera in and out in small, calm increments — deeper
+  // into the current gallery first, rolling on to the next once fully immersed.
   useEffect(() => {
     const onWheel = (event) => {
       event.preventDefault();
       if (!enteredRef.current) {
         return;
       }
-      setTarget(targetRef.current + Math.sign(event.deltaY) * 0.12);
+      advance(Math.sign(event.deltaY) * 0.14);
     };
     window.addEventListener('wheel', onWheel, { passive: false });
     return () => window.removeEventListener('wheel', onWheel);
-  }, [setTarget]);
+  }, [advance]);
 
   // Pointer: drag horizontally to pan the gaze in real time; swipe vertically to
   // descend/ascend (the touch path to navigation); a plain click drifts deeper.
@@ -600,7 +665,7 @@ export default function Tour() {
     }
     if (!start.swiped && Math.abs(dy) > 60 && Math.abs(dy) > Math.abs(dx)) {
       start.swiped = true;
-      go(dy < 0 ? 1 : -1); // swipe up = sink deeper, matching the world moving up
+      advance(dy < 0 ? 0.5 : -0.5); // swipe up = press deeper into the room
       return;
     }
     // Map full-width drag to the full pan range; dragging right looks right.
@@ -613,7 +678,7 @@ export default function Tour() {
   const handleClick = () => {
     // Only advance if this was a click, not the end of a look-around drag.
     if (enteredRef.current && !dragMoved.current) {
-      go(1);
+      advance(0.5); // a click steps you further into the room
     }
   };
 
@@ -632,6 +697,7 @@ export default function Tour() {
       <DioramaScene
         scenes={NODES.map((n) => n.scene)}
         descentRef={descentRef}
+        immersionRef={immersionRef}
         accentRef={accentRef}
         yawRef={yawRef}
         reduced={reduced}
@@ -764,10 +830,10 @@ export default function Tour() {
           <div className="help-panel">
             <div className="help-title">Navigation help</div>
             <div className="help-body">
-              • Scroll, ↑ / ↓, or space descend and rise through the archive<br />
+              • Scroll, ↑ / ↓, or space walk into a gallery, then on to the next<br />
               • ← / → or drag horizontally to look around the space<br />
-              • Swipe up or down to move between galleries on touch screens<br />
-              • Click to drift one gallery deeper<br />
+              • Swipe up or down to walk in and move between galleries on touch<br />
+              • Click to step further into the room<br />
               • Press H to hide or show this guide<br />
               • Use the depth hexagons for direct jumps<br />
               • In the deepest gallery, wait — something opens

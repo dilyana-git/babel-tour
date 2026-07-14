@@ -31,16 +31,79 @@ const PLANE_Z = 26;
 const SCENE_SPACING = 14;
 // Camera world-z for a continuous descent value.
 const camZ = (descent) => -descent * SCENE_SPACING;
+// How far the camera can walk forward INTO the gallery it dwells before. This is
+// the "immersion" travel — it presses the camera through the slab stack (the near
+// cards sweep past) without advancing `descent`, so the veil never dissolves
+// while you are stepping in. Kept short of the near slab so you approach, not clip.
+const APPROACH = 15;
+// Shared camera world-z: base descent position pressed forward by immersion.
+const camZImmersed = (descent, immersion) => camZ(descent) - immersion * APPROACH;
 // World-z of gallery plane i.
 const planeZ = (i) => -(PLANE_Z + i * SCENE_SPACING);
 
-// Plane tessellation. Fine enough that the depth relief reads as smooth stone.
-const SEG_X = 600;
-const SEG_Y = 280;
+// --- Walking gait -----------------------------------------------------------
+// Translation is the walk; on top of it rides a single, gentle undulation so
+// that moving through the corridor feels grounded rather than gliding on air —
+// but with NO footfall impacts or roll (those read as a shaky camera). The gait
+// is paced by DISTANCE travelled (not wall-clock), so it only stirs while you
+// move and comes to rest the instant you stop — never a sway in place. Every
+// component is eased, so the motion is smooth throughout.
+const STRIDE_LENGTH = 5.0;   // world units per gentle rise-and-fall of the gait
+const GAIT_SPEED_CAP = 3.2;  // clamp so a fast step-in can't quicken into a bounce
+const WALK_REF_SPEED = 1.6;  // forward speed at which the undulation reaches full swing
+const STEP_BOB = 0.16;       // vertical undulation amplitude — soft, never a jolt
+const STEP_SWAY = 0.10;      // gentle side-to-side weight shift
+
+// Plane tessellation. The macro depth now comes from each slab's Z placement,
+// not from vertex displacement, so the mesh only needs enough resolution for the
+// gentle in-slab relief — far coarser than the old single heightfield.
+const SEG_X = 240;
+const SEG_Y = 120;
+
+// ---------------------------------------------------------------------------
+// Layered diorama model. Instead of one embossed billboard per chapter, each
+// painting is rebuilt as a paper-theatre: a full-image BACKDROP behind a stack
+// of depth-windowed SLABS. Each slab renders only the fragments whose depth
+// falls in its band (everything else is discarded by the shader), and sits at a
+// Z proportional to that band's depth. So a near chain and the far pit live on
+// genuinely separate cards — walking the camera forward slides them past one
+// another (real parallax), and a depth cliff no longer stretches one triangle
+// across the void: the fragments in the gap simply aren't drawn. The backdrop
+// catches whatever the parallax dis-occludes so a hole reveals stone, not fog.
+// ---------------------------------------------------------------------------
+// How many foreground slabs the depth range [0,1] is sliced into.
+const LAYER_COUNT = 5;
+// World-Z spread of the slab stack: the near band sits +DEPTH_SPREAD/2 toward
+// the camera, the far band the same behind, so there is real room to walk into.
+const DEPTH_SPREAD = 15;
+// Feather (in depth units) blended across each band edge, so neighbouring slabs
+// cross-fade into one another instead of showing a hard cutout seam.
+const LAYER_FEATHER = 0.07;
+// Anisotropic filtering for the painting/video surfaces. Slabs are viewed at a
+// grazing angle as the camera walks past and into them; without this the
+// stretched samples smear. Three clamps this to the GPU's max at upload, so we
+// request the common ceiling (16) and let it settle to whatever the card offers.
+const TEX_ANISOTROPY = 16;
+// Unsharp-mask strength applied to the still painting in the fragment shader.
+// The relief slabs show the texture overscanned and trilinearly filtered, which
+// upscales and softens the already-painterly art; a light high-pass restores the
+// edge definition (chains, carvings, balustrades) that filtering washed out.
+// Faded out as the surface goes live — the video is low-res and would crunch.
+const TEX_SHARPEN = 0.4;
+// The living surface never fully replaces the still: a sliver of the sharp
+// 3360-wide painting stays mixed over the low-res (944-wide) video, lending it
+// the still's high-frequency detail so the wake-up reads far less soft. Drop to
+// 1.0 once the clips are re-rendered at full resolution.
+const LIVE_MAX = 0.82;
+// Macro Z offset of a slab from the chapter's nominal plane, from its band center.
+const macroZ = (center) => (center - 0.5) * DEPTH_SPREAD;
+// The backdrop hangs just behind the farthest slab.
+const BACKDROP_MACRO = -0.5 * DEPTH_SPREAD - 2;
 
 const paintingVert = /* glsl */`
   uniform sampler2D depthMap;
   uniform float relief;
+  uniform float uLive;
   uniform float depthGamma;
   uniform float uTime;
   uniform float uBreath;
@@ -48,6 +111,7 @@ const paintingVert = /* glsl */`
   uniform float uFogFar;
   uniform float uNearKnee;    // depth above which the nearest relief is eased off
   uniform float uNearSquash;  // how hard that nearest band is compressed (1 = off)
+  uniform float uBandCenter;  // this slab's band center — the pivot its relief wraps
   varying vec2 vUv;
   varying float vDepth;
   varying float vFog;
@@ -69,8 +133,19 @@ const paintingVert = /* glsl */`
     vDepth = d;
     float breath = 1.0 + sin(uTime * 0.5) * 0.06 * uBreath;
     float ripple = sin(d * 9.0 - uTime * 0.7) * 0.015 * uBreath;
+    // Bright compact features that hang on a hard depth cliff — the lanterns,
+    // white against the near-black gaps behind them — get sheared when relief
+    // displaces the plane across that cliff, smearing a dark rim around them. On
+    // the still it barely shows, but the video's soft, drifting edges no longer
+    // register against the static depth window and the rim reads plainly. Ease
+    // the sculpt off as the surface goes live so the video plays flat; the still
+    // keeps its full relief, and it eases back as the camera leaves.
+    float liveRelief = relief * (1.0 - clamp(uLive * 1.25, 0.0, 1.0));
     vec3 p = position;
-    p.z += (d - 0.5) * relief * breath + ripple * relief;
+    // Relief now wraps this slab's own band center, so each card carries only a
+    // little surface sculpt around its plane; the depth between cards is the
+    // slab's macro Z offset (set on the mesh), not this displacement.
+    p.z += (d - uBandCenter) * liveRelief * breath + ripple * liveRelief;
     vec4 mv = modelViewMatrix * vec4(p, 1.0);
     vFog = clamp((-mv.z - uFogNear) / (uFogFar - uFogNear), 0.0, 1.0);
     gl_Position = projectionMatrix * mv;
@@ -85,11 +160,27 @@ const paintingFrag = /* glsl */`
   uniform float uFade;
   uniform vec3 uAccent;
   uniform vec3 uFogColor;
+  uniform vec2 uTexel;      // 1/imageSize, for the unsharp mask taps
+  uniform float uSharpen;   // high-pass strength on the still surface
+  uniform float uBandLo;    // this slab only draws depths in (uBandLo, uBandHi);
+  uniform float uBandHi;    // the backdrop passes everything (lo<0, hi>1).
+  uniform float uFeather;   // soft cross-fade width at each band edge
   varying vec2 vUv;
   varying float vDepth;
   varying float vFog;
   void main() {
     vec4 tex = texture2D(map, vUv);
+    // Unsharp mask: subtract a 4-tap neighbourhood blur to restore the crisp
+    // edges that overscan + trilinear filtering softened. Only on the still —
+    // scaled to zero as the (soft, low-res) video takes over so it never crunches.
+    float sharpen = uSharpen * (1.0 - clamp(uLive, 0.0, 1.0));
+    if (sharpen > 0.001) {
+      vec3 blur = texture2D(map, vUv + vec2(uTexel.x, 0.0)).rgb
+                + texture2D(map, vUv - vec2(uTexel.x, 0.0)).rgb
+                + texture2D(map, vUv + vec2(0.0, uTexel.y)).rgb
+                + texture2D(map, vUv - vec2(0.0, uTexel.y)).rgb;
+      tex.rgb += (tex.rgb * 4.0 - blur) * sharpen;
+    }
     // The living surface: while the camera dwells here, the still painting
     // exhales into its own image-to-video render — same artwork, in motion —
     // and inhales back to stillness as the camera leaves.
@@ -114,7 +205,12 @@ const paintingFrag = /* glsl */`
     float rim = smoothstep(th - 0.14, th - 0.03, vDepth) * (1.0 - smoothstep(th - 0.03, th + 0.08, vDepth));
     tex.rgb += uAccent * rim * envelope * 0.3;
 
-    gl_FragColor = vec4(tex.rgb, tex.a * alpha);
+    // Depth-band window: keep only this slab's slice of the image, feathered so
+    // it dissolves into its neighbours rather than cutting a hard silhouette.
+    float win = smoothstep(uBandLo - uFeather, uBandLo + uFeather, vDepth)
+              * (1.0 - smoothstep(uBandHi - uFeather, uBandHi + uFeather, vDepth));
+
+    gl_FragColor = vec4(tex.rgb, tex.a * alpha * win);
     if (gl_FragColor.a < 0.004) discard;
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
@@ -138,48 +234,81 @@ function Painting({
   const live = useRef({ el: null, tex: null, playing: false, ended: false, armed: true });
   const [colorMap, depthMap] = useTexture([color, depth], (texes) => {
     texes[0].colorSpace = THREE.SRGBColorSpace;
-    texes.forEach((t) => (t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping));
+    texes.forEach((t) => {
+      t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+      t.anisotropy = TEX_ANISOTROPY;
+    });
   });
 
-  const { geo, mat } = useMemo(() => {
-    const h = frustumH(PLANE_Z) * overscan;
-    const w = h * aspect;
-    return {
-      geo: new THREE.PlaneGeometry(w, h, SEG_X, SEG_Y),
-      mat: new THREE.ShaderMaterial({
-        uniforms: {
-          map: { value: colorMap },
-          // Placeholder until the video's first frame is decodable; uLive
-          // stays 0 until then, so the sampler is never visibly wrong.
-          mapVideo: { value: colorMap },
-          uLive: { value: 0 },
-          depthMap: { value: depthMap },
-          relief: { value: relief },
-          depthGamma: { value: depthGamma },
-          uTime: { value: 0 },
-          uBreath: { value: reduced ? 0 : 1 },
-          uFade: { value: 0 },
-          uAccent: { value: new THREE.Color('#c9a24c') },
-          // Foreground-smear tamer: ease the nearest depths (rings, chains, near
-          // rails) back toward the knee so their silhouettes tear into shorter
-          // smears; below the knee the galleries keep full relief.
-          uNearKnee: { value: 0.6 },
-          uNearSquash: { value: 0.4 },
-          uFogNear: { value: PLANE_Z - relief * 0.5 },
-          // Far enough that the next gallery already breathes faintly through
-          // the fog while you dwell — the corridor visibly continues, so a
-          // crossing reads as approach rather than apparition.
-          uFogFar: { value: PLANE_Z + SCENE_SPACING * 1.6 },
-          uFogColor: { value: new THREE.Color('#15120d') },
-        },
-        vertexShader: paintingVert,
-        fragmentShader: paintingFrag,
-        transparent: true,
-      }),
-    };
-  }, [colorMap, depthMap, aspect, relief, depthGamma, overscan, reduced]);
+  // The slab stack: one full-image backdrop (index 0) behind LAYER_COUNT
+  // depth-windowed foreground cards, near-band last so it draws over the rest.
+  const layers = useMemo(() => {
+    const defs = [
+      { backdrop: true, lo: -1, hi: 2, center: 0.5, macro: BACKDROP_MACRO, reliefScale: 0.4, over: 1.5 },
+    ];
+    for (let j = 0; j < LAYER_COUNT; j++) {
+      const lo = j / LAYER_COUNT;
+      const hi = (j + 1) / LAYER_COUNT;
+      const center = (lo + hi) / 2;
+      defs.push({ backdrop: false, lo, hi, center, macro: macroZ(center), reliefScale: 1, over: 1 });
+    }
+    return defs;
+  }, []);
 
-  // Release the video and its texture with the painting.
+  // Each slab fills the frustum at its own depth, so at the dwell distance every
+  // card covers the same screen region and the image registers pixel-for-pixel;
+  // only when the camera moves do the cards' different depths pull them apart.
+  const geos = useMemo(() => layers.map((L) => {
+    const dist = PLANE_Z - L.macro;
+    const h = frustumH(dist) * overscan * L.over;
+    return new THREE.PlaneGeometry(h * aspect, h, SEG_X, SEG_Y);
+  }), [layers, aspect, overscan]);
+
+  // Texel size of the still, for the fragment unsharp mask. useTexture suspends
+  // until the image is decoded, so colorMap.image is present here; fall back to
+  // the known plate size just in case.
+  const texel = useMemo(() => new THREE.Vector2(
+    1 / (colorMap.image?.width || 3376),
+    1 / (colorMap.image?.height || 1440),
+  ), [colorMap]);
+
+  const materials = useMemo(() => layers.map((L) => new THREE.ShaderMaterial({
+    uniforms: {
+      map: { value: colorMap },
+      uTexel: { value: texel },
+      uSharpen: { value: TEX_SHARPEN },
+      // Placeholder until the video's first frame is decodable; uLive stays 0
+      // until then, so the sampler is never visibly wrong.
+      mapVideo: { value: colorMap },
+      uLive: { value: 0 },
+      depthMap: { value: depthMap },
+      relief: { value: relief * L.reliefScale },
+      depthGamma: { value: depthGamma },
+      uTime: { value: 0 },
+      uBreath: { value: reduced ? 0 : 1 },
+      uFade: { value: 0 },
+      uAccent: { value: new THREE.Color('#c9a24c') },
+      // The near-knee squash was a single-plane smear tamer; slabs can't smear
+      // (out-of-band fragments are discarded), so it is switched off here.
+      uNearKnee: { value: 1.0 },
+      uNearSquash: { value: 1.0 },
+      uBandCenter: { value: L.center },
+      uBandLo: { value: L.lo },
+      uBandHi: { value: L.hi },
+      uFeather: { value: LAYER_FEATHER },
+      // Keep the dwelt gallery clear of fog; only the true far corridor and the
+      // next chapter's cards sink into it.
+      uFogNear: { value: PLANE_Z + 3 },
+      uFogFar: { value: PLANE_Z + SCENE_SPACING * 1.6 },
+      uFogColor: { value: new THREE.Color('#15120d') },
+    },
+    vertexShader: paintingVert,
+    fragmentShader: paintingFrag,
+    transparent: true,
+  })), [layers, colorMap, depthMap, relief, depthGamma, reduced, texel]);
+
+  // Release the video/texture with the painting, and the per-layer GPU
+  // resources when they are rebuilt (HMR, prop changes).
   useEffect(() => {
     const state = live.current;
     return () => {
@@ -194,19 +323,28 @@ function Painting({
       }
     };
   }, []);
+  useEffect(() => () => {
+    geos.forEach((g) => g.dispose());
+    materials.forEach((m) => m.dispose());
+  }, [geos, materials]);
 
   useFrame(({ clock }, delta) => {
     const descent = descentRef.current;
     // f > 0 once the camera has begun crossing this gallery.
     const f = descent - index;
     const fade = THREE.MathUtils.smoothstep(f, 0.05, 0.82);
-    mat.uniforms.uTime.value = clock.getElapsedTime();
-    mat.uniforms.uFade.value = fade;
-    mat.uniforms.uAccent.value.copy(accentRef.current);
-    mat.uniforms.uFogColor.value.copy(fogRef.current);
+    const t = clock.getElapsedTime();
+    for (const m of materials) {
+      m.uniforms.uTime.value = t;
+      m.uniforms.uFade.value = fade;
+      m.uniforms.uAccent.value.copy(accentRef.current);
+      m.uniforms.uFogColor.value.copy(fogRef.current);
+    }
     // Skip galleries fully dissolved behind us or still buried in full fog
-    // ahead — at most two or three reliefs render at once.
-    mesh.current.visible = f < 0.96 && index - descent < 1.4;
+    // ahead — at most two or three galleries' stacks render at once.
+    if (mesh.current) {
+      mesh.current.visible = f < 0.96 && index - descent < 1.4;
+    }
 
     if (video && !reduced) {
       const dist = Math.abs(descent - index);
@@ -254,27 +392,37 @@ function Painting({
           state.tex = new THREE.VideoTexture(state.el);
           state.tex.colorSpace = THREE.SRGBColorSpace;
           state.tex.wrapS = state.tex.wrapT = THREE.ClampToEdgeWrapping;
-          mat.uniforms.mapVideo.value = state.tex;
+          state.tex.anisotropy = TEX_ANISOTROPY;
+          for (const m of materials) {
+            m.uniforms.mapVideo.value = state.tex;
+          }
         }
       }
       // The still exhales into motion while the single pass runs; the moment
       // it ends (or the camera leaves) it settles gently back to the painting.
-      const awake = state.tex && state.playing ? 1 : 0;
-      const u = mat.uniforms.uLive;
-      u.value += (awake - u.value) * Math.min(delta * 0.7, 1);
+      const awake = state.tex && state.playing ? LIVE_MAX : 0;
+      const step = Math.min(delta * 0.7, 1);
+      for (const m of materials) {
+        const u = m.uniforms.uLive;
+        u.value += (awake - u.value) * step;
+      }
     }
   });
 
   return (
-    <mesh
-      ref={mesh}
-      geometry={geo}
-      material={mat}
-      position={[0, 0, planeZ(index)]}
-      // Painted back-to-front so a dissolving veil blends over the gallery
-      // emerging behind it.
-      renderOrder={1 + (chapters - index)}
-    />
+    <group ref={mesh}>
+      {layers.map((L, li) => (
+        <mesh
+          key={li}
+          geometry={geos[li]}
+          material={materials[li]}
+          position={[0, 0, planeZ(index) + L.macro]}
+          // Backdrop first, then slabs far-to-near, so translucent card edges
+          // blend over what is already behind them; deeper chapters draw first.
+          renderOrder={(chapters - index) * 20 + li}
+        />
+      ))}
+    </group>
   );
 }
 
@@ -549,10 +697,10 @@ function PortalRings({ accentRef, descentRef, chapters }) {
 
 // Carries the ambient layers (dust, ground fog, light shafts) along with the
 // camera so the air travels down the corridor with you.
-function AtmosphereRig({ descentRef, children }) {
+function AtmosphereRig({ descentRef, immersionRef, children }) {
   const group = useRef();
   useFrame(() => {
-    group.current.position.z = camZ(descentRef.current);
+    group.current.position.z = camZImmersed(descentRef.current, immersionRef ? immersionRef.current : 0);
   });
   return <group ref={group}>{children}</group>;
 }
@@ -582,12 +730,15 @@ function GradeRig({ scenes, descentRef, fogRef }) {
 // The camera rig: a slow, atmospheric dwell that presses deeper with each
 // chapter. Gazes into the corridor and can pan left/right (yaw) to look
 // around. Never rushes.
-function DescentRig({ descentRef, yawRef, parallax, reduced }) {
+function DescentRig({ descentRef, immersionRef, yawRef, parallax, reduced }) {
   const { camera, pointer } = useThree();
   const lookAt = useRef(new THREE.Vector3(0, 0, -PLANE_Z));
   const scratch = useRef(new THREE.Vector3());
+  // The gait's running state (distance-paced phase + how strongly it swings).
+  const walk = useRef({ prevZ: null, phase: 0, intensity: 0 });
   useFrame(({ clock }, delta) => {
-    const z = camZ(descentRef.current);
+    const immersion = immersionRef ? immersionRef.current : 0;
+    const z = camZImmersed(descentRef.current, immersion);
     const yaw = yawRef ? yawRef.current : 0;
 
     if (reduced) {
@@ -596,20 +747,45 @@ function DescentRig({ descentRef, yawRef, parallax, reduced }) {
       return;
     }
 
+    const dt = Math.min(delta, 0.1);
     const t = clock.getElapsedTime();
-    // Slow, small breathing sway — a gentle sense of hovering in the space, not
-    // motion sickness. Constant amplitude so deeper chapters feel just as calm.
-    const swayX = Math.sin(t * 0.05) * 0.35 + Math.sin(t * 0.021) * 0.2;
-    const swayY = Math.cos(t * 0.04) * 0.18;
-    const bob = Math.sin(t * 0.045) * 0.5;
+    const w = walk.current;
 
-    const targetX = pointer.x * parallax.x + swayX;
-    const targetY = pointer.y * parallax.y + swayY;
-    const targetZ = z + bob;
+    // --- Gentle walking undulation, paced by ground covered ------------------
+    if (w.prevZ === null) w.prevZ = z;
+    const travelled = Math.abs(z - w.prevZ);
+    w.prevZ = z;
+    const speed = travelled / Math.max(delta, 1e-4);
+    // Advance the gait phase by (capped) distance covered, so it only stirs
+    // while you move and never quickens into a bounce on a fast step-in.
+    const gaitStep = Math.min(speed, GAIT_SPEED_CAP) * dt;
+    w.phase = (w.phase + (gaitStep / STRIDE_LENGTH) * Math.PI * 2) % (Math.PI * 2);
+    // How strongly it swings — rises while walking, eases back to nothing the
+    // moment forward motion stops. Smooth onset so it never snaps in.
+    const speedNorm = Math.min(speed / WALK_REF_SPEED, 1);
+    w.intensity += (speedNorm - w.intensity) * (1 - Math.exp(-dt * 4));
+    const gI = w.intensity;
+    // A single soft rise-and-fall and a slow lateral lean — plain sines (no
+    // sharp footfall, no roll), so the world lifts and settles gently rather
+    // than jolting. Eased below with everything else, so it stays buttery.
+    const vBob = Math.sin(w.phase) * STEP_BOB * gI;
+    const hSway = Math.sin(w.phase * 0.5) * STEP_SWAY * gI;
 
-    // Very soft easing — the camera glides, it never snaps to position.
-    // Wall-clock based so the glide is identical on every refresh rate.
-    const ease = 1 - Math.exp(-Math.min(delta, 0.1) * 1.2);
+    // --- Idle drift: the faint breathing of standing still. It yields to the
+    // gait so a walker doesn't also float.
+    const calm = 1 - immersion * 0.6;
+    const idle = (1 - gI * 0.7) * calm;
+    const swayX = (Math.sin(t * 0.05) * 0.22 + Math.sin(t * 0.021) * 0.12) * idle;
+    const swayY = Math.cos(t * 0.04) * 0.10 * idle;
+
+    const targetX = pointer.x * parallax.x + swayX + hSway;
+    const targetY = pointer.y * parallax.y + swayY + vBob;
+    const targetZ = z;
+
+    // Very soft easing — the camera glides, it never snaps to position. Wall-clock
+    // based so the glide is identical on every refresh rate, and so the gait
+    // undulation is smoothed on its way to the camera rather than reading as shake.
+    const ease = 1 - Math.exp(-dt * 1.2);
     camera.position.x += (targetX - camera.position.x) * ease;
     camera.position.y += (targetY - camera.position.y) * ease;
     camera.position.z += (targetZ - camera.position.z) * ease;
@@ -644,6 +820,7 @@ export default function DioramaScene({
   overscan = 1.35,
   parallax = { x: 0.9, y: 0.45 },
   descentRef,
+  immersionRef,
   accentRef,
   yawRef,
   reduced = false,
@@ -678,13 +855,13 @@ export default function DioramaScene({
         />
       ))}
       <PortalRings accentRef={accentRef} descentRef={descentRef} chapters={chapters} />
-      <AtmosphereRig descentRef={descentRef}>
+      <AtmosphereRig descentRef={descentRef} immersionRef={immersionRef}>
         <Fog depth={PLANE_Z + 3} y={-0.58} opacity={0.14} scale={1.5} aspect={aspect} index={0} descentRef={descentRef} />
         <Fog depth={PLANE_Z - 6} y={-0.62} opacity={0.20} scale={1.2} aspect={aspect} index={1} descentRef={descentRef} />
         <LightShafts aspect={aspect} accentRef={accentRef} reduced={reduced} />
         <Motes aspect={aspect} reduced={reduced} descentRef={descentRef} />
       </AtmosphereRig>
-      <DescentRig descentRef={descentRef} yawRef={yawRef} parallax={parallax} reduced={reduced} />
+      <DescentRig descentRef={descentRef} immersionRef={immersionRef} yawRef={yawRef} parallax={parallax} reduced={reduced} />
     </Canvas>
   );
 }
