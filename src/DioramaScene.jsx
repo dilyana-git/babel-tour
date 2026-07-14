@@ -83,7 +83,7 @@ const paintingFrag = /* glsl */`
   }
 `;
 
-function Painting({ color, depth, aspect, relief, depthGamma, overscan, reduced }) {
+function Painting({ color, depth, aspect, relief, depthGamma, overscan, reduced, worldRef }) {
   const ref = useRef();
   const [colorMap, depthMap] = useTexture([color, depth], (texes) => {
     texes[0].colorSpace = THREE.SRGBColorSpace;
@@ -115,6 +115,10 @@ function Painting({ color, depth, aspect, relief, depthGamma, overscan, reduced 
 
   useFrame(({ clock }) => {
     mat.uniforms.uTime.value = clock.getElapsedTime();
+    // Keep the depth fog in step with the ambient world tint (library ↔ garden).
+    if (worldRef) {
+      mat.uniforms.uFogColor.value.lerp(worldRef.current, 0.04);
+    }
   });
 
   return <mesh ref={ref} geometry={geo} material={mat} position={[0, 0, -PLANE_Z]} renderOrder={1} />;
@@ -346,8 +350,10 @@ function LightShafts({ aspect, accentRef, count = 4, reduced }) {
 }
 
 // A ring of light suspended ahead in the dark; the camera passes through one
-// each chapter, reinforcing the sense of descending gallery to gallery.
-function PortalRings({ accentRef, descentRef, chapters }) {
+// each chapter, reinforcing the sense of descending gallery to gallery. The ring
+// at `vortexIndex` is the entrance to the garden and gets a spinning vortex laid
+// over it (see VortexPortal) so it reads as a turning door rather than a plain hoop.
+function PortalRings({ accentRef, descentRef, chapters, vortexIndex = -1, reduced }) {
   const group = useRef();
   useFrame(({ clock }) => {
     if (!group.current) {
@@ -365,11 +371,64 @@ function PortalRings({ accentRef, descentRef, chapters }) {
     });
   });
   return (
-    <group ref={group}>
-      {Array.from({ length: chapters }, (_, i) => (
-        <mesh key={i} position={[0, 0, -(PLANE_Z - 1.5) + i * STEP_DEPTH]} renderOrder={2}>
-          <torusGeometry args={[3.4, 0.05, 16, 120]} />
-          <meshBasicMaterial transparent opacity={0.08} depthWrite={false} />
+    <>
+      <group ref={group}>
+        {Array.from({ length: chapters }, (_, i) => (
+          <mesh key={i} position={[0, 0, -(PLANE_Z - 1.5) + i * STEP_DEPTH]} renderOrder={2}>
+            <torusGeometry args={[3.4, 0.05, 16, 120]} />
+            <meshBasicMaterial transparent opacity={0.08} depthWrite={false} />
+          </mesh>
+        ))}
+      </group>
+      {vortexIndex >= 0 && (
+        <VortexPortal
+          accentRef={accentRef}
+          descentRef={descentRef}
+          index={vortexIndex}
+          reduced={reduced}
+        />
+      )}
+    </>
+  );
+}
+
+// The vortex itself: a nest of concentric rings sharing the vortex ring's position,
+// counter-rotating at rising speeds so the eye reads a spiral swirl. It brightens
+// and tightens as the camera nears the vortex node and all but vanishes elsewhere,
+// so the entrance to the garden only opens when you are actually upon it.
+function VortexPortal({ accentRef, descentRef, index, reduced }) {
+  const group = useRef();
+  const RINGS = 6;
+  const z = -(PLANE_Z - 1.5) + index * STEP_DEPTH;
+  useFrame(({ clock }) => {
+    if (!group.current) {
+      return;
+    }
+    const t = clock.getElapsedTime();
+    // How centred we are on the vortex node — a tight window so the swirl is a
+    // localized event, not a permanent fixture of the corridor.
+    const proximity = Math.max(0, 1 - Math.abs(descentRef.current - index) * 1.1);
+    const swirl = reduced ? 0.15 : 1;
+    group.current.children.forEach((ring, i) => {
+      const depth = i / (RINGS - 1); // 0 (outer) .. 1 (inner)
+      const dir = i % 2 === 0 ? 1 : -1; // counter-rotating layers
+      ring.rotation.z = t * (0.25 + depth * 0.9) * dir * swirl;
+      // Inner rings pull inward as the vortex tightens, giving the funnel a throat.
+      const tighten = 1 - depth * 0.62 * (0.4 + proximity * 0.6);
+      ring.scale.setScalar(tighten);
+      ring.material.opacity = (0.05 + depth * 0.10) * proximity * proximity;
+      ring.material.color.lerp(accentRef.current, 0.06);
+    });
+  });
+  return (
+    <group ref={group} position={[0, 0, z]} renderOrder={3}>
+      {Array.from({ length: RINGS }, (_, i) => (
+        <mesh key={i} position={[0, 0, i * 0.35]}>
+          <torusGeometry args={[3.2, 0.045, 16, 140]} />
+          <meshBasicMaterial
+            transparent opacity={0.08} depthWrite={false}
+            blending={THREE.AdditiveBlending}
+          />
         </mesh>
       ))}
     </group>
@@ -424,6 +483,20 @@ function DescentRig({ descentRef, maxDescent, yawRef, parallax, reduced }) {
   return null;
 }
 
+// Eases the scene background toward the current node's ambient "world" color, so
+// the surrounding dark shifts from library gold-black to garden green-black as the
+// vortex is crossed. A no-op (holds the default) when no worldRef is supplied.
+function WorldTint({ worldRef }) {
+  const { scene } = useThree();
+  useFrame(() => {
+    if (!worldRef || !scene.background) {
+      return;
+    }
+    scene.background.lerp(worldRef.current, 0.04);
+  });
+  return null;
+}
+
 export default function DioramaScene({
   color,
   depth,
@@ -435,8 +508,10 @@ export default function DioramaScene({
   overscan = 1.9,
   parallax = { x: 0.9, y: 0.45 },
   chapters = 4,
+  vortexIndex = -1,
   descentRef,
   accentRef,
+  worldRef,
   yawRef,
   reduced = false,
 }) {
@@ -447,17 +522,21 @@ export default function DioramaScene({
       gl={{ antialias: true }}
     >
       <color attach="background" args={['#15120d']} />
+      <WorldTint worldRef={worldRef} />
       <Painting
         color={color} depth={depth} aspect={aspect}
         relief={relief} depthGamma={depthGamma}
-        overscan={overscan} reduced={reduced}
+        overscan={overscan} reduced={reduced} worldRef={worldRef}
       />
       <Fog depth={PLANE_Z + 3} y={-0.58} opacity={0.14} scale={1.5} aspect={aspect} index={0} descentRef={descentRef} />
       <Fog depth={PLANE_Z - 6} y={-0.62} opacity={0.20} scale={1.2} aspect={aspect} index={1} descentRef={descentRef} />
       <LightShafts aspect={aspect} accentRef={accentRef} reduced={reduced} />
       <Motes aspect={aspect} reduced={reduced} descentRef={descentRef} />
       <Glow aspect={aspect} accentRef={accentRef} reduced={reduced} />
-      <PortalRings accentRef={accentRef} descentRef={descentRef} chapters={chapters} />
+      <PortalRings
+        accentRef={accentRef} descentRef={descentRef}
+        chapters={chapters} vortexIndex={vortexIndex} reduced={reduced}
+      />
       <DescentRig descentRef={descentRef} maxDescent={chapters - 1} yawRef={yawRef} parallax={parallax} reduced={reduced} />
     </Canvas>
   );

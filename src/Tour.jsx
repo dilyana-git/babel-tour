@@ -17,15 +17,27 @@ import DioramaScene from './DioramaScene';
 import TransitionVideo from './TransitionVideo';
 import AmbientSound from './ambientSound';
 
+// The tour is a single continuous descent, but its nodes belong to two realms.
+// The library galleries carry the reader downward until, at THE VORTEX, a turning
+// of light opens an entrance out of the stacks and into the garden. The garden
+// nodes are traversed, then THE RETURN rises back into the deeper library.
+//
+// Each node declares its `realm` ('library' | 'garden'); the vortex node is flagged
+// with `vortex: true` and is the hinge between them. `world` is the ambient color
+// the whole scene tints toward while dwelling on that node — gold in the library,
+// green-gold in the garden — so crossing the vortex genuinely feels like stepping
+// into another world. Reordering these entries reorders the descent itself.
 const NODES = [
   {
     slug: 'descent',
     title: 'The Descent',
     subtitle: 'Threshold of the archive',
     summary: 'A slow entry into the stack, where each corridor seems to breathe with memory.',
+    realm: 'library',
     accent: '#c9a24c',
+    world: '#15120d',
     folio: {
-      eyebrow: 'NODE I — THE DESCENT',
+      eyebrow: 'LIBRARY I — THE DESCENT',
       line: '"The universe (which others call the Library)…"',
       attr: 'J. L. BORGES — LA BIBLIOTECA DE BABEL, 1941',
     },
@@ -35,9 +47,11 @@ const NODES = [
     title: 'The Echo',
     subtitle: 'A corridor of repeated forms',
     summary: 'The scene tilts inward as the fog gathers and the path becomes less certain.',
+    realm: 'library',
     accent: '#d7b26d',
+    world: '#16130d',
     folio: {
-      eyebrow: 'NODE II — THE ECHO',
+      eyebrow: 'LIBRARY II — THE ECHO',
       line: '"To speak is to fall into tautology."',
       attr: 'J. L. BORGES — THE LIBRARY OF BABEL',
     },
@@ -47,21 +61,68 @@ const NODES = [
     title: 'The Hexagon',
     subtitle: 'Geometry in the dark',
     summary: 'The camera slips toward a wider geometry, framing the archive like a ritual chamber.',
+    realm: 'library',
     accent: '#f0dba1',
+    world: '#17140d',
     folio: {
-      eyebrow: 'NODE III — THE HEXAGON',
+      eyebrow: 'LIBRARY III — THE HEXAGON',
       line: '"A sphere whose exact center is any one of its hexagons and whose circumference is inaccessible."',
       attr: 'J. L. BORGES — THE LIBRARY OF BABEL',
     },
   },
   {
+    slug: 'vortex',
+    title: 'The Vortex',
+    subtitle: 'A turning of light in the stacks',
+    summary: 'One gallery does not end in a wall but in a slow spiral of light — a door that was never shelved. Passing through it, the library gives way to a garden.',
+    realm: 'library',
+    vortex: true,
+    accent: '#b7b56a',
+    world: '#141609',
+    folio: {
+      eyebrow: 'LIBRARY IV — THE VORTEX',
+      line: '"He believed in an infinite series of times, in a growing, dizzying net of divergent, convergent and parallel times."',
+      attr: 'J. L. BORGES — THE GARDEN OF FORKING PATHS, 1941',
+    },
+  },
+  {
+    slug: 'forking',
+    title: 'The Forking Paths',
+    subtitle: 'A labyrinth that grows as you walk',
+    summary: 'Beyond the vortex the air turns green. Every path divides, and each division is chosen and refused at once, the way widening into leaves.',
+    realm: 'garden',
+    accent: '#7fae5a',
+    world: '#0e1509',
+    folio: {
+      eyebrow: 'GARDEN I — THE FORKING PATHS',
+      line: '"The garden of forking paths was the chaotic novel; the phrase \'the various futures (not to all)\' suggested the image of bifurcating in time, not in space."',
+      attr: 'J. L. BORGES — THE GARDEN OF FORKING PATHS',
+    },
+  },
+  {
+    slug: 'pavilion',
+    title: 'The Pavilion',
+    subtitle: 'A still centre among the branches',
+    summary: 'At the heart of the garden a lit pavilion holds itself apart, where all the divergent paths seem, for a moment, to have been the same path.',
+    realm: 'garden',
+    accent: '#a8c56f',
+    world: '#101707',
+    folio: {
+      eyebrow: 'GARDEN II — THE PAVILION',
+      line: '"In all fictional works, each time a man is confronted with several alternatives, he chooses one and eliminates the others; in the fiction of Ts’ui Pên, he chooses — simultaneously — all of them."',
+      attr: 'J. L. BORGES — THE GARDEN OF FORKING PATHS',
+    },
+  },
+  {
     slug: 'return',
     title: 'The Return',
-    subtitle: 'A closing of the loop',
-    summary: 'The passage narrows once more, and the archive opens like a hand closing around light.',
-    accent: '#e2c17a',
+    subtitle: 'Rising out of the leaves',
+    summary: 'The green thins, the shelves reassemble around you, and the garden closes like a hand — the library taking you back the way it never let you leave.',
+    realm: 'library',
+    accent: '#cbb878',
+    world: '#16130d',
     folio: {
-      eyebrow: 'NODE IV — THE RETURN',
+      eyebrow: 'LIBRARY V — THE RETURN',
       line: '"The Library is unlimited and cyclical… the same volumes are repeated in the same disorder."',
       attr: 'J. L. BORGES — THE LIBRARY OF BABEL',
     },
@@ -71,9 +132,11 @@ const NODES = [
     title: 'The Vertigo',
     subtitle: 'Shelves without end',
     summary: 'The eye falls through gallery after gallery, and the count of the books refuses to close.',
+    realm: 'library',
     accent: '#b98a3e',
+    world: '#161109',
     folio: {
-      eyebrow: 'NODE V — THE VERTIGO',
+      eyebrow: 'LIBRARY VI — THE VERTIGO',
       line: '"The certitude that everything has been written negates us or turns us into phantoms."',
       attr: 'J. L. BORGES — THE LIBRARY OF BABEL',
     },
@@ -83,14 +146,20 @@ const NODES = [
     title: 'The Silence',
     subtitle: 'Where the lamps grow faint',
     summary: 'At the deepest reach the air stills, and only a distant gold remains to mark the way.',
+    realm: 'library',
     accent: '#8f6f3a',
+    world: '#100d07',
     folio: {
-      eyebrow: 'NODE VI — THE SILENCE',
+      eyebrow: 'LIBRARY VII — THE SILENCE',
       line: '"Light is provided by spherical fruit which bear the name of lamps."',
       attr: 'J. L. BORGES — THE LIBRARY OF BABEL',
     },
   },
 ];
+
+// Index of the node whose vortex opens into the garden — the entrance the whole
+// reordering is built around. Derived so it stays correct if the list is reordered.
+const VORTEX_INDEX = NODES.findIndex((n) => n.vortex);
 
 const SCENE = {
   color: '/nodes/descent/color.png',
@@ -102,6 +171,9 @@ const clamp = (v) => Math.min(Math.max(v, 0), MAX);
 
 // Pre-parse accent colors once for continuous interpolation between chapters.
 const ACCENTS = NODES.map((n) => new THREE.Color(n.accent));
+// Ambient "world" colors — the tint the whole scene (background + fog) eases toward,
+// so crossing the vortex from library gold into garden green reads as a change of world.
+const WORLDS = NODES.map((n) => new THREE.Color(n.world));
 
 // Renders `render(id)` and, when `id` changes, keeps the outgoing copy mounted
 // briefly so it can drift up and out while the new one surfaces from below
@@ -183,6 +255,7 @@ export default function Tour() {
   const descentRef = useRef(0);   // current camera depth (float)
   const targetRef = useRef(0);    // where we're easing toward
   const accentRef = useRef(ACCENTS[0].clone());
+  const worldRef = useRef(WORLDS[0].clone()); // ambient world tint (library ↔ garden)
   const barRef = useRef(null);    // progress bar fill (mutated directly)
   const settledRef = useRef(0);   // last chapter the camera settled on
 
@@ -272,10 +345,11 @@ export default function Tour() {
       yawTarget.current += (0 - yawTarget.current) * 0.004;
       yawRef.current += (yawTarget.current - yawRef.current) * 0.03;
 
-      // Interpolate accent between the two bracketing chapters.
+      // Interpolate accent + world tint between the two bracketing chapters.
       const lo = Math.floor(cur);
       const hi = Math.min(lo + 1, MAX);
       accentRef.current.copy(ACCENTS[lo]).lerp(ACCENTS[hi], cur - lo);
+      worldRef.current.copy(WORLDS[lo]).lerp(WORLDS[hi], cur - lo);
 
       // Progress bar, updated by direct DOM write (no React render).
       if (barRef.current) {
@@ -425,8 +499,10 @@ export default function Tour() {
         color={SCENE.color}
         depth={SCENE.depth}
         chapters={NODES.length}
+        vortexIndex={VORTEX_INDEX}
         descentRef={descentRef}
         accentRef={accentRef}
+        worldRef={worldRef}
         yawRef={yawRef}
         reduced={reduced}
       />
@@ -522,9 +598,9 @@ export default function Tour() {
             <button
               key={n.slug}
               type="button"
-              className={`hex-btn${index === chapter ? ' is-active' : ''}`}
+              className={`hex-btn hex-btn--${n.realm}${n.vortex ? ' is-vortex' : ''}${index === chapter ? ' is-active' : ''}`}
               onClick={(e) => { e.stopPropagation(); jumpTo(index); }}
-              aria-label={`Descend to ${n.slug}`}
+              aria-label={`Descend to ${n.slug}${n.vortex ? ' — the vortex into the garden' : ''}`}
             >
               <span className="hex" />
             </button>

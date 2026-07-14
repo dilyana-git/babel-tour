@@ -225,6 +225,27 @@
   background: var(--accent);
 }
 
+/* Garden nodes read cooler/green in the depth rail, so the excursion out of the
+   library and into the garden is legible at a glance. */
+.hex-btn--garden .hex {
+  background: rgba(150, 196, 120, 0.24);
+}
+
+.hex-btn--garden:hover .hex {
+  background: rgba(150, 196, 120, 0.5);
+}
+
+/* The vortex node — the entrance to the garden — gets a soft ring so it stands out
+   as the hinge between the two realms. */
+.hex-btn.is-vortex {
+  position: relative;
+}
+
+.hex-btn.is-vortex .hex {
+  background: rgba(183, 181, 106, 0.42);
+  box-shadow: 0 0 0 1px rgba(183, 181, 106, 0.5), 0 0 8px 1px rgba(183, 181, 106, 0.35);
+}
+
 /* --- Progress bar (bottom) ------------------------------------------------ */
 
 .progress {
