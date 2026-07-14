@@ -60,6 +60,16 @@ const STEP_SWAY = 0.10;      // gentle side-to-side weight shift
 const SEG_X = 240;
 const SEG_Y = 120;
 
+// --- Vortex dive ------------------------------------------------------------
+// The library→garden crossing plunges the camera into the vortex's warm core.
+// Two forces ride on the crossing, both a bell of dive-progress so the garden
+// arrives upright and centered: the gaze is pulled toward the core (DIVE_AIM,
+// a fraction of the half-frustum toward the painted glow), and the camera banks
+// hard into the spiral (DIVE_BANK radians). The warm flash (Tour) covers the
+// peak, so the eye reads a plunge-and-whiteout, not a mechanical tilt-back.
+const DIVE_AIM = 0.85;
+const DIVE_BANK = -0.62; // ~35°, negative = roll clockwise into the right-hand spiral
+
 // ---------------------------------------------------------------------------
 // Layered diorama model. Instead of one embossed billboard per chapter, each
 // painting is rebuilt as a paper-theatre: a full-image BACKDROP behind a stack
@@ -539,7 +549,7 @@ function Fog({ depth, y, opacity, scale, aspect, index, descentRef }) {
 // Each gallery hangs its own lamp: an additive glow pinned to that image's
 // light source (a doorway of fire, a lantern, a moonlit shaft…). It breathes
 // and flickers while its chapter is current and dims away with distance.
-function Glow({ scene, index, aspect, overscan, accentRef, descentRef, reduced }) {
+function Glow({ scene, index, aspect, overscan, accentRef, descentRef, portalRef, libraryMax, reduced }) {
   const ref = useRef();
   const { pointer } = useThree();
   const sprite = useMemo(
@@ -571,9 +581,22 @@ function Glow({ scene, index, aspect, overscan, accentRef, descentRef, reduced }
     ref.current.position.y += (py - ref.current.position.y) * 0.05;
     const near = reduced ? 0 : Math.max(0, 0.12 - Math.abs(pointer.x) * 0.06 - Math.abs(pointer.y) * 0.06);
     ref.current.material.opacity = (0.27 + flicker + near) * proximity;
-    const s = (1 + Math.sin(t * 0.9) * 0.04 + near * 0.8) * scene.glowScale;
-    ref.current.scale.set(base * s, base * s, 1);
+    let s = (1 + Math.sin(t * 0.9) * 0.04 + near * 0.8) * scene.glowScale;
     ref.current.material.color.lerp(accentRef.current, 0.05);
+
+    // The kindled portal: once the door has opened at the vortex, its core stops
+    // being a lamp and becomes a beacon — a brighter, quicker heartbeat that
+    // warms toward gold, so the reader can see where the descent now leads.
+    if (portalRef && portalRef.current && index === libraryMax) {
+      const kindle = 0.5 + Math.sin(t * 1.6) * 0.14 + Math.sin(t * 3.1 + 0.7) * 0.05;
+      ref.current.material.opacity = Math.max(
+        ref.current.material.opacity,
+        (0.34 + kindle * 0.4) * proximity,
+      );
+      s = (1.28 + Math.sin(t * 1.1) * 0.1) * scene.glowScale;
+      ref.current.material.color.lerp(WARM_CORE, 0.06);
+    }
+    ref.current.scale.set(base * s, base * s, 1);
   });
   return (
     <sprite
@@ -730,7 +753,7 @@ function GradeRig({ scenes, descentRef, fogRef }) {
 // The camera rig: a slow, atmospheric dwell that presses deeper with each
 // chapter. Gazes into the corridor and can pan left/right (yaw) to look
 // around. Never rushes.
-function DescentRig({ descentRef, immersionRef, yawRef, parallax, reduced }) {
+function DescentRig({ descentRef, immersionRef, yawRef, diveRef, coreUV, aspect, parallax, reduced }) {
   const { camera, pointer } = useThree();
   const lookAt = useRef(new THREE.Vector3(0, 0, -PLANE_Z));
   const scratch = useRef(new THREE.Vector3());
@@ -790,15 +813,36 @@ function DescentRig({ descentRef, immersionRef, yawRef, parallax, reduced }) {
     camera.position.y += (targetY - camera.position.y) * ease;
     camera.position.z += (targetZ - camera.position.z) * ease;
 
+    // Vortex dive: while crossing from the vortex into the garden, pull the gaze
+    // toward the painted core so the spiral fills the frame as it dissolves. The
+    // offset is a bell of progress (0 at both ends), so the garden node is framed
+    // dead-center on arrival.
+    const dive = diveRef ? Math.min(Math.max(diveRef.current, 0), 1) : 0;
+    let coreX = 0;
+    let coreY = 0;
+    if (dive > 0.001 && coreUV) {
+      const bell = Math.sin(dive * Math.PI);
+      const fh = frustumH(PLANE_Z);
+      coreX = (coreUV[0] - 0.5) * fh * aspect * DIVE_AIM * bell;
+      coreY = (0.5 - coreUV[1]) * fh * DIVE_AIM * bell;
+    }
+
     // Gaze down the corridor, rotated horizontally by yaw to look left/right.
     // The active gallery always dwells ~PLANE_Z ahead, so a constant forward
     // reach keeps the gaze steady through every chapter.
-    const lookX = camera.position.x + Math.sin(yaw) * PLANE_Z + pointer.x * 0.6;
+    const lookX = camera.position.x + Math.sin(yaw) * PLANE_Z + pointer.x * 0.6 + coreX;
     const lookZ = camera.position.z - Math.cos(yaw) * PLANE_Z;
-    const lookY = camera.position.y * 0.25;
+    const lookY = camera.position.y * 0.25 + coreY;
     scratch.current.set(lookX, lookY, lookZ);
     lookAt.current.lerp(scratch.current, 1 - Math.exp(-Math.min(delta, 0.1) * 3));
     camera.lookAt(lookAt.current);
+
+    // …and bank the whole camera into the spiral, hardest mid-dive. lookAt has
+    // just set the orientation fresh, so this rolls on top; the bell returns it
+    // upright by the time the garden is reached (under cover of the warm flash).
+    if (dive > 0.001) {
+      camera.rotateZ(Math.sin(dive * Math.PI) * DIVE_BANK);
+    }
   });
   return null;
 }

@@ -57,25 +57,6 @@ const LIBRARY_NODES = [
     },
   },
   {
-    slug: 'vertigo',
-    title: 'The Vertigo',
-    subtitle: 'Shelves without end',
-    summary: 'The galleries curl into a spiral pit under a shaft of cold light, and the count of the books refuses to close.',
-    accent: '#aabdd4',
-    scene: {
-      color: '/nodes/descent/impossible_3.webp',
-      depth: '/nodes/descent/impossible_3_depth.webp',
-      glowAt: [0.42, 0.3],
-      glowScale: 1.25,
-      fog: '#0b0f15',
-    },
-    folio: {
-      eyebrow: 'NODE III — THE VERTIGO',
-      line: '"The certitude that everything has been written negates us or turns us into phantoms."',
-      attr: 'J. L. BORGES — THE LIBRARY OF BABEL',
-    },
-  },
-  {
     slug: 'silence',
     title: 'The Silence',
     subtitle: 'Where the lamps grow faint',
@@ -89,8 +70,31 @@ const LIBRARY_NODES = [
       fog: '#0f0d0b',
     },
     folio: {
-      eyebrow: 'NODE IV — THE SILENCE',
+      eyebrow: 'NODE III — THE SILENCE',
       line: '"Light is provided by spherical fruit which bear the name of lamps."',
+      attr: 'J. L. BORGES — THE LIBRARY OF BABEL',
+    },
+  },
+  // The threshold. The vortex is the last gallery: dwell here and its warm
+  // tunnel core (lower-right) kindles into a portal; descending then plunges
+  // the camera down the spiral and out into the garden (see the dive in
+  // DioramaScene's DescentRig). glowAt is pinned to that receding core.
+  {
+    slug: 'vertigo',
+    title: 'The Vertigo',
+    subtitle: 'The stairwell that has no floor',
+    summary: 'The galleries curl into a spiral pit that winds down toward a single warm light, and the count of the books refuses to close.',
+    accent: '#c9a24c',
+    scene: {
+      color: '/nodes/descent/impossible_3.webp',
+      depth: '/nodes/descent/impossible_3_depth.webp',
+      glowAt: [0.83, 0.82],
+      glowScale: 1.3,
+      fog: '#0b0f15',
+    },
+    folio: {
+      eyebrow: 'NODE IV — THE VERTIGO',
+      line: '"The certitude that everything has been written negates us or turns us into phantoms."',
       attr: 'J. L. BORGES — THE LIBRARY OF BABEL',
     },
   },
@@ -289,6 +293,10 @@ const NODES = [
 const LIBRARY_MAX = LIBRARY_NODES.length - 1;
 const MAX = NODES.length - 1;
 const clamp = (v, max) => Math.min(Math.max(v, 0), max);
+const smoothstep = (a, b, x) => {
+  const t = Math.min(Math.max((x - a) / (b - a), 0), 1);
+  return t * t * (3 - 2 * t);
+};
 
 // Pre-parse accent colors once for continuous interpolation between chapters.
 const ACCENTS = NODES.map((n) => new THREE.Color(n.accent));
@@ -387,6 +395,12 @@ export default function Tour() {
   const accentRef = useRef(ACCENTS[0].clone());
   const barRef = useRef(null);    // progress bar fill (mutated directly)
   const settledRef = useRef(0);   // last chapter the camera settled on
+  // The vortex dive: 0 while in the library, ramping 0→1 across the single
+  // crossing from the vortex (deepest gallery) into the garden. It drives the
+  // camera's spin + core-aim in DioramaScene and the warm whiteout that covers
+  // the hand-off. flashRef is that overlay, opacity written straight to the DOM.
+  const diveRef = useRef(0);
+  const flashRef = useRef(null);
 
   // React state only for the HUD chrome — updates rarely (on chapter change).
   const [chapter, setChapter] = useState(0);
@@ -463,6 +477,14 @@ export default function Tour() {
 
   const jumpTo = useCallback((index) => {
     setTarget(index);
+  }, [setTarget]);
+
+  // Commit the dive: clear immersion and aim the target one step past the
+  // vortex, so the spring plunges the camera through the spiral into the garden
+  // in one continuous crossing (the spin + flash ride on top in the tick).
+  const dive = useCallback(() => {
+    immersionTargetRef.current = 0;
+    setTarget(LIBRARY_MAX + 1);
   }, [setTarget]);
 
   const enter = useCallback(() => {
@@ -557,6 +579,18 @@ export default function Tour() {
       if (nearest !== settledRef.current) {
         settledRef.current = nearest;
         setChapter(nearest);
+      }
+
+      // The vortex dive. p is progress across the vortex→garden crossing (only
+      // reachable once the portal has kindled). It spins/aims the camera in
+      // DioramaScene; here it drives a warm radial flash that swells to cover
+      // the plate hand-off and the camera righting itself, then clears onto the
+      // garden. Reduced motion keeps a gentler flash and skips the spin.
+      const p = Math.min(Math.max(cur - LIBRARY_MAX, 0), 1);
+      diveRef.current = p;
+      if (flashRef.current) {
+        const bell = smoothstep(0.28, 0.62, p) * (1 - smoothstep(0.85, 1.0, p));
+        flashRef.current.style.opacity = `${(reduced ? 0.55 : 0.97) * bell}`;
       }
 
       frame = requestAnimationFrame(tick);
@@ -700,6 +734,9 @@ export default function Tour() {
         immersionRef={immersionRef}
         accentRef={accentRef}
         yawRef={yawRef}
+        diveRef={diveRef}
+        portalRef={doorOpenRef}
+        libraryMax={LIBRARY_MAX}
         reduced={reduced}
       />
 
@@ -816,11 +853,11 @@ export default function Tour() {
         <button
           type="button"
           className="door-call"
-          onClick={(e) => { e.stopPropagation(); jumpTo(LIBRARY_MAX + 1); }}
-          aria-label="Step through the door into the Garden of Forking Paths"
+          onClick={(e) => { e.stopPropagation(); dive(); }}
+          aria-label="Descend into the spiral toward the Garden of Forking Paths"
         >
           <span className="door-caption">
-            A door has opened — the garden of forking paths
+            The spiral has woken — descend into it
           </span>
         </button>
       )}
@@ -855,6 +892,11 @@ export default function Tour() {
         </div>
         <div className="progress-label">{inGarden ? 'Branching' : 'Descending'}</div>
       </div>
+
+      {/* Warm whiteout of the vortex dive — opacity driven straight from the
+          tick, so it swells to flood the frame as the camera plunges the spiral
+          core and clears onto the garden. */}
+      <div className="vortex-flash" ref={flashRef} aria-hidden="true" />
 
       {veil !== 'gone' && <EntryVeil leaving={veil === 'leaving'} onEnter={enter} />}
     </div>
