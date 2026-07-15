@@ -270,7 +270,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1rem;
+  gap: 0.5rem;
   padding: 1rem;
   border: 0;
   background: none;
@@ -278,13 +278,32 @@
   animation: door-appear 2600ms ease both;
 }
 
-.door-caption {
-  font: 400 0.66rem/1.7 var(--mono);
-  letter-spacing: 0.22em;
+/* Not a caption to read — a beckon. A whispered eyebrow, an imperative verb, and
+   a chevron that keeps falling: the whole thing invites the plunge rather than
+   announcing it. */
+.door-eyebrow {
+  font: 400 0.56rem/1.6 var(--mono);
+  letter-spacing: 0.34em;
   text-transform: uppercase;
-  color: #bfe3a6;
-  max-width: 13rem;
-  text-shadow: 0 0 12px rgba(159, 196, 138, 0.4);
+  color: rgba(191, 227, 166, 0.5);
+}
+
+.door-verb {
+  font: 400 1.15rem/1 var(--mono);
+  letter-spacing: 0.5em;
+  text-transform: uppercase;
+  color: #cdeeb2;
+  text-indent: 0.5em; /* balance the trailing letter-spacing so it reads centered */
+  text-shadow: 0 0 16px rgba(159, 196, 138, 0.55);
+  animation: door-verb-breathe 3200ms ease-in-out infinite;
+}
+
+.door-chevron {
+  font-size: 1rem;
+  line-height: 1;
+  color: rgba(191, 227, 166, 0.8);
+  text-shadow: 0 0 12px rgba(159, 196, 138, 0.5);
+  animation: door-chevron-fall 2200ms ease-in-out infinite;
 }
 
 @keyframes door-appear {
@@ -295,6 +314,34 @@
   to {
     opacity: 1;
     filter: blur(0);
+  }
+}
+
+/* The verb pulses like the kindled core it answers to. */
+@keyframes door-verb-breathe {
+  0%, 100% {
+    opacity: 0.72;
+    text-shadow: 0 0 12px rgba(159, 196, 138, 0.4);
+  }
+  50% {
+    opacity: 1;
+    text-shadow: 0 0 22px rgba(159, 196, 138, 0.75);
+  }
+}
+
+/* The chevron keeps falling — a small, endless descent pulling the eye down
+   the spiral. */
+@keyframes door-chevron-fall {
+  0% {
+    opacity: 0;
+    transform: translateY(-0.35rem);
+  }
+  35% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(0.6rem);
   }
 }
 
@@ -376,6 +423,28 @@
   padding: 0.6rem 0.9rem;
   border-radius: 999px;
   cursor: pointer;
+}
+
+/* --- Vortex dive whiteout ---------------------------------------------------
+   The warm flood of the library→garden plunge. Its opacity is written straight
+   from the tick (Tour.jsx), swelling from the tunnel's warm throat to cover the
+   frame at the deepest dive — hiding the plate hand-off and the camera righting
+   itself — then clearing onto the garden. Anchored lower-right to the painted
+   core, so it reads as the spiral's light rushing up to swallow the eye. */
+.vortex-flash {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(
+    140% 130% at 82% 80%,
+    #fff6e9 0%,
+    #ffe0b0 20%,
+    #f6b365 46%,
+    #dd934a 72%,
+    #b06e2c 100%
+  );
 }
 
 /* --- Entry veil -------------------------------------------------------------
@@ -501,8 +570,8 @@
     top: 42%;
   }
 
-  .door-caption {
-    max-width: 9rem;
-    font-size: 0.6rem;
+  .door-verb {
+    font-size: 1rem;
+    letter-spacing: 0.42em;
   }
 }

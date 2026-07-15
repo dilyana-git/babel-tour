@@ -401,6 +401,11 @@ export default function Tour() {
   // the hand-off. flashRef is that overlay, opacity written straight to the DOM.
   const diveRef = useRef(0);
   const flashRef = useRef(null);
+  // The dive is paced by its own clock, not the depth spring — a long, deliberate
+  // fall you can watch, rather than a ~2s whoosh. Holds { start } while a plunge
+  // is underway, then hands the camera back to the spring, settled in the garden.
+  const diveAnimRef = useRef(null);
+  const DIVE_MS = 5200; // wall-clock length of the plunge down the spiral
 
   // React state only for the HUD chrome — updates rarely (on chapter change).
   const [chapter, setChapter] = useState(0);
@@ -435,9 +440,31 @@ export default function Tour() {
     yawTarget.current = Math.min(Math.max(yawTarget.current + delta, -YAW_MAX), YAW_MAX);
   }, []);
 
+  // Commit the vortex dive: a slow, watchable plunge down the spiral toward the
+  // core light, then a warm flood and out into the garden. Paced by its own clock
+  // in the tick (diveAnimRef); the plunge/spin/aim + flash ride on top there.
+  const dive = useCallback(() => {
+    if (diveAnimRef.current) return; // already falling
+    immersionTargetRef.current = 0;
+    immersionRef.current = 0;
+    velRef.current = 0;
+    targetRef.current = LIBRARY_MAX + 1;
+    diveAnimRef.current = { start: performance.now() };
+    if (!reduced && audioRef.current) {
+      audioRef.current.swell();
+    }
+  }, [reduced]);
+
   const setTarget = useCallback((next) => {
     const to = clamp(next, doorOpenRef.current ? MAX : LIBRARY_MAX);
     const from = targetRef.current;
+    // The library→garden step is ALWAYS the cinematic dive — whether it comes
+    // from the beckon, a scroll, or an arrow — so you never merely slide across
+    // that threshold. Only the first downward step into the garden qualifies.
+    if (to === LIBRARY_MAX + 1 && Math.round(from) <= LIBRARY_MAX && !diveAnimRef.current) {
+      dive();
+      return;
+    }
     targetRef.current = to;
     // A new destination chapter: swell the ambience across the crossing and
     // reset immersion so you arrive at the mouth of the next room, not already
@@ -448,7 +475,7 @@ export default function Tour() {
         audioRef.current.swell();
       }
     }
-  }, [reduced]);
+  }, [reduced, dive]);
 
   // The single forward/back axis. A positive step walks deeper INTO the current
   // gallery; once immersion tops out the next step crosses to the following
@@ -477,14 +504,6 @@ export default function Tour() {
 
   const jumpTo = useCallback((index) => {
     setTarget(index);
-  }, [setTarget]);
-
-  // Commit the dive: clear immersion and aim the target one step past the
-  // vortex, so the spring plunges the camera through the spiral into the garden
-  // in one continuous crossing (the spin + flash ride on top in the tick).
-  const dive = useCallback(() => {
-    immersionTargetRef.current = 0;
-    setTarget(LIBRARY_MAX + 1);
   }, [setTarget]);
 
   const enter = useCallback(() => {
@@ -519,23 +538,44 @@ export default function Tour() {
       // refresh rate (clamped so a background tab doesn't lurch on return).
       const dt = Math.min((now - last) / 1000, 0.1);
       last = now;
-      const d = descentRef.current;
-      const t = targetRef.current;
-      // Critically damped spring toward the target depth: the camera gathers
-      // itself out of one gallery, crests mid-corridor, and brakes softly into
-      // the next — one continuous breath instead of a lurch-and-crawl. A full
-      // chapter crossing unfolds over roughly seven seconds.
-      const K = 0.55;                 // stiffness — sets the crossing's tempo
-      const C = 2 * Math.sqrt(K);     // critical damping — no overshoot
-      let v = velRef.current;
-      v += (K * (t - d) - C * v) * dt;
-      let next = d + v * dt;
-      if (Math.abs(t - next) < 0.0006 && Math.abs(v) < 0.002) {
-        next = t;
-        v = 0;
+      const diving = diveAnimRef.current !== null;
+      if (diving) {
+        // The vortex plunge runs on its own clock — a slow, watchable fall. Its
+        // two motions are DECOUPLED: `el` drives how far the camera dives into
+        // the vortex core (diveRef → the plunge/spin/aim in DioramaScene), which
+        // peaks mid-fall while descent still holds at the vortex — so you actually
+        // travel THROUGH the spiral. The descent crossover into the garden is held
+        // late (smoothstep from el 0.5) and happens under the warm flood, so the
+        // vortex→garden plate hand-off never shows.
+        const a = diveAnimRef.current;
+        const el = a.frozen != null ? a.frozen : Math.min((now - a.start) / DIVE_MS, 1);
+        diveRef.current = el;
+        descentRef.current = LIBRARY_MAX + smoothstep(0.5, 0.94, el);
+        velRef.current = 0;
+        if (a.frozen == null && el >= 1) {
+          diveAnimRef.current = null;
+          descentRef.current = LIBRARY_MAX + 1;
+          diveRef.current = 1;
+        }
+      } else {
+        const d = descentRef.current;
+        const t = targetRef.current;
+        // Critically damped spring toward the target depth: the camera gathers
+        // itself out of one gallery, crests mid-corridor, and brakes softly into
+        // the next — one continuous breath instead of a lurch-and-crawl. A full
+        // chapter crossing unfolds over roughly seven seconds.
+        const K = 0.55;                 // stiffness — sets the crossing's tempo
+        const C = 2 * Math.sqrt(K);     // critical damping — no overshoot
+        let v = velRef.current;
+        v += (K * (t - d) - C * v) * dt;
+        let next = d + v * dt;
+        if (Math.abs(t - next) < 0.0006 && Math.abs(v) < 0.002) {
+          next = t;
+          v = 0;
+        }
+        velRef.current = v;
+        descentRef.current = Math.min(Math.max(next, 0), MAX);
       }
-      velRef.current = v;
-      descentRef.current = Math.min(Math.max(next, 0), MAX);
       const cur = descentRef.current;
 
       // Immersion eases toward its target, but only while the camera is settled
@@ -581,16 +621,20 @@ export default function Tour() {
         setChapter(nearest);
       }
 
-      // The vortex dive. p is progress across the vortex→garden crossing (only
-      // reachable once the portal has kindled). It spins/aims the camera in
-      // DioramaScene; here it drives a warm radial flash that swells to cover
-      // the plate hand-off and the camera righting itself, then clears onto the
-      // garden. Reduced motion keeps a gentler flash and skips the spin.
-      const p = Math.min(Math.max(cur - LIBRARY_MAX, 0), 1);
-      diveRef.current = p;
+      // The vortex dive drives a warm radial flash. While falling, `diveRef` is
+      // the plunge clock (el); otherwise it just tracks the depth so idle/garden
+      // states stay dark. The flash keeps the whole plunge into the vortex in the
+      // clear (p up to ~0.5), then swells to cover the late crossover and the
+      // camera righting, and clears onto the garden. Reduced motion softens it.
+      // Off the dive, the plunge is fully at rest — so a normal crossing (or
+      // ascending back out of the garden) never spuriously spins the camera.
+      if (!diving) {
+        diveRef.current = 0;
+      }
+      const p = diveRef.current;
       if (flashRef.current) {
-        const bell = smoothstep(0.28, 0.62, p) * (1 - smoothstep(0.85, 1.0, p));
-        flashRef.current.style.opacity = `${(reduced ? 0.55 : 0.97) * bell}`;
+        const bell = smoothstep(0.5, 0.7, p) * (1 - smoothstep(0.92, 1.0, p));
+        flashRef.current.style.opacity = `${(reduced ? 0.5 : 0.97) * bell}`;
       }
 
       frame = requestAnimationFrame(tick);
@@ -598,6 +642,30 @@ export default function Tour() {
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
   }, []);
+
+  // TEMP diagnostic hook — REMOVE. ?dev=1 skips the veil, opens the door, sits at
+  // the vortex, and exposes the REAL dive() + a state getter so the live spring
+  // crossing can be observed headlessly.
+  useEffect(() => {
+    if (!new URLSearchParams(window.location.search).has('dev')) return;
+    setVeil('gone');
+    enteredRef.current = true;
+    doorOpenRef.current = true;
+    setDoorOpen(true);
+    descentRef.current = LIBRARY_MAX;
+    targetRef.current = LIBRARY_MAX;
+    velRef.current = 0;
+    window.__dive = dive;
+    window.__setDive = (el) => {
+      // Freeze the decoupled dive at plunge-progress el (the tick derives the
+      // matching held-late descent), so a capture shows exactly the real frame.
+      diveAnimRef.current = { frozen: Math.max(0, Math.min(1, el)) };
+    };
+    window.__state = () => ({
+      d: +descentRef.current.toFixed(3),
+      dive: +diveRef.current.toFixed(3),
+    });
+  }, [dive]);
 
   // The door: once the reader has settled in The Silence and dwelled for a
   // few breaths, a green light kindles between the shelves and the garden
@@ -856,9 +924,9 @@ export default function Tour() {
           onClick={(e) => { e.stopPropagation(); dive(); }}
           aria-label="Descend into the spiral toward the Garden of Forking Paths"
         >
-          <span className="door-caption">
-            The spiral has woken — descend into it
-          </span>
+          <span className="door-eyebrow">the spiral has woken</span>
+          <span className="door-verb">descend</span>
+          <span className="door-chevron" aria-hidden="true">↓</span>
         </button>
       )}
 

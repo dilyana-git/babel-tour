@@ -61,14 +61,34 @@ const SEG_X = 240;
 const SEG_Y = 120;
 
 // --- Vortex dive ------------------------------------------------------------
-// The library→garden crossing plunges the camera into the vortex's warm core.
-// Two forces ride on the crossing, both a bell of dive-progress so the garden
-// arrives upright and centered: the gaze is pulled toward the core (DIVE_AIM,
-// a fraction of the half-frustum toward the painted glow), and the camera banks
-// hard into the spiral (DIVE_BANK radians). The warm flash (Tour) covers the
-// peak, so the eye reads a plunge-and-whiteout, not a mechanical tilt-back.
-const DIVE_AIM = 0.85;
-const DIVE_BANK = -0.62; // ~35°, negative = roll clockwise into the right-hand spiral
+// The library→garden crossing doesn't cut to the garden — it flies the camera
+// DOWN the vortex. Everything below rides on a shape of dive-progress that is
+// zero at both ends (so the garden arrives upright, centered, at its normal
+// dwell) but front-loaded to accelerate: a slow lean-in that gathers into a
+// rush, released under the warm flash. Three forces move together so it reads
+// as one plunge, not three tics:
+//   • DIVE_PLUNGE — the camera actually dollies forward into the core, the
+//     spiral walls looming and streaking past. This is what makes it *travel*.
+//   • DIVE_AIM    — the gaze swings toward the painted glow so the tunnel mouth
+//     rushes up to swallow the frame.
+//   • DIVE_BANK   — the whole camera corkscrews into the right-hand spiral.
+const DIVE_AIM = 0.9;
+const DIVE_PLUNGE = 14;   // world units the camera dives INTO the vortex core at peak
+const DIVE_LEAN = 0.3;    // how far the camera body also drifts toward the core
+const DIVE_BANK = -0.8;   // ~46°, negative = roll clockwise into the right-hand spiral
+// Front-loaded fall-shape of dive-progress p∈[0,1]. The whole plunge (aim, lean,
+// bank) is packed into [0, DIVE_SETTLE] and is zero beyond it, so the camera is
+// back upright and centered BEFORE the warm flash begins to clear (~0.85 in Tour)
+// — the garden reveals from the light already steadied, never mid-tilt. The pow
+// warps early progress so the fall starts slow and accelerates.
+const DIVE_SETTLE = 0.85;
+const diveThrust = (p) => {
+  const q = Math.min(p / DIVE_SETTLE, 1);
+  return Math.sin(Math.pow(q, 1.4) * Math.PI);
+};
+// The warm gold the kindled vortex core heartbeats toward once the door opens —
+// the lamp becoming a beacon, so the eye knows where the descent now leads.
+const WARM_CORE = new THREE.Color('#ffc27a');
 
 // ---------------------------------------------------------------------------
 // Layered diorama model. Instead of one embossed billboard per chapter, each
@@ -801,31 +821,43 @@ function DescentRig({ descentRef, immersionRef, yawRef, diveRef, coreUV, aspect,
     const swayX = (Math.sin(t * 0.05) * 0.22 + Math.sin(t * 0.021) * 0.12) * idle;
     const swayY = Math.cos(t * 0.04) * 0.10 * idle;
 
-    const targetX = pointer.x * parallax.x + swayX + hSway;
-    const targetY = pointer.y * parallax.y + swayY + vBob;
-    const targetZ = z;
+    // Vortex dive. `thrust` is the front-loaded fall-shape; while it is alive the
+    // camera doesn't just re-aim, it dollies bodily toward the painted core —
+    // plungeZ drives it forward down the tunnel, leanX/leanY drift its body after
+    // the light, and coreX/coreY swing the gaze so the spiral mouth rushes up to
+    // swallow the frame. All are shapes of dive-progress (0 at both ends), so the
+    // garden still arrives centered at its normal dwell once the flash clears.
+    const dive = diveRef ? Math.min(Math.max(diveRef.current, 0), 1) : 0;
+    const thrust = dive > 0.001 ? diveThrust(dive) : 0;
+    let coreX = 0;
+    let coreY = 0;
+    let leanX = 0;
+    let leanY = 0;
+    let plungeZ = 0;
+    if (thrust > 0.0001 && coreUV) {
+      const fh = frustumH(PLANE_Z);
+      const dx = (coreUV[0] - 0.5) * fh * aspect;
+      const dy = (0.5 - coreUV[1]) * fh;
+      coreX = dx * DIVE_AIM * thrust;
+      coreY = dy * DIVE_AIM * thrust;
+      leanX = dx * DIVE_LEAN * thrust;
+      leanY = dy * DIVE_LEAN * thrust;
+      plungeZ = DIVE_PLUNGE * thrust;
+    }
+
+    const targetX = pointer.x * parallax.x + swayX + hSway + leanX;
+    const targetY = pointer.y * parallax.y + swayY + vBob + leanY;
+    const targetZ = z - plungeZ;
 
     // Very soft easing — the camera glides, it never snaps to position. Wall-clock
     // based so the glide is identical on every refresh rate, and so the gait
     // undulation is smoothed on its way to the camera rather than reading as shake.
+    // During the dive the plunge is baked into the target, so this same ease lends
+    // the fall a little inertia — the body lags the target, then is hauled in.
     const ease = 1 - Math.exp(-dt * 1.2);
     camera.position.x += (targetX - camera.position.x) * ease;
     camera.position.y += (targetY - camera.position.y) * ease;
     camera.position.z += (targetZ - camera.position.z) * ease;
-
-    // Vortex dive: while crossing from the vortex into the garden, pull the gaze
-    // toward the painted core so the spiral fills the frame as it dissolves. The
-    // offset is a bell of progress (0 at both ends), so the garden node is framed
-    // dead-center on arrival.
-    const dive = diveRef ? Math.min(Math.max(diveRef.current, 0), 1) : 0;
-    let coreX = 0;
-    let coreY = 0;
-    if (dive > 0.001 && coreUV) {
-      const bell = Math.sin(dive * Math.PI);
-      const fh = frustumH(PLANE_Z);
-      coreX = (coreUV[0] - 0.5) * fh * aspect * DIVE_AIM * bell;
-      coreY = (0.5 - coreUV[1]) * fh * DIVE_AIM * bell;
-    }
 
     // Gaze down the corridor, rotated horizontally by yaw to look left/right.
     // The active gallery always dwells ~PLANE_Z ahead, so a constant forward
@@ -837,11 +869,12 @@ function DescentRig({ descentRef, immersionRef, yawRef, diveRef, coreUV, aspect,
     lookAt.current.lerp(scratch.current, 1 - Math.exp(-Math.min(delta, 0.1) * 3));
     camera.lookAt(lookAt.current);
 
-    // …and bank the whole camera into the spiral, hardest mid-dive. lookAt has
-    // just set the orientation fresh, so this rolls on top; the bell returns it
-    // upright by the time the garden is reached (under cover of the warm flash).
-    if (dive > 0.001) {
-      camera.rotateZ(Math.sin(dive * Math.PI) * DIVE_BANK);
+    // …and corkscrew the whole camera into the spiral, hardest where the plunge
+    // is fastest. lookAt has just set the orientation fresh, so this rolls on top;
+    // sharing the fall-shape means the roll accelerates with the dive and unwinds
+    // to upright by the time the garden is reached (under cover of the warm flash).
+    if (thrust > 0.0001) {
+      camera.rotateZ(thrust * DIVE_BANK);
     }
   });
   return null;
@@ -867,9 +900,15 @@ export default function DioramaScene({
   immersionRef,
   accentRef,
   yawRef,
+  diveRef,
+  portalRef,
+  libraryMax,
   reduced = false,
 }) {
   const chapters = scenes.length;
+  // The vortex is the deepest library gallery; its glow anchor is the warm
+  // tunnel core the dive plunges toward (Vertigo's lower-right light).
+  const coreUV = libraryMax != null ? scenes[libraryMax]?.glowAt : undefined;
   // Shared, per-frame graded fog color (GradeRig writes, paintings read).
   const fogRef = useRef(new THREE.Color(scenes[0].fog));
   return (
@@ -896,6 +935,7 @@ export default function DioramaScene({
           key={`glow-${i}`}
           scene={scene} index={i} aspect={aspect} overscan={overscan}
           accentRef={accentRef} descentRef={descentRef} reduced={reduced}
+          portalRef={portalRef} libraryMax={libraryMax}
         />
       ))}
       <PortalRings accentRef={accentRef} descentRef={descentRef} chapters={chapters} />
@@ -905,7 +945,11 @@ export default function DioramaScene({
         <LightShafts aspect={aspect} accentRef={accentRef} reduced={reduced} />
         <Motes aspect={aspect} reduced={reduced} descentRef={descentRef} />
       </AtmosphereRig>
-      <DescentRig descentRef={descentRef} immersionRef={immersionRef} yawRef={yawRef} parallax={parallax} reduced={reduced} />
+      <DescentRig
+        descentRef={descentRef} immersionRef={immersionRef} yawRef={yawRef}
+        diveRef={diveRef} coreUV={coreUV} aspect={aspect}
+        parallax={parallax} reduced={reduced}
+      />
     </Canvas>
   );
 }
