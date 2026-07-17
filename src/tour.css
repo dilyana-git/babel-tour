@@ -23,7 +23,7 @@
   border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
   backdrop-filter: blur(12px);
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.28);
-  transition: border-color 600ms ease;
+  transition: border-color 600ms ease, opacity 900ms ease;
 }
 
 .chapter-card .swap-stage,
@@ -345,6 +345,28 @@
   }
 }
 
+/* --- The dive --------------------------------------------------------------
+   While the camera falls down the vortex, the interface gets out of the way:
+   every piece of HUD chrome fades, so there is only the spiral, the core light,
+   and the fall. It breathes back in once the garden has the camera. */
+
+.folio,
+.controls,
+.depth,
+.progress {
+  transition: opacity 900ms ease;
+}
+
+.tour-root.is-diving .chapter-card,
+.tour-root.is-diving .folio,
+.tour-root.is-diving .controls,
+.tour-root.is-diving .depth,
+.tour-root.is-diving .progress,
+.tour-root.is-diving .nav-hint {
+  opacity: 0;
+  pointer-events: none;
+}
+
 /* --- Progress bar (bottom) ------------------------------------------------ */
 
 .progress {
@@ -378,6 +400,50 @@
   letter-spacing: 0.16em;
   color: var(--ink-dim);
   text-transform: uppercase;
+}
+
+/* --- One-time navigation hint ------------------------------------------------
+   A single whispered line above the progress bar, shown once the veil lifts.
+   It bows out on the reader's first move (Tour.jsx flips .is-shown off). */
+
+.nav-hint {
+  position: fixed;
+  left: 50%;
+  bottom: 3.2rem;
+  transform: translateX(-50%);
+  z-index: 40;
+  padding: 0.55rem 1.1rem;
+  border-radius: 999px;
+  background: rgba(12, 10, 8, 0.6);
+  border: 1px solid rgba(201, 162, 76, 0.22);
+  backdrop-filter: blur(8px);
+  font: 400 0.68rem/1 var(--mono);
+  letter-spacing: 0.14em;
+  color: var(--ink-dim);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 1100ms ease;
+}
+
+.nav-hint.is-shown {
+  opacity: 1;
+}
+
+/* The hint speaks the visitor's input language: wheel/keys on fine pointers,
+   gestures on touch. */
+.nav-hint-touch {
+  display: none;
+}
+
+@media (pointer: coarse) {
+  .nav-hint-mouse {
+    display: none;
+  }
+
+  .nav-hint-touch {
+    display: inline;
+  }
 }
 
 /* --- Help overlay ---------------------------------------------------------- */
@@ -431,6 +497,10 @@
    frame at the deepest dive — hiding the plate hand-off and the camera righting
    itself — then clearing onto the garden. Anchored lower-right to the painted
    core, so it reads as the spiral's light rushing up to swallow the eye. */
+/* The throat of the vortex swallowing the light: near-black closing in from
+   the frame's edges, with the faintest warm breath left at the core — so the
+   dive ends by falling into darkness and emerging into the garden, never a
+   gold flood. Anchored at the painted core (82% / 80%). */
 .vortex-flash {
   position: fixed;
   inset: 0;
@@ -439,11 +509,10 @@
   opacity: 0;
   background: radial-gradient(
     140% 130% at 82% 80%,
-    #fff6e9 0%,
-    #ffe0b0 20%,
-    #f6b365 46%,
-    #dd934a 72%,
-    #b06e2c 100%
+    #1a120a 0%,
+    #0d0906 30%,
+    #060404 60%,
+    #020202 100%
   );
 }
 
@@ -563,6 +632,15 @@
     inset: auto 1rem 6.4rem auto;
     flex-direction: column;
     gap: 0.5rem;
+  }
+
+  .nav-hint {
+    bottom: 5rem;
+    font-size: 0.62rem;
+    max-width: calc(100vw - 2rem);
+    white-space: normal;
+    text-align: center;
+    line-height: 1.5;
   }
 
   .door-call {

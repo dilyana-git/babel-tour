@@ -53,6 +53,8 @@ export default class AmbientSound {
     this.muted = false;
     this.descent = 0; // 0 at the threshold, 1 in The Silence
     this.garden = 0;  // 0 in the library, 1 once through the door
+    this.stepFoot = false;   // which foot lands next — alternates per step()
+    this.scuffBuffer = null; // white noise shared with the footsteps' scuff
   }
 
   // Must be called from a user gesture (the entry-veil click).
@@ -114,6 +116,7 @@ export default class AmbientSound {
     const swellFilter = ctx.createBiquadFilter();
     swellFilter.type = 'lowpass';
     swellFilter.frequency.value = 700;
+    this.swellFilter = swellFilter; // swept open across long swells (the dive's rush)
     const swellNoise = ctx.createBufferSource();
     swellNoise.buffer = noise.buffer;
     swellNoise.loop = true;
@@ -127,6 +130,9 @@ export default class AmbientSound {
     this.gardenGain.gain.value = 0;
     const leaves = ctx.createBufferSource();
     leaves.buffer = whiteNoiseBuffer(ctx);
+    // Kept for the footsteps' scuff component (brown noise has no energy left
+    // up where a sole brushing stone lives).
+    this.scuffBuffer = leaves.buffer;
     leaves.loop = true;
     const leafFilter = ctx.createBiquadFilter();
     leafFilter.type = 'bandpass';
@@ -173,6 +179,50 @@ export default class AmbientSound {
     this.applyTone();
   }
 
+  // A single soft footfall on stone: a low, pitch-dropping thump and a brief
+  // brush of scuff, both very quiet — felt under the room tone more than heard.
+  // Alternating feet land a shade apart (and every step varies a little) so a
+  // walk never turns into a metronome. `intensity` is the gait's strength.
+  step(intensity = 1) {
+    if (!this.ctx || this.muted) {
+      return;
+    }
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
+    this.stepFoot = !this.stepFoot;
+    const vary = 0.9 + Math.random() * 0.2;
+
+    const thump = ctx.createOscillator();
+    thump.type = 'sine';
+    const f0 = (this.stepFoot ? 84 : 74) * vary;
+    thump.frequency.setValueAtTime(f0, t);
+    thump.frequency.exponentialRampToValueAtTime(f0 * 0.55, t + 0.12);
+    const tg = ctx.createGain();
+    const peak = 0.016 * intensity * (this.stepFoot ? 1 : 0.85);
+    tg.gain.setValueAtTime(0.0001, t);
+    tg.gain.exponentialRampToValueAtTime(Math.max(peak, 0.0002), t + 0.012);
+    tg.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+    thump.connect(tg).connect(this.master);
+    thump.start(t);
+    thump.stop(t + 0.22);
+
+    if (this.scuffBuffer) {
+      const scuff = ctx.createBufferSource();
+      scuff.buffer = this.scuffBuffer;
+      const bp = ctx.createBiquadFilter();
+      bp.type = 'bandpass';
+      bp.frequency.value = 500 + Math.random() * 260;
+      bp.Q.value = 0.9;
+      const sg = ctx.createGain();
+      sg.gain.setValueAtTime(0.0001, t);
+      sg.gain.exponentialRampToValueAtTime(Math.max(0.006 * intensity, 0.0002), t + 0.008);
+      sg.gain.exponentialRampToValueAtTime(0.0001, t + 0.09);
+      scuff.connect(bp).connect(sg).connect(this.master);
+      scuff.start(t, Math.random() * (NOISE_SECONDS - 1));
+      scuff.stop(t + 0.12);
+    }
+  }
+
   // The door opening: a soft, quiet major bloom rising out of the room tone
   // over a couple of seconds — an announcement, not a fanfare.
   announce() {
@@ -194,9 +244,11 @@ export default class AmbientSound {
     });
   }
 
-  // A soft breath rising over ~1.5s and settling back over ~3s, fired alongside
-  // the visual transition bloom.
-  swell() {
+  // A soft breath that rises and settles, fired alongside the visual transition
+  // bloom. `build` is the rise to the crest, `level` the crest gain, `release`
+  // the settle time-constant. Defaults are the chapter-crossing breath; the
+  // vortex dive asks for a longer, deeper rush that crests with the whiteout.
+  swell(build = 1.5, level = 0.05, release = 1.1) {
     if (!this.ctx || this.muted) {
       return;
     }
@@ -204,8 +256,15 @@ export default class AmbientSound {
     const g = this.swellGain.gain;
     g.cancelScheduledValues(t);
     g.setValueAtTime(g.value, t);
-    g.linearRampToValueAtTime(0.05, t + 1.5);
-    g.setTargetAtTime(0, t + 1.6, 1.1);
+    g.linearRampToValueAtTime(level, t + build);
+    g.setTargetAtTime(0, t + build + 0.1, release);
+    // The hush brightens as it builds — barely at chapter scale, but across the
+    // dive's long build the filter opens until the air genuinely rushes.
+    const f = this.swellFilter.frequency;
+    f.cancelScheduledValues(t);
+    f.setValueAtTime(f.value, t);
+    f.linearRampToValueAtTime(700 + build * 500, t + build);
+    f.setTargetAtTime(700, t + build + 0.1, release);
   }
 
   setMuted(muted) {

@@ -30,6 +30,9 @@ const LIBRARY_NODES = [
       glowAt: [0.515, 0.84],
       glowScale: 0.85,
       fog: '#16110a',
+      // Walking into the Vestibule climbs its twin stairways: the camera gains
+      // this much height across the full walk-in, footfalls riding the rise.
+      climb: 2.6,
     },
     folio: {
       eyebrow: 'NODE I — THE VESTIBULE',
@@ -49,6 +52,8 @@ const LIBRARY_NODES = [
       glowAt: [0.655, 0.72],
       glowScale: 1.0,
       fog: '#141009',
+      // The Echo's crossing stairs lift the walk-in too, more gently.
+      climb: 1.4,
     },
     folio: {
       eyebrow: 'NODE II — THE ECHO',
@@ -219,12 +224,8 @@ const GARDEN_NODE_VARIANTS = {
         videos: ['/video/02-endless-garden-starry-var1-clip1.mp4', '/video/02-endless-garden-starry-var1-clip2.mp4'],
         glowAt: [0.48, 0.31], glowScale: 0.7,
       },
-      {
-        color: '/nodes/garden/02-endless-garden-starry-var2.webp',
-        depth: '/nodes/garden/02-endless-garden-starry-var2-depth.webp',
-        videos: ['/video/02-endless-garden-starry-var2-clip1.mp4'],
-        glowAt: [0.53, 0.33], glowScale: 0.7,
-      },
+      // var2 pulled from rotation: the still is only 1680×720 (missed the MJ
+      // upscale step). Restore once re-exported at 3376×1440 with a fresh depth map.
     ],
     fog: '#0c1114',
     folio: {
@@ -413,6 +414,12 @@ export default function Tour() {
   const [showHelp, setShowHelp] = useState(false);
   const [veil, setVeil] = useState('shown'); // 'shown' | 'leaving' | 'gone'
   const [muted, setMuted] = useState(false);
+  // One-time navigation hint: surfaces after the veil lifts, leaves on the
+  // reader's first move (or after a generous while, unprompted).
+  const [hint, setHint] = useState('pending'); // 'pending' | 'shown' | 'gone'
+  // True for the length of the vortex plunge: the beckon unmounts and the whole
+  // HUD fades out, so nothing man-made rides along on the fall.
+  const [isDiving, setIsDiving] = useState(false);
 
   // The door to the garden. Sealed until the reader has dwelled in The
   // Silence for a few breaths; once open it stays open. The ref mirrors the
@@ -426,43 +433,54 @@ export default function Tour() {
   const enteredRef = useRef(false);
   const audioRef = useRef(null);
 
-  const pointerStart = useRef(null); // { x, y, yaw, swiped }
+  const pointerStart = useRef(null); // { x, y, yaw, pitch, swiped }
 
-  // Horizontal look-around. `yawRef` is the live gaze angle (radians); `yawTarget`
-  // is where we're panning toward. Left/right pan the view without moving. The range
-  // is small — the relief fills the frame, so a gentle pan surveys within it rather
-  // than swinging off its edge into the surrounding dark.
+  // Free look-around. `yawRef`/`pitchRef` are the live gaze angles (radians);
+  // the *Target refs are where we're panning toward. Yaw surveys left/right,
+  // pitch tilts the gaze up/down — neither moves the body. The cards wrap
+  // sideways and mirror vertically past their edges (with a fog dissolve), so
+  // the ranges can be generous without ever swinging into raw dark.
   const yawRef = useRef(0);
   const yawTarget = useRef(0);
-  const YAW_MAX = 0.16; // ~9deg either side — a subtle survey, never off the image
+  const pitchRef = useRef(0);
+  const pitchTarget = useRef(0);
+  const YAW_MAX = 0.34;   // ~19deg either side
+  const PITCH_MAX = 0.24; // ~14deg up or down
 
-  const panYaw = useCallback((delta) => {
-    yawTarget.current = Math.min(Math.max(yawTarget.current + delta, -YAW_MAX), YAW_MAX);
+  const panGaze = useCallback((dYaw, dPitch = 0) => {
+    yawTarget.current = Math.min(Math.max(yawTarget.current + dYaw, -YAW_MAX), YAW_MAX);
+    pitchTarget.current = Math.min(Math.max(pitchTarget.current + dPitch, -PITCH_MAX), PITCH_MAX);
   }, []);
 
   // Commit the vortex dive: a slow, watchable plunge down the spiral toward the
   // core light, then a warm flood and out into the garden. Paced by its own clock
   // in the tick (diveAnimRef); the plunge/spin/aim + flash ride on top there.
-  const dive = useCallback(() => {
+  // `dest` is where the fall ultimately lands — the first garden node by default;
+  // a deeper hex-jump lands there first, then springs on to its chosen node.
+  const dive = useCallback((dest = LIBRARY_MAX + 1) => {
     if (diveAnimRef.current) return; // already falling
     immersionTargetRef.current = 0;
     immersionRef.current = 0;
     velRef.current = 0;
     targetRef.current = LIBRARY_MAX + 1;
-    diveAnimRef.current = { start: performance.now() };
+    diveAnimRef.current = { start: performance.now(), then: dest };
+    setIsDiving(true);
     if (!reduced && audioRef.current) {
-      audioRef.current.swell();
+      // The dive's rush: builds for most of the fall and crests with the
+      // whiteout (~el 0.65 of DIVE_MS), then releases into the garden's air.
+      audioRef.current.swell(3.4, 0.085, 1.3);
     }
   }, [reduced]);
 
   const setTarget = useCallback((next) => {
     const to = clamp(next, doorOpenRef.current ? MAX : LIBRARY_MAX);
     const from = targetRef.current;
-    // The library→garden step is ALWAYS the cinematic dive — whether it comes
-    // from the beckon, a scroll, or an arrow — so you never merely slide across
-    // that threshold. Only the first downward step into the garden qualifies.
-    if (to === LIBRARY_MAX + 1 && Math.round(from) <= LIBRARY_MAX && !diveAnimRef.current) {
-      dive();
+    // Any downward crossing of the library→garden threshold is ALWAYS the
+    // cinematic dive — whether it comes from the beckon, a scroll, an arrow, or
+    // a hex-dot jump straight to a deep garden node — so you never merely slide
+    // across that threshold.
+    if (to > LIBRARY_MAX && Math.round(from) <= LIBRARY_MAX && !diveAnimRef.current) {
+      dive(to);
       return;
     }
     targetRef.current = to;
@@ -481,6 +499,8 @@ export default function Tour() {
   // gallery; once immersion tops out the next step crosses to the following
   // chapter. Backing out empties immersion first, then retreats a chapter.
   const advance = useCallback((step) => {
+    if (diveAnimRef.current) return; // mid-fall: the plunge cannot be steered
+    setHint('gone');
     const next = immersionTargetRef.current + step;
     if (next > 1) {
       setTarget(Math.round(targetRef.current) + 1); // resets immersion to 0
@@ -496,6 +516,8 @@ export default function Tour() {
   }, [setTarget]);
 
   const go = useCallback((dir) => {
+    if (diveAnimRef.current) return; // mid-fall: the plunge cannot be steered
+    setHint('gone');
     // Whole-chapter jump (used by autoplay / chapter dots): clear immersion so
     // the crossing reads cleanly, then step the target chapter.
     immersionTargetRef.current = 0;
@@ -503,6 +525,8 @@ export default function Tour() {
   }, [setTarget]);
 
   const jumpTo = useCallback((index) => {
+    if (diveAnimRef.current) return; // mid-fall: the plunge cannot be steered
+    setHint('gone');
     setTarget(index);
   }, [setTarget]);
 
@@ -516,6 +540,14 @@ export default function Tour() {
     setVeil('leaving');
     setTimeout(() => setVeil('gone'), 1200);
   }, [muted]);
+
+  // One footfall from the walking gait (DescentRig calls this mid-stride):
+  // lay a soft step sound under it, scaled by how strongly the gait is swinging.
+  const handleStep = useCallback((intensity) => {
+    if (!reduced && audioRef.current) {
+      audioRef.current.step(intensity);
+    }
+  }, [reduced]);
 
   const toggleMute = useCallback(() => {
     setMuted((m) => {
@@ -543,19 +575,28 @@ export default function Tour() {
         // The vortex plunge runs on its own clock — a slow, watchable fall. Its
         // two motions are DECOUPLED: `el` drives how far the camera dives into
         // the vortex core (diveRef → the plunge/spin/aim in DioramaScene), which
-        // peaks mid-fall while descent still holds at the vortex — so you actually
-        // travel THROUGH the spiral. The descent crossover into the garden is held
-        // late (smoothstep from el 0.5) and happens under the warm flood, so the
-        // vortex→garden plate hand-off never shows.
+        // stays deep late into the fall — so you actually travel THROUGH the
+        // spiral, on screen the whole way. The descent crossover is held to the
+        // very end and runs behind the tunnel's own darkness (the near-black
+        // veil below closes as the camera buries itself in the throat), because
+        // the crossing melt seen at point-blank range reads as abstract shards —
+        // it must never be in the open this close.
         const a = diveAnimRef.current;
+        // `frozen` holds the fall at a fixed progress — dev-capture only (the
+        // ?dev hook below); a real dive never sets it.
         const el = a.frozen != null ? a.frozen : Math.min((now - a.start) / DIVE_MS, 1);
         diveRef.current = el;
-        descentRef.current = LIBRARY_MAX + smoothstep(0.5, 0.94, el);
+        descentRef.current = LIBRARY_MAX + smoothstep(0.78, 0.97, el);
         velRef.current = 0;
         if (a.frozen == null && el >= 1) {
+          // Landed. Hand the camera back to the spring — aimed at the fall's
+          // true destination, so a deep hex-jump glides on through the garden —
+          // and let the HUD chrome fade back in.
           diveAnimRef.current = null;
           descentRef.current = LIBRARY_MAX + 1;
           diveRef.current = 1;
+          targetRef.current = a.then ?? LIBRARY_MAX + 1;
+          setIsDiving(false);
         }
       } else {
         const d = descentRef.current;
@@ -579,16 +620,20 @@ export default function Tour() {
       const cur = descentRef.current;
 
       // Immersion eases toward its target, but only while the camera is settled
-      // on a chapter — mid-crossing it is pulled to 0 so the walk-in doesn't
-      // fight the veil dissolving between rooms.
+      // on a chapter — mid-crossing (and mid-fall, when descent briefly holds at
+      // the vortex) it is pulled to 0 so the walk-in doesn't fight the crossing.
       const settled = Math.abs(cur - Math.round(cur)) < 0.02;
-      const immT = settled ? immersionTargetRef.current : 0;
+      const immT = settled && !diving ? immersionTargetRef.current : 0;
       immersionRef.current += (immT - immersionRef.current) * (1 - Math.exp(-dt * 2.4));
 
-      // Look-around: gaze eases toward its target, which itself drifts slowly back
-      // to center — so the view always settles to facing down the corridor.
-      yawTarget.current += (0 - yawTarget.current) * (1 - Math.exp(-dt * 0.24));
-      yawRef.current += (yawTarget.current - yawRef.current) * (1 - Math.exp(-dt * 1.8));
+      // Look-around: gaze eases toward its target on both axes. The target
+      // barely drifts back toward center — slow enough that the view stays
+      // where the reader pointed it, yet over a long dwell it settles back to
+      // facing down the corridor.
+      yawTarget.current += (0 - yawTarget.current) * (1 - Math.exp(-dt * 0.05));
+      yawRef.current += (yawTarget.current - yawRef.current) * (1 - Math.exp(-dt * 2.4));
+      pitchTarget.current += (0 - pitchTarget.current) * (1 - Math.exp(-dt * 0.05));
+      pitchRef.current += (pitchTarget.current - pitchRef.current) * (1 - Math.exp(-dt * 2.4));
 
       // Interpolate accent between the two bracketing chapters.
       const lo = Math.floor(cur);
@@ -633,8 +678,12 @@ export default function Tour() {
       }
       const p = diveRef.current;
       if (flashRef.current) {
-        const bell = smoothstep(0.5, 0.7, p) * (1 - smoothstep(0.92, 1.0, p));
-        flashRef.current.style.opacity = `${(reduced ? 0.5 : 0.97) * bell}`;
+        // The tunnel swallows the light. No gold flood — the spiral is on
+        // screen until the camera buries itself in the throat, then the dark
+        // veil closes over the plate hand-off and lifts onto the garden:
+        // falling into darkness, emerging into green.
+        const bell = smoothstep(0.7, 0.88, p) * (1 - smoothstep(0.93, 1.0, p));
+        flashRef.current.style.opacity = `${(reduced ? 0.8 : 0.92) * bell}`;
       }
 
       frame = requestAnimationFrame(tick);
@@ -643,29 +692,45 @@ export default function Tour() {
     return () => cancelAnimationFrame(frame);
   }, []);
 
-  // TEMP diagnostic hook — REMOVE. ?dev=1 skips the veil, opens the door, sits at
-  // the vortex, and exposes the REAL dive() + a state getter so the live spring
-  // crossing can be observed headlessly.
+  // Surface the navigation hint once the veil has fully dissolved; if the
+  // reader never moves on their own, let it bow out after a while regardless.
   useEffect(() => {
-    if (!new URLSearchParams(window.location.search).has('dev')) return;
+    if (veil !== 'gone' || hint !== 'pending') {
+      return undefined;
+    }
+    setHint('shown');
+    const timer = setTimeout(() => setHint('gone'), 14000);
+    return () => clearTimeout(timer);
+  }, [veil, hint]);
+
+  // Dev-only capture rig (stripped from production builds by Vite): ?dev=1
+  // jumps straight to the woken vortex — or to ?ch=<n> when given — and
+  // exposes window.__setDive(el) to freeze the dive at any progress, so
+  // headless screenshots can inspect any instant of the fall. See the capture
+  // recipe in the project memory.
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    const params = new URLSearchParams(window.location.search);
+    if (!params.has('dev')) return;
     setVeil('gone');
     enteredRef.current = true;
     doorOpenRef.current = true;
     setDoorOpen(true);
-    descentRef.current = LIBRARY_MAX;
-    targetRef.current = LIBRARY_MAX;
-    velRef.current = 0;
-    window.__dive = dive;
+    const ch = Number(params.get('ch'));
+    const at = params.has('ch') && Number.isFinite(ch) ? clamp(Math.round(ch), MAX) : LIBRARY_MAX;
+    descentRef.current = at;
+    targetRef.current = at;
     window.__setDive = (el) => {
-      // Freeze the decoupled dive at plunge-progress el (the tick derives the
-      // matching held-late descent), so a capture shows exactly the real frame.
       diveAnimRef.current = { frozen: Math.max(0, Math.min(1, el)) };
+      setIsDiving(true);
     };
-    window.__state = () => ({
-      d: +descentRef.current.toFixed(3),
-      dive: +diveRef.current.toFixed(3),
+    window.__nav = () => ({
+      target: targetRef.current,
+      descent: descentRef.current,
+      immT: immersionTargetRef.current,
+      diving: diveAnimRef.current !== null,
     });
-  }, [dive]);
+  }, []);
 
   // The door: once the reader has settled in The Silence and dwelled for a
   // few breaths, a green light kindles between the shelves and the garden
@@ -697,37 +762,50 @@ export default function Tour() {
     return () => window.clearInterval(timer);
   }, [autoplay, setTarget]);
 
-  // Keyboard: Up/Down + Space move deeper/shallower; Left/Right pan the gaze.
+  // Keyboard: Up/Down + Space move deeper/shallower; Left/Right pan the gaze;
+  // Shift+Up/Down tilt the gaze up and down instead of walking.
   useEffect(() => {
     const onKey = (event) => {
       if (!enteredRef.current) {
         return;
       }
-      if (event.key.toLowerCase() === 'h') {
+      if (event.key.toLowerCase() === 'h' || event.key === '?') {
         event.preventDefault();
         setShowHelp((v) => !v);
         return;
       }
+      if (event.key === 'Escape') {
+        setShowHelp(false);
+        return;
+      }
       if (['ArrowDown', ' '].includes(event.key)) {
         event.preventDefault();
-        advance(0.5); // step deeper into the room, then on to the next chapter
+        if (event.shiftKey && event.key === 'ArrowDown') {
+          panGaze(0, -0.06); // tilt the gaze down
+        } else {
+          advance(0.5); // step deeper into the room, then on to the next chapter
+        }
       }
       if (event.key === 'ArrowUp') {
         event.preventDefault();
-        advance(-0.5); // step back out toward the mouth, then to the previous
+        if (event.shiftKey) {
+          panGaze(0, 0.06); // tilt the gaze up
+        } else {
+          advance(-0.5); // step back out toward the mouth, then to the previous
+        }
       }
       if (event.key === 'ArrowRight') {
         event.preventDefault();
-        panYaw(0.05);
+        panGaze(0.08);
       }
       if (event.key === 'ArrowLeft') {
         event.preventDefault();
-        panYaw(-0.05);
+        panGaze(-0.08);
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [advance, panYaw]);
+  }, [advance, panGaze]);
 
   // Scroll wheel walks the camera in and out in small, calm increments — deeper
   // into the current gallery first, rolling on to the next once fully immersed.
@@ -743,14 +821,17 @@ export default function Tour() {
     return () => window.removeEventListener('wheel', onWheel);
   }, [advance]);
 
-  // Pointer: drag horizontally to pan the gaze in real time; swipe vertically to
-  // descend/ascend (the touch path to navigation); a plain click drifts deeper.
+  // Pointer: a mouse/pen drag pans the gaze freely on both axes (grab the
+  // world and pull it). On touch, horizontal drags look around while a clear
+  // vertical swipe still walks in/out — that's the touch path to navigation.
+  // A plain click drifts deeper.
   const dragMoved = useRef(false);
   const handlePointerDown = (event) => {
     pointerStart.current = {
       x: event.clientX,
       y: event.clientY,
       yaw: yawTarget.current,
+      pitch: pitchTarget.current,
       swiped: false,
     };
     dragMoved.current = false;
@@ -765,14 +846,21 @@ export default function Tour() {
     if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
       dragMoved.current = true;
     }
-    if (!start.swiped && Math.abs(dy) > 60 && Math.abs(dy) > Math.abs(dx)) {
+    const isTouch = event.pointerType === 'touch';
+    if (isTouch && !start.swiped && Math.abs(dy) > 60 && Math.abs(dy) > Math.abs(dx)) {
       start.swiped = true;
       advance(dy < 0 ? 0.5 : -0.5); // swipe up = press deeper into the room
       return;
     }
-    // Map full-width drag to the full pan range; dragging right looks right.
+    // Map a full-width/height drag to the full pan range, grab-the-world
+    // style: pulling the scene right swings the gaze left, pulling it down
+    // tips the gaze up.
     const yaw = start.yaw - (dx / window.innerWidth) * YAW_MAX * 2.2;
     yawTarget.current = Math.min(Math.max(yaw, -YAW_MAX), YAW_MAX);
+    if (!isTouch) {
+      const pitch = start.pitch + (dy / window.innerHeight) * PITCH_MAX * 2.2;
+      pitchTarget.current = Math.min(Math.max(pitch, -PITCH_MAX), PITCH_MAX);
+    }
   };
   const handlePointerUp = () => {
     pointerStart.current = null;
@@ -789,7 +877,7 @@ export default function Tour() {
 
   return (
     <div
-      className="tour-root"
+      className={`tour-root${isDiving ? ' is-diving' : ''}`}
       style={{ '--accent': node.accent }}
       onClick={handleClick}
       onPointerDown={handlePointerDown}
@@ -802,10 +890,12 @@ export default function Tour() {
         immersionRef={immersionRef}
         accentRef={accentRef}
         yawRef={yawRef}
+        pitchRef={pitchRef}
         diveRef={diveRef}
         portalRef={doorOpenRef}
         libraryMax={LIBRARY_MAX}
         reduced={reduced}
+        onStep={handleStep}
       />
 
       <div className="chapter-card">
@@ -858,6 +948,7 @@ export default function Tour() {
           type="button"
           className="pill"
           aria-label="Ascend one gallery"
+          title="Ascend one gallery (↑)"
           onClick={(e) => { e.stopPropagation(); go(-1); }}
           disabled={chapter === 0}
         >
@@ -875,6 +966,7 @@ export default function Tour() {
           type="button"
           className="pill"
           aria-label="Descend one gallery"
+          title="Descend one gallery (↓)"
           onClick={(e) => { e.stopPropagation(); go(1); }}
           disabled={chapter === (doorOpen ? MAX : LIBRARY_MAX)}
         >
@@ -887,6 +979,15 @@ export default function Tour() {
           onClick={(e) => { e.stopPropagation(); toggleMute(); }}
         >
           {muted ? 'Unmute' : 'Mute'}
+        </button>
+        <button
+          type="button"
+          className={`pill${showHelp ? ' is-on' : ''}`}
+          aria-label={showHelp ? 'Hide the navigation help' : 'Show the navigation help'}
+          title="Navigation help (H)"
+          onClick={(e) => { e.stopPropagation(); setShowHelp((v) => !v); }}
+        >
+          ?
         </button>
       </div>
 
@@ -908,7 +1009,8 @@ export default function Tour() {
                 type="button"
                 className={`hex-btn${index === chapter ? ' is-active' : ''}${isGarden ? ' is-garden' : ''}`}
                 onClick={(e) => { e.stopPropagation(); jumpTo(index); }}
-                aria-label={isGarden ? `Follow the path to ${n.slug}` : `Descend to ${n.slug}`}
+                aria-label={isGarden ? `Follow the path to ${n.title}` : `Descend to ${n.title}`}
+                title={n.title}
               >
                 <span className="hex" />
               </button>
@@ -917,7 +1019,7 @@ export default function Tour() {
         </div>
       </div>
 
-      {doorOpen && chapter === LIBRARY_MAX && (
+      {doorOpen && chapter === LIBRARY_MAX && !isDiving && (
         <button
           type="button"
           className="door-call"
@@ -936,10 +1038,11 @@ export default function Tour() {
             <div className="help-title">Navigation help</div>
             <div className="help-body">
               • Scroll, ↑ / ↓, or space walk into a gallery, then on to the next<br />
-              • ← / → or drag horizontally to look around the space<br />
+              • Drag with the mouse to look anywhere — left, right, up, below<br />
+              • ← / → also look around; Shift + ↑ / ↓ tilt the gaze up and down<br />
               • Swipe up or down to walk in and move between galleries on touch<br />
               • Click to step further into the room<br />
-              • Press H to hide or show this guide<br />
+              • Press H or ? to open this guide, Esc to close it<br />
               • Use the depth hexagons for direct jumps<br />
               • In the deepest gallery, wait — something opens
             </div>
@@ -951,6 +1054,16 @@ export default function Tour() {
               Close
             </button>
           </div>
+        </div>
+      )}
+
+      {hint !== 'pending' && (
+        <div
+          className={`nav-hint${hint === 'shown' ? ' is-shown' : ''}`}
+          aria-hidden="true"
+        >
+          <span className="nav-hint-mouse">scroll or click to walk deeper&ensp;·&ensp;drag to look around&ensp;·&ensp;? for help</span>
+          <span className="nav-hint-touch">swipe up to walk deeper&ensp;·&ensp;drag to look around</span>
         </div>
       )}
 
