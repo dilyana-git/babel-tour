@@ -6,10 +6,12 @@
 //      bloom, god rays from the glowing door. (@react-three/postprocessing installed.)
 //  14. DioramaScene/Canvas: powerPreference 'high-performance', fewer plane segments
 //      on coarse-pointer devices.
-//  15. Convert public/nodes/descent/{color,depth_soft}.png to .webp, update SCENE
-//      paths below (color lossy q~88, depth lossless).
+//  15. Convert every pair in ART below to .webp (color lossy q~88, depth LOSSLESS —
+//      lossy depth bands, and banding in a depth map becomes visible terracing in
+//      the relief). Now urgent: six pairs is ~43MB of PNG on first load.
 //  16. README: describe the actual project + how to add per-chapter artwork
-//      (nodes/<slug>/ color+depth pairs — needs new art, stays documented).
+//      (a { color, depth } pair per slug in ART below; `silence` still borrows the
+//      opening scene, and depth maps want generating from the final color image).
 import { useState, useEffect, useRef, useCallback } from 'react';
 import * as THREE from 'three';
 import { useProgress } from '@react-three/drei';
@@ -92,10 +94,27 @@ const NODES = [
   },
 ];
 
-const SCENE = {
-  color: '/nodes/descent/color.png',
-  depth: '/nodes/descent/depth_soft.png',
+// Per-chapter artwork, keyed by slug. Each entry is a (color, depth) pair; the
+// diorama blends between the two chapters bracketing the current descent, so these
+// read as stations along the way down rather than as slides.
+//
+// Depth maps are deliberately soft: the relief is a single displaced plane with no
+// geometry behind it, so hard depth edges tear into spikes instead of revealing
+// anything. `depthGamma` shapes each map's falloff — raise it to push detail toward
+// the far distance, lower it to lift the foreground.
+const ART = {
+  descent: { color: '/nodes/descent/color.png', depth: '/nodes/descent/depth_soft.png' },
+  echo: { color: '/nodes/descent/impossible_2.png', depth: '/nodes/descent/impossible_2_depth.png' },
+  hexagon: { color: '/nodes/descent/impossible_1.png', depth: '/nodes/descent/impossible_1_depth.png' },
+  return: { color: '/nodes/descent/impossible_3.png', depth: '/nodes/descent/impossible_3_depth.png' },
+  vertigo: { color: '/nodes/descent/impossible_4.png', depth: '/nodes/descent/impossible_4_depth.png' },
+  // Awaiting its own art. Reusing the opening scene is not just a stopgap — the
+  // deepest gallery reading as the first one closes the loop that Drift autoplay
+  // makes literal ("the same volumes are repeated in the same disorder").
+  silence: { color: '/nodes/descent/color.png', depth: '/nodes/descent/depth_soft.png' },
 };
+
+const SCENE_ART = NODES.map((n) => ART[n.slug]);
 
 const MAX = NODES.length - 1;
 const clamp = (v) => Math.min(Math.max(v, 0), MAX);
@@ -139,8 +158,11 @@ function FadeSwap({ id, render }) {
 function EntryVeil({ leaving, onEnter }) {
   const { active, progress } = useProgress();
   const [timedOut, setTimedOut] = useState(false);
+  // The veil now waits on every chapter's artwork, not just the first scene, so the
+  // escape hatch has to be long enough that a slow connection isn't dumped into an
+  // empty room. Entering early is still allowed — the scene fills in behind you.
   useEffect(() => {
-    const timer = setTimeout(() => setTimedOut(true), 3500);
+    const timer = setTimeout(() => setTimedOut(true), 20000);
     return () => clearTimeout(timer);
   }, []);
   const ready = timedOut || (!active && progress === 100);
@@ -168,7 +190,9 @@ function EntryVeil({ leaving, onEnter }) {
       <h1 className="entry-title">La Biblioteca de Babel</h1>
       <div className="entry-rule" />
       <div className="entry-status">
-        {ready ? 'Click to descend' : 'The Library is assembling…'}
+        {ready
+          ? 'Click to descend'
+          : `The Library is assembling… ${Math.round(progress)}%`}
       </div>
     </div>
   );
@@ -422,8 +446,7 @@ export default function Tour() {
       onPointerUp={handlePointerUp}
     >
       <DioramaScene
-        color={SCENE.color}
-        depth={SCENE.depth}
+        art={SCENE_ART}
         chapters={NODES.length}
         descentRef={descentRef}
         accentRef={accentRef}

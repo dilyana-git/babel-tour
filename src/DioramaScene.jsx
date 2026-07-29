@@ -7,8 +7,10 @@
 // the relief's deepest point), intensity rising as descent approaches max.
 // TODO(beauty-14): gl powerPreference 'high-performance'; drop plane segments to
 // ~[420, 236] on coarse-pointer devices.
-// TODO(beauty-15): SCENE textures — switch to .webp once converted.
-import { useRef, useMemo } from 'react';
+// TODO(beauty-15): SCENE textures — switch to .webp once converted. Now that every
+// chapter carries its own pair this matters much more: six 8MB PNGs is ~43MB of
+// download and ~200MB of GPU memory once decoded.
+import { Suspense, useRef, useMemo } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { useTexture } from '@react-three/drei';
 import * as THREE from 'three';
@@ -38,8 +40,15 @@ const camZ = (p) => -MAX_INWARD * p;
 // Spacing of the suspended light rings along the corridor.
 const STEP_DEPTH = 5;
 
+// Both shaders carry two slots — the chapter we're leaving (A) and the one we're
+// arriving at (B) — blended by `uMix`. Because the blend happens inside a single
+// material, the relief *morphs* between the two scenes on one plane rather than
+// cross-fading two overlapping displaced meshes (which would z-fight and interleave
+// where their depths disagree). One draw call, no sorting, continuous geometry.
 const paintingVert = /* glsl */`
-  uniform sampler2D depthMap;
+  uniform sampler2D depthA;
+  uniform sampler2D depthB;
+  uniform float uMix;
   uniform float relief;
   uniform float depthGamma;
   uniform float uTime;
@@ -51,7 +60,7 @@ const paintingVert = /* glsl */`
   varying float vFog;
   void main() {
     vUv = uv;
-    float d = texture2D(depthMap, uv).r;
+    float d = mix(texture2D(depthA, uv).r, texture2D(depthB, uv).r, uMix);
     d = pow(d, depthGamma);
     vDepth = d;
     float breath = 1.0 + sin(uTime * 0.5) * 0.06 * uBreath;
@@ -64,7 +73,9 @@ const paintingVert = /* glsl */`
   }
 `;
 const paintingFrag = /* glsl */`
-  uniform sampler2D map;
+  uniform sampler2D mapA;
+  uniform sampler2D mapB;
+  uniform float uMix;
   uniform float uTime;
   uniform float uBreath;
   uniform vec3 uFogColor;
@@ -72,7 +83,7 @@ const paintingFrag = /* glsl */`
   varying float vDepth;
   varying float vFog;
   void main() {
-    vec4 tex = texture2D(map, vUv);
+    vec4 tex = mix(texture2D(mapA, vUv), texture2D(mapB, vUv), uMix);
     float pulse = 0.5 + 0.5 * sin(uTime * 0.35 + vDepth * 3.14159);
     tex.rgb += tex.rgb * pulse * 0.05 * uBreath * smoothstep(0.2, 1.0, vDepth);
     float fog = vFog * vFog;
@@ -83,41 +94,82 @@ const paintingFrag = /* glsl */`
   }
 `;
 
-function Painting({ color, depth, aspect, relief, depthGamma, overscan, reduced }) {
-  const ref = useRef();
-  const [colorMap, depthMap] = useTexture([color, depth], (texes) => {
-    texes[0].colorSpace = THREE.SRGBColorSpace;
-    texes.forEach((t) => (t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping));
-  });
+// The relief plane. Holds every chapter's (color, depth) pair and blends the two
+// that bracket the current descent, so moving between chapters morphs the terrain
+// continuously rather than swapping it out.
+function Relief({ pairs, reliefs, gammas, aspect, overscan, reduced, descentRef }) {
+  // The frame loop reads the artwork through a ref rather than closing over the prop.
+  // Tour re-renders on every frame of a transition (the video envelope is React
+  // state), so anything the geometry memo depends on has to be a primitive — one
+  // unstable array reference here would rebuild a 275k-vertex plane 60 times a second.
+  const live = useRef({ pairs, reliefs, gammas });
+  live.current = { pairs, reliefs, gammas };
 
+  // Built once. Chapter artwork arrives through uniforms every frame, so changing
+  // chapter never rebuilds the plane.
   const { geo, mat } = useMemo(() => {
     const h = frustumH(PLANE_Z) * overscan;
     const w = h * aspect;
+    // Segment counts follow the plane's proportions so triangles stay near-square
+    // at any aspect — a 16:9 split on a 21:9 plane stretches them badly.
+    const segY = 344;
+    const segX = Math.round(segY * aspect);
     return {
-      geo: new THREE.PlaneGeometry(w, h, 700, 394),
+      geo: new THREE.PlaneGeometry(w, h, segX, segY),
       mat: new THREE.ShaderMaterial({
+        // Seeded null; the first useFrame fills them before anything is drawn.
         uniforms: {
-          map: { value: colorMap },
-          depthMap: { value: depthMap },
-          relief: { value: relief },
-          depthGamma: { value: depthGamma },
+          mapA: { value: null },
+          mapB: { value: null },
+          depthA: { value: null },
+          depthB: { value: null },
+          uMix: { value: 0 },
+          relief: { value: 0 },
+          depthGamma: { value: 1 },
           uTime: { value: 0 },
           uBreath: { value: reduced ? 0 : 1 },
-          uFogNear: { value: PLANE_Z - relief * 0.5 },
-          uFogFar: { value: PLANE_Z + relief * 1.6 },
+          uFogNear: { value: PLANE_Z },
+          uFogFar: { value: PLANE_Z },
           uFogColor: { value: new THREE.Color('#15120d') },
         },
         vertexShader: paintingVert,
         fragmentShader: paintingFrag,
       }),
     };
-  }, [colorMap, depthMap, aspect, relief, depthGamma, overscan, reduced]);
+  }, [aspect, overscan, reduced]);
 
   useFrame(({ clock }) => {
-    mat.uniforms.uTime.value = clock.getElapsedTime();
+    const u = mat.uniforms;
+    const { pairs: art, reliefs: rs, gammas: gs } = live.current;
+    u.uTime.value = clock.getElapsedTime();
+
+    // Bracket the continuous descent with the chapters either side of it.
+    const last = art.length - 1;
+    const d = Math.min(Math.max(descentRef.current, 0), last);
+    const lo = Math.floor(d);
+    const hi = Math.min(lo + 1, last);
+    const f = d - lo;
+
+    u.mapA.value = art[lo].color;
+    u.depthA.value = art[lo].depth;
+    u.mapB.value = art[hi].color;
+    u.depthB.value = art[hi].depth;
+    // Smoothstep the crossfade. A linear mix lingers at 50/50, where two different
+    // scenes read as a double exposure; this eases out of each chapter and crosses
+    // the muddy middle half again as fast, without hurrying the arrival.
+    u.uMix.value = f * f * (3 - 2 * f);
+
+    // Relief height and depth gamma are per-chapter knobs — depth maps from
+    // different images need different shaping — so they travel with the artwork.
+    // Fog follows the relief so the haze band keeps sitting inside the geometry.
+    const r = rs[lo] + (rs[hi] - rs[lo]) * f;
+    u.relief.value = r;
+    u.depthGamma.value = gs[lo] + (gs[hi] - gs[lo]) * f;
+    u.uFogNear.value = PLANE_Z - r * 0.5;
+    u.uFogFar.value = PLANE_Z + r * 1.6;
   });
 
-  return <mesh ref={ref} geometry={geo} material={mat} position={[0, 0, -PLANE_Z]} renderOrder={1} />;
+  return <mesh geometry={geo} material={mat} position={[0, 0, -PLANE_Z]} renderOrder={1} />;
 }
 
 function radialTexture(stops) {
@@ -424,10 +476,64 @@ function DescentRig({ descentRef, maxDescent, yawRef, parallax, reduced }) {
   return null;
 }
 
+// Everything that needs the artwork, or the aspect derived from it. Loading every
+// chapter's pair up front means chapter changes never hitch mid-tour, and the entry
+// veil's useProgress gate covers the whole descent rather than just the first scene.
+function Diorama({
+  art, relief, depthGamma, overscan, chapters, descentRef, accentRef, reduced, aspect: aspectOverride,
+}) {
+  const paths = useMemo(() => art.flatMap((a) => [a.color, a.depth]), [art]);
+  const textures = useTexture(paths);
+
+  const pairs = useMemo(() => {
+    const out = [];
+    for (let i = 0; i < textures.length; i += 2) {
+      const color = textures[i];
+      const depth = textures[i + 1];
+      color.colorSpace = THREE.SRGBColorSpace;
+      color.wrapS = color.wrapT = THREE.ClampToEdgeWrapping;
+      depth.wrapS = depth.wrapT = THREE.ClampToEdgeWrapping;
+      out.push({ color, depth });
+    }
+    return out;
+  }, [textures]);
+
+  // Per-chapter overrides fall back to the scene defaults.
+  const reliefs = useMemo(() => art.map((a) => a.relief ?? relief), [art, relief]);
+  const gammas = useMemo(() => art.map((a) => a.depthGamma ?? depthGamma), [art, depthGamma]);
+
+  // Take the plane's proportions from the artwork itself. Hardcoding this is how the
+  // scene ended up rendering 21:9 art on a 16:9 plane, squashed to ~77% width.
+  const aspect = useMemo(() => {
+    if (aspectOverride) {
+      return aspectOverride;
+    }
+    const img = pairs[0]?.color?.image;
+    return img?.height ? img.width / img.height : 3360 / 1440;
+  }, [pairs, aspectOverride]);
+
+  return (
+    <>
+      <Relief
+        pairs={pairs} reliefs={reliefs} gammas={gammas} aspect={aspect}
+        overscan={overscan} reduced={reduced} descentRef={descentRef}
+      />
+      <Fog depth={PLANE_Z + 3} y={-0.58} opacity={0.14} scale={1.5} aspect={aspect} index={0} descentRef={descentRef} />
+      <Fog depth={PLANE_Z - 6} y={-0.62} opacity={0.20} scale={1.2} aspect={aspect} index={1} descentRef={descentRef} />
+      <LightShafts aspect={aspect} accentRef={accentRef} reduced={reduced} />
+      <Motes aspect={aspect} reduced={reduced} descentRef={descentRef} />
+      <Glow aspect={aspect} accentRef={accentRef} reduced={reduced} />
+      <PortalRings accentRef={accentRef} descentRef={descentRef} chapters={chapters} />
+    </>
+  );
+}
+
 export default function DioramaScene({
-  color,
-  depth,
-  aspect = 2944 / 1648,
+  // One { color, depth } pair per chapter, in descent order. Each may also carry its
+  // own `relief` / `depthGamma` when its depth map wants different shaping.
+  art,
+  // Optional. Left unset, the plane takes its proportions from the artwork.
+  aspect,
   relief = 4.8,
   depthGamma = 1.0,
   // Generous overscan so the relief extends well beyond the frame edges — this is
@@ -447,18 +553,15 @@ export default function DioramaScene({
       gl={{ antialias: true }}
     >
       <color attach="background" args={['#15120d']} />
-      <Painting
-        color={color} depth={depth} aspect={aspect}
-        relief={relief} depthGamma={depthGamma}
-        overscan={overscan} reduced={reduced}
-      />
-      <Fog depth={PLANE_Z + 3} y={-0.58} opacity={0.14} scale={1.5} aspect={aspect} index={0} descentRef={descentRef} />
-      <Fog depth={PLANE_Z - 6} y={-0.62} opacity={0.20} scale={1.2} aspect={aspect} index={1} descentRef={descentRef} />
-      <LightShafts aspect={aspect} accentRef={accentRef} reduced={reduced} />
-      <Motes aspect={aspect} reduced={reduced} descentRef={descentRef} />
-      <Glow aspect={aspect} accentRef={accentRef} reduced={reduced} />
-      <PortalRings accentRef={accentRef} descentRef={descentRef} chapters={chapters} />
+      {/* The rig needs no artwork, so the camera keeps drifting while textures stream. */}
       <DescentRig descentRef={descentRef} maxDescent={chapters - 1} yawRef={yawRef} parallax={parallax} reduced={reduced} />
+      <Suspense fallback={null}>
+        <Diorama
+          art={art} aspect={aspect} relief={relief} depthGamma={depthGamma}
+          overscan={overscan} chapters={chapters}
+          descentRef={descentRef} accentRef={accentRef} reduced={reduced}
+        />
+      </Suspense>
     </Canvas>
   );
 }
