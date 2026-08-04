@@ -943,6 +943,24 @@
     refusal-fade 900ms ease 4300ms forwards;
 }
 
+/* The road not taken. Neither an invitation nor a refusal: the reader chose,
+   and this names what the choosing cost. So it keeps the garden's green — the
+   path it speaks of is a garden, and was very nearly this one — but it arrives
+   slowly, the way a thought does rather than the way an answer does, and it
+   goes without ever breathing. It is a memory of somewhere the reader has not
+   been, and it should not insist. Fade lands at FORK_WHISPER_MS in Tour.jsx. */
+.door-whisper.is-fork {
+  background: rgba(10, 14, 9, 0.5);
+  border-color: rgba(159, 196, 138, 0.18);
+  color: rgba(205, 238, 178, 0.72);
+  font-style: italic;
+  letter-spacing: 0.18em;
+  text-transform: none;
+  animation:
+    door-appear 2600ms ease both,
+    refusal-fade 1400ms ease 5200ms forwards;
+}
+
 @keyframes refusal-fade {
   from {
     opacity: 1;

@@ -795,6 +795,53 @@ const POOLS = [
     : { map: LIBRARY_NODE_VARIANTS, slug: LIBRARY_SLUGS[i] })),
 ];
 
+// ── The Fork ────────────────────────────────────────────────────────────────
+// The garden is forking paths; the corridor was a line. Every gallery drew its
+// variant at random on load, so WHICH of the Fork's gardens the reader walked
+// into was settled before they arrived and by nothing they did — the one room
+// in the piece whose whole subject is that a choice was made.
+//
+// So the crossing into it is a choice now. Two of its gardens are drawn as
+// candidates, and which becomes real is decided by where the reader is LOOKING
+// as they cross: yaw at the commit point, nothing else. The other never
+// existed — or rather, it existed on the path not taken, which is what the
+// whisper on the far side says.
+const FORK_INDEX = LIBRARY_SLUGS.length + 1;  // VI, the second room of the garden
+// How far into the V → VI crossing the choice is committed. Late enough that
+// the reader has had the whole approach to turn, early enough that the arriving
+// gallery is still buried in fog when it is swapped, so nothing pops.
+const FORK_COMMIT = 0.42;
+// How far the gaze must be off the corridor's axis to count as a turn. The yaw
+// eases back toward centre on its own, so a turn has to be HELD through the
+// commit rather than flicked. Under this the reader chose nothing, and the
+// world draws for them — silently, because the whisper would be claiming they
+// turned when they did not.
+const FORK_YAW = 0.06;
+const FORK_WHISPER_MS = 6600;
+const forkWhisper = (missed) => `in another garden, you turned ${missed}.`;
+
+// Two DIFFERENT gardens to hang either side of the path. Null where the node
+// cannot offer two, in which case there is no fork and the crossing behaves as
+// it always did. Drawn once per visit rather than per crossing: walking back up
+// and down again must not re-roll a road already taken.
+const forkCandidates = () => {
+  const { map, slug } = POOLS[FORK_INDEX];
+  const node = map[slug];
+  const pool = livingFirst(node.variants);
+  if (pool.length < 2) return null;
+  const a = Math.floor(Math.random() * pool.length);
+  // Draw the second from the remaining ones by index, so the two can never be
+  // the same garden and neither is favoured.
+  let b = Math.floor(Math.random() * (pool.length - 1));
+  if (b >= a) b += 1;
+  const hang = (variant) => {
+    const clips = variant.videos ?? [];
+    return sceneOf(node, variant,
+      clips.length ? clips[Math.floor(Math.random() * clips.length)] : undefined);
+  };
+  return { left: hang(pool[a]), right: hang(pool[b]) };
+};
+
 // A gallery may only be re-hung while nobody can see it. Behind the camera
 // DioramaScene's depth-ordered melt has swept clear of the whole plate by about
 // half a chapter past it (`th` drops under the depth range at uFade ~0.71) and
@@ -1208,6 +1255,22 @@ export default function Tour() {
   // off `chapter` at render — the step is refused on the TARGET chapter, which
   // mid-crossing is not the chapter the eased camera is showing yet.
   const [refusal, setRefusal] = useState(null);
+  // The two gardens the Fork could be, drawn once for the whole visit; null
+  // where the node has only one, and on a pinned session, which exists to hold
+  // one pairing still and must not have a road chosen under it.
+  // Held in a ref rather than a memo so the render-free tick can read it
+  // without taking it as a dependency — the tick's effect must not re-run, and
+  // the two candidates are drawn once and never change anyway.
+  const forkRef = useRef(undefined);
+  if (forkRef.current === undefined) {
+    forkRef.current = PINNED ? null : forkCandidates();
+  }
+  const forkTakenRef = useRef(false);   // has the road been chosen yet
+  const forkMissedRef = useRef(null);   // …and which garden it cost, or null
+  // The echo of the road not taken, shown once on arriving in the Fork. Only
+  // ever set when the reader actually turned — see FORK_YAW.
+  const [forkEcho, setForkEcho] = useState(null);
+  const forkEchoTimer = useRef(0);
   // Which scatter layout the frame can hold. Unlike `reduced`, this has to
   // keep listening: rotating a phone changes the answer mid-tour.
   const [narrow, setNarrow] = useState(
@@ -1522,6 +1585,14 @@ export default function Tour() {
     const queue = [...spent].sort(
       (a, b) => Math.abs(descent - a) - Math.abs(descent - b));
     for (const i of queue) {
+      // A chosen road stays chosen. Every other gallery re-hangs itself with a
+      // different version of the same room once it is out of sight, which is
+      // exactly the wrong thing to do to the one gallery the reader picked:
+      // the choice would be quietly undone the first time they looked away.
+      if (i === FORK_INDEX && forkTakenRef.current) {
+        spent.delete(i);
+        continue;
+      }
       if (!outOfSight(descent, i, ARMED)) continue;
       spent.delete(i);
       const pool = POOLS[i];
@@ -1723,6 +1794,37 @@ export default function Tour() {
       // Update HUD chapter when we cross a rounded boundary — right at the
       // bridge's peak, so the card swap happens under the video's cover.
       const nearest = Math.round(cur);
+      // ── The road chosen by looking ───────────────────────────────────────
+      // ABOVE the arrival block on purpose: both can land in the same tick if a
+      // single frame carries the camera across the commit point and into the
+      // room (a long dt — a background tab coming back, one slow frame), and
+      // the arrival is what says what the choice cost. Announced before it was
+      // made, it has nothing to say and the road not taken goes unnamed.
+      // Committed partway through the V → VI crossing, from the yaw alone. The
+      // gallery ahead is still deep enough in fog here that swapping it is
+      // invisible; a chapter later it would be a plate changing in front of the
+      // reader's eyes. Descending only: climbing back up into the Fork walks
+      // into the garden already chosen, because it is the one that exists now.
+      if (forkRef.current && !forkTakenRef.current
+          && cur > (FORK_INDEX - 1) + FORK_COMMIT && cur < FORK_INDEX) {
+        forkTakenRef.current = true;
+        const yaw = yawRef.current;
+        const turned = yaw > FORK_YAW ? 'right' : yaw < -FORK_YAW ? 'left' : null;
+        const side = turned ?? (Math.random() < 0.5 ? 'left' : 'right');
+        forkMissedRef.current = turned ? (side === 'left' ? 'right' : 'left') : null;
+        const chosen = forkRef.current[side];
+        // The Fork is now settled for the rest of the visit: the restock is
+        // told to leave it alone below, so walking away and back returns to the
+        // garden that was chosen rather than re-rolling it.
+        startTransition(() => {
+          setScenes((prev) => {
+            const out = prev.slice();
+            out[FORK_INDEX] = chosen;
+            return out;
+          });
+        });
+      }
+
       if (nearest !== settledRef.current) {
         // The direction of the crossing decides the tongue the arriving gallery
         // speaks: down through the Library in translation, back up in the
@@ -1736,6 +1838,16 @@ export default function Tour() {
         // You have now been in this gallery: its painting is spent, and gets
         // re-drawn as soon as the room is out of sight behind you.
         spentRef.current.add(nearest);
+        // Arriving in the Fork having actually turned on the way: say what the
+        // turn cost. Only when the reader chose — the world drawing for someone
+        // who walked straight through is not a road not taken, and claiming it
+        // was would be the piece lying to them.
+        if (nearest === FORK_INDEX && forkMissedRef.current) {
+          setForkEcho({ at: now, missed: forkMissedRef.current });
+          window.clearTimeout(forkEchoTimer.current);
+          forkEchoTimer.current = window.setTimeout(
+            () => setForkEcho(null), FORK_WHISPER_MS);
+        }
       }
 
       // Re-hang one spent gallery, twice a second at most, and never mid-fall —
@@ -1844,6 +1956,21 @@ export default function Tour() {
       descent: descentRef.current,
       immT: immersionTargetRef.current,
       diving: diveAnimRef.current !== null,
+      // Where the gaze is pointed. The Fork reads exactly this at the commit
+      // point, so a fork that lands the wrong way can be told apart from a yaw
+      // that never got far enough off the axis to count (FORK_YAW).
+      yaw: yawRef.current,
+      fork: {
+        taken: forkTakenRef.current,
+        missed: forkMissedRef.current,
+        // The two gardens on offer. Null means the node could not field two and
+        // there is no fork at all — which is otherwise indistinguishable from a
+        // fork that simply never fired.
+        pair: forkRef.current
+          ? [forkRef.current.left, forkRef.current.right]
+            .map((s) => s.color.split('/').pop())
+          : null,
+      },
       // Which version of each gallery is hanging right now, and which are still
       // owed a fresh one — the restock happens by definition where it cannot be
       // seen, so this is the only way to watch it work.
@@ -1917,6 +2044,22 @@ export default function Tour() {
     }, 4500);
     return () => clearTimeout(timer);
   }, [chapter, doorOpen]);
+
+  // Both gardens are decoded while the reader stands at The Door, one chapter
+  // short of the fork. The choice is committed mid-crossing and has to land on
+  // an already-decoded plate: a Suspense fallback there would blank the gallery
+  // being walked into, which is the one moment in the piece where the reader is
+  // certain to be looking at it.
+  useEffect(() => {
+    const fork = forkRef.current;
+    if (!fork || chapter !== FORK_INDEX - 1 || forkTakenRef.current) {
+      return;
+    }
+    for (const side of [fork.left, fork.right]) {
+      useTexture.preload([side.color, side.depth]);
+      decodePlates(side);
+    }
+  }, [chapter]);
 
   // Autoplay: drift forward, loop back to the top at the reachable end.
   //
@@ -2103,6 +2246,10 @@ export default function Tour() {
   // The refusal whisper, from the last step the world turned back. Yields to
   // the threshold whisper — an open door outranks anything a wall has to say.
   const refusalShown = refusal !== null && !whisperShown && !isDiving;
+  // The road not taken. Yields to both of the above: a refusal is the world
+  // answering something the reader just did, and an open door is an invitation
+  // — an echo of a garden that never was can wait its turn.
+  const forkShown = forkEcho !== null && !whisperShown && !refusalShown && !isDiving;
   // How much of the cord is still chain. Until the door opens the library IS the
   // whole journey, so the chain runs the full drop; after, it ends at the
   // threshold and the lantern string takes the rest.
@@ -2385,6 +2532,15 @@ export default function Tour() {
       {refusalShown && (
         <div className="door-whisper is-refusal" role="status" key={refusal.at}>
           {refusal.sealed ? SEALED_WHISPER : PATH_END_WHISPER}
+        </div>
+      )}
+
+      {/* The garden the reader turned away from, named once on arriving in the
+          one they turned toward. Same pill again, and deliberately NOT a
+          refusal — nothing was denied here, something was chosen. */}
+      {forkShown && (
+        <div className="door-whisper is-fork" role="status" key={forkEcho.at}>
+          {forkWhisper(forkEcho.missed)}
         </div>
       )}
 
