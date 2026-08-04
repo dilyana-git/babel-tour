@@ -1293,10 +1293,6 @@ export default function Tour() {
   // state for the render-free tick and input callbacks.
   const [doorOpen, setDoorOpen] = useState(false);
   const doorOpenRef = useRef(false);
-  // The reachable end of the corridor, eased — when the door opens, the
-  // progress bar relaxes from "journey complete" back to "the road goes on".
-  const unlockedEased = useRef(LIBRARY_MAX);
-
   const enteredRef = useRef(false);
   const audioRef = useRef(null);
 
@@ -1508,9 +1504,17 @@ export default function Tour() {
     return Math.min(1, Math.max(0, (e.clientY - r.top) / r.height));
   }, []);
 
+  // Which station a point on the cord names. Scoped to the realm the cord is
+  // showing: its full drop is the four rooms of the world you are in, so the
+  // top of the garden's string is The Door and not the Vestibule. This was
+  // always the truth of the thing — `seek` below has never let a drag cross the
+  // threshold in either direction — the cord simply used to draw stations the
+  // hand could not reach.
   const stationAt = useCallback((frac) => {
-    const end = doorOpenRef.current ? MAX : LIBRARY_MAX;
-    return clamp(Math.round(frac * end), end);
+    const [lo, hi] = Math.round(targetRef.current) > LIBRARY_MAX
+      ? [LIBRARY_MAX + 1, MAX]
+      : [0, LIBRARY_MAX];
+    return lo + clamp(Math.round(frac * (hi - lo)), hi - lo);
   }, []);
 
   // Follow the ring with the camera as it travels, so the drag reads as the
@@ -1769,18 +1773,18 @@ export default function Tour() {
       accentRef.current.copy(ACCENTS[lo]).lerp(ACCENTS[hi], cur - lo);
 
       // The plumb bob, slid down its cord by direct DOM write (no React
-      // render). Measured against the *reachable* end of the corridor, which
-      // itself eases out when the door opens — the cord slowly lengthens from
-      // "journey complete" back to "the road goes on", and the marks slide
-      // apart under it. Because this tracks the eased descent rather than the
-      // settled chapter, the bob travels continuously through a crossing.
-      unlockedEased.current +=
-        ((doorOpenRef.current ? MAX : LIBRARY_MAX) - unlockedEased.current) *
-        (1 - Math.exp(-dt * 1.6));
-      // While the ring is held, the hand owns it — the drag writes `top` from
-      // the pointer and the camera chases the ring, not the other way round.
+      // render). Measured against the realm the cord is currently showing, not
+      // against the whole journey: the instrument only ever hangs one world's
+      // stations at a time, so its full drop IS that world (see REALM below).
+      // Because this tracks the eased descent rather than the settled chapter,
+      // the bob travels continuously through a crossing — and across the
+      // threshold it simply runs off one instrument's end and on at the other's
+      // start, under cover of the fall, which takes the whole HUD with it.
       if (bobRef.current && dragRef.current === null) {
-        const frac = Math.min(cur / (unlockedEased.current || 1), 1);
+        const [lo, hi] = cur > LIBRARY_MAX + 0.5
+          ? [LIBRARY_MAX + 1, MAX]
+          : [0, LIBRARY_MAX];
+        const frac = Math.min(Math.max((cur - lo) / (hi - lo), 0), 1);
         bobRef.current.style.top = `${frac * 100}%`;
       }
 
@@ -2250,10 +2254,23 @@ export default function Tour() {
   // answering something the reader just did, and an open door is an invitation
   // — an echo of a garden that never was can wait its turn.
   const forkShown = forkEcho !== null && !whisperShown && !refusalShown && !isDiving;
-  // How much of the cord is still chain. Until the door opens the library IS the
-  // whole journey, so the chain runs the full drop; after, it ends at the
-  // threshold and the lantern string takes the rest.
-  const chainPct = doorOpen ? (LIBRARY_MAX / MAX) * 100 : 100;
+  // ── Which instrument is hanging ─────────────────────────────────────────
+  // One at a time, never both. The chain and the lantern string are not two
+  // halves of one scale, they are two ways of knowing where you are: the
+  // archive is MEASURED, by a plumb line against brass; the garden is not
+  // measured at all, it is lit, one lantern per stone. Hanging them end to end
+  // made a single eight-station ruler out of them and quietly turned the
+  // lanterns into more of the same gradations — and it drew four stations the
+  // hand could never reach, since a drag has never been allowed across the
+  // threshold. So the cord carries the world you are IN, at full drop.
+  //
+  // The swap rides the fall. Crossing either way is a dive or a climb, and the
+  // whole HUD is already faded out for the length of it, so the instrument is
+  // never seen changing — you fall on a chain and land holding a lantern
+  // string.
+  const inGarden = chapter > LIBRARY_MAX;
+  const realmLo = inGarden ? LIBRARY_MAX + 1 : 0;
+  const realmHi = inGarden ? MAX : LIBRARY_MAX;
 
   return (
     <div
@@ -2439,7 +2456,8 @@ export default function Tour() {
           ∧
         </button>
         <div
-          className={`plumb-span${grip !== null ? ' is-gripped' : ''}`}
+          className={`plumb-span${grip !== null ? ' is-gripped' : ''}`
+            + (inGarden ? ' is-lantern-string' : ' is-chain')}
           ref={spanRef}
           onPointerDown={chainDown}
           onPointerMove={chainMove}
@@ -2449,26 +2467,18 @@ export default function Tour() {
              not travel that far. */
           onClick={(e) => e.stopPropagation()}
         >
-          {/* The chain shortens to the library's share of the cord when the
-              door opens; the same 1.5s ease the marks slide apart under. */}
-          <div
-            className="plumb-chain"
-            aria-hidden="true"
-            style={{ height: `${chainPct}%` }}
-          />
-          {doorOpen && (
-            <div
-              className="plumb-wire"
-              aria-hidden="true"
-              style={{ top: `${chainPct}%` }}
-            />
-          )}
+          {/* Whichever cord this world is hung on, at its full drop. Keyed by
+              realm so the swap remounts and each one gets its own arrival —
+              the chain drops out of the dark, the twine unrolls. */}
+          {inGarden
+            ? <div className="plumb-wire" aria-hidden="true" key="wire" />
+            : <div className="plumb-chain" aria-hidden="true" key="chain" />}
           {NODES.map((n, index) => {
-            const isGarden = index > LIBRARY_MAX;
-            if (isGarden && !doorOpen) {
+            if (index < realmLo || index > realmHi) {
               return null;
             }
-            const at = (index / (doorOpen ? MAX : LIBRARY_MAX)) * 100;
+            const isGarden = index > LIBRARY_MAX;
+            const at = ((index - realmLo) / (realmHi - realmLo)) * 100;
             const cls = ['plumb-mark'];
             if (index === chapter) cls.push('is-active');
             if (isGarden) cls.push('is-garden');
