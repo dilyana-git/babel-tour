@@ -1855,7 +1855,7 @@ export default function Tour() {
       // gallery whose clip is plainly running, the drift is being paced by the
       // quote and DRIFT_MAX_DWELL alone.
       pass: Object.fromEntries(Object.entries(passRef.current)
-        .map(([i, p]) => [i, p.done ? 'said' : 'waking'])),
+        .map(([i, p]) => [i, `${p.done ? 'said' : 'waking'}/${p.by}`])),
     });
     // Walk the camera without the input layer, for scripted capture. Crossing
     // into the garden still dives, as it does for a reader.

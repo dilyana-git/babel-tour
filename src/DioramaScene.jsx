@@ -355,6 +355,34 @@ const REPLAY_REST = 10.5;
 const REPLAY_GRACE = 2.5;
 // How recently a foot must have landed for the cut to ride it (seconds).
 const REPLAY_STEP_WINDOW = 0.18;
+
+// ── What wakes a painting ───────────────────────────────────────────────────
+// Arriving in the room used to be enough: the surface woke on proximity alone,
+// which meant it happened TO the reader rather than because of anything they
+// did. Attention is the better trigger — the room answers being looked at — so
+// the first pass now waits until the gaze has rested near the plate's own lamp
+// (its glowAt, the point the light comes from and the rites collapse into).
+//
+// "Gaze" is whichever is nearer: the middle of the frame, or the mouse. Yaw and
+// pitch move the camera, so looking around genuinely sweeps the lamp across the
+// frame — and a reader driving with the mouse is pointing at what they are
+// reading. Either counts; neither is required.
+//
+// Radius in normalised device coordinates, so it is a fraction of the frame
+// rather than a distance in the world, and a lamp at the edge of a wide monitor
+// is as reachable as one on a phone. Generous on purpose: this is "looking that
+// way", not an aiming test.
+let WAKE_GAZE_RADIUS = 0.42;
+// How long the gaze must REST there. Long enough that sweeping past the lamp on
+// the way to somewhere else does not trip it, short enough that the answer
+// still feels like a response to having looked.
+let WAKE_GAZE_DWELL = 1.4;
+// The patience floor. Attention is the intended trigger, but a reader who walks
+// in and simply stands — never moving the mouse, never centring the lamp —
+// must not be silently denied the one thing the gallery does. After this long
+// in the room the surface wakes anyway. Set it well past WAKE_GAZE_DWELL so
+// that looking is still visibly what causes it, and the floor is the exception.
+let WAKE_PATIENCE = 6.5;
 // Unsharp strength for the LIVE surface, applied at the video's own texel
 // spacing rather than the still's. The still's mask (TEX_SHARPEN) is faded out
 // while a clip runs because its taps are one 3376-wide texel apart — far
@@ -1096,9 +1124,17 @@ function Painting({
   // left); endedAt: when that pass finished, which paces the replay rest;
   // armed: whether a new arrival is allowed to trigger the first play (re-armed
   // each time the camera leaves).
+  // gaze: seconds the reader's attention has RESTED on this plate's lamp;
+  // inRoom: seconds spent standing in this gallery. The two clocks the first
+  // awakening waits on (see WAKE_GAZE_DWELL / WAKE_PATIENCE); both are wound
+  // back to zero each time the camera leaves, along with `armed`.
   const live = useRef({
     el: null, tex: null, playing: false, ended: false, endedAt: 0, armed: true,
+    gaze: 0, inRoom: 0,
   });
+  // Scratch for the lamp's projection, so measuring attention allocates nothing
+  // per frame.
+  const lamp = useMemo(() => new THREE.Vector3(), []);
   const [colorMap, depthMap] = useTexture([color, depth], (texes) => {
     texes[0].colorSpace = THREE.SRGBColorSpace;
     texes.forEach((t) => {
@@ -1263,7 +1299,7 @@ function Painting({
     materials.forEach((m) => m.dispose());
   }, [geos, materials]);
 
-  useFrame(({ clock }, delta) => {
+  useFrame(({ clock, camera, pointer }, delta) => {
     const descent = descentRef.current;
     // f > 0 once the camera has begun crossing this gallery.
     const f = descent - index;
@@ -1348,12 +1384,50 @@ function Painting({
         state.el = el;
       }
       if (state.el) {
-        // On arrival, play the clip once. `armed` gates it to a single pass
-        // per visit; leaving re-arms it so a return replays the awakening.
-        if (state.armed && !state.playing && !state.ended && dist < 0.9) {
+        // Is the reader looking at this room's lamp? Measured only while the
+        // plate is still waiting to wake — once it has, none of this matters,
+        // and it is a projection per plate per frame.
+        if (state.armed && dist < 0.9) {
+          // The lamp in world space, from the same numbers the Glow itself is
+          // placed by: glowAt is a point in the ARTWORK, and the artwork rides
+          // EYE_DROP higher on its card than the card's own centre.
+          const gh = frustumH(PLANE_Z) * overscan;
+          const [gu, gv] = glowAt ?? [0.5, 0.5];
+          lamp.set((gu - 0.5) * gh * aspect,
+                   (0.5 - gv + EYE_DROP) * gh,
+                   planeZ(index));
+          lamp.project(camera);
+          // Nearest of the two things that can count as looking. Behind the
+          // camera (z > 1 after projection) is never looking, whatever the
+          // x/y say — without that check a lamp directly at your back reads as
+          // dead centre.
+          const behind = lamp.z > 1;
+          const toCentre = Math.hypot(lamp.x, lamp.y);
+          const toPointer = Math.hypot(lamp.x - pointer.x, lamp.y - pointer.y);
+          const resting = !behind && Math.min(toCentre, toPointer) < WAKE_GAZE_RADIUS;
+          // Rests, not merely touches: the gaze has to stay there. Looking away
+          // spends the count rather than zeroing it, so a hand that wobbles off
+          // the lamp for a frame does not start the reader over.
+          state.gaze = Math.max(0, state.gaze + (resting ? delta : -delta * 1.5));
+          state.inRoom += delta;
+        }
+        // The first pass waits on attention, then on patience. `armed` gates it
+        // to a single awakening per visit; leaving re-arms it so a return
+        // replays the whole thing from its first frame.
+        if (state.armed && !state.playing && !state.ended && dist < 0.9
+            && (state.gaze >= WAKE_GAZE_DWELL || state.inRoom >= WAKE_PATIENCE)) {
           state.armed = false;
           state.playing = true;
-          if (passRef) passRef.current[index] = { woke: performance.now(), done: 0 };
+          // `by` records which of the two clocks ran out first, so it is
+          // visible whether attention is actually what wakes the galleries or
+          // whether the patience floor is quietly doing all the work.
+          if (passRef) {
+            passRef.current[index] = {
+              woke: performance.now(),
+              done: 0,
+              by: state.gaze >= WAKE_GAZE_DWELL ? 'gaze' : 'patience',
+            };
+          }
           state.el.currentTime = 0;
           state.el.playbackRate = videoRate; // reassert (load can reset it)
           const p = state.el.play();
@@ -1398,6 +1472,8 @@ function Painting({
           state.ended = false;
           state.endedAt = 0;
           state.armed = true;
+          state.gaze = 0;
+          state.inRoom = 0;
           state.el.pause();
           // Re-armed: the next arrival is a fresh awakening, so the drift must
           // wait for it again rather than reading the last visit's pass.
@@ -1965,7 +2041,27 @@ function GradeRig({ scenes, descentRef, fogRef }) {
       });
       return seen;
     };
-    return () => { delete window.__grade; delete window.__eye; delete window.__rites; };
+    // What it takes to wake a painting. How wide "looking at the lamp" should
+    // be, and how long it must last, are judgements about feel that only a real
+    // screen and a real hand can make — the same reason __grade and __gait
+    // exist. Takes effect on the next gallery to wake; galleries already awake
+    // keep their pass.
+    //   __attention()                  → read the current values
+    //   __attention({ radius: 0.3 })   → tighter: the lamp must be nearer centre
+    //   __attention({ patience: 1e9 }) → attention ONLY, to feel it unaided
+    // Which clock actually fired is in Tour's __nav().pass, as gaze/patience.
+    window.__attention = (next) => {
+      if (next?.radius !== undefined) WAKE_GAZE_RADIUS = next.radius;
+      if (next?.dwell !== undefined) WAKE_GAZE_DWELL = next.dwell;
+      if (next?.patience !== undefined) WAKE_PATIENCE = next.patience;
+      return {
+        radius: WAKE_GAZE_RADIUS, dwell: WAKE_GAZE_DWELL, patience: WAKE_PATIENCE,
+      };
+    };
+    return () => {
+      delete window.__grade; delete window.__eye; delete window.__rites;
+      delete window.__scene; delete window.__attention;
+    };
   }, [scene]);
   useFrame(() => {
     const cur = descentRef.current;
