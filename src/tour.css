@@ -724,22 +724,128 @@
 }
 
 /* Lit behind you — the path you have already walked keeps its light. */
-.plumb-mark.is-passed .plumb-lantern {
+/* --- The light inside it (ported from the design's candle, 1a) ------------- */
+/* What makes the design's flames read as fire rather than as painted bulbs is
+   that the light is its OWN object: a small teardrop with a white-hot core and
+   a soft falloff, flickering by SHAPE rather than by opacity, with a wide halo
+   breathing on a slower, unrelated beat behind it. The lantern here used to be
+   lit by filling the whole paper drum with a warm gradient, which is even, and
+   even light is what makes it look printed. So the drum goes back to being
+   paper, and this burns inside it.
+   Gradients, radii and both keyframes are the design's, in rem so they ride
+   --plumb-scale like everything else on the rail. */
+.plumb-flame {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  width: calc(0.34rem * var(--plumb-scale));
+  height: calc(0.54rem * var(--plumb-scale));
+  margin-left: calc(-0.17rem * var(--plumb-scale));
+  margin-top: calc(-0.32rem * var(--plumb-scale));
+  /* Teardrop: wide shoulders, drawn to a point at the top. */
+  border-radius: 50% 50% 46% 46% / 62% 62% 38% 38%;
   background: radial-gradient(
-    circle at 50% 42%,
-    rgba(255, 232, 176, 0.55),
-    rgba(214, 168, 92, 0.3) 70%
+    circle at 50% 68%,
+    #fffaf0,
+    #ffd07a 42%,
+    #ef9a35 74%,
+    rgba(239, 154, 53, 0) 100%
+  );
+  box-shadow:
+    0 0 calc(0.5rem * var(--plumb-scale))
+      calc(0.14rem * var(--plumb-scale)) rgba(255, 176, 84, 0.5);
+  opacity: 0;                 /* an unlit lantern has no flame at all */
+  transition: opacity 500ms ease;
+  animation: plumb-flicker 1.7s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.plumb-halo {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: calc(2.4rem * var(--plumb-scale));
+  height: calc(2.4rem * var(--plumb-scale));
+  margin: calc(-1.2rem * var(--plumb-scale)) 0 0 calc(-1.2rem * var(--plumb-scale));
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(255, 178, 84, 0.36),
+    rgba(255, 150, 60, 0) 68%
+  );
+  opacity: 0;
+  transition: opacity 600ms ease;
+  animation: plumb-halo-breathe 3.4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* Flickers by SHAPE, not by brightness — a flame leans and narrows, it does
+   not dim. Deliberately prime-ish against the halo's 3.4s and the lantern's
+   own sway so the three never line up into a single pulse. */
+@keyframes plumb-flicker {
+  0%, 100% { transform: scale(1, 1); }
+  25% { transform: scale(1.1, 0.9) translateY(-1px); }
+  50% { transform: scale(0.9, 1.1); }
+  75% { transform: scale(1.05, 0.97); }
+}
+
+@keyframes plumb-halo-breathe {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 0.9; }
+}
+
+/* Lit behind you, burning where you stand, brightest under the hand. The halo
+   carries most of the difference: the flame is the same fire either way, there
+   is simply more of it to see when you are standing in the room. */
+/* The ring goes hollow on the lantern string. Its dark middle exists to
+   swallow the chain link it comes to rest over — without it the station read
+   as two overlapping circles, one bright and one dim. Twine has no links, and
+   what the ring lands on here is a burning lantern, so the fill had nothing
+   left to hide and blanked the fire instead. Hollow, it becomes a brass collar
+   round the lit lantern, which is what it should have been in a garden. */
+.plumb-span.is-lantern-string .plumb-ring {
+  background: none;
+  box-shadow:
+    0 0 0.7rem 0.16rem rgba(255, 196, 110, 0.45),
+    inset 0 0 0.2rem rgba(0, 0, 0, 0.4);
+}
+
+.plumb-mark.is-passed .plumb-flame { opacity: 0.62; }
+.plumb-mark.is-passed .plumb-halo { opacity: 0.42; }
+.plumb-mark.is-active .plumb-flame { opacity: 1; }
+.plumb-mark.is-active .plumb-halo { opacity: 1; }
+.plumb-mark:hover .plumb-flame,
+.plumb-mark:focus-visible .plumb-flame,
+.plumb-mark.is-grip .plumb-flame { opacity: 1; }
+.plumb-mark:hover .plumb-halo,
+.plumb-mark:focus-visible .plumb-halo,
+.plumb-mark.is-grip .plumb-halo { opacity: 0.8; }
+
+/* The lit states no longer fill the drum with light. They used to paint it a
+   flat warm gradient, which both read as a printed bulb AND would now drown
+   the flame burning in front of it — the brightest thing on a lantern has to
+   be its fire. So the body only ever WARMS: the paper catches the light, the
+   brass takes an edge, and the fire itself does the shining. */
+.plumb-mark.is-passed .plumb-lantern {
+  background: linear-gradient(
+    180deg,
+    rgba(120, 92, 50, 0.5),
+    rgba(74, 66, 42, 0.44)
   );
   border-color: rgba(226, 190, 116, 0.6);
   box-shadow:
     inset 0 1px 0 rgba(244, 209, 144, 0.6),
     inset 0 0 0.25rem rgba(0, 0, 0, 0.4),
-    0 0 0.5rem rgba(255, 206, 120, 0.28);
+    0 0 0.5rem rgba(255, 206, 120, 0.22);
 }
 
 /* Burning where you stand. */
 .plumb-mark.is-active .plumb-lantern {
-  background: radial-gradient(circle at 50% 38%, #fff4d2, #ffd88a 46%, #d79a3f 92%);
+  background: linear-gradient(
+    180deg,
+    rgba(196, 150, 82, 0.62),
+    rgba(120, 96, 54, 0.5)
+  );
   border-top-color: #f4d190;
   animation:
     lantern-kindle 900ms ease both,
@@ -750,8 +856,13 @@
 .plumb-mark:hover .plumb-lantern,
 .plumb-mark:focus-visible .plumb-lantern,
 .plumb-mark.is-grip .plumb-lantern {
-  background: radial-gradient(circle at 50% 38%, #fff4d2, #ffdf9d 50%, #c98a3e 94%);
-  box-shadow: 0 0 0.75rem rgba(255, 216, 138, 0.6), inset 0 0 0.25rem rgba(0, 0, 0, 0.35);
+  background: linear-gradient(
+    180deg,
+    rgba(216, 170, 96, 0.68),
+    rgba(140, 112, 62, 0.54)
+  );
+  border-color: rgba(244, 209, 144, 0.75);
+  box-shadow: 0 0 0.75rem rgba(255, 216, 138, 0.45), inset 0 0 0.25rem rgba(0, 0, 0, 0.35);
 }
 
 .plumb-mark.is-garden:nth-of-type(6) .plumb-lantern { animation-delay: 150ms; }
@@ -892,6 +1003,21 @@
     animation: lantern-kindle 900ms ease both !important;
     transform: none;
   }
+
+  /* The fire stops moving but does not go out: a flame frozen at its resting
+     shape still reads as a flame, and the lit/unlit states are what actually
+     carry where you are. */
+  .plumb-flame,
+  .plumb-halo {
+    animation: none !important;
+  }
+
+  .plumb-halo {
+    opacity: 0;
+  }
+
+  .plumb-mark.is-passed .plumb-halo { opacity: 0.35; }
+  .plumb-mark.is-active .plumb-halo { opacity: 0.7; }
 
   .plumb-wire {
     animation: none !important;

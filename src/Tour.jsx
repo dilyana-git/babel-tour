@@ -2503,7 +2503,20 @@ export default function Tour() {
                   <span className="plumb-numeral">{NUMERAL[index]}</span>
                   <span className="plumb-tick" aria-hidden="true" />
                 </span>
-                <span className={isGarden ? 'plumb-lantern' : 'plumb-node'} />
+                {/* The halo is a SIBLING of the lantern, and first, so it
+                    paints behind it. Nested inside it could not: the lantern
+                    animates `transform` to sway, which makes it a stacking
+                    context of its own that no descendant can get behind. */}
+                {isGarden ? (
+                  <>
+                    <span className="plumb-halo" aria-hidden="true" />
+                    <span className="plumb-lantern">
+                      <span className="plumb-flame" aria-hidden="true" />
+                    </span>
+                  </>
+                ) : (
+                  <span className="plumb-node" />
+                )}
               </button>
             );
           })}
