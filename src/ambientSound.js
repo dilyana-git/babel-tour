@@ -68,12 +68,26 @@ export default class AmbientSound {
     }
     const ctx = new Ctx();
     this.ctx = ctx;
+    // Some browsers (iOS Safari in particular) hand back a suspended context
+    // even from inside a click handler; without this there is no sound at all.
+    if (ctx.state === 'suspended') {
+      ctx.resume();
+    }
     const now = ctx.currentTime;
+
+    // Everything passes through `dip` on its way out. It exists for the hush:
+    // the one rite whose sound is the room getting QUIETER, which cannot be
+    // done on master (setMuted owns that curve) and cannot be done on the
+    // individual gains either, since applyTone rewrites their .value every
+    // frame and would fight any automation scheduled on them.
+    this.dip = ctx.createGain();
+    this.dip.gain.value = 1;
+    this.dip.connect(ctx.destination);
 
     this.master = ctx.createGain();
     this.master.gain.setValueAtTime(0, now);
     this.master.gain.linearRampToValueAtTime(this.muted ? 0 : 1, now + 5);
-    this.master.connect(ctx.destination);
+    this.master.connect(this.dip);
 
     // Air: looping brown noise, filtered dark, gain slowly breathing via LFO.
     const noise = ctx.createBufferSource();
@@ -223,6 +237,46 @@ export default class AmbientSound {
     }
   }
 
+  // A step into something that will not open. Deliberately NOT a footfall: it
+  // starts lower, falls further, and lasts twice as long, with its noise burst
+  // filtered down to a dull knock instead of the step's brighter scuff — so the
+  // ear reads mass meeting stone, not another stride landing.
+  thud() {
+    if (!this.ctx || this.muted) {
+      return;
+    }
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
+
+    const body = ctx.createOscillator();
+    body.type = 'sine';
+    body.frequency.setValueAtTime(56, t);
+    body.frequency.exponentialRampToValueAtTime(30, t + 0.34);
+    const bg = ctx.createGain();
+    bg.gain.setValueAtTime(0.0001, t);
+    bg.gain.exponentialRampToValueAtTime(0.05, t + 0.02);
+    bg.gain.exponentialRampToValueAtTime(0.0001, t + 0.44);
+    body.connect(bg).connect(this.master);
+    body.start(t);
+    body.stop(t + 0.48);
+
+    if (this.scuffBuffer) {
+      const knock = ctx.createBufferSource();
+      knock.buffer = this.scuffBuffer;
+      const lp = ctx.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.value = 190;
+      lp.Q.value = 0.7;
+      const kg = ctx.createGain();
+      kg.gain.setValueAtTime(0.0001, t);
+      kg.gain.exponentialRampToValueAtTime(0.05, t + 0.01);
+      kg.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
+      knock.connect(lp).connect(kg).connect(this.master);
+      knock.start(t, Math.random() * (NOISE_SECONDS - 1));
+      knock.stop(t + 0.24);
+    }
+  }
+
   // The door opening: a soft, quiet major bloom rising out of the room tone
   // over a couple of seconds — an announcement, not a fanfare.
   announce() {
@@ -265,6 +319,124 @@ export default class AmbientSound {
     f.setValueAtTime(f.value, t);
     f.linearRampToValueAtTime(700 + build * 500, t + build);
     f.setTargetAtTime(700, t + build + 0.1, release);
+  }
+
+  // A bare tone, used by the rites below: one sine that rises out of the room
+  // tone and settles back into it, optionally sliding in pitch as it goes.
+  // Everything here is a fraction of the swell's own level — the rites are
+  // meant to be recognised rather than heard, the way you recognise a room by
+  // its echo without listening for one.
+  tone(freq, { at = 0, level = 0.012, rise = 0.9, hold = 0.6, fall = 1.4, to = null } = {}) {
+    const ctx = this.ctx;
+    const t = ctx.currentTime + at;
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, t);
+    if (to !== null) {
+      osc.frequency.exponentialRampToValueAtTime(to, t + rise + hold + fall);
+    }
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(level, t + rise);
+    g.gain.setValueAtTime(level, t + rise + hold);
+    g.gain.linearRampToValueAtTime(0, t + rise + hold + fall);
+    osc.connect(g).connect(this.master);
+    osc.start(t);
+    osc.stop(t + rise + hold + fall + 0.05);
+  }
+
+  // A run of breaths on the swell channel, one after another. swell() cancels
+  // whatever is scheduled each time it is called, so a rite that wants three
+  // of them has to write the whole sequence in one pass.
+  breaths(steps) {
+    const t0 = this.ctx.currentTime;
+    const g = this.swellGain.gain;
+    g.cancelScheduledValues(t0);
+    g.setValueAtTime(g.value, t0);
+    steps.forEach(({ at, level, build }) => {
+      g.linearRampToValueAtTime(level, t0 + at + build);
+      g.linearRampToValueAtTime(0.0008, t0 + at + build * 2.2);
+    });
+  }
+
+  // The voice of a threshold. Each crossing has its own rite (see rites.js) and
+  // its own sound; anything unnamed keeps the plain chapter swell, so a jump
+  // across several chapters — which passes through no one threshold — still
+  // sounds like travel.
+  rite(kind) {
+    if (!this.ctx || this.muted) {
+      return;
+    }
+    switch (kind) {
+      // Tautology: one breath answered by two fainter ones, at the pace the
+      // three ember waves cross the plate.
+      case 'echo':
+        this.breaths([
+          { at: 0, level: 0.05, build: 0.9 },
+          { at: 2.3, level: 0.028, build: 0.7 },
+          { at: 4.1, level: 0.014, build: 0.6 },
+        ]);
+        break;
+      // The Silence, which is announced by nothing: the whole room tone ducks
+      // away instead and comes back changed. No swell at all.
+      case 'hush': {
+        const t = this.ctx.currentTime;
+        const g = this.dip.gain;
+        g.cancelScheduledValues(t);
+        g.setValueAtTime(g.value, t);
+        g.linearRampToValueAtTime(0.38, t + 1.6);
+        g.setValueAtTime(0.38, t + 3.0);
+        g.linearRampToValueAtTime(1, t + 6.2);
+        break;
+      }
+      // The floor goes: the swell is joined by a tone that slides a fifth down
+      // and keeps going, so the ear falls with the picture.
+      case 'wind':
+        this.swell(2.4, 0.06, 1.6);
+        this.tone(96, { level: 0.02, rise: 1.4, hold: 0.4, fall: 2.6, to: 38 });
+        break;
+      // Two futures: the same note twice, a beat apart and slightly out with
+      // itself, one of them cut short.
+      case 'split':
+        this.swell(1.6, 0.045, 1.2);
+        this.tone(147, { at: 0.15, level: 0.014, rise: 1.1, hold: 0.5, fall: 1.8 });
+        this.tone(148.4, { at: 0.55, level: 0.011, rise: 1.0, hold: 0.2, fall: 1.1 });
+        break;
+      // Going under: the hush closes down instead of opening up as it builds,
+      // which is what a filter sweeping the wrong way sounds like.
+      case 'flood': {
+        this.swell(1.8, 0.055, 1.9);
+        const t = this.ctx.currentTime;
+        const f = this.swellFilter.frequency;
+        f.cancelScheduledValues(t);
+        f.setValueAtTime(900, t);
+        f.linearRampToValueAtTime(170, t + 2.4);
+        f.setTargetAtTime(700, t + 3.2, 1.8);
+        this.tone(62, { level: 0.016, rise: 1.6, hold: 0.6, fall: 2.2, to: 49 });
+        break;
+      }
+      // Threads: three high, thin tones let go one after another, none of them
+      // resolving into the others.
+      case 'weave':
+        this.swell(1.4, 0.03, 1.4);
+        [1046.5, 1318.5, 1568].forEach((f, i) => {
+          this.tone(f, {
+            at: i * 0.5, level: 0.006 - i * 0.0012, rise: 0.8, hold: 0.3, fall: 2.4,
+          });
+        });
+        break;
+      default:
+        this.swell();
+    }
+  }
+
+  // Tear the whole soundscape down (owner unmounting). Every method guards on
+  // this.ctx, so the instance is safely inert afterwards.
+  dispose() {
+    if (this.ctx) {
+      this.ctx.close();
+      this.ctx = null;
+    }
   }
 
   setMuted(muted) {

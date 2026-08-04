@@ -9,96 +9,247 @@
   --accent: var(--gold);
 }
 
-/* --- Chapter card (top-left) ------------------------------------------- */
+/* --- Chapter mark (top margin) -------------------------------------------
+   Where you are, written into the top-left margin of the page. There is no
+   card here any more: a panel of frosted glass sat *on* the artwork, and with
+   the quote now written *into* it the two read as different interfaces. The
+   mark leans a degree and a half off square, as a hand would. */
 
-.chapter-card {
+.chapter-mark {
   position: fixed;
-  left: 2rem;
-  top: 2rem;
+  left: 3rem;
+  top: 3rem;
   z-index: 35;
-  max-width: 22rem;
-  padding: 1rem 1.1rem;
-  border-radius: 1rem;
-  background: rgba(12, 10, 8, 0.72);
-  border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
-  backdrop-filter: blur(12px);
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.28);
-  transition: border-color 600ms ease, opacity 900ms ease;
+  /* Tracks the title's own vw-scaled type. A fixed cap here meant the wider
+     the window, the larger the hand in a box that never grew — so every long
+     subtitle broke, stranding its last word on a line of its own ("…that has
+     no / floor"). */
+  max-width: min(46vw, 52rem);
+  pointer-events: none;
+  transform: rotate(-1.5deg);
+  transform-origin: left top;
 }
 
-.chapter-card .swap-stage,
-.folio .swap-stage {
+.chapter-mark .swap-stage {
   position: relative;
 }
 
-.chapter-title {
-  font: 400 0.67rem/1 var(--mono);
+.chapter-eyebrow {
+  font: 400 0.72rem/1 var(--mono);
   letter-spacing: 0.24em;
   color: var(--accent);
   text-transform: uppercase;
-  margin-bottom: 0.45rem;
+  margin-bottom: 0.55rem;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.75);
   transition: color 600ms ease;
 }
 
-.chapter-subtitle {
-  font: italic 500 1.15rem/1.35 var(--serif);
-  color: var(--ink);
-  margin-bottom: 0.45rem;
+.chapter-title {
+  font: 700 clamp(2.1rem, 3.3vw, 3.9rem) / 1.08 var(--script);
+  letter-spacing: 0.01em;
+  /* The longest subtitles still need two lines in a narrow window; break them
+     evenly rather than leaving one word hanging. */
+  text-wrap: balance;
+  color: rgba(236, 228, 210, 0.92);
+  /* Nothing behind it but the picture, so the letters carry their own dark —
+     same reasoning as .scatter-ink. */
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.8), 0 0 26px rgba(0, 0, 0, 0.5);
 }
 
-.chapter-summary {
-  font: 400 0.8rem/1.6 var(--mono);
-  color: var(--ink-dim);
-}
+/* --- The quote, hanging in the air ---------------------------------------
+   Not written on a surface: the words hang in the gallery's air at three
+   depths. Near words are large and sharp, far ones small, dimmed and out of
+   focus, so the sentence has volume. Each surfaces on its own beat and then
+   drifts, never quite settling. */
 
-/* --- Folio (bottom-left quote) ------------------------------------------ */
-
-.folio {
+.scatter {
   position: fixed;
-  left: 2.2rem;
-  bottom: 4.5rem;
-  max-width: 30rem;
-  pointer-events: none;
+  inset: 0;
   z-index: 35;
+  pointer-events: none;
 }
 
-.folio-eyebrow {
-  font: 400 0.66rem/1 var(--mono);
-  letter-spacing: 0.22em;
-  color: var(--accent);
-  margin-bottom: 0.7rem;
-  transition: color 600ms ease;
+.scatter .swap-enter,
+.scatter .swap-leave,
+.scatter-cycle {
+  position: absolute;
+  inset: 0;
 }
 
-.folio-line {
-  font: italic 500 1.35rem/1.5 var(--serif);
-  color: var(--ink);
+/* The outer span owns the endless drift and the word's depth (blur/opacity);
+   the inner owns the entrance. Keeping them apart lets a far word stay soft
+   while its arrival still resolves to that softness rather than to zero. */
+.scatter-word {
+  position: absolute;
+  white-space: nowrap;
+  animation: scatter-float 4s ease-in-out infinite alternate;
+  will-change: transform;
 }
 
-.folio-attr {
-  font: 400 0.62rem/1 var(--mono);
-  letter-spacing: 0.18em;
-  color: var(--ink-dim);
-  margin-top: 0.55rem;
-}
-
-/* Each word of the quote surfaces on its own slight delay. */
-.folio-word {
+.scatter-ink {
   display: inline-block;
-  animation: folio-word 600ms ease both;
+  font: italic 500 1em/1 var(--serif);
+  color: #f2e4c2;
+  /* A little warmth from the lamps, and enough dark to hold against the
+     artwork wherever a word happens to hang. */
+  text-shadow: 0 0 26px rgba(224, 184, 100, 0.4), 0 2px 20px rgba(0, 0, 0, 0.85),
+    0 0 34px rgba(0, 0, 0, 0.5);
+  /* The gather, then the dissolve. `backwards` on the first holds the word
+     out of sight until its beat; `forwards` on the second means it has no
+     effect at all until its own, far later beat — which is what lets the two
+     share one element without the exit clobbering the entrance. */
+  animation: scatter-word 2000ms cubic-bezier(0.16, 0.84, 0.32, 1) both,
+    scatter-gone 2200ms cubic-bezier(0.5, 0, 0.75, 0.35) forwards;
 }
 
-@keyframes folio-word {
+/* Condensing out of the air: the word arrives from further away and slightly
+   loose, pulls into focus, and kindles as it resolves — this is a Library lit
+   by lamps, so a word arriving should catch light. The mid keyframe states
+   every property rather than only the bloom, so each segment eases smoothly
+   instead of kinking where the easing restarts.
+
+   Neither end declares the resting text-shadow: leaving it out of the `to`
+   lets the glow settle back to whatever `.scatter-ink` specifies. */
+@keyframes scatter-word {
   from {
     opacity: 0;
+    filter: blur(14px);
+    transform: translateY(0.3em) scale(1.09);
+    letter-spacing: 0.07em;
+    text-shadow: 0 0 6px rgba(255, 240, 200, 0), 0 2px 20px rgba(0, 0, 0, 0.85),
+      0 0 34px rgba(0, 0, 0, 0.5);
+  }
+  50% {
+    opacity: 1;
     filter: blur(3px);
-    transform: translateY(0.2em);
+    transform: translateY(0.09em) scale(1.025);
+    letter-spacing: 0.02em;
+    /* the kindling */
+    text-shadow: 0 0 44px rgba(255, 232, 172, 0.95), 0 2px 20px rgba(0, 0, 0, 0.85),
+      0 0 34px rgba(0, 0, 0, 0.5);
   }
   to {
     opacity: 1;
     filter: blur(0);
+    transform: translateY(0) scale(1);
+    letter-spacing: 0;
+  }
+}
+
+/* Back into the air it came from. The word gutters once — a last flare, the
+   way a lamp brightens before it goes — then unravels: letters loosening,
+   the whole thing swelling, rising and going soft rather than switching off. */
+@keyframes scatter-gone {
+  from {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(0) scale(1);
+    letter-spacing: 0;
+    text-shadow: 0 0 26px rgba(224, 184, 100, 0.4), 0 2px 20px rgba(0, 0, 0, 0.85),
+      0 0 34px rgba(0, 0, 0, 0.5);
+  }
+  22% {
+    opacity: 1;
+    filter: blur(0.5px);
+    transform: translateY(-0.05em) scale(1.02);
+    letter-spacing: 0.015em;
+    /* the guttering */
+    text-shadow: 0 0 40px rgba(255, 230, 168, 0.85), 0 2px 20px rgba(0, 0, 0, 0.85),
+      0 0 34px rgba(0, 0, 0, 0.5);
+  }
+  to {
+    opacity: 0;
+    filter: blur(13px);
+    transform: translateY(-0.55em) scale(1.16);
+    letter-spacing: 0.16em;
+    text-shadow: 0 0 10px rgba(255, 230, 168, 0), 0 2px 20px rgba(0, 0, 0, 0),
+      0 0 34px rgba(0, 0, 0, 0);
+  }
+}
+
+/* The -50% centres the word on its row's centre line (see the `y` comment in
+   Tour.jsx) and has to live in the keyframes, since the drift owns transform. */
+@keyframes scatter-float {
+  from {
+    transform: translateY(calc(-50% + 3px));
+  }
+  to {
+    transform: translateY(calc(-50% - 6px));
+  }
+}
+
+/* The attribution signs the finished sentence, and outlasts it by a breath. */
+.scatter-attr {
+  position: absolute;
+  left: 3rem;
+  bottom: 5.5rem;
+  font: 400 0.66rem/1 var(--mono);
+  letter-spacing: 0.18em;
+  color: var(--ink-dim);
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8);
+  animation: scatter-attr 1400ms ease both,
+    scatter-attr-gone 1800ms ease forwards;
+}
+
+/* Loosening as it goes, in the same voice as the words. */
+@keyframes scatter-attr-gone {
+  from {
+    opacity: 1;
+    letter-spacing: 0.18em;
+  }
+  to {
+    opacity: 0;
+    letter-spacing: 0.34em;
+  }
+}
+
+@keyframes scatter-attr {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* Reduced motion zeroes animation *durations* globally (index.css) but not
+   delays — without this the words would hang invisible through the whole
+   cadence and then pop. Here the sentence is simply present, and nothing
+   drifts. */
+@media (prefers-reduced-motion: reduce) {
+  /* Every animation off, not merely shortened. Zeroing the delays instead
+     would fire the *dissolve* on the first frame and leave the quote blank —
+     the sentence has to be stated, not performed. (Tour.jsx likewise runs no
+     breath cycle under this preference, so nothing re-triggers.) */
+  .scatter-ink,
+  .scatter-attr {
+    animation: none !important;
+    opacity: 1;
+    filter: none;
+    transform: none;
+  }
+
+  /* Killing the drift also kills the keyframe that centres the word, so the
+     centring has to be restated here. */
+  .scatter-word {
+    animation: none !important;
+    transform: translateY(-50%);
+  }
+}
+
+/* The full line, for screen readers — the visible copy is scattered. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
 }
 
 /* --- Cross-fade between chapters ----------------------------------------
@@ -134,176 +285,620 @@
   }
 }
 
-/* --- Controls (top-right) ------------------------------------------------ */
+/* --- Actions (bottom margin) ---------------------------------------------
+   Only the three stateful controls live here — ascend and descend belong to
+   the plumb line. Set in the same script hand as the rest of the interface,
+   lit when on. */
 
-.controls {
+.air-acts {
   position: fixed;
-  inset: 1.25rem 1.25rem auto auto;
+  right: 3rem;
+  bottom: 3.4rem;
   z-index: 40;
   display: flex;
-  gap: 0.75rem;
+  gap: 1.8vw;
+  align-items: baseline;
 }
 
-.pill {
-  border: 1px solid rgba(201, 162, 76, 0.35);
-  background: rgba(21, 18, 13, 0.82);
-  color: var(--ink);
-  padding: 0.65rem 0.9rem;
-  border-radius: 999px;
+.air-act {
+  border: 0;
+  padding: 0;
+  background: none;
   cursor: pointer;
-  font-size: 0.85rem;
-  line-height: 1;
-  transition: background 300ms ease, border-color 300ms ease, opacity 300ms ease;
+  font: 700 clamp(1.3rem, 2.2vw, 2.6rem) / 1 var(--script);
+  color: rgba(240, 223, 174, 0.65);
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.85), 0 0 26px rgba(0, 0, 0, 0.6);
+  transition: color 300ms ease, text-shadow 300ms ease;
 }
 
-.pill:hover:not(:disabled) {
-  border-color: rgba(201, 162, 76, 0.7);
-  background: rgba(201, 162, 76, 0.14);
+.air-act:hover,
+.air-act:focus-visible {
+  color: #ffedb8;
+  text-shadow: 0 0 22px rgba(255, 226, 150, 0.7), 0 2px 12px rgba(0, 0, 0, 0.85);
 }
 
-.pill:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
+.air-act:active {
+  color: #fff3cd;
 }
 
-.pill.is-on {
-  background: rgba(201, 162, 76, 0.2);
+.air-act.is-on {
+  color: #ffe9b0;
+  text-shadow: 0 0 20px rgba(255, 226, 150, 0.5), 0 2px 12px rgba(0, 0, 0, 0.85);
 }
 
-/* --- Depth dots (bottom-left) -------------------------------------------- */
+/* --- The plumb line (right of frame) --------------------------------------
+   The depth hexes and the progress bar, made one instrument — and then split
+   in two, because the library and the garden are not travelled the same way.
 
-.depth {
+   THE DESCENT (design 1d), down the library: the cord is a brass chain, the
+   same the galleries hang their lamps from, and the ring riding it is a grip
+   rather than a read-out. It shows the live eased descent, so it reads
+   position and travel at once; take hold of it and the archive descends with
+   you, station tags surfacing as they pass.
+
+   THE LANTERN STRING (design 2a), past the door: the chain gives out at the
+   threshold and the rest of the cord is twine, hung with one paper lantern per
+   stepping stone. They kindle in turn as the path opens, keep burning behind
+   you, and blaze at the stone you stand on. Nothing is measured out there —
+   the garden is walked by lantern-light. */
+
+.plumb {
   position: fixed;
-  left: 2rem;
-  bottom: 2rem;
+  /* One dial for the whole instrument. Every part below is written at its
+     drawn size and multiplied through here, so the chain, its links, the
+     lanterns and the ring grow together and the cord never reads as a thin
+     line with big beads on it. The rail is an ornament that has to be read
+     across the room, not a scrollbar. */
+  --plumb-scale: 2;
+  /* The second dial: how PRESENT the brass is, separate from how big.
+     Size and ink pull against each other — drawn at full strength the bigger
+     links read as a thick outlined graphic laid on the picture rather than an
+     object hanging in it. Big and faint is an instrument seen across a dim
+     room; big and opaque is a sticker. Legibility is bought by the shade
+     behind the cord, not by the weight of the cord itself, so this can go
+     quite low without the rail disappearing again. */
+  --plumb-ink: 0.6;
+  right: calc(2.9rem * var(--plumb-scale));
+  top: 50%;
+  height: 70vh;
   z-index: 40;
+  transform: translateY(-50%);
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
+  align-items: center;
+}
+
+/* The rail carries its own night.
+   Half these galleries are lit sandstone — ochre balustrades, pale mist, warm
+   carved stone — and brass hung on brass has no luminance to separate it, so
+   the whole instrument sank into the picture exactly where the picture was
+   most beautiful. This is the shade the cord hangs in: a soft column of dark
+   behind it, feathered at both ends and dissolving sideways into the plate, so
+   it never reads as a panel laid over the artwork. It is what the brass is
+   legible against, and the reason nothing below needs to shout. */
+.plumb::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: -6%;
+  height: 112%;
+  width: calc(7.2rem * var(--plumb-scale));
+  transform: translateX(-50%);
+  z-index: -1;
   pointer-events: none;
+  /* Off-centre: the station tags hang to the LEFT of the cord, so the shade
+     has to reach further that way than into the margin. */
+  background: linear-gradient(
+    90deg,
+    rgba(14, 11, 7, 0) 0%,
+    rgba(14, 11, 7, 0.5) 34%,
+    rgba(14, 11, 7, 0.66) 62%,
+    rgba(14, 11, 7, 0.5) 82%,
+    rgba(14, 11, 7, 0) 100%
+  );
+  mask-image: linear-gradient(180deg, transparent, #000 13%, #000 87%, transparent);
+  -webkit-mask-image: linear-gradient(180deg, transparent, #000 13%, #000 87%, transparent);
 }
 
-.depth-label {
-  font: 400 0.66rem/1 var(--mono);
-  letter-spacing: 0.22em;
-  color: var(--accent);
-  text-transform: uppercase;
-  transition: color 600ms ease;
+.plumb-step {
+  flex: none;
+  border: 0;
+  padding: 0.2rem 0.6rem;
+  background: none;
+  cursor: pointer;
+  font: 400 1.35rem/1 var(--mono);
+  font-size: calc(1.35rem * var(--plumb-scale));
+  color: rgba(240, 232, 214, 0.88);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95), 0 0 12px rgba(0, 0, 0, 0.75);
+  transition: color 300ms ease, text-shadow 300ms ease, opacity 300ms ease;
 }
 
-.depth-dots {
-  display: flex;
-  gap: 0.5rem;
+.plumb-step:hover:not(:disabled),
+.plumb-step:focus-visible:not(:disabled) {
+  color: #ffe9b0;
+  text-shadow: 0 0 18px rgba(255, 226, 150, 0.7);
 }
 
-/* Borges' galleries are hexagonal; so are the markers. The button stays a
-   plain rect (so the focus ring isn't clipped) and the hexagon lives inside. */
-.hex-btn {
-  pointer-events: auto;
-  width: 1rem;
-  height: 1.1rem;
+.plumb-step:active:not(:disabled) {
+  color: #fff3cd;
+}
+
+.plumb-step:disabled {
+  cursor: not-allowed;
+  opacity: 0.3;
+}
+
+/* The span the cord and its marks share, so the ring's percentage and each
+   mark's percentage land in the same coordinate space. Wide enough now to be
+   the grab target for the chain as well — the ring is small, the hand is not. */
+.plumb-span {
+  position: relative;
+  flex: 1;
+  width: calc(1.75rem * var(--plumb-scale));
+  margin: 0.9rem 0;
+  cursor: grab;
+  touch-action: none; /* the vertical drag is ours, not the page's */
+}
+
+.plumb-span.is-gripped {
+  cursor: grabbing;
+}
+
+/* --- The chain (the library's half of the cord) --------------------------- */
+
+.plumb-chain {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: calc(1.15rem * var(--plumb-scale));
+  transform: translateX(-50%);
+  /* Alternating links, upright and flat, tiled down the drop. Drawn rather
+     than built out of elements so the chain can be clipped to any length
+     without its links stretching with it.
+     Each link is struck twice: a soft dark casing underneath, then the brass
+     over it. That dark is what holds the chain against lit stone — without it
+     the links are gold on gold and simply are not there.
+     Both strokes are drawn THIN, because the tile scales with the rail and a
+     stroke that looked right small becomes a fat cartoon outline blown up. The
+     casing is a shadow the link sits in, not a keyline around it. */
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='30' viewBox='0 0 26 30'%3E%3Cg fill='none' stroke='%23000' stroke-opacity='0.34' stroke-width='2.2'%3E%3Cellipse cx='13' cy='8' rx='7.3' ry='6.7'/%3E%3Cellipse cx='13' cy='22.5' rx='3.3' ry='6.7'/%3E%3C/g%3E%3Cg fill='none' stroke='%23e9c47e' stroke-opacity='0.9' stroke-width='1.15'%3E%3Cellipse cx='13' cy='8' rx='7.3' ry='6.7'/%3E%3Cellipse cx='13' cy='22.5' rx='3.3' ry='6.7'/%3E%3C/g%3E%3C/svg%3E")
+    repeat-y 50% 0 /
+    calc(1.15rem * var(--plumb-scale)) calc(1.35rem * var(--plumb-scale));
+  /* Fades in from above: the chain comes out of the dark, it isn't hung. And
+     frays out at its foot, where the brass gives way to the garden's twine. */
+  opacity: var(--plumb-ink);
+  mask-image: linear-gradient(180deg, transparent, #000 11%, #000 93%, transparent);
+  -webkit-mask-image: linear-gradient(180deg, transparent, #000 11%, #000 93%, transparent);
+  /* Shortens to the library's share of the drop when the door opens, on the
+     same ease the marks slide apart under. */
+  transition: height 1500ms ease;
+}
+
+/* --- The lantern string (the garden's half) ------------------------------- */
+
+.plumb-wire {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  /* Twine grows slower than the brass: at full scale a 2px cord reads as a
+     drawn stripe rather than a thread. */
+  width: calc(1.4px * var(--plumb-scale));
+  opacity: var(--plumb-ink);
+  transform: translateX(-50%);
+  /* Twine, not brass: a twisted cord, warm at the knot the chain ends on and
+     cooling into the garden's green as it runs down. */
+  background-image:
+    repeating-linear-gradient(
+      180deg,
+      rgba(238, 226, 190, 0.9) 0 calc(3px * var(--plumb-scale)),
+      rgba(120, 104, 70, 0.5) calc(3px * var(--plumb-scale))
+        calc(6px * var(--plumb-scale))
+    ),
+    linear-gradient(180deg, rgba(201, 162, 76, 0.85), rgba(159, 196, 138, 0.8));
+  /* Twine is thin; on lit stone it needs a shadow to be a cord at all. */
+  box-shadow: 0 0 calc(2px * var(--plumb-scale)) rgba(0, 0, 0, 0.85);
+  animation: string-hang 1200ms ease both;
+  transition: top 1500ms ease;
+}
+
+@keyframes string-hang {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) scaleY(0.2);
+    transform-origin: 50% 0;
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) scaleY(1);
+    transform-origin: 50% 0;
+  }
+}
+
+/* --- The stations --------------------------------------------------------- */
+
+.plumb-mark {
+  position: absolute;
+  left: 50%;
   padding: 0;
   border: 0;
   background: none;
   cursor: pointer;
+  /* A generous target on the cord itself; the tag beside it overflows and is
+     clickable too. */
+  width: calc(1.75rem * var(--plumb-scale));
+  height: calc(1.7rem * var(--plumb-scale));
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* When the door opens the cord lengthens: the marks slide apart while the
+     ring eases to its new fraction in the tick. Matched to that ease (~1.6/s)
+     so the two stay together through the change. */
+  transition: top 1500ms ease;
 }
 
-.hex-btn .hex {
-  display: block;
-  width: 100%;
-  height: 100%;
-  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
-  background: rgba(236, 228, 210, 0.18);
+/* The tag hangs off the cord to the left and ends in a short rule pointing
+   back at the station it names — a label on a chain, not a tooltip. */
+.plumb-tag {
+  position: absolute;
+  right: calc(50% + 0.95rem * var(--plumb-scale));
+  display: flex;
+  align-items: center;
+  gap: calc(0.4rem * var(--plumb-scale));
+  white-space: nowrap;
+}
+
+.plumb-title {
+  font: italic 400 0.92rem/1 var(--serif);
+  /* Held a size back off the dial: the station name is the one part of the
+     rail that has to sit beside the chapter title in the opposite margin, and
+     at full scale the hand starts answering it back. The brass grows; the
+     writing on it only keeps up. */
+  font-size: calc(0.82rem * var(--plumb-scale));
+  color: #f6ecd6;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.95);
+  opacity: 0;
+  transform: translateX(0.5rem);
+  transition: opacity 400ms ease, transform 400ms ease;
+}
+
+/* The name surfaces under the hand, under the cursor, or under the keyboard —
+   never all at once, so the margin stays quiet while you are reading. */
+.plumb-mark:hover .plumb-title,
+.plumb-mark:focus-visible .plumb-title,
+.plumb-mark.is-grip .plumb-title {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.plumb-numeral {
+  font: 500 0.78rem/1 var(--serif);
+  font-size: calc(0.78rem * var(--plumb-scale));
+  /* Was a dim warm grey, which is invisible on sandstone. Parchment now, with
+     a tight dark halo under a wider one — the near shadow gives the letterform
+     its edge, the far one sits it away from whatever is behind. */
+  color: rgba(226, 214, 186, 0.92);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.95), 0 0 10px rgba(0, 0, 0, 0.8);
+  transition: color 400ms ease, font-weight 400ms ease;
+}
+
+.plumb-tick {
+  width: calc(0.55rem * var(--plumb-scale));
+  height: calc(1px * var(--plumb-scale));
+  background: rgba(232, 190, 116, 0.72);
+  box-shadow: 0 0 3px rgba(0, 0, 0, 0.85);
   transition: background 400ms ease;
 }
 
-.hex-btn:hover .hex {
-  background: rgba(236, 228, 210, 0.38);
-}
-
-.hex-btn.is-active .hex {
-  background: var(--accent);
-}
-
-/* The garden's markers are stepping stones, not galleries: round, green-lit,
-   and they surface one by one when the door opens. */
-.hex-btn.is-garden .hex {
-  clip-path: none;
+/* A station on the chain reads as a rivet in it, not a dot laid over it. */
+.plumb-node {
+  flex: none;
+  /* A rivet, not a bead: it grows slower than the chain it sits in, or it
+     turns into a row of dots strung on a line. */
+  width: calc(0.34rem * var(--plumb-scale));
+  height: calc(0.34rem * var(--plumb-scale));
   border-radius: 50%;
-  background: rgba(159, 196, 138, 0.22);
-  animation: dot-sprout 900ms ease both;
+  background: radial-gradient(circle at 38% 32%, #f9ecc8, #b58a45 62%, #6a4a1e 100%);
+  /* A hairline of dark all the way round, so the rivet has an edge even where
+     the stone behind it is brighter than the brass. */
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5), 0 1px 5px rgba(0, 0, 0, 0.85);
+  opacity: calc(0.9 * var(--plumb-ink));
+  transition: opacity 400ms ease, box-shadow 400ms ease;
 }
 
-.hex-btn.is-garden:nth-child(6) .hex { animation-delay: 150ms; }
-.hex-btn.is-garden:nth-child(7) .hex { animation-delay: 300ms; }
-.hex-btn.is-garden:nth-child(8) .hex { animation-delay: 450ms; }
-
-.hex-btn.is-garden:hover .hex {
-  background: rgba(159, 196, 138, 0.45);
+.plumb-mark:hover .plumb-node,
+.plumb-mark:focus-visible .plumb-node,
+.plumb-mark.is-grip .plumb-node {
+  opacity: 1;
+  box-shadow: 0 0 14px rgba(255, 226, 150, 0.8), 0 1px 5px rgba(0, 0, 0, 0.85);
 }
 
-.hex-btn.is-garden.is-active .hex {
-  background: var(--accent);
+.plumb-mark:hover .plumb-numeral,
+.plumb-mark:focus-visible .plumb-numeral,
+.plumb-mark.is-grip .plumb-numeral {
+  color: #ffe9b0;
 }
 
-@keyframes dot-sprout {
+.plumb-mark:hover .plumb-tick,
+.plumb-mark:focus-visible .plumb-tick,
+.plumb-mark.is-grip .plumb-tick {
+  background: rgba(255, 226, 150, 0.85);
+}
+
+.plumb-mark.is-active .plumb-numeral {
+  font-weight: 600;
+  color: #ffe9b0;
+  text-shadow: 0 0 14px rgba(255, 226, 150, 0.6), 0 2px 8px rgba(0, 0, 0, 0.85);
+}
+
+/* The ring covers the active station's stud, so it doesn't double up. A
+   lantern is not covered — the ring closes around it, which is the point. */
+.plumb-mark.is-active .plumb-node {
+  opacity: 0;
+}
+
+/* The garden's marks are lanterns on the string, not galleries on a chain:
+   paper bodies with a brass cap, hung by their hooks, breathing on the wire.
+   They kindle one after another when the door opens, the way a string is lit
+   from one end. */
+.plumb-lantern {
+  position: relative;
+  flex: none;
+  width: calc(0.7rem * var(--plumb-scale));
+  height: calc(0.92rem * var(--plumb-scale));
+  /* A paper drum: shoulders at the cap, a slight draw-in at the foot. */
+  border-radius: 38% 38% 32% 32% / 24% 24% 20% 20%;
+  /* An unlit lantern used to be paper at 26% alpha — which is nothing at all
+     over sandstone. It is dark paper now, not clear paper: a shut lantern is
+     an object you can see is waiting to be lit, and that object has to hold
+     against a bright plate as well as a black one. */
+  background: linear-gradient(
+    180deg,
+    rgba(58, 50, 34, 0.44),
+    rgba(38, 44, 32, 0.4)
+  );
+  border: 1px solid rgba(214, 178, 100, 0.52);
+  /* Bright brass cap, hollow paper, and enough of a drop shadow to hold its
+     shape against a plate as dark as the garden's — or as light as the
+     library's carved stone. */
+  box-shadow:
+    inset 0 1px 0 rgba(244, 209, 144, 0.6),
+    inset 0 0 0.3rem rgba(0, 0, 0, 0.55),
+    0 1px 5px rgba(0, 0, 0, 0.9);
+  /* Hangs from the wire above it, and swings from that hook. */
+  transform-origin: 50% calc(-0.3rem * var(--plumb-scale));
+  animation:
+    lantern-kindle 900ms ease both,
+    lantern-sway 4.6s ease-in-out infinite alternate;
+  transition: background 500ms ease, box-shadow 500ms ease, border-color 500ms ease;
+}
+
+/* The hook it hangs by. */
+.plumb-lantern::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  width: calc(1px * var(--plumb-scale));
+  height: calc(0.3rem * var(--plumb-scale));
+  background: rgba(214, 176, 98, 0.8);
+  transform: translateX(-50%);
+}
+
+/* The finial under the foot. */
+.plumb-lantern::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  width: calc(0.2rem * var(--plumb-scale));
+  height: calc(0.11rem * var(--plumb-scale));
+  border-radius: 0 0 40% 40%;
+  background: rgba(206, 170, 92, 0.65);
+  transform: translateX(-50%);
+}
+
+/* Lit behind you — the path you have already walked keeps its light. */
+.plumb-mark.is-passed .plumb-lantern {
+  background: radial-gradient(
+    circle at 50% 42%,
+    rgba(255, 232, 176, 0.55),
+    rgba(214, 168, 92, 0.3) 70%
+  );
+  border-color: rgba(226, 190, 116, 0.6);
+  box-shadow:
+    inset 0 1px 0 rgba(244, 209, 144, 0.6),
+    inset 0 0 0.25rem rgba(0, 0, 0, 0.4),
+    0 0 0.5rem rgba(255, 206, 120, 0.28);
+}
+
+/* Burning where you stand. */
+.plumb-mark.is-active .plumb-lantern {
+  background: radial-gradient(circle at 50% 38%, #fff4d2, #ffd88a 46%, #d79a3f 92%);
+  border-top-color: #f4d190;
+  animation:
+    lantern-kindle 900ms ease both,
+    lantern-sway 4.6s ease-in-out infinite alternate,
+    lantern-breathe 3.6s ease-in-out infinite;
+}
+
+.plumb-mark:hover .plumb-lantern,
+.plumb-mark:focus-visible .plumb-lantern,
+.plumb-mark.is-grip .plumb-lantern {
+  background: radial-gradient(circle at 50% 38%, #fff4d2, #ffdf9d 50%, #c98a3e 94%);
+  box-shadow: 0 0 0.75rem rgba(255, 216, 138, 0.6), inset 0 0 0.25rem rgba(0, 0, 0, 0.35);
+}
+
+.plumb-mark.is-garden:nth-of-type(6) .plumb-lantern { animation-delay: 150ms; }
+.plumb-mark.is-garden:nth-of-type(7) .plumb-lantern { animation-delay: 300ms; }
+.plumb-mark.is-garden:nth-of-type(8) .plumb-lantern { animation-delay: 450ms; }
+
+/* Each lantern swings on its own beat, so the string never reads as one rigid
+   object nodding in time. */
+.plumb-mark.is-garden:nth-of-type(7) .plumb-lantern { animation-duration: 900ms, 5.3s, 3.6s; }
+.plumb-mark.is-garden:nth-of-type(8) .plumb-lantern { animation-duration: 900ms, 4.1s, 3.6s; }
+
+@keyframes lantern-kindle {
   from {
     opacity: 0;
-    transform: scale(0.3);
+    filter: brightness(0.25);
   }
   to {
     opacity: 1;
-    transform: scale(1);
+    filter: none;
+  }
+}
+
+@keyframes lantern-sway {
+  from {
+    transform: rotate(-4deg);
+  }
+  to {
+    transform: rotate(4deg);
+  }
+}
+
+@keyframes lantern-breathe {
+  0%,
+  100% {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 245, 214, 0.8),
+      inset 0 -0.1rem 0.2rem rgba(178, 108, 38, 0.5),
+      0 0 0.8rem 0.16rem rgba(255, 206, 120, 0.42);
+  }
+  50% {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 245, 214, 0.8),
+      inset 0 -0.1rem 0.2rem rgba(178, 108, 38, 0.5),
+      0 0 1.15rem 0.3rem rgba(255, 214, 134, 0.6);
+  }
+}
+
+/* --- The ring ------------------------------------------------------------- */
+/* `top` is written by the tick — or, while it is held, straight from the
+   pointer. The sway is its own slow cycle, nested so the two never fight over
+   `transform`. */
+.plumb-bob {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.plumb-ring {
+  display: block;
+  /* ONE OF THE CHAIN'S OWN LINKS, not a hoop laid over them. The chain tile
+     draws its upright link at rx 7.3 in a 26-wide viewBox across a
+     1.15rem × scale tile — 0.70rem × scale outside the brass — so that is the
+     ring's diameter, to within a pixel. It was 1.5rem × scale, better than
+     twice the link, and at that size it stopped reading as a thing riding the
+     chain and became a graphic printed on top of it.
+     What tells you where you are is LIGHT, not size: same link, lit. */
+  width: calc(0.7rem * var(--plumb-scale));
+  height: calc(0.7rem * var(--plumb-scale));
+  box-sizing: border-box;
+  border-radius: 50%;
+  /* Brass turned on a chain: lit from the upper left, dark where it turns
+     away. The band is drawn near the chain's own stroke weight (0.051rem ×
+     scale) — a touch stouter, because this link is the one in the hand. */
+  border: calc(0.075rem * var(--plumb-scale)) solid;
+  /* Lit brass, a clear step above the cord's own links and the stations' studs
+     — brightness is the ONLY thing marking where you are now that the ring is
+     link-sized, so it has to win outright at a glance. */
+  border-color: #ffeec0 #dcac5c #8d6228 #f4cf8c;
+  /* The ring is IN FRONT of the chain, and has to be seen to be. It rides the
+     cord continuously, so it lands wherever it lands — with a hollow middle it
+     came to rest half over a link and the station read as two overlapping
+     circles, one bright and one dim, instead of one lit ring. This is the
+     link behind it going dark: the ring's own shadowed inside, deep enough to
+     swallow the brass under it on a night plate or on lit stone, and warm
+     rather than black so it stays a turned object and not a punched hole. */
+  background: radial-gradient(
+    circle at 50% 36%,
+    rgba(74, 53, 28, 0.93),
+    rgba(18, 13, 7, 1) 100%
+  );
+  /* The glow shrinks with it — a halo tuned for a 1.5rem ring is a lamp
+     around a 0.7rem one, and the brightness is doing the work the size used
+     to, so it has to stay a sheen on brass rather than a bloom. */
+  /* Three layers, outward: the ring's own shadow on the chain (which is what
+     lifts it off the cord and finishes hiding the link it has come to rest
+     over), then the warm sheen, then the inside turning away from the light. */
+  box-shadow: 0 0 0.22rem 0.1rem rgba(12, 9, 5, 0.85),
+    0 0 0.7rem 0.16rem rgba(255, 196, 110, 0.45),
+    inset 0 0 0.2rem rgba(0, 0, 0, 0.55);
+  /* The ring stays the most present thing on the cord — it is where you are —
+     but it still yields to the ink, or it floats free of its own chain. */
+  opacity: calc(0.45 + 0.55 * var(--plumb-ink));
+  animation: plumb-sway 3.4s ease-in-out infinite alternate;
+}
+
+/* A held ring does not swing — the hand has it. */
+.plumb-span.is-gripped .plumb-ring {
+  animation: none;
+  transform: none;
+  border-color: #fff6da #ecc27e #a3743a #ffe3ad;
+  box-shadow: 0 0 0.22rem 0.1rem rgba(12, 9, 5, 0.85),
+    0 0 0.95rem 0.24rem rgba(255, 210, 135, 0.6),
+    inset 0 0 0.2rem rgba(0, 0, 0, 0.5);
+}
+
+/* The sway is a link turning on its chain, so it travels with the link: at
+   ±2.5px × scale the ring now swung most of its own width and read as loose
+   from the cord it hangs on. */
+@keyframes plumb-sway {
+  from {
+    transform: translateX(calc(-1.2px * var(--plumb-scale)));
+  }
+  to {
+    transform: translateX(calc(1.2px * var(--plumb-scale)));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plumb-ring {
+    animation: none !important;
+    transform: none;
+  }
+
+  .plumb-lantern,
+  .plumb-mark.is-active .plumb-lantern {
+    animation: lantern-kindle 900ms ease both !important;
+    transform: none;
+  }
+
+  .plumb-wire {
+    animation: none !important;
+    transform: translateX(-50%);
   }
 }
 
 /* --- The door to the garden -------------------------------------------------
-   A thin slit of green light standing in the dark of The Silence — the one
-   element of the HUD that belongs to the *next* world. */
+   No button: the walk itself crosses the threshold. This whisper sits low and
+   centred, tinted with the green of the *next* world — the one piece of HUD
+   that belongs to the garden. */
 
-.door-call {
+.door-whisper {
   position: fixed;
-  right: 20%;
-  top: 46%;
-  transform: translateY(-50%);
-  z-index: 38;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 1rem;
-  border: 0;
-  background: none;
-  cursor: pointer;
-  animation: door-appear 2600ms ease both;
-}
-
-/* Not a caption to read — a beckon. A whispered eyebrow, an imperative verb, and
-   a chevron that keeps falling: the whole thing invites the plunge rather than
-   announcing it. */
-.door-eyebrow {
-  font: 400 0.56rem/1.6 var(--mono);
-  letter-spacing: 0.34em;
-  text-transform: uppercase;
-  color: rgba(191, 227, 166, 0.5);
-}
-
-.door-verb {
-  font: 400 1.15rem/1 var(--mono);
-  letter-spacing: 0.5em;
+  left: 50%;
+  bottom: 3.2rem;
+  transform: translateX(-50%);
+  z-index: 40;
+  padding: 0.55rem 1.1rem;
+  border-radius: 999px;
+  background: rgba(10, 14, 9, 0.55);
+  border: 1px solid rgba(159, 196, 138, 0.28);
+  backdrop-filter: blur(8px);
+  font: 400 0.68rem/1 var(--mono);
+  letter-spacing: 0.22em;
   text-transform: uppercase;
   color: #cdeeb2;
-  text-indent: 0.5em; /* balance the trailing letter-spacing so it reads centered */
-  text-shadow: 0 0 16px rgba(159, 196, 138, 0.55);
-  animation: door-verb-breathe 3200ms ease-in-out infinite;
-}
-
-.door-chevron {
-  font-size: 1rem;
-  line-height: 1;
-  color: rgba(191, 227, 166, 0.8);
-  text-shadow: 0 0 12px rgba(159, 196, 138, 0.5);
-  animation: door-chevron-fall 2200ms ease-in-out infinite;
+  white-space: nowrap;
+  pointer-events: none;
+  animation:
+    door-appear 2600ms ease both,
+    door-whisper-breathe 3200ms ease-in-out 2600ms infinite;
 }
 
 @keyframes door-appear {
@@ -317,31 +912,45 @@
   }
 }
 
-/* The verb pulses like the kindled core it answers to. */
-@keyframes door-verb-breathe {
+/* The whisper pulses like the kindled core it answers to. Starts and ends at
+   full so it takes over seamlessly when door-appear finishes. */
+@keyframes door-whisper-breathe {
   0%, 100% {
-    opacity: 0.72;
-    text-shadow: 0 0 12px rgba(159, 196, 138, 0.4);
+    opacity: 1;
+    text-shadow: 0 0 18px rgba(159, 196, 138, 0.6);
   }
   50% {
-    opacity: 1;
-    text-shadow: 0 0 22px rgba(159, 196, 138, 0.75);
+    opacity: 0.72;
+    text-shadow: 0 0 10px rgba(159, 196, 138, 0.3);
   }
 }
 
-/* The chevron keeps falling — a small, endless descent pulling the eye down
-   the spiral. */
-@keyframes door-chevron-fall {
-  0% {
-    opacity: 0;
-    transform: translateY(-0.35rem);
+/* The same pill, saying the opposite thing: a way that will not open. Cooled
+   off the garden's green to lamp-lit stone, it arrives faster than the
+   invitation does (it answers a step you JUST took), doesn't breathe — nothing
+   is kindling here — and dissolves on its own instead of standing. The fade
+   lands at REFUSAL_WHISPER_MS in Tour.jsx, which unmounts it. */
+.door-whisper.is-refusal {
+  background: rgba(12, 11, 9, 0.55);
+  border-color: rgba(201, 162, 76, 0.2);
+  color: rgba(216, 203, 178, 0.82);
+  /* The fade must be `forwards`, not `both`: a backwards fill would apply its
+     opening keyframe through the whole 4.3s delay, and being later in the list
+     it would win over door-appear — the pill would snap in at full strength
+     instead of gathering out of the air like the invitation it answers. */
+  animation:
+    door-appear 1400ms ease both,
+    refusal-fade 900ms ease 4300ms forwards;
+}
+
+@keyframes refusal-fade {
+  from {
+    opacity: 1;
+    filter: blur(0);
   }
-  35% {
-    opacity: 0.9;
-  }
-  100% {
+  to {
     opacity: 0;
-    transform: translateY(0.6rem);
+    filter: blur(5px);
   }
 }
 
@@ -350,100 +959,19 @@
    every piece of HUD chrome fades, so there is only the spiral, the core light,
    and the fall. It breathes back in once the garden has the camera. */
 
-.folio,
-.controls,
-.depth,
-.progress {
+.scatter,
+.chapter-mark,
+.air-acts,
+.plumb {
   transition: opacity 900ms ease;
 }
 
-.tour-root.is-diving .chapter-card,
-.tour-root.is-diving .folio,
-.tour-root.is-diving .controls,
-.tour-root.is-diving .depth,
-.tour-root.is-diving .progress,
-.tour-root.is-diving .nav-hint {
+.tour-root.is-diving .chapter-mark,
+.tour-root.is-diving .scatter,
+.tour-root.is-diving .air-acts,
+.tour-root.is-diving .plumb {
   opacity: 0;
   pointer-events: none;
-}
-
-/* --- Progress bar (bottom) ------------------------------------------------ */
-
-.progress {
-  position: fixed;
-  left: 2rem;
-  right: 2rem;
-  bottom: 1rem;
-  z-index: 40;
-  display: flex;
-  align-items: center;
-  gap: 0.8rem;
-  pointer-events: none;
-}
-
-.progress-track {
-  flex: 1;
-  height: 0.18rem;
-  border-radius: 999px;
-  background: rgba(168, 156, 130, 0.24);
-  overflow: hidden;
-}
-
-.progress-fill {
-  width: 0%;
-  height: 100%;
-  background: linear-gradient(90deg, var(--gold), var(--ink));
-}
-
-.progress-label {
-  font: 400 0.66rem/1 var(--mono);
-  letter-spacing: 0.16em;
-  color: var(--ink-dim);
-  text-transform: uppercase;
-}
-
-/* --- One-time navigation hint ------------------------------------------------
-   A single whispered line above the progress bar, shown once the veil lifts.
-   It bows out on the reader's first move (Tour.jsx flips .is-shown off). */
-
-.nav-hint {
-  position: fixed;
-  left: 50%;
-  bottom: 3.2rem;
-  transform: translateX(-50%);
-  z-index: 40;
-  padding: 0.55rem 1.1rem;
-  border-radius: 999px;
-  background: rgba(12, 10, 8, 0.6);
-  border: 1px solid rgba(201, 162, 76, 0.22);
-  backdrop-filter: blur(8px);
-  font: 400 0.68rem/1 var(--mono);
-  letter-spacing: 0.14em;
-  color: var(--ink-dim);
-  white-space: nowrap;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 1100ms ease;
-}
-
-.nav-hint.is-shown {
-  opacity: 1;
-}
-
-/* The hint speaks the visitor's input language: wheel/keys on fine pointers,
-   gestures on touch. */
-.nav-hint-touch {
-  display: none;
-}
-
-@media (pointer: coarse) {
-  .nav-hint-mouse {
-    display: none;
-  }
-
-  .nav-hint-touch {
-    display: inline;
-  }
 }
 
 /* --- Help overlay ---------------------------------------------------------- */
@@ -497,6 +1025,37 @@
    frame at the deepest dive — hiding the plate hand-off and the camera righting
    itself — then clearing onto the garden. Anchored lower-right to the painted
    core, so it reads as the spiral's light rushing up to swallow the eye. */
+/* Tunnel vision during the dive: the frame's periphery closes in with the
+   fall's thrust — deliberate, symmetric framing that reads as speed, its clear
+   center held on the spiral and its light (biased toward the painted core). */
+/* The frame. Every mockup in the design doc carries an inset vignette on the
+   scene, and it is doing more work than it looks: it is what makes writing in
+   the margins legible at all. Without it the corner chrome lands on whatever
+   the artwork happens to put there — in the Vestibule, a brightly lit stairway
+   right where the actions hang. It also simply frames the diorama, pulling the
+   eye down the corridor. Sits above the canvas, below every piece of HUD. */
+.frame-vignette {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  pointer-events: none;
+  box-shadow: inset 0 0 16vmin 2vmin rgba(8, 5, 2, 0.68);
+}
+
+.dive-vignette {
+  position: fixed;
+  inset: 0;
+  z-index: 49;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(
+    ellipse 80% 72% at 62% 56%,
+    rgba(0, 0, 0, 0) 42%,
+    rgba(4, 3, 2, 0.55) 78%,
+    rgba(2, 1, 1, 0.92) 100%
+  );
+}
+
 /* The throat of the vortex swallowing the light: near-black closing in from
    the frame's edges, with the faintest warm breath left at the core — so the
    dive ends by falling into darkness and emerging into the garden, never a
@@ -590,66 +1149,70 @@
 /* --- Small screens ----------------------------------------------------------- */
 
 @media (max-width: 720px) {
-  .chapter-card {
+  /* The mark yields the right of the top margin to the plumb line. The vw
+     terms in the desktop clamps bottom out on a phone, so the hands are
+     re-sized here against the viewport rather than left at their floors.
+     (The marginal lean stays — that's handwriting, not a mount.) */
+  .chapter-mark {
     left: 1rem;
     top: 1rem;
-    right: 1rem;
-    max-width: none;
-    padding: 0.8rem 0.9rem;
+    max-width: 58%;
   }
 
-  .chapter-summary {
-    display: none;
+  .chapter-eyebrow {
+    font-size: 0.58rem;
+    letter-spacing: 0.16em;
+    margin-bottom: 0.4rem;
   }
 
-  .folio {
+  .chapter-title {
+    font-size: clamp(1.45rem, 6.4vw, 2.1rem);
+  }
+
+  /* The scattered field is re-laid for this width in JS (SCATTER_NARROW) —
+     bigger words, wider rows, tighter row spacing. */
+  .scatter-attr {
     left: 1rem;
+    bottom: 3.6rem;
+    font-size: 0.56rem;
+    letter-spacing: 0.14em;
+  }
+
+  /* The whole instrument steps down by one turn of its own dial — a phone has
+     less margin to hang it in, but it still has to read as brass. */
+  .plumb {
+    --plumb-scale: 1.55;
+    right: 1.5rem;
+    height: 62vh;
+  }
+
+  /* A phone has no room for a long name beside the chain; the numeral and its
+     rule still say where the hand is. */
+  .plumb-title {
+    max-width: 42vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .air-acts {
     right: 1rem;
-    bottom: 6rem;
-    max-width: none;
+    bottom: 1rem;
+    gap: 4.5vw;
+    /* On the narrowest phones the row can outgrow the frame, so let it fall
+       onto a second line rather than run off the edge — right-aligned, so it
+       still hangs off the same margin. */
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    max-width: calc(100vw - 2rem);
   }
 
-  .folio-line {
-    font-size: 1.05rem;
+  .air-act {
+    font-size: clamp(1.1rem, 5.4vw, 1.7rem);
   }
 
-  .depth {
-    left: 1rem;
-    bottom: 2.6rem;
-  }
-
-  .progress {
-    left: 1rem;
-    right: 1rem;
-    bottom: 0.8rem;
-  }
-
-  .progress-label {
-    display: none;
-  }
-
-  .controls {
-    inset: auto 1rem 6.4rem auto;
-    flex-direction: column;
-    gap: 0.5rem;
-  }
-
-  .nav-hint {
+  .door-whisper {
     bottom: 5rem;
     font-size: 0.62rem;
-    max-width: calc(100vw - 2rem);
-    white-space: normal;
-    text-align: center;
-    line-height: 1.5;
-  }
-
-  .door-call {
-    right: 8%;
-    top: 42%;
-  }
-
-  .door-verb {
-    font-size: 1rem;
-    letter-spacing: 0.42em;
+    letter-spacing: 0.16em;
   }
 }

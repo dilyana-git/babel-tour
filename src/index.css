@@ -3,11 +3,16 @@
 :root {
   --ink: #ece4d2;
   --ink-dim: #a89c82;
+  /* Settled ink for the quill-written quote: a shade warmer than --ink and
+     held back from full opacity, so the script sits in the artwork rather
+     than on top of it. */
+  --ink-quill: rgba(240, 223, 174, 0.88);
   --gold: #c9a24c;
   --night: #15120d;
 
   --serif: 'Cormorant Garamond', Georgia, serif;
   --mono: 'IBM Plex Mono', ui-monospace, Consolas, monospace;
+  --script: 'Tangerine', 'Cormorant Garamond', cursive;
 
   color-scheme: dark;
 }
