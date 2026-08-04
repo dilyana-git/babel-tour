@@ -22,3 +22,28 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# The clip batches, which are carried OUT OF BAND rather than in the repo — they
+# are ~1.5 GB across eight parallel copies of the same 40 clips (one per
+# super-resolution experiment, so ?sr=<key> can A/B them; see VIDEO_SR in
+# src/Tour.jsx). None of them has ever been tracked. Listed explicitly because
+# they are not obviously generated, so a `git add -A` would otherwise commit the
+# lot, and because /video-plain now holds all 39 remuxed fallback clips rather
+# than the two it used to.
+#
+# A deploy needs these present: `best` serves from video-latest2, video-latest,
+# video-x4 and video-fit, with video-plain as the fallback root. Copy them in
+# before building; the build drops the A/B-only roots and prunes the fallback
+# (see vite.config.js).
+/public/video-2x/
+/public/video-fit/
+/public/video-latest/
+/public/video-latest2/
+/public/video-plain/
+/public/video-x4/
+/public/video-x4-48/
+
+# Raw art out of the generation pipeline: the full-size MJ candidates and their
+# working files. What the tour actually serves is the WebP derived from them and
+# committed under public/nodes/.
+source-assets/
