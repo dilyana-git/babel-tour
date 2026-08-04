@@ -23,7 +23,7 @@
   border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
   backdrop-filter: blur(12px);
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.28);
-  transition: border-color 600ms ease;
+  transition: border-color 600ms ease, opacity 900ms ease;
 }
 
 .chapter-card .swap-stage,
@@ -106,14 +106,14 @@
    incoming text surfaces from below. */
 
 .swap-enter {
-  animation: swap-in 700ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+  animation: swap-in 1600ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
 }
 
 .swap-leave {
   position: absolute;
   inset: 0 0 auto 0;
   pointer-events: none;
-  animation: swap-out 550ms ease both;
+  animation: swap-out 1100ms ease both;
 }
 
 @keyframes swap-in {
@@ -225,6 +225,148 @@
   background: var(--accent);
 }
 
+/* The garden's markers are stepping stones, not galleries: round, green-lit,
+   and they surface one by one when the door opens. */
+.hex-btn.is-garden .hex {
+  clip-path: none;
+  border-radius: 50%;
+  background: rgba(159, 196, 138, 0.22);
+  animation: dot-sprout 900ms ease both;
+}
+
+.hex-btn.is-garden:nth-child(6) .hex { animation-delay: 150ms; }
+.hex-btn.is-garden:nth-child(7) .hex { animation-delay: 300ms; }
+.hex-btn.is-garden:nth-child(8) .hex { animation-delay: 450ms; }
+
+.hex-btn.is-garden:hover .hex {
+  background: rgba(159, 196, 138, 0.45);
+}
+
+.hex-btn.is-garden.is-active .hex {
+  background: var(--accent);
+}
+
+@keyframes dot-sprout {
+  from {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* --- The door to the garden -------------------------------------------------
+   A thin slit of green light standing in the dark of The Silence — the one
+   element of the HUD that belongs to the *next* world. */
+
+.door-call {
+  position: fixed;
+  right: 20%;
+  top: 46%;
+  transform: translateY(-50%);
+  z-index: 38;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  animation: door-appear 2600ms ease both;
+}
+
+/* Not a caption to read — a beckon. A whispered eyebrow, an imperative verb, and
+   a chevron that keeps falling: the whole thing invites the plunge rather than
+   announcing it. */
+.door-eyebrow {
+  font: 400 0.56rem/1.6 var(--mono);
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  color: rgba(191, 227, 166, 0.5);
+}
+
+.door-verb {
+  font: 400 1.15rem/1 var(--mono);
+  letter-spacing: 0.5em;
+  text-transform: uppercase;
+  color: #cdeeb2;
+  text-indent: 0.5em; /* balance the trailing letter-spacing so it reads centered */
+  text-shadow: 0 0 16px rgba(159, 196, 138, 0.55);
+  animation: door-verb-breathe 3200ms ease-in-out infinite;
+}
+
+.door-chevron {
+  font-size: 1rem;
+  line-height: 1;
+  color: rgba(191, 227, 166, 0.8);
+  text-shadow: 0 0 12px rgba(159, 196, 138, 0.5);
+  animation: door-chevron-fall 2200ms ease-in-out infinite;
+}
+
+@keyframes door-appear {
+  from {
+    opacity: 0;
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+/* The verb pulses like the kindled core it answers to. */
+@keyframes door-verb-breathe {
+  0%, 100% {
+    opacity: 0.72;
+    text-shadow: 0 0 12px rgba(159, 196, 138, 0.4);
+  }
+  50% {
+    opacity: 1;
+    text-shadow: 0 0 22px rgba(159, 196, 138, 0.75);
+  }
+}
+
+/* The chevron keeps falling — a small, endless descent pulling the eye down
+   the spiral. */
+@keyframes door-chevron-fall {
+  0% {
+    opacity: 0;
+    transform: translateY(-0.35rem);
+  }
+  35% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(0.6rem);
+  }
+}
+
+/* --- The dive --------------------------------------------------------------
+   While the camera falls down the vortex, the interface gets out of the way:
+   every piece of HUD chrome fades, so there is only the spiral, the core light,
+   and the fall. It breathes back in once the garden has the camera. */
+
+.folio,
+.controls,
+.depth,
+.progress {
+  transition: opacity 900ms ease;
+}
+
+.tour-root.is-diving .chapter-card,
+.tour-root.is-diving .folio,
+.tour-root.is-diving .controls,
+.tour-root.is-diving .depth,
+.tour-root.is-diving .progress,
+.tour-root.is-diving .nav-hint {
+  opacity: 0;
+  pointer-events: none;
+}
+
 /* --- Progress bar (bottom) ------------------------------------------------ */
 
 .progress {
@@ -258,6 +400,50 @@
   letter-spacing: 0.16em;
   color: var(--ink-dim);
   text-transform: uppercase;
+}
+
+/* --- One-time navigation hint ------------------------------------------------
+   A single whispered line above the progress bar, shown once the veil lifts.
+   It bows out on the reader's first move (Tour.jsx flips .is-shown off). */
+
+.nav-hint {
+  position: fixed;
+  left: 50%;
+  bottom: 3.2rem;
+  transform: translateX(-50%);
+  z-index: 40;
+  padding: 0.55rem 1.1rem;
+  border-radius: 999px;
+  background: rgba(12, 10, 8, 0.6);
+  border: 1px solid rgba(201, 162, 76, 0.22);
+  backdrop-filter: blur(8px);
+  font: 400 0.68rem/1 var(--mono);
+  letter-spacing: 0.14em;
+  color: var(--ink-dim);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 1100ms ease;
+}
+
+.nav-hint.is-shown {
+  opacity: 1;
+}
+
+/* The hint speaks the visitor's input language: wheel/keys on fine pointers,
+   gestures on touch. */
+.nav-hint-touch {
+  display: none;
+}
+
+@media (pointer: coarse) {
+  .nav-hint-mouse {
+    display: none;
+  }
+
+  .nav-hint-touch {
+    display: inline;
+  }
 }
 
 /* --- Help overlay ---------------------------------------------------------- */
@@ -303,6 +489,31 @@
   padding: 0.6rem 0.9rem;
   border-radius: 999px;
   cursor: pointer;
+}
+
+/* --- Vortex dive whiteout ---------------------------------------------------
+   The warm flood of the library→garden plunge. Its opacity is written straight
+   from the tick (Tour.jsx), swelling from the tunnel's warm throat to cover the
+   frame at the deepest dive — hiding the plate hand-off and the camera righting
+   itself — then clearing onto the garden. Anchored lower-right to the painted
+   core, so it reads as the spiral's light rushing up to swallow the eye. */
+/* The throat of the vortex swallowing the light: near-black closing in from
+   the frame's edges, with the faintest warm breath left at the core — so the
+   dive ends by falling into darkness and emerging into the garden, never a
+   gold flood. Anchored at the painted core (82% / 80%). */
+.vortex-flash {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(
+    140% 130% at 82% 80%,
+    #1a120a 0%,
+    #0d0906 30%,
+    #060404 60%,
+    #020202 100%
+  );
 }
 
 /* --- Entry veil -------------------------------------------------------------
@@ -421,5 +632,24 @@
     inset: auto 1rem 6.4rem auto;
     flex-direction: column;
     gap: 0.5rem;
+  }
+
+  .nav-hint {
+    bottom: 5rem;
+    font-size: 0.62rem;
+    max-width: calc(100vw - 2rem);
+    white-space: normal;
+    text-align: center;
+    line-height: 1.5;
+  }
+
+  .door-call {
+    right: 8%;
+    top: 42%;
+  }
+
+  .door-verb {
+    font-size: 1rem;
+    letter-spacing: 0.42em;
   }
 }
