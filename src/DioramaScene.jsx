@@ -1078,6 +1078,13 @@ const paintingFrag = /* glsl */`
 function Painting({
   color, depth, video, videoRate = 1, index, chapters, aspect, relief, depthGamma, overscan,
   reduced, descentRef, accentRef, fogRef, diveRef, climbRef, libraryMax, stepRef,
+  // Where this plate reports its awakening, so the drift can be paced by what
+  // the gallery is actually doing rather than by a stopwatch: `{ woke, done }`
+  // under this plate's index, cleared when the camera leaves. `done` is stamped
+  // by the FIRST pass to finish — the clip keeps replaying for as long as the
+  // reader stands here (see REPLAY_REST), so "has stopped" never arrives and
+  // "has said itself once" is the only meaningful signal.
+  passRef,
   // The rite this plate's own threshold is given (RITES[index]), and the point
   // in the artwork two of them collapse the room into — the plate's light.
   rite = RITE.PLAIN, glowAt,
@@ -1332,6 +1339,10 @@ function Painting({
           state.playing = false;
           state.ended = true;
           state.endedAt = performance.now() / 1000;
+          // First completed pass wins: later replays leave it standing, so the
+          // drift reads "this gallery has woken and said itself once".
+          const rec = passRef?.current?.[index];
+          if (rec && !rec.done) rec.done = performance.now();
         });
         document.body.appendChild(el);
         state.el = el;
@@ -1342,6 +1353,7 @@ function Painting({
         if (state.armed && !state.playing && !state.ended && dist < 0.9) {
           state.armed = false;
           state.playing = true;
+          if (passRef) passRef.current[index] = { woke: performance.now(), done: 0 };
           state.el.currentTime = 0;
           state.el.playbackRate = videoRate; // reassert (load can reset it)
           const p = state.el.play();
@@ -1387,6 +1399,9 @@ function Painting({
           state.endedAt = 0;
           state.armed = true;
           state.el.pause();
+          // Re-armed: the next arrival is a fresh awakening, so the drift must
+          // wait for it again rather than reading the last visit's pass.
+          if (passRef) delete passRef.current[index];
         }
         // Well out of range: tear the element down rather than leaving it
         // parked in the DOM. Paused clips still hold their decoded buffers, so
@@ -2253,6 +2268,9 @@ export default function DioramaScene({
   // Called once per footfall while the camera is walking (with the gait's
   // current strength) — Tour lays a soft step sound under each one.
   onStep,
+  // Where each plate reports its awakening, for the drift's pacing. See the
+  // `passRef` note on Painting.
+  passRef,
 }) {
   const chapters = scenes.length;
   // The vortex is the deepest library gallery; its glow anchor is the warm
@@ -2299,6 +2317,7 @@ export default function DioramaScene({
             accentRef={accentRef} fogRef={fogRef}
             diveRef={diveRef} climbRef={climbRef}
             libraryMax={libraryMax} stepRef={stepRef}
+            passRef={passRef}
             // The rite belongs to the crossing that DEPARTS this chapter, and
             // the plate that dissolves across it is this one.
             rite={RITES[i] ?? RITE.PLAIN} glowAt={scene.glowAt}

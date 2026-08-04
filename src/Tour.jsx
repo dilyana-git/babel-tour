@@ -882,6 +882,21 @@ const APPEAR_STEP = 230;  // …and the beat between them
 // One word's dissolving is 2200ms — owned by `scatter-gone` in tour.css and no
 // longer needed here, now that nothing has to know when the field goes empty.
 const VANISH_STEP = 150;  // the beat between one word leaving and the next
+// The dissolve's own length, matching `scatter-gone` in tour.css. Nothing in
+// the layout needs it — a word's disappearance is entirely the CSS animation's
+// business — but the drift does, to know when the last word is actually gone
+// rather than merely started leaving. Keep in step with the stylesheet.
+const SCATTER_GONE_MS = 2200;
+
+// The drift's floor and ceiling. Between them it waits on the room itself: the
+// quote's full cycle, and the surface's first pass.
+//   MIN — even a room that says nothing gets long enough to be looked at, and
+//         it covers the ~7 s crossing that precedes the dwell.
+//   MAX — nothing may stall the drift forever. A gallery with no clip, one
+//         whose clip fails to decode, or a tab throttled in the background all
+//         land here, and the drift moves on rather than parking.
+const DRIFT_MIN_DWELL = 9000;
+const DRIFT_MAX_DWELL = 38000;
 
 // How long the assembled sentence stands. Scaled to its length rather than
 // fixed: the words are readable as they land, so this is only the tail after
@@ -1198,6 +1213,18 @@ export default function Tour() {
   const [narrow, setNarrow] = useState(
     () => typeof window !== 'undefined' && window.matchMedia(NARROW_QUERY).matches,
   );
+  // Mirrors of the two above, for the drift's tick. It has to know which scatter
+  // layout is running to know when the quote is finished, but reading the state
+  // would put them in its dependency list — and re-running the effect restarts
+  // the dwell, so a rotation or a turn back up the corridor would silently
+  // reset the clock on the room the reader is standing in.
+  const langRef = useRef('en');
+  const narrowRef = useRef(false);
+  langRef.current = lang;
+  narrowRef.current = narrow;
+  // Where each plate reports its awakening (see Painting's `passRef`), so the
+  // drift can wait for the surface to have said itself once.
+  const passRef = useRef({});
   // The door to the garden. Sealed until the reader has dwelled in The
   // Silence for a few breaths; once open it stays open. The ref mirrors the
   // state for the render-free tick and input callbacks.
@@ -1356,6 +1383,12 @@ export default function Tour() {
   // chapter. Backing out empties immersion first, then retreats a chapter.
   const advance = useCallback((step) => {
     if (diveAnimRef.current) return; // mid-fall: the plunge cannot be steered
+    // Taking the walk back stops the drift. It used to keep its own clock
+    // running underneath a reader who had started steering, so the world would
+    // pull them on mid-room a few seconds after they chose to stay — the two
+    // were simply fighting. Panning the gaze deliberately does NOT stop it:
+    // looking around while being carried is the whole appeal of the drift.
+    setAutoplay(false);
     const next = immersionTargetRef.current + step;
     if (next > 1) {
       // Nowhere left to walk: the sealed vertigo (the door has not kindled yet)
@@ -1389,6 +1422,7 @@ export default function Tour() {
 
   const jumpTo = useCallback((index) => {
     if (diveAnimRef.current) return; // mid-fall: the plunge cannot be steered
+    setAutoplay(false); // choosing a gallery is steering — see `advance`
     setTarget(index);
   }, [setTarget]);
 
@@ -1815,6 +1849,13 @@ export default function Tour() {
       // seen, so this is the only way to watch it work.
       art: scenesRef.current.map((s) => s.color.split('/').pop()),
       spent: [...spentRef.current],
+      // Which galleries have woken and finished a pass, which is one of the two
+      // things the drift waits on. Reported because a gate that never fires is
+      // indistinguishable from one that always passes: if this stays empty on a
+      // gallery whose clip is plainly running, the drift is being paced by the
+      // quote and DRIFT_MAX_DWELL alone.
+      pass: Object.fromEntries(Object.entries(passRef.current)
+        .map(([i, p]) => [i, p.done ? 'said' : 'waking'])),
     });
     // Walk the camera without the input layer, for scripted capture. Crossing
     // into the garden still dives, as it does for a reader.
@@ -1878,15 +1919,62 @@ export default function Tour() {
   }, [chapter, doorOpen]);
 
   // Autoplay: drift forward, loop back to the top at the reachable end.
+  //
+  // Paced by what the gallery is DOING, not by a stopwatch. On a 9 s interval
+  // the drift saw neither of the two things a gallery says: a crossing alone
+  // takes about seven seconds, leaving a ~2 s dwell, while the quote needs its
+  // whole gather-hold-dissolve cycle (12 s for a twelve-word line) and the
+  // surface needs to wake and run one pass. A drift that skips both is a slide
+  // show of rooms nobody is inside. So: arrive, let the room finish speaking,
+  // then move — which comes out around 25-30 s a gallery, the pace of a reading
+  // rather than a carousel.
   useEffect(() => {
     if (!autoplay || NODES.length <= 1) {
       return undefined;
     }
-    const timer = window.setInterval(() => {
+    let arrivedAt = performance.now();
+    let standingIn = Math.round(targetRef.current);
+    const step = () => {
       const end = doorOpenRef.current ? MAX : LIBRARY_MAX;
       const atEnd = Math.round(targetRef.current) >= end;
+      immersionTargetRef.current = 0;
       setTarget(atEnd ? 0 : Math.round(targetRef.current) + 1);
-    }, 9000);
+      arrivedAt = performance.now();
+    };
+    const tick = () => {
+      const now = performance.now();
+      const chapter = Math.round(targetRef.current);
+      // A crossing is in flight (or the reader was carried somewhere): restart
+      // the dwell against the room actually being stood in.
+      if (chapter !== standingIn) {
+        standingIn = chapter;
+        arrivedAt = now;
+        return;
+      }
+      if (diveAnimRef.current) {          // mid-fall: nothing is being read
+        arrivedAt = now;
+        return;
+      }
+      const waited = now - arrivedAt;
+      if (waited > DRIFT_MAX_DWELL) {     // below, the reasons it may not fire
+        step();
+        return;
+      }
+      if (waited < DRIFT_MIN_DWELL) return;
+      // The quote has to have finished dissolving. Its cycle is laid out per
+      // chapter and per tongue at load, and the last word's dissolve is the
+      // attribution's `attrOutD` plus the 2200 ms `scatter-gone` runs for.
+      const layout = SCATTER[narrowRef.current ? 'narrow' : 'wide'][langRef.current];
+      const quoteMs = (layout[chapter]?.attrOutD ?? 0) + SCATTER_GONE_MS;
+      if (waited < quoteMs) return;
+      // …and the surface has to have woken and said itself once. A gallery
+      // with no clip, or one whose clip never reaches the DOM, has no record
+      // here and is carried by DRIFT_MAX_DWELL instead of stalling the drift.
+      const pass = passRef.current[chapter];
+      if (pass && !pass.done) return;
+      step();
+    };
+    const timer = window.setInterval(tick, 500);
     return () => window.clearInterval(timer);
   }, [autoplay, setTarget]);
 
@@ -2043,6 +2131,7 @@ export default function Tour() {
         libraryMax={LIBRARY_MAX}
         reduced={reduced}
         onStep={handleStep}
+        passRef={passRef}
       />
 
       {/* Frames the diorama and darkens the four margins the chrome is
