@@ -11,6 +11,7 @@ node_modules
 dist
 dist-ssr
 *.local
+.ux-review/
 
 # Editor directories and files
 .vscode/*
@@ -47,3 +48,13 @@ dist-ssr
 # working files. What the tour actually serves is the WebP derived from them and
 # committed under public/nodes/.
 source-assets/
+
+# /public/video is the same case as the roots above and was simply missed: the
+# untagged, no-faststart originals, which nothing serves (see the prune list in
+# vite.config.js). It had been tracked since the initial commit — 34 clips, 452
+# MB — so a clone paid half a gigabyte for files no code path opens. Untracked
+# 2026-08-20; still on disk, still ignored, still carried out of band like its
+# siblings. /public/video-fit-1888 joins them: it DOES ship (FIT_BATCH in
+# src/Tour.jsx), it is just a clip batch like the rest and belongs out of band.
+/public/video/
+/public/video-fit-1888/
