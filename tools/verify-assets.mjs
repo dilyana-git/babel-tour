@@ -180,6 +180,34 @@ if (roots.length === 0) {
   }
 }
 
+// ── 3b. Undeclared strays in a chain root ───────────────────────────────────
+// The build prunes the clip roots by subtraction down the `best` chain: a copy
+// is deleted when a root ABOVE it carries the same name, because the chain would
+// never look that far down. That rule reads the folders, and it is only sound
+// while every clip in an SR root is one its batch actually declares. A stray —
+// a file copied into the wrong root, or left behind by a delivery that was
+// renamed — reads as covering the name, so the prune deletes the copy below it
+// while the chain, which goes by the manifests, walks straight past the stray
+// and fetches the one that is now gone. A 404 the dev server hides (it answers
+// a missing .mp4 with index.html at status 200) and production shows as a
+// gallery that never wakes.
+//
+// So: anything in a chain root that no batch names at all. The fallback root is
+// exempt — holding every clip regardless of what is declared is its whole job.
+const CHAIN_ROOTS = ['video-x4-full', 'video-latest2', 'video-latest',
+  'video-x4', 'video-fit'];
+const declaredSet = new Set(declared);
+for (const root of CHAIN_ROOTS) {
+  const abs = join(PUBLIC, root);
+  if (!existsSync(abs)) continue;
+  const strays = readdirSync(abs)
+    .filter((f) => f.endsWith('.mp4') && !declaredSet.has(f));
+  for (const f of strays) {
+    problems.push(`undeclared ${root}/${f}  (in a chain root, named by no batch`
+      + ' — the build prune would delete the copy beneath it)');
+  }
+}
+
 // ── 4. Orphan plates ────────────────────────────────────────────────────────
 // Not a failure — art is kept deliberately after being pulled from rotation, and
 // the tables say so. But everything in public/ is copied verbatim into the build

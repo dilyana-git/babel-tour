@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import { readdir, rm, stat } from 'node:fs/promises'
 import { resolve } from 'node:path'
@@ -22,48 +22,86 @@ import { resolve } from 'node:path'
 // serve MUST NOT be listed here. Today that chain is /video-latest2,
 // /video-latest, /video-x4, /video-fit and /video-plain.
 const UNSHIPPED_ROOTS = [
-  'video',        // the untagged, no-faststart originals; nothing serves them
-  'video-2x',     // the anime-model batch, kept only for ?sr=2x comparison
-  'video-x4-48',  // the 48 fps interpolation, kept only for ?sr=x4i comparison
+  'video',           // the untagged, no-faststart originals; nothing serves them
+  'video-2x',        // the anime-model batch, kept only for ?sr=2x comparison
+  'video-x4-48',     // the 48 fps interpolation, kept only for ?sr=x4i comparison
+  'video-fit-1888',  // the one clip at the old 1888, kept only for ?sr=fit1888
 ]
 
-// /video-plain is a different case: it is not an experiment, it is the fallback
-// root of last resort, and on disk it has to hold EVERY clip the tour references
-// so that no ?sr= key can drop into a hole (see VIDEO_ROOT in src/Tour.jsx). But
-// `best` reaches only the handful the SR batches above it do not carry, so
-// shipping the whole folder put 275 MB of never-requested clips in the deploy.
-//
-// Pruned by SUBTRACTION rather than by a list: a file in /video-plain is dead
-// weight exactly when one of the shipped SR roots already carries that name,
-// because the chain finds it there first and never falls this far. That is the
-// same rule `best` resolves by, derived from the folders themselves, so a new SR
-// delivery prunes its own fallback copy the moment it lands and no list can
-// drift out of step. Erring the safe way too: a name NOT found above is kept,
-// so the failure mode is a heavier build rather than a clip that 404s.
-const SHIPPED_SR_ROOTS = ['video-latest2', 'video-latest', 'video-x4', 'video-fit']
+// The roots the `best` chain resolves through, highest precedence first and
+// ending in the fallback root of last resort. This is the deploy's copy of the
+// table in src/Tour.jsx (VIDEO_SR.best: X4_FULL_BATCH, LATEST_BATCHES, X4_BATCH,
+// FIT_BATCH, then VIDEO_ROOT) and has to be kept in step with it by hand — a
+// build config cannot import a module that pulls in three and react.
+const BEST_CHAIN = [
+  'video-x4-full',
+  'video-latest2',
+  'video-latest',
+  'video-x4',
+  'video-fit',
+  'video-plain',
+]
 
-const pruneFallbackRoot = async (distDir) => {
-  const dir = resolve(distDir, 'video-plain')
-  if (!(await stat(dir).catch(() => false))) return
-  const covered = new Set()
-  for (const root of SHIPPED_SR_ROOTS) {
-    const names = await readdir(resolve(distDir, root)).catch(() => [])
-    for (const n of names) covered.add(n)
+// The chain serves each clip from the HIGHEST root that carries it and never
+// looks further down, so every copy of that name below the winner is weight the
+// deploy pays for and no walk can ever request. /video-plain was the obvious
+// case — it holds all 39 clips so that no ?sr= key drops into a hole, of which
+// `best` reaches one — but it is not the only one: /video-x4 carries 41 clips
+// and loses 8 of them to the two RealBasicVSR batches above it, ~90 MB of files
+// that ship to be shadowed. Both are the same rule, so it is now applied once,
+// down the whole chain, rather than to the bottom root alone.
+//
+// Pruned by SUBTRACTION, derived from the folders themselves rather than from a
+// list, so a new SR delivery prunes the copies it supersedes the moment it lands
+// and no list can drift out of step. It errs the safe way at every level: a name
+// no HIGHER root carries is kept, so the failure mode is a heavier build rather
+// than a clip that 404s and a gallery that silently never wakes.
+//
+// The one invariant it rests on: a clip sitting in an SR root must be DECLARED
+// by that root's batch. An undeclared stray would be read here as covering the
+// name — the chain would skip past it at runtime and fetch a copy this prune had
+// deleted underneath it. `npm run verify:assets` fails on exactly that, and is
+// the check to run before a deploy rather than a thing to remember.
+const pruneChain = async (distDir) => {
+  const above = new Set()
+  for (const root of BEST_CHAIN) {
+    const dir = resolve(distDir, root)
+    const here = await readdir(dir).catch(() => null)
+    // A missing root is ordinary: the batch has not landed, or the deploy left
+    // it out. It covers nothing, and nothing below it changes.
+    if (here === null) continue
+    const dead = here.filter((n) => above.has(n))
+    for (const n of dead) await rm(resolve(dir, n), { force: true })
+    for (const n of here) above.add(n)
+    if (dead.length) {
+      console.log(`  pruned dist/${root} to ${here.length - dead.length} clip(s)`
+                + ` (${dead.length} already served from a root above it)`)
+    }
   }
-  const here = await readdir(dir)
-  const dead = here.filter((n) => covered.has(n))
-  for (const n of dead) await rm(resolve(dir, n), { force: true })
-  console.log(`  pruned dist/video-plain to ${here.length - dead.length} fallback`
-            + ` clip(s) (${dead.length} already served by an SR root)`)
 }
 
-const dropUnshippedVideoRoots = () => ({
+const dropUnshippedVideoRoots = (hostedElsewhere) => ({
   name: 'drop-unshipped-video-roots',
   apply: 'build',
   closeBundle: async () => {
-    await pruneFallbackRoot(resolve(__dirname, 'dist'))
+    const dist = resolve(__dirname, 'dist')
+    // With VITE_VIDEO_HOST set, every clip URL points at another origin (see
+    // VIDEO_HOST in src/Tour.jsx) and NO root belongs in the build — not the
+    // experiments, not the chain, not the fallback. Dropping the lot takes the
+    // deploy from ~654 MB to ~70 MB. Upload public/video* to the bucket as it
+    // stands: the chain still expects the same root//file layout underneath.
+    if (hostedElsewhere) {
+      const all = (await readdir(dist, { withFileTypes: true }))
+        .filter((d) => d.isDirectory() && d.name.startsWith('video'))
+      for (const d of all) {
+        await rm(resolve(dist, d.name), { recursive: true, force: true })
+        console.log(`  dropped dist/${d.name} (served from VITE_VIDEO_HOST)`)
+      }
+      return
+    }
+    await pruneChain(dist)
     for (const root of UNSHIPPED_ROOTS) {
-      const dir = resolve(__dirname, 'dist', root)
+      const dir = resolve(dist, root)
       // Only report roots that were actually there. A missing one is fine —
       // it means the experiment was cleaned out of public/ — but a silent
       // no-op across ALL of them would mean this plugin has stopped matching
@@ -77,6 +115,11 @@ const dropUnshippedVideoRoots = () => ({
 })
 
 // https://vite.dev/config/
-export default defineConfig({
-  plugins: [react(), dropUnshippedVideoRoots()],
+export default defineConfig(({ mode }) => {
+  // Read with an empty prefix so the flag is visible here as well as in the
+  // bundle; Vite only exposes VITE_* to the app, not to this file.
+  const env = loadEnv(mode, __dirname, '')
+  return {
+    plugins: [react(), dropUnshippedVideoRoots(Boolean(env.VITE_VIDEO_HOST))],
+  }
 })

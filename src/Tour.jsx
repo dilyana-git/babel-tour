@@ -323,6 +323,23 @@ const VIDEO_SR = {
     batches: LATEST_BATCHES,
   },
 };
+// Where the clips are actually hosted. Empty by default: they sit under public/
+// and ship inside the build, which is the right shape for developing against and
+// an increasingly wrong one for a deploy — 38 clips at ~11 MB each is 434 MB of
+// the 654 MB build, so the artefact that carries a 1.3 MB bundle and 54 MB of
+// paintings is 90% video, and every host that might serve it has an opinion
+// about that.
+//
+// Set VITE_VIDEO_HOST to a bucket or CDN origin at build time and every clip URL
+// is rewritten to it, the build drops the clip roots entirely (see
+// vite.config.js), and the deploy becomes small enough to be ordinary. Nothing
+// else changes: the SR chain still resolves which root a clip comes from, this
+// only decides which HOST that root hangs off. Clips are fetched by <video>, so
+// the bucket needs CORS for the origin the tour is served from.
+//
+// Trailing slash tolerated and stripped — a base that ends in one would produce
+// a double slash, which most origins forgive and some sign differently.
+const VIDEO_HOST = (import.meta.env?.VITE_VIDEO_HOST ?? '').replace(/\/+$/, '');
 const SR_KEY = typeof window === 'undefined'
   ? 'best'
   : new URLSearchParams(window.location.search).get('sr') ?? 'best';
@@ -346,9 +363,10 @@ const servedVideo = (path) => {
   // A key may name its own fallback for the clips its batches do not carry;
   // an experiment key that names none keeps dropping to VIDEO_ROOT, so the
   // one file under test is the only thing that differs between two keys.
-  return batch
+  const local = batch
     ? `${batch.root}/${file}`
     : (key?.root ?? VIDEO_ROOT) + path.slice('/video'.length);
+  return VIDEO_HOST + local;
 };
 // A clip slowed below ~0.5 is not just slower, it is COARSER: the source is
 // 24 fps, so 0.38 presents about NINE distinct frames per second, and every
