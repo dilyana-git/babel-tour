@@ -5,10 +5,17 @@ import * as THREE from 'three';
 import { RITE, RITES, crossingWeight } from './rites';
 import { PlateBoundary } from './Failure';
 import { LIGHT_MESH, DPR_MAX } from './capability';
+import Governor from './Governor';
 import Finish from './Finish';
 import { BACKDROP_PLATES } from './backdrops';
 
 const FOV = 55;
+// Hoisted, and referentially stable on purpose. R3F re-applies the `dpr` prop
+// whenever the value it is given changes identity, and a fresh [1, DPR_MAX]
+// literal on every render of this component is a new identity every time — which
+// would put the ratio back at the ceiling moments after the governor had stepped
+// it down, on any re-render at all. One array, made once, changes never.
+const DPR_RANGE = [1, DPR_MAX];
 const frustumH = (dist) => 2 * dist * Math.tan(THREE.MathUtils.degToRad(FOV / 2));
 
 // ---------------------------------------------------------------------------
@@ -3519,6 +3526,9 @@ export default function DioramaScene({
   // in the meantime, which off screen is right and on screen is a lit HUD
   // wrapped around an empty black box — see Tour's `arriving` whisper.
   onArriving,
+  // Each time the governor has judged a window of frames. Tour uses it for the
+  // one thing a reader should ever learn from it: nothing, unless they asked.
+  onQuality,
 }) {
   const chapters = scenes.length;
   // The vortex is the deepest library gallery; its glow anchor is the warm
@@ -3548,7 +3558,10 @@ export default function DioramaScene({
       // fogged surfaces do not show. 1.5 keeps the painting crisp — and a phone,
       // whose 3x screen is exactly where that hurts most, is capped lower again
       // (see DPR_MAX; the figures there are reasoned, not yet measured).
-      dpr={[1, DPR_MAX]}
+      // Where a walk STARTS. The ceiling is a guess made before a frame has
+      // been drawn (see capability.js); <Governor> below measures what it was
+      // worth and steps down from here if the frames are late.
+      dpr={DPR_RANGE}
       // On a laptop with switchable graphics the default lets the browser pick
       // the integrated GPU, which cannot keep up with a million displaced
       // vertices and a video texture. Ask for the discrete one explicitly.
@@ -3583,6 +3596,7 @@ export default function DioramaScene({
       }}
     >
       <color attach="background" args={[scenes[0].fog]} />
+      <Governor onQuality={onQuality} />
       <GradeRig scenes={scenes} descentRef={descentRef} fogRef={fogRef} />
       {scenes.map((scene, i) => (
         // One boundary per gallery. Canvas has a single Suspense of its own, so

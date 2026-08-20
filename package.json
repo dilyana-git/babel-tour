@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "oxlint",
+    "check:governor": "node tools/governor-check.mjs",
     "review:ux": "node tools/ux-review-agent.mjs",
     "verify:assets": "node tools/verify-assets.mjs",
     "preview": "vite preview"

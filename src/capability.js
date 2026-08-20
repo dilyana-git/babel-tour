@@ -13,9 +13,17 @@
 //   ?coarse=1 / ?coarse=0   force the touch/low-power mesh on or off
 //   ?thrift=1 / ?thrift=0   force the whole data-saver walk on or off
 //   ?stills=1 / ?stills=0   force the video off (or on) and NOTHING else
+//   ?dpr=<n>                pin the device-pixel ratio and silence the governor
+//   ?governor=0             leave the ratio wherever it started, and watch
 //
 // Read them with `?coarse=1` on a desktop to see exactly what a phone is
 // getting, which is the only honest way to judge whether the reduction shows.
+
+const num = (name) => {
+  if (typeof window === 'undefined') return null;
+  const v = Number(new URLSearchParams(window.location.search).get(name));
+  return Number.isFinite(v) && v > 0 ? v : null;
+};
 
 const flag = (name) => {
   if (typeof window === 'undefined') return null;
@@ -83,7 +91,45 @@ export const STILLS_ONLY = THRIFT || (flag('stills') ?? false);
 // scene is fill-rate bound, so every extra pixel is paid for twice over in
 // fragment work. A phone's 3x screen is exactly where that hurts most.
 //
-// FIRST-PASS NUMBERS — they have not been tuned against real hardware, only
-// reasoned about. If the phone render looks soft rather than slow, raise the
-// COARSE figure toward 1.5; that is the dial.
-export const DPR_MAX = THRIFT ? 1 : COARSE ? 1.25 : 1.5;
+// This is now where a walk STARTS rather than where it stays — see the governor
+// at the foot of this file, which measures what the guess was worth.
+
+// ── What this machine turns out to be, once it is drawing ────────────────────
+// Everything above is a guess made before a single frame has been rendered, and
+// the one below it — the pixel ceiling — is the guess that misses most often:
+// pointer type and connection say nothing about the GPU, and the machine this
+// was built on renders the same corridor at 60 fps on the discrete chip and 12
+// on the integrated one. A ceiling cannot tell those apart. Only the frame
+// clock can, and only after the fact.
+//
+// So DPR_MAX stays the ceiling — where every walk STARTS, because a piece that
+// began soft and sharpened up would announce its own machinery — and the
+// governor (src/Governor.jsx) walks down this ladder from there if the frames
+// do not arrive in time. Descending only, and never climbing back: a reader
+// dwelling on a painting must not watch it change resolution, and the way to
+// guarantee that is to have nowhere to climb to.
+export const DPR_PIN = num('dpr');
+export const DPR_MAX = DPR_PIN ?? (THRIFT ? 1 : COARSE ? 1.25 : 1.5);
+
+// The rungs, coarsest last. Filtered to the ceiling at load, so a phone starting
+// at 1.25 simply has fewer places to fall to and never climbs past its cap.
+//
+// It stops at 0.75 rather than going lower because below that the relief stops
+// reading as relief — the whole point of the slab stack is a depth you can see
+// into, and a quarter of the pixels is where its edges start to come apart. A
+// machine that cannot hold 0.75 is a machine for ?stills=1, which is a much
+// larger saving than any ratio and one the piece already knows how to be.
+export const DPR_LADDER = [1.5, 1.25, 1, 0.85, 0.75]
+  .filter((d) => d <= DPR_MAX);
+
+// A frame is late past this. Not 16.7 ms: this is a slow walk through still
+// paintings, not a shooter, and holding a steady 40 fps looks far better here
+// than lurching between 60 and 25. The governor only acts on the MEDIAN of a
+// window, so an occasional 80 ms frame — a plate decoding, a clip waking — is
+// not what it is measuring.
+export const FRAME_BUDGET_MS = 24;
+
+// Whether it may act at all. ?governor=0 leaves the ratio where it started and
+// still reports, which is how you tell "this machine is slow" apart from "the
+// governor is what made it soft".
+export const GOVERNS = (flag('governor') ?? true) && DPR_PIN == null;

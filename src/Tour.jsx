@@ -1569,6 +1569,12 @@ export default function Tour() {
   // starts there rather than gliding to it after the fact, so the camera is
   // already standing in the right room while the veil is still up and the
   // galleries around it are the ones streaming in.
+  // The governor's last word on this machine: { median, dpr, acted, floor }.
+  // A ref, not state — nothing on screen may change because the frame rate did,
+  // and a re-render is the one thing a walk that is already late cannot afford.
+  const qualityRef = useRef(null);
+  const onQuality = useCallback((report) => { qualityRef.current = report; }, []);
+
   const [opening] = useState(openingPosition);
   const startAt = opening?.at ?? 0;
   // The invitation on the veil, and what it says. Cleared by `beginAgain`.
@@ -2925,6 +2931,14 @@ export default function Tour() {
         footfallsPerSec: +((2 * speed) / 1.6).toFixed(2),
       };
     };
+    // What the frame clock has actually been doing, and what the governor did
+    // about it. `median` is the middle frame of the last 2.5 s window in ms,
+    // `dpr` the rung it is standing on. The point of reading it by hand is the
+    // question the numbers alone cannot answer — whether the machine is slow,
+    // or whether the governor is what made the painting soft. Pin the ratio
+    // with ?dpr=1.5 to take the governor out of the picture, or ?governor=0 to
+    // leave it measuring and mute.
+    window.__quality = () => qualityRef.current;
     window.__intro = (v) => {
       if (v == null) {
         introRef.current = 1;
@@ -3387,6 +3401,7 @@ export default function Tour() {
       <SceneBoundary onError={() => setFault('crash')}>
         <DioramaScene
           scenes={scenes}
+          onQuality={onQuality}
           descentRef={descentRef}
           immersionRef={immersionRef}
           introRef={introRef}
