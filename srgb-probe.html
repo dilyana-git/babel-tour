@@ -1,0 +1,192 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>sRGB probe — image texture vs VideoTexture</title>
+  </head>
+  <body style="background:#111;color:#ddd;font:13px monospace">
+    <!--
+      Why this page exists, and what it found.
+
+      For months the live (video) surface rendered brighter than the still it
+      animates, with no explanation and a standing correction (VIDEO_GAMMA, once
+      1.37, then 1.31) dialled by eye. It could not be measured inside the app:
+      the incomplete uReveal crushes the still toward black under swiftshader and
+      poisons every ratio. So it is measured here instead — one known ramp
+      (0, 64, 128, 192, 255 as sRGB bytes) pushed through the two texture paths
+      the app uses, sampled by the same raw texture2D() in a custom
+      ShaderMaterial, rendered into a render target and read back. A render
+      target is not colour-converted on write the way the canvas is, so the
+      numbers are what the SHADER actually receives: linear values if the sRGB
+      decode happened, sRGB bytes if it did not.
+
+      Five steps rather than one, because that is what separates the two
+      candidate faults: a missing sRGB decode bends the whole curve, while a
+      studio/full range mismatch shifts and scales it (16..235 against 0..255).
+
+      THE ANSWER (2026-08-06, three r185):
+        still            3   21   64  139  232   <- the sRGB->linear curve
+        clip (any tags)  12   67  128  188  242   <- the ramp itself, undecoded
+        clip via canvas   3   21   64  139  232
+        clip + SRGB8_ALPHA8 internalFormat
+                          3   21   64  139  232
+      So: three drops the sRGB internal format on the VIDEO upload path however
+      colorSpace is set, and the shader was mixing an undecoded clip into a
+      linear still — 0.502 where 0.216 was meant. Tagged, untagged and
+      full-range files are identical, so the colour tags and the studio-range
+      hypothesis are both cleared. The fix is one line in DioramaScene's
+      VideoTexture setup.
+
+      THE SEQUEL, the same evening: with the decode correct the woken surface
+      stopped lifting and the galleries read grey — because the missing decode
+      had been doing a tone curve's work, and every clip in this piece was
+      graded against it. The decode STAYS fixed; the curve is now written down
+      explicitly, in DioramaScene's VIDEO_LIFT / videoLift(). Read that before
+      acting on this page: "physically correct" and "what the piece was signed
+      off as" are two different surfaces here, and the code holds both, with
+      one dial between them.
+
+      KEPT, not deleted: this is the regression harness. Re-run it after a three
+      upgrade, or whenever the live surface is accused of an exposure problem
+      again — it answers in seconds what a year of dialling by eye did not.
+      Dev-only: it is not an entry point in the vite build, and its assets live
+      outside public/ so nothing here ships.
+    -->
+    <pre id="out">running…</pre>
+    <script type="module">
+      import * as THREE from 'three';
+
+      const BANDS = [0, 64, 128, 192, 255];
+      const srgbToLinear = (v) => {
+        const c = v / 255;
+        return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+      };
+
+      const renderer = new THREE.WebGLRenderer({ antialias: false });
+      renderer.setSize(64, 400);
+      document.body.appendChild(renderer.domElement);
+
+      // One output texel per band: the quad's uv.y lands on each band's centre.
+      const target = new THREE.WebGLRenderTarget(1, BANDS.length, {
+        minFilter: THREE.NearestFilter,
+        magFilter: THREE.NearestFilter,
+      });
+      const scene = new THREE.Scene();
+      const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+      const material = new THREE.ShaderMaterial({
+        uniforms: { map: { value: null } },
+        vertexShader: `
+          varying vec2 vUv;
+          void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }
+        `,
+        // Exactly what paintingFrag does with mapVideo/mapColor: a raw sample,
+        // no decode of its own, nothing but the texture read.
+        fragmentShader: `
+          uniform sampler2D map;
+          varying vec2 vUv;
+          void main() { gl_FragColor = texture2D(map, vUv); }
+        `,
+      });
+      scene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material));
+
+      const read = (texture) => {
+        material.uniforms.map.value = texture;
+        renderer.setRenderTarget(target);
+        renderer.render(scene, camera);
+        const buf = new Uint8Array(4 * BANDS.length);
+        renderer.readRenderTargetPixels(target, 0, 0, 1, BANDS.length, buf);
+        renderer.setRenderTarget(null);
+        // Row 0 of a render target is the BOTTOM, and the ramp's first band is
+        // at the top of the image — so the readback comes back inverted.
+        return [...BANDS].map((_, i) => buf[(BANDS.length - 1 - i) * 4]);
+      };
+
+      const loadImage = (url) => new Promise((done, fail) => {
+        new THREE.TextureLoader().load(url, (t) => {
+          t.colorSpace = THREE.SRGBColorSpace;
+          done(t);
+        }, undefined, fail);
+      });
+
+      // The app's own VideoTexture setup, line for line (DioramaScene ~L1948).
+      const loadVideo = (url) => new Promise((done, fail) => {
+        const el = document.createElement('video');
+        el.src = url;
+        el.muted = true;
+        el.loop = true;
+        el.playsInline = true;
+        el.preload = 'auto';
+        el.onerror = () => fail(new Error(`${url}: ${el.error?.code}`));
+        el.oncanplay = () => {
+          el.play().catch(() => {});
+          const t = new THREE.VideoTexture(el);
+          t.colorSpace = THREE.SRGBColorSpace;
+          t.generateMipmaps = true;
+          t.minFilter = THREE.LinearMipmapLinearFilter;
+          setTimeout(() => done({ t, el }), 300); // one frame actually uploaded
+        };
+      });
+
+      const lines = [];
+      const say = (s) => { lines.push(s); document.getElementById('out').textContent = lines.join('\n'); };
+
+      try {
+        say(`three r${THREE.REVISION}  webgl2=${renderer.capabilities.isWebGL2}`);
+        const img = await loadImage('/srgb-probe-assets/ramp.png');
+        const still = read(img);
+
+        const results = { still };
+        for (const [name, url] of [
+          ['clip-untagged', '/srgb-probe-assets/ramp.mp4'],
+          ['clip-tagged', '/srgb-probe-assets/ramp-tagged.mp4'],
+          ['clip-fullrange', '/srgb-probe-assets/ramp-fullrange.mp4'],
+        ]) {
+          try {
+            const { t } = await loadVideo(url);
+            results[name] = read(t);
+          } catch (e) {
+            results[name] = `FAILED ${e.message}`;
+          }
+        }
+
+        // Two controls, to say WHERE the decode is lost rather than only that
+        // it is. Same clip, same colourSpace, three ways of getting it in:
+        //   canvas   — drawImage into a 2D canvas, then a CanvasTexture. If this
+        //              decodes, the driver is not the problem and the video
+        //              UPLOAD path is.
+        //   internal — the VideoTexture with the sRGB internal format asked for
+        //              explicitly. If this decodes, that is the whole fix.
+        try {
+          const { t: vt, el } = await loadVideo('/srgb-probe-assets/ramp-tagged.mp4');
+          const canvas = document.createElement('canvas');
+          canvas.width = el.videoWidth;
+          canvas.height = el.videoHeight;
+          canvas.getContext('2d').drawImage(el, 0, 0);
+          const ct = new THREE.CanvasTexture(canvas);
+          ct.colorSpace = THREE.SRGBColorSpace;
+          results['clip-via-canvas'] = read(ct);
+
+          vt.internalFormat = 'SRGB8_ALPHA8';
+          vt.needsUpdate = true;
+          results['clip-internalfmt'] = read(vt);
+        } catch (e) {
+          results['controls'] = `FAILED ${e.message}`;
+        }
+
+        say('');
+        say('band  source  expected-linear   ' + Object.keys(results).map((k) => k.padEnd(15)).join(''));
+        BANDS.forEach((v, i) => {
+          const expect = Math.round(srgbToLinear(v) * 255);
+          say(`${String(i).padEnd(6)}${String(v).padEnd(8)}${String(expect).padEnd(18)}`
+            + Object.values(results).map((r) => String(Array.isArray(r) ? r[i] : '—').padEnd(15)).join(''));
+        });
+        say('');
+        say('JSON ' + JSON.stringify(results));
+        window.__probe = results;
+      } catch (e) {
+        say('PROBE FAILED: ' + (e && e.stack || e));
+        window.__probe = { error: String(e) };
+      }
+    </script>
+  </body>
+</html>

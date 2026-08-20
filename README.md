@@ -1,3 +1,30 @@
+# Babel Tour
+
+## Automated UI/UX review
+
+With the Vite app running on `localhost:5173`, run:
+
+```powershell
+npm run review:ux
+```
+
+The review agent opens a headless Chromium browser, clicks through the entry,
+help, audio, autoplay and chapter controls, checks keyboard navigation, repeats
+the layout check at 390 px, and writes screenshots plus prioritized feedback to
+`.ux-review/latest/report.md`. It uses the browser's DevTools protocol directly,
+so it adds no runtime or test dependency.
+
+Options:
+
+```powershell
+npm run review:ux -- --url http://localhost:5173 --out .ux-review/my-run
+npm run review:ux -- --browser "C:\path\to\chrome.exe" --no-mobile
+```
+
+Start the app first with `npm run dev`. The agent exits with a clear message if
+the target is not reachable. Its report is a repeatable heuristic review; use it
+alongside manual visual, assistive-technology, and user testing.
+
 # React + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.

@@ -1,0 +1,846 @@
+/* All HUD chrome for the tour. The current chapter accent arrives as --accent
+   on .tour-root, so color transitions ride a single CSS variable. */
+
+.tour-root {
+  position: fixed;
+  inset: 0;
+  background: var(--night);
+  overflow: hidden;
+  --accent: var(--gold);
+}
+
+/* --- Chapter mark (top margin) -------------------------------------------
+   Where you are, written into the top-left margin of the page. There is no
+   card here any more: a panel of frosted glass sat *on* the artwork, and with
+   the quote now written *into* it the two read as different interfaces. The
+   mark leans a degree and a half off square, as a hand would. */
+
+.chapter-mark {
+  position: fixed;
+  left: 3rem;
+  top: 3rem;
+  z-index: 35;
+  max-width: 30rem;
+  pointer-events: none;
+  transform: rotate(-1.5deg);
+  transform-origin: left top;
+}
+
+.chapter-mark .swap-stage,
+.folio .swap-stage {
+  position: relative;
+}
+
+.chapter-eyebrow {
+  font: 400 0.72rem/1 var(--mono);
+  letter-spacing: 0.24em;
+  color: var(--accent);
+  text-transform: uppercase;
+  margin-bottom: 0.55rem;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.75);
+  transition: color 600ms ease;
+}
+
+.chapter-title {
+  font: 700 clamp(2.1rem, 3.3vw, 3.9rem) / 1 var(--script);
+  letter-spacing: 0.01em;
+  color: rgba(236, 228, 210, 0.92);
+  /* Nothing behind it but the picture, so the letters carry their own dark —
+     same reasoning as .folio-ink. */
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.8), 0 0 26px rgba(0, 0, 0, 0.5);
+}
+
+/* --- Folio (the quote, written across the artwork) -----------------------
+   The quote used to sit in a card in the bottom-left corner. It now lives on
+   the picture itself, in script, drawn by an unseen quill: each letter is
+   wiped in left-to-right with a hot nib-glow that cools into settled ink. */
+
+.folio {
+  position: fixed;
+  left: 50%;
+  bottom: 13vh;
+  /* Narrow enough that even the short quotes break over two written lines —
+     one long ruler of script reads as a caption, two reads as an inscription. */
+  width: min(76vw, 52rem);
+  pointer-events: none;
+  z-index: 35;
+  text-align: center;
+  /* Not quite square to the frame — a hand wrote this, leaning slightly. */
+  transform: translateX(-50%) rotate(-2.5deg);
+}
+
+/* A breath of dark under the script so it holds against any artwork —
+   moonlit gardens included — without reading as a panel. This carries the
+   center; the per-letter shadow below carries the edges, where an ellipse
+   has already faded out but the text has not. */
+.folio-scrim {
+  position: absolute;
+  left: -14%;
+  right: -14%;
+  top: -50%;
+  bottom: -40%;
+  background: radial-gradient(
+    ellipse 52% 52% at 50% 50%,
+    rgba(8, 5, 3, 0.62),
+    rgba(8, 5, 3, 0) 74%
+  );
+}
+
+.folio-eyebrow {
+  position: relative;
+  font: 400 0.66rem/1 var(--mono);
+  letter-spacing: 0.22em;
+  color: var(--accent);
+  margin-bottom: 0.9rem;
+  transition: color 600ms ease;
+}
+
+.folio-line {
+  position: relative;
+  font: 700 clamp(2.4rem, 4.1vw, 5rem) / 1.3 var(--script);
+  color: var(--ink-quill);
+}
+
+/* Letters are laid individually, so the space between words has to be too. */
+.folio-word {
+  display: inline-block;
+  white-space: nowrap;
+  margin-right: 0.26em;
+}
+
+/* The settled letter carries its own pool of dark. The eight artworks range
+   from near-black galleries to bright moonlit stone, and a letter that lands
+   on a lit stair riser has nothing else holding it up — the scrim's ellipse
+   has faded by the time the line reaches its own ends. */
+.folio-ink {
+  display: inline-block;
+  animation: folio-ink 460ms linear both;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.8), 0 0 28px rgba(0, 0, 0, 0.55);
+}
+
+/* The nib passes: the letter is uncovered left-to-right, blazing where the
+   ink is still wet, then settles to the page color the element already has. */
+@keyframes folio-ink {
+  0% {
+    opacity: 0;
+    clip-path: inset(-35% 100% -35% -12%);
+    color: #fff3cd;
+    text-shadow: 0 0 12px rgba(255, 236, 180, 0.95),
+      0.45em 0.03em 34px rgba(255, 214, 120, 0.6), 0 2px 12px rgba(0, 0, 0, 0.8),
+      0 0 28px rgba(0, 0, 0, 0.55);
+  }
+  12% {
+    opacity: 1;
+  }
+  55% {
+    clip-path: inset(-35% -14% -35% -12%);
+    color: #ffe9b0;
+    text-shadow: 0 0 24px rgba(255, 226, 150, 0.85),
+      0.25em 0.02em 26px rgba(255, 214, 120, 0.35), 0 2px 12px rgba(0, 0, 0, 0.8),
+      0 0 28px rgba(0, 0, 0, 0.55);
+  }
+  100% {
+    opacity: 1;
+    clip-path: inset(-35% -14% -35% -12%);
+  }
+}
+
+/* Ruled under the finished line, then signed. */
+.folio-rule {
+  position: relative;
+  width: 21rem;
+  max-width: 60%;
+  height: 2px;
+  margin: 0.9rem auto 0;
+  background: linear-gradient(
+    90deg,
+    rgba(217, 176, 106, 0),
+    #d9b06a,
+    rgba(217, 176, 106, 0)
+  );
+  animation: folio-rule 1300ms ease both;
+}
+
+@keyframes folio-rule {
+  from {
+    opacity: 0;
+    transform: scaleX(0);
+  }
+  to {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}
+
+.folio-attr {
+  position: relative;
+  font: 400 0.62rem/1 var(--mono);
+  letter-spacing: 0.18em;
+  color: var(--ink-dim);
+  margin-top: 1.3rem;
+  animation: folio-attr 1400ms ease both;
+}
+
+@keyframes folio-attr {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Reduced motion zeroes animation *durations* globally (index.css) but not
+   delays — without this the script would sit invisible for its whole cadence
+   and then pop. Here the whole quote is simply present. */
+@media (prefers-reduced-motion: reduce) {
+  .folio-ink,
+  .folio-rule,
+  .folio-attr {
+    animation-delay: 0s !important;
+  }
+}
+
+/* The full line, for screen readers — the visible copy is split per letter. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* --- Cross-fade between chapters ----------------------------------------
+   The camera sinks, so the world drifts upward: outgoing text rises away,
+   incoming text surfaces from below. */
+
+.swap-enter {
+  animation: swap-in 1600ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+.swap-leave {
+  position: absolute;
+  inset: 0 0 auto 0;
+  pointer-events: none;
+  animation: swap-out 1100ms ease both;
+}
+
+@keyframes swap-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes swap-out {
+  to {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+
+/* --- Margin actions (right margin) ---------------------------------------
+   The five controls, handwritten down the right margin instead of set in
+   pills. Each is a phrase — "hush the choir", "lost?" — because a pill is a
+   piece of software chrome and this room is a book. Lamplight catches them on
+   hover; a manicule marks whatever is currently on. */
+
+.margin-nav {
+  position: fixed;
+  right: 3rem;
+  top: 50%;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1.15rem;
+  text-align: right;
+  transform: translateY(-50%) rotate(1.2deg);
+}
+
+/* The page darkening toward its gutter. The frame vignette alone can't carry
+   this margin — in the Vestibule a lit stairway runs right through it — and a
+   panel behind the actions would put back the chrome the marginalia removes.
+   A wash that fades to nothing leftward reads as the artwork receding. */
+.margin-nav::before {
+  content: '';
+  position: absolute;
+  inset: -18% -3rem -18% -40%;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse 100% 62% at 100% 50%,
+    rgba(8, 5, 3, 0.72),
+    rgba(8, 5, 3, 0) 74%
+  );
+}
+
+.margin-act {
+  border: 0;
+  padding: 0;
+  background: none;
+  cursor: pointer;
+  font: 700 clamp(1.55rem, 2.7vw, 3.25rem) / 1 var(--script);
+  color: rgba(240, 223, 174, 0.72);
+  /* Carries its own dark, like .folio-ink — the vignette handles the margin,
+     this handles whatever bright detail still lands underneath. */
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.85), 0 0 26px rgba(0, 0, 0, 0.6);
+  transition: color 300ms ease, text-shadow 300ms ease, opacity 300ms ease;
+}
+
+.margin-act:hover:not(:disabled),
+.margin-act:focus-visible:not(:disabled) {
+  color: #ffedb8;
+  text-shadow: 0 0 22px rgba(255, 226, 150, 0.7), 0 2px 12px rgba(0, 0, 0, 0.7);
+}
+
+.margin-act:active:not(:disabled) {
+  color: #fff3cd;
+}
+
+/* At the top of the Library there is nowhere to ascend to. Faint enough to
+   read as unavailable, not so faint it disappears into the artwork. */
+.margin-act:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+/* Lit while the action is on — matched by the manicule beside it. */
+.margin-act.is-on {
+  color: #ffe9b0;
+  text-shadow: 0 0 24px rgba(255, 226, 150, 0.55), 0 2px 12px rgba(0, 0, 0, 0.7);
+}
+
+/* The keyboard shortcut, in the printed hand rather than the written one. */
+.margin-key {
+  font: 400 0.42em/1 var(--mono);
+  color: rgba(168, 156, 130, 0.75);
+  vertical-align: middle;
+  margin-left: 0.2em;
+}
+
+.margin-hand {
+  font-size: 0.66em;
+  vertical-align: middle;
+  margin-right: 0.22em;
+}
+
+/* --- Depth dots (bottom-left) -------------------------------------------- */
+
+.depth {
+  position: fixed;
+  left: 2rem;
+  bottom: 2rem;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  pointer-events: none;
+  /* Dome mount: lower-left corner, tipped up toward the eye. */
+  transform: perspective(1400px) rotateY(6deg) rotateX(5deg);
+  transform-origin: left bottom;
+}
+
+.depth-label {
+  font: 400 0.66rem/1 var(--mono);
+  letter-spacing: 0.22em;
+  color: var(--accent);
+  text-transform: uppercase;
+  transition: color 600ms ease;
+}
+
+.depth-dots {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* Borges' galleries are hexagonal; so are the markers. The button stays a
+   plain rect (so the focus ring isn't clipped) and the hexagon lives inside. */
+.hex-btn {
+  pointer-events: auto;
+  width: 1rem;
+  height: 1.1rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.hex-btn .hex {
+  display: block;
+  width: 100%;
+  height: 100%;
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+  background: rgba(236, 228, 210, 0.18);
+  transition: background 400ms ease;
+}
+
+.hex-btn:hover .hex {
+  background: rgba(236, 228, 210, 0.38);
+}
+
+.hex-btn.is-active .hex {
+  background: var(--accent);
+}
+
+/* The garden's markers are stepping stones, not galleries: round, green-lit,
+   and they surface one by one when the door opens. */
+.hex-btn.is-garden .hex {
+  clip-path: none;
+  border-radius: 50%;
+  background: rgba(159, 196, 138, 0.22);
+  animation: dot-sprout 900ms ease both;
+}
+
+.hex-btn.is-garden:nth-child(6) .hex { animation-delay: 150ms; }
+.hex-btn.is-garden:nth-child(7) .hex { animation-delay: 300ms; }
+.hex-btn.is-garden:nth-child(8) .hex { animation-delay: 450ms; }
+
+.hex-btn.is-garden:hover .hex {
+  background: rgba(159, 196, 138, 0.45);
+}
+
+.hex-btn.is-garden.is-active .hex {
+  background: var(--accent);
+}
+
+@keyframes dot-sprout {
+  from {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* --- The door to the garden -------------------------------------------------
+   No button: the walk itself crosses the threshold. This whisper sits where
+   the nav hint lives and speaks in its voice, only tinted with the green of
+   the *next* world — the one piece of HUD that belongs to the garden. */
+
+.door-whisper {
+  position: fixed;
+  left: 50%;
+  bottom: 3.2rem;
+  transform: translateX(-50%);
+  z-index: 40;
+  padding: 0.55rem 1.1rem;
+  border-radius: 999px;
+  background: rgba(10, 14, 9, 0.55);
+  border: 1px solid rgba(159, 196, 138, 0.28);
+  backdrop-filter: blur(8px);
+  font: 400 0.68rem/1 var(--mono);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: #cdeeb2;
+  white-space: nowrap;
+  pointer-events: none;
+  animation:
+    door-appear 2600ms ease both,
+    door-whisper-breathe 3200ms ease-in-out 2600ms infinite;
+}
+
+@keyframes door-appear {
+  from {
+    opacity: 0;
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+/* The whisper pulses like the kindled core it answers to. Starts and ends at
+   full so it takes over seamlessly when door-appear finishes. */
+@keyframes door-whisper-breathe {
+  0%, 100% {
+    opacity: 1;
+    text-shadow: 0 0 18px rgba(159, 196, 138, 0.6);
+  }
+  50% {
+    opacity: 0.72;
+    text-shadow: 0 0 10px rgba(159, 196, 138, 0.3);
+  }
+}
+
+/* --- The dive --------------------------------------------------------------
+   While the camera falls down the vortex, the interface gets out of the way:
+   every piece of HUD chrome fades, so there is only the spiral, the core light,
+   and the fall. It breathes back in once the garden has the camera. */
+
+.folio,
+.chapter-mark,
+.margin-nav,
+.depth,
+.progress {
+  transition: opacity 900ms ease;
+}
+
+.tour-root.is-diving .chapter-mark,
+.tour-root.is-diving .folio,
+.tour-root.is-diving .margin-nav,
+.tour-root.is-diving .depth,
+.tour-root.is-diving .progress,
+.tour-root.is-diving .nav-hint {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* --- Progress bar (bottom) ------------------------------------------------ */
+
+.progress {
+  position: fixed;
+  left: 2rem;
+  right: 2rem;
+  bottom: 1rem;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  pointer-events: none;
+}
+
+.progress-track {
+  flex: 1;
+  height: 0.18rem;
+  border-radius: 999px;
+  background: rgba(168, 156, 130, 0.24);
+  overflow: hidden;
+}
+
+.progress-fill {
+  width: 0%;
+  height: 100%;
+  background: linear-gradient(90deg, var(--gold), var(--ink));
+}
+
+.progress-label {
+  font: 400 0.66rem/1 var(--mono);
+  letter-spacing: 0.16em;
+  color: var(--ink-dim);
+  text-transform: uppercase;
+}
+
+/* --- One-time navigation hint ------------------------------------------------
+   A single whispered line above the progress bar, shown once the veil lifts.
+   It bows out on the reader's first move (Tour.jsx flips .is-shown off). */
+
+.nav-hint {
+  position: fixed;
+  left: 50%;
+  bottom: 3.2rem;
+  transform: translateX(-50%);
+  z-index: 40;
+  padding: 0.55rem 1.1rem;
+  border-radius: 999px;
+  background: rgba(12, 10, 8, 0.6);
+  border: 1px solid rgba(201, 162, 76, 0.22);
+  backdrop-filter: blur(8px);
+  font: 400 0.68rem/1 var(--mono);
+  letter-spacing: 0.14em;
+  color: var(--ink-dim);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 1100ms ease;
+}
+
+.nav-hint.is-shown {
+  opacity: 1;
+}
+
+/* The hint speaks the visitor's input language: wheel/keys on fine pointers,
+   gestures on touch. */
+.nav-hint-touch {
+  display: none;
+}
+
+@media (pointer: coarse) {
+  .nav-hint-mouse {
+    display: none;
+  }
+
+  .nav-hint-touch {
+    display: inline;
+  }
+}
+
+/* --- Help overlay ---------------------------------------------------------- */
+
+.help-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(8, 8, 8, 0.64);
+  backdrop-filter: blur(8px);
+}
+
+.help-panel {
+  width: min(32rem, calc(100vw - 2rem));
+  border-radius: 1rem;
+  background: rgba(21, 18, 13, 0.95);
+  border: 1px solid rgba(201, 162, 76, 0.3);
+  padding: 1.25rem 1.35rem;
+  color: var(--ink);
+}
+
+.help-title {
+  font: 400 0.7rem/1 var(--mono);
+  letter-spacing: 0.26em;
+  color: var(--gold);
+  margin-bottom: 0.7rem;
+  text-transform: uppercase;
+}
+
+.help-body {
+  font: 400 0.95rem/1.6 var(--mono);
+  color: var(--ink);
+}
+
+.help-close {
+  margin-top: 1rem;
+  border: 1px solid rgba(201, 162, 76, 0.36);
+  background: rgba(201, 162, 76, 0.16);
+  color: var(--ink);
+  padding: 0.6rem 0.9rem;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+/* --- Vortex dive whiteout ---------------------------------------------------
+   The warm flood of the library→garden plunge. Its opacity is written straight
+   from the tick (Tour.jsx), swelling from the tunnel's warm throat to cover the
+   frame at the deepest dive — hiding the plate hand-off and the camera righting
+   itself — then clearing onto the garden. Anchored lower-right to the painted
+   core, so it reads as the spiral's light rushing up to swallow the eye. */
+/* Tunnel vision during the dive: the frame's periphery closes in with the
+   fall's thrust — deliberate, symmetric framing that reads as speed, its clear
+   center held on the spiral and its light (biased toward the painted core). */
+/* The frame. Every mockup in the design doc carries an inset vignette on the
+   scene, and it is doing more work than it looks: it is what makes writing in
+   the margins legible at all. Without it the corner chrome lands on whatever
+   the artwork happens to put there — in the Vestibule, a brightly lit stairway
+   right where the actions hang. It also simply frames the diorama, pulling the
+   eye down the corridor. Sits above the canvas, below every piece of HUD. */
+.frame-vignette {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  pointer-events: none;
+  box-shadow: inset 0 0 16vmin 2vmin rgba(8, 5, 2, 0.68);
+}
+
+.dive-vignette {
+  position: fixed;
+  inset: 0;
+  z-index: 49;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(
+    ellipse 80% 72% at 62% 56%,
+    rgba(0, 0, 0, 0) 42%,
+    rgba(4, 3, 2, 0.55) 78%,
+    rgba(2, 1, 1, 0.92) 100%
+  );
+}
+
+/* The throat of the vortex swallowing the light: near-black closing in from
+   the frame's edges, with the faintest warm breath left at the core — so the
+   dive ends by falling into darkness and emerging into the garden, never a
+   gold flood. Anchored at the painted core (82% / 80%). */
+.vortex-flash {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(
+    140% 130% at 82% 80%,
+    #1a120a 0%,
+    #0d0906 30%,
+    #060404 60%,
+    #020202 100%
+  );
+}
+
+/* --- Entry veil -------------------------------------------------------------
+   The overture: title card over black, dissolving into node I on first click. */
+
+.entry-veil {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 1.4rem;
+  padding: 2rem;
+  background: radial-gradient(ellipse at 50% 60%, #1c1710 0%, #0b0906 70%);
+  cursor: pointer;
+  transition: opacity 1100ms ease;
+}
+
+.entry-veil.is-leaving {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.entry-eyebrow {
+  font: 400 0.68rem/1 var(--mono);
+  letter-spacing: 0.34em;
+  color: var(--ink-dim);
+  text-transform: uppercase;
+  animation: veil-rise 1400ms 200ms ease both;
+}
+
+.entry-title {
+  font: italic 500 clamp(2.1rem, 6vw, 3.6rem) / 1.15 var(--serif);
+  color: var(--ink);
+  margin: 0;
+  animation: veil-rise 1400ms 500ms ease both;
+}
+
+.entry-rule {
+  width: 4.5rem;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--gold), transparent);
+  animation: veil-rise 1400ms 800ms ease both;
+}
+
+.entry-status {
+  font: 400 0.72rem/1 var(--mono);
+  letter-spacing: 0.26em;
+  color: var(--gold);
+  text-transform: uppercase;
+  animation: veil-rise 1400ms 1100ms ease both, entry-breathe 3200ms 2000ms ease-in-out infinite;
+}
+
+@keyframes veil-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes entry-breathe {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+/* --- Small screens ----------------------------------------------------------- */
+
+@media (max-width: 720px) {
+  /* The dome-mount tilt assumes a corner panel; stretched edge-to-edge on a
+     phone it would just skew the text, so the depth dots lie flat here. (The
+     marginal hand keeps its lean — that's the handwriting, not a mount.) */
+  .depth {
+    transform: none;
+  }
+
+  /* The mark yields the right half of the top margin to the actions. The
+     vw terms in the desktop clamps bottom out on a phone, so both hands are
+     re-sized here against the viewport rather than left at their floors. */
+  .chapter-mark {
+    left: 1rem;
+    top: 1rem;
+    max-width: 50%;
+  }
+
+  .chapter-eyebrow {
+    font-size: 0.58rem;
+    letter-spacing: 0.16em;
+    margin-bottom: 0.4rem;
+  }
+
+  .chapter-title {
+    font-size: clamp(1.45rem, 6.4vw, 2.1rem);
+  }
+
+  /* Centered right-margin actions would land on the quote at this width, so
+     they gather into the top-right corner instead — still the margin, still
+     in the same hand. */
+  .margin-nav {
+    top: 1rem;
+    right: 1rem;
+    gap: 0.5rem;
+    transform: rotate(1.2deg);
+  }
+
+  .margin-act {
+    font-size: clamp(1.05rem, 4.6vw, 1.5rem);
+  }
+
+  /* The wash would reach most of the way across a phone; keep it tight. */
+  .margin-nav::before {
+    inset: -14% -1rem -14% -18%;
+  }
+
+  /* Still centered on the artwork (the whole point of the treatment), just
+     narrower, lifted clear of the depth dots, and barely tilted. */
+  .folio {
+    width: 90vw;
+    bottom: 11rem;
+    transform: translateX(-50%) rotate(-1.5deg);
+  }
+
+  .folio-line {
+    font-size: clamp(1.9rem, 8.5vw, 2.9rem);
+  }
+
+  .folio-rule {
+    max-width: 45%;
+  }
+
+  .depth {
+    left: 1rem;
+    bottom: 2.6rem;
+  }
+
+  .progress {
+    left: 1rem;
+    right: 1rem;
+    bottom: 0.8rem;
+  }
+
+  .progress-label {
+    display: none;
+  }
+
+  .nav-hint {
+    bottom: 5rem;
+    font-size: 0.62rem;
+    max-width: calc(100vw - 2rem);
+    white-space: normal;
+    text-align: center;
+    line-height: 1.5;
+  }
+
+  .door-whisper {
+    bottom: 5rem;
+    font-size: 0.62rem;
+    letter-spacing: 0.16em;
+  }
+}

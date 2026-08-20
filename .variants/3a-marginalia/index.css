@@ -1,0 +1,55 @@
+/* Global shell for the Library — everything else is styled in tour.css. */
+
+:root {
+  --ink: #ece4d2;
+  --ink-dim: #a89c82;
+  /* Settled ink for the quill-written quote: a shade warmer than --ink and
+     held back from full opacity, so the script sits in the artwork rather
+     than on top of it. */
+  --ink-quill: rgba(240, 223, 174, 0.88);
+  --gold: #c9a24c;
+  --night: #15120d;
+
+  --serif: 'Cormorant Garamond', Georgia, serif;
+  --mono: 'IBM Plex Mono', ui-monospace, Consolas, monospace;
+  --script: 'Tangerine', 'Cormorant Garamond', cursive;
+
+  color-scheme: dark;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--night);
+  color: var(--ink);
+  font: 400 1rem/1.6 var(--mono);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overscroll-behavior: none;
+}
+
+::selection {
+  background: rgba(201, 162, 76, 0.35);
+  color: var(--ink);
+}
+
+button {
+  font-family: var(--mono);
+}
+
+:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
