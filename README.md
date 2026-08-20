@@ -1,5 +1,39 @@
 # Babel Tour
 
+## Checks
+
+None of these adds a runtime or test dependency. Run them from the project root.
+
+```powershell
+npm run check:walk       # needs the dev server; teleports through all eight
+                         # galleries and fails on anything thrown
+npm run check:governor    # the frame-rate rule, handed numbers directly
+npm run verify:assets     # every plate, depth map and clip a walk can ask for
+npm run review:ux         # needs the dev server; the heuristic UX pass below
+```
+
+`check:walk` is the one to run after moving code between modules. A free
+variable is a runtime error, so the build, the bundler and oxlint are all blind
+to it; only something that walks the tour can see it.
+
+## Deploying
+
+The clip batches are carried out of band (see `.gitignore`) and have to be
+copied into `public/` before a build. A default build then prunes them down the
+`best` chain and comes out around 580 MB.
+
+To ship without them, put them on a bucket or CDN and point the build at it:
+
+```powershell
+$env:VITE_VIDEO_HOST = "https://clips.example.com"
+npm run build
+```
+
+Every clip URL is rewritten to that origin and no clip root is copied into
+`dist`, which takes the build to about 70 MB. Upload `public/video*` as it
+stands — the same `root/file` layout is expected underneath — and give the
+bucket CORS for the origin the tour is served from.
+
 ## Automated UI/UX review
 
 With the Vite app running on `localhost:5173`, run:
