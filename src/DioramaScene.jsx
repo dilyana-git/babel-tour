@@ -1,15 +1,12 @@
-// TODO(beauty-13): postprocessing — EffectComposer with Noise (film grain ~0.05,
-// hides banding in the dark gradients), Vignette (offset ~0.3, darkness ~0.65),
-// Bloom (high threshold so only the lamp cores bloom).
-// TODO(beauty-14): DONE for the gl hint — powerPreference is 'high-performance',
-// dpr capped at 1.5 and anisotropy at 8 (see each for why). Still open: drop
-// plane segments on coarse-pointer devices; SEG_X/SEG_Y are still 240/120 for
-// every device, which is the largest remaining per-frame cost.
 import { useRef, useMemo, useEffect, useCallback, Suspense } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { useTexture } from '@react-three/drei';
 import * as THREE from 'three';
 import { RITE, RITES, crossingWeight } from './rites';
+import { PlateBoundary } from './Failure';
+import { LIGHT_MESH, DPR_MAX } from './capability';
+import Finish from './Finish';
+import { BACKDROP_PLATES } from './backdrops';
 
 const FOV = 55;
 const frustumH = (dist) => 2 * dist * Math.tan(THREE.MathUtils.degToRad(FOV / 2));
@@ -48,6 +45,73 @@ const camZImmersed = (descent, immersion) => camZ(descent) - immersion * APPROAC
 // World-z of gallery plane i.
 const planeZ = (i) => -(PLANE_Z + i * SCENE_SPACING);
 
+// --- The opening withdrawal -------------------------------------------------
+// The first thing the piece does once the title card lets go: the camera is
+// standing IN the room — pressed close, on a long lens, its gaze off on the
+// gallery's own lamp — and over seven seconds it draws back out to the dwell,
+// squares up, and hands the room over. It is the establishing shot, and it is
+// there so the reader's first frame of agency is the WIDEST one the corridor
+// has: everything the withdrawal spends (the push, the lens, the swing) is
+// ground the reader is then free to cover themselves.
+//
+// Which is also why every term below is a shape of `intro` that ends at ZERO,
+// exactly like the dive's: nothing downstream has to know the opening happened,
+// and the state it lands in is the state the tour has always started in.
+//
+// Tour owns the clock (INTRO_MS there) and eases `introRef` 1 → 0; here it is
+// only ever read. The reader's first steer cuts it short — see cutIntro.
+//
+// This was 7 — inside APPROACH, so the shot opened no tighter than the reader
+// could walk. Safe, and INVISIBLE: 7 units of dolly against 9° of lens is a
+// 1.67× change in subject size spread over seven seconds, which on a machine
+// running at twelve frames a second reads as a still frame. The user asked for
+// a cinematic zoom-out and could not see one. 13 opens at 13 units from the
+// plate — three nearer than the deepest stand — and with the lens below buys
+// 2.6×, which is a reveal rather than a drift.
+//
+// It does cost some sharpness at the opening instant: past ~15 the plates
+// magnify beyond their texel density and go soft (see APPROACH's note). 13 is
+// short of that, it is the least important frame in the piece, and it resolves
+// to the signed-off framing over the next few seconds — which is what a reveal
+// IS. The defocus now riding on top (see DOF) helps rather than hurts here.
+// Mutable, like GAIT and DOF, and for the sharpest version of the same reason:
+// whether an establishing shot READS is not a thing that can be settled in a
+// headless capture, and getting it wrong is invisible rather than broken — the
+// first version of this was measured working, in numbers, and could not be seen
+// at all on a real screen. From the console, then click through again:
+//   __shot()                  → read the current values
+//   __shot({ push: 17 })      → open deeper in; { push: 7 } → the timid first cut
+//   __shot({ lens: 0.3 })     → a longer lens to open on
+//   __intro()                 → re-run the shot without reloading
+// Nothing persists: reload restores the constants here.
+const SHOT = {
+  push: 13,   // world units the camera opens pressed forward
+  lens: 0.22, // …and the fraction of the 55° the long lens gives up. Only ever
+              // NARROWS: the cards fill the frustum at the dwell, so a frame
+              // wider than FOV reaches past the artwork into its mirror margin.
+};
+// Camera world-z with the opening's push folded in. The atmosphere rides this
+// too, so the corridor's air keeps its distance from the eye through the
+// withdrawal rather than swelling into frame as the body draws back out of it.
+const camZOpening = (descent, immersion, intro) =>
+  camZImmersed(descent, immersion) - intro * SHOT.push;
+// The pan. The gaze opens turned toward this gallery's own light (the same
+// `glowAt` the lamp hangs on) and unwinds to square — bounded to a fraction of
+// the frame's width, because the aim is a lean toward the light, not a look
+// straight at it: unclamped, a lamp near the plate's edge would swing the frame
+// clean off the artwork.
+const INTRO_AIM = 0.55;
+const INTRO_SWING = 0.13;   // …in dwell-frame widths. Raised with the push: the
+                            // opening stands nearer, so the card subtends more
+                            // and the same swing has further to go before it
+                            // could reach the mirror margin (~60° of 68°).
+// …and a touch of the vault, given back as the eye comes down to level.
+const INTRO_RISE = 0.05;    // …in dwell-frame heights
+// The gaze squares up BEFORE the dolly finishes (it is spent by the time the
+// withdrawal has this much left to give), so the shot lands level and then goes
+// on opening. A pan that ended with the dolly would read as one mechanical move.
+const INTRO_GAZE_SPENT = 0.28;
+
 // --- Walking gait -----------------------------------------------------------
 // Translation is the walk; on top of it rides a footstep rhythm so that moving
 // through the corridor feels like a body carrying its weight, not a camera on a
@@ -63,11 +127,24 @@ const planeZ = (i) => -(PLANE_Z + i * SCENE_SPACING);
 //
 // The gait answers only HALF of "it feels like I am floating". The other half
 // is vantage, not motion — see EYE_DROP.
-const STRIDE_LENGTH = 2.8;   // world units per full stride (two footfalls) — at
-                             // the walk-in's steady ~2.2 u/s this lands ~1.6
-                             // footfalls/s, an unhurried but clearly stepped pace
+// CADENCE IS THE WHOLE TELL, and it is a RATIO, not a speed. A body walking at
+// a given pace has a specific step rate; if the stride covers more ground than
+// the rhythm accounts for, the eye reads gliding no matter how good the bob is.
+// The first pass had 2.8 units/stride at 2.2 u/s = 1.57 footfalls/s: SLOWER
+// than a human step rate (~1.9/s, 108-115 steps/min) while travelling FASTER
+// than a human walk. Both errors point the same way — too much ground per step
+// — which is exactly the "it flies rather than walks" reading.
+//
+// Now 1.6 units/stride at 1.5 u/s = 1.88 footfalls/s, a real walking cadence,
+// and a third less ground covered per second. Change one of these and you must
+// re-check the other: the ratio is the thing, WALK.imm in Tour.jsx is the speed.
+const STRIDE_LENGTH = 1.6;   // world units per full stride (two footfalls)
 const GAIT_SPEED_CAP = 3.2;  // clamp so a fast step-in can't quicken into a jog
-const WALK_REF_SPEED = 1.6;  // forward speed at which the gait reaches full swing
+// Forward speed at which the gait reaches FULL swing. This has to sit at or
+// below the cruising speed or slowing the walk quietly weakens the gait too —
+// speedNorm never reaches 1, the bob shrinks, and the slower walk comes out
+// MORE floaty rather than less. Kept just under WALK.imm x APPROACH (1.5).
+const WALK_REF_SPEED = 1.35;
 // Amplitudes, halved from the first pass ("I see too much shake"). The rhythm
 // is what carries the walk; the SIZE of it only has to be felt, and past a
 // point every unit of extra swing reads as an unsteady camera rather than a
@@ -76,11 +153,30 @@ const WALK_REF_SPEED = 1.6;  // forward speed at which the gait reaches full swi
 // registers as the horizon rocking. `cusp` shapes the dip — higher is rounder
 // and briefer at the bottom, so weight lands softly instead of ticking.
 // Mutable so the dev hook below can dial them live; treat as constants.
+//
+// WHY THE NOD CARRIES THIS AND THE BOB CANNOT. Everything in this scene stands
+// 16-26 world units away (PLANE_Z 26, less APPROACH 10 when walked in). Camera
+// TRANSLATION against content that far off barely changes the view: measured
+// live, the 0.05 bob moves the image 3.0 px peak-to-peak at 1080p walked in,
+// 1.9 px at the dwell. A first-person walk cue is normally 1-2% of screen
+// height — 10-21 px — so the bob was an order of magnitude below the threshold
+// where the eye reads it as a body at all. Raising it is not the answer either;
+// it would have to grow ~5x to be felt, and a 0.25-unit vertical lurch is a
+// stumble, not a step.
+//
+// ROTATION does not care how far away anything is: 0.57 deg is ~11 px at any
+// distance, which lands inside the usual 10-21 px band. It is also what a walking head actually does — the head pitches as
+// each foot takes the weight. So the nod is the load-bearing cue here and the
+// bob is a supporting detail, which is the reverse of the usual arrangement and
+// entirely a consequence of this scene's depth.
 const GAIT = {
-  bob: 0.05,   // vertical dip into each footfall
-  sway: 0.026, // side-to-side weight shift, once per stride
-  roll: 0.022, // camera roll per unit of sway — the head tips with the weight
-  cusp: 1.7,   // exponent rounding the bottom of each dip
+  bob: 0.05,    // vertical dip into each footfall (subtle by necessity — see above)
+  sway: 0.026,  // side-to-side weight shift, once per stride
+  roll: 0.022,  // camera roll per unit of sway — the head tips with the weight
+  pitch: 0.010, // radians (~0.57 deg) the head nods DOWN as weight lands.
+                // ~11 px at 1080p, the low end of the 10-21 px a first-person
+                // walk normally moves. Start here and dial with __gait.
+  cusp: 1.7,    // exponent rounding the bottom of each dip
 };
 
 // --- Eye line ---------------------------------------------------------------
@@ -117,6 +213,9 @@ const GAIT = {
 // plate instead of 13%. Dial to 0 to see the old, hovering framing.
 const OVERSCAN = 1.35;
 const EYE_DROP = 0.11;
+// The plates' own shape (3376x1440). Hoisted out of the prop default below
+// because the turn's geometry has to be measured from it — see BAY_ANGLE.
+const ART_ASPECT = 3376 / 1440;
 
 // --- The refusal ------------------------------------------------------------
 // A forward step with nowhere to go (the sealed vertigo, the end of the path)
@@ -132,8 +231,14 @@ const REFUSE_TIME = 0.9;     // after this the impulse has decayed to nothing
 // Plane tessellation. The macro depth now comes from each slab's Z placement,
 // not from vertex displacement, so the mesh only needs enough resolution for the
 // gentle in-slab relief — far coarser than the old single heightfield.
-const SEG_X = 240;
-const SEG_Y = 120;
+//
+// Halved on both axes for touch and thrift devices, which is a QUARTER of the
+// vertices: six slab stacks are in flight at once, so the full figure is ~1.4 M
+// quads a frame and a phone GPU does not have that to give. Because the relief
+// carried here is gentle by construction, the reduction is very hard to see —
+// check it on a desktop with ?coarse=1 rather than taking that on trust.
+const SEG_X = LIGHT_MESH ? 120 : 240;
+const SEG_Y = LIGHT_MESH ? 60 : 120;
 
 // --- Vortex dive ------------------------------------------------------------
 // The library→garden crossing doesn't cut to the garden — it flies the camera
@@ -154,8 +259,33 @@ const DIVE_PLUNGE = 17;   // world units — at peak the camera reaches the near
                           // so the bowl's rim and chains sweep right past
 const DIVE_LEAN = 0.3;    // how far the camera body also drifts toward the core
 const DIVE_BANK = -0.66;  // ~38°, negative = roll clockwise into the right-hand spiral
-// The woken spiral's DRAW — live from the moment the door opens (the "spiral
-// has woken" whisper) until the dive takes over. Instead of walking straight
+// The corkscrew proper. DIVE_BANK is a lean that comes and goes; this is the
+// shaft actually turning around the falling body — one whole revolution over
+// the fall, in the same clockwise sense the plates all wind. A full turn IS
+// upright, so the garden is arrived at level by arithmetic rather than by the
+// camera visibly righting itself, and the roll never has to un-happen.
+const DIVE_TURNS = 1;
+// …paced so the turn is slow at the lip and whips through the deep middle,
+// where the vignette owns the periphery and there is least to fix the eye on.
+// Zero rate at both ends: the roll starts and lands without a snap.
+const spinEase = (p) =>
+  0.5 - 0.5 * Math.cos(Math.PI * Math.pow(Math.min(Math.max(p, 0), 1), 1.5));
+// The vertigo zoom. The frustum OPENS as the body dives, so the walls streak
+// outward past a core that barely changes size — the dolly-zoom, which is what
+// the eye reads as falling when the inner ear reports nothing at all. The
+// breath on top is the shaft dilating, slow enough to be felt before it is
+// seen. Both are fractions of FOV, and both are shapes of the plunge, so the
+// garden is always arrived at through the plate's own 55°.
+const DIVE_FOV = 0.24;
+const DIVE_FOV_BREATH = 0.05;
+// Nothing stays where you put it in a fall. Two slow drifts on incommensurate
+// periods (so the pattern never repeats and never settles), as fractions of the
+// frame — small enough to read as the body failing to hold a line rather than
+// as the camera wandering off.
+const DIVE_SWIM_X = 0.05;
+const DIVE_SWIM_Y = 0.055;
+// The woken spiral's DRAW — live from the moment the door opens until the dive
+// takes over (nothing announces it; see Tour). Instead of walking straight
 // at the plate's center, the gaze turns to look INTO the spiral mouth and the
 // walk-in carries the body toward it, so "keep walking" goes to the spiral
 // itself, not merely to the front of the painting. DRAW_BASE is how much of
@@ -183,8 +313,16 @@ const CLIMB_LIFT = 0.22;
 // camera buries itself in the throat, ~p 0.7-0.95) — so the plunge must still
 // be DEEP through that window and only unwind in the last instants, under the
 // dark, with the crossover's forward travel absorbing the release.
+//
+// The exponent is not a taste dial, it PLACES the peak: sin(p^k·π) crests at
+// p = 0.5^(1/k), and the crest has to land where the crossover begins (0.78 in
+// Tour's tick) or the fall spends the gap between them travelling BACKWARD out
+// of the throat with nothing to absorb it — a half-second of reverse that the
+// old 5.2s dive got away with and a long one does not. k = 2.8 puts it exactly
+// there, and buys a steeper build on the way: distance under a curve this far
+// from linear reads as a body still speeding up when the dark takes the frame.
 const diveThrust = (p) =>
-  Math.sin(Math.pow(Math.min(Math.max(p, 0), 1), 2.0) * Math.PI);
+  Math.sin(Math.pow(Math.min(Math.max(p, 0), 1), 2.8) * Math.PI);
 // The warm gold the kindled vortex core heartbeats toward once the door opens —
 // the lamp becoming a beacon, so the eye knows where the descent now leads.
 const WARM_CORE = new THREE.Color('#ffc27a');
@@ -202,19 +340,26 @@ const RITE_AMT = 1;
 const CROSS_WIND = RITES.indexOf(RITE.WIND);
 const CROSS_HUSH = RITES.indexOf(RITE.HUSH);
 // How far the camera rolls into the stairwell that has no floor, at the middle
-// of the winding. ~7°, and negative for the same reason DIVE_BANK is: the
-// spirals in this batch of plates all wind to the right.
-const WIND_ROLL = -0.125;
+// of the winding. Negative for the same reason DIVE_BANK is: the spirals in
+// this batch of plates all wind to the right. ~4.5° now rather than ~7° — the
+// roll used to accompany a spiral wipe turning the same way and had to be read
+// as part of it; alone, it is the whole of the vertigo, and at 7° a slow roll
+// with nothing to explain it announces itself as a camera move.
+const WIND_ROLL = -0.078;
 // Per-rite character for the ring of light hanging in each gap (PortalRings).
-// `glow` scales what it gives off, `spin` how fast it turns.
+// `glow` scales what it gives off, `spin` how fast it turns. The spins are all
+// but stopped now: a gate visibly whirling at the mouth of a crossing was the
+// same flourish the thresholds themselves have given up, and the ring's job is
+// to hang there and be a light. Only the dive still turns at all, because down
+// there the whole world is turning.
 const RITE_RING = {
-  [RITE.ECHO]: { glow: 1.0, spin: 0.08 },
-  [RITE.HUSH]: { glow: 0.0, spin: 0.02 }, // nothing lights the way into the Silence
-  [RITE.WIND]: { glow: 0.95, spin: 0.85 }, // the gate itself is turning
+  [RITE.ECHO]: { glow: 0.9, spin: 0.04 },
+  [RITE.HUSH]: { glow: 0.0, spin: 0.01 }, // nothing lights the way into the Silence
+  [RITE.WIND]: { glow: 0.8, spin: 0.06 },
   [RITE.PLUNGE]: { glow: 1.15, spin: 0.2 },
-  [RITE.SPLIT]: { glow: 0.85, spin: 0.05 },
-  [RITE.FLOOD]: { glow: 0.7, spin: 0.03 },
-  [RITE.WEAVE]: { glow: 0.6, spin: 0.45 },
+  [RITE.SPLIT]: { glow: 0.8, spin: 0.03 },
+  [RITE.FLOOD]: { glow: 0.7, spin: 0.02 },
+  [RITE.WEAVE]: { glow: 0.7, spin: 0.04 },
 };
 
 // ---------------------------------------------------------------------------
@@ -243,9 +388,96 @@ const LAYER_COUNT = 5;
 //     margin — at 18 the garden's candelabras poked through the vortex pit as
 //     floating fragments. 16 keeps ~1.2 units of separation.
 const DEPTH_SPREAD = 16;
+// --- Depth of field ---------------------------------------------------------
+// An eye focuses at a distance. Standing at the dwell that costs nothing — the
+// whole composition is far enough away to be sharp at once, which is why this
+// is scaled to exactly ZERO there and the resting frame is untouched, to the
+// pixel. But WALKING IN carries the near band to within ten units of the face
+// while the eye is still holding the far vault, and a foreground that stays
+// razor-sharp at arm's length is the single loudest tell that this is a picture
+// rather than a room: real foregrounds dissolve when you step past them.
+//
+// It is a MIP BIAS, not a filter — the same mechanism the backdrop and the
+// margins already blur with (see blurBias in paintingFrag), which means it
+// costs no extra taps at all. That matters more here than elegance would: the
+// stack is fill-rate bound, and a multi-tap bokeh would have bought realism
+// with exactly the frame rate that realism dies without.
+//
+// It also earns something back. The plates are magnified past 1:1 by the
+// walk-in (see TEX_SHARPEN's note), so the near cards were ALREADY softening as
+// the reader stepped in — as a defect, read as "the image got worse". The same
+// softness, tied to distance and paired with a sharp background, reads instead
+// as the eye doing what eyes do.
+// How much is judgement, and judgement about softness cannot be settled on a
+// software rasterizer at 1 fps — it needs a real GPU, a real screen and a real
+// walk into a room. So it has a dial, in the same spirit as ?finish / ?msaa:
+//   ?dof=0     off entirely — the A/B, and the first thing to try if the
+//              walk-in ever looks muddy rather than deep
+//   ?dof=1.5   halve it;  ?dof=5  overdo it, to see plainly what it is doing
+// Mutable so the dev hook below can dial it live — treat as constants. Same
+// arrangement, and the same reason, as GAIT.
+const DOF = {
+  gain: (() => {
+    if (typeof window === 'undefined') return 3.0;
+    const v = new URLSearchParams(window.location.search).get('dof');
+    const n = Number(v);
+    return v === null || Number.isNaN(n) ? 3.0 : n;
+  })(),   // mip levels at the near band, walked fully in
+  max: 2.2, // …and the ceiling, so a dive cannot melt the stack
+};
+// The backdrop's dis-occlusion fill. See the shader block of the same name.
+//
+// Mutable and dialled live by window.__fill, because a compile-time constant
+// cannot be toggled inside ONE browser session and this has to be A/B'd inside
+// one.
+//
+// CORRECTED 2026-08-18. This comment used to end "an A/B across two headless
+// runs is worthless — swiftshader's exposure drifts between runs by more than
+// the artifact does (fill on-vs-off differed on 62.6% of pixels, on-vs-on-again
+// on 64.1%)". The measurement was right and the diagnosis was wrong. That noise
+// is not swiftshader drifting: it is the scene legitimately MOVING — breath,
+// drift, gait, a clip waking — so two shots of an unchanged scene differ almost
+// everywhere. Send CDP
+//     Emulation.setEmulatedMedia
+//       { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] }
+// BEFORE Page.navigate (it sets `reduced`, which zeroes uBreath and keeps clips
+// from waking) and the floor collapses from 98.4% of pixels >4/255 to 0.00%,
+// max 3. A real change then measured 0.41% of pixels, max 44, localised exactly
+// where it belonged. Shoot A / A-again / B and report the A-vs-A control beside
+// the A-vs-B number — the control is what makes the number mean anything.
+//
+// `lo/hi` is the depth ramp dividing the vault from the things carried in front
+// of it; `r1/r2` the reach of the two tap rings, as a fraction of plate height.
+//   window.__fill({ hi: 0 })   → off (hi <= lo), which is the A/B
+//   window.__fill({ r2: 0.2 }) → reach further, for a wider lantern
+const FILL = { lo: 0.42, hi: 0.62, r1: 0.045, r2: 0.105 };
+
+// The offline half of the fill above — which plates have an inpainted
+// backdrop, and every file a gallery needs before it can be hung.
+// See src/backdrops.js.
+
 // Feather (in depth units) blended across each band edge, so neighbouring slabs
 // cross-fade into one another instead of showing a hard cutout seam.
 const LAYER_FEATHER = 0.07;
+// TRIED AND REJECTED, 2026-08-07, so it is not tried again: opening this
+// feather to fwidth(depth) — the standard cure for a threshold that snaps under
+// a moving camera — to kill the shimmer that crawls along the chains and
+// balustrades. The reasoning was that one pixel on a silhouette spans more depth
+// than 0.07, making the slab window a hard cut exactly where the flicker is.
+//
+// The reasoning was wrong, and the measurement is the reason to believe it: on
+// this art a pixel spans only ~0.014 of depth even on a cliff (the refined
+// depth maps are smooth), so the feather already covers ~5 pixels and a
+// derivative-sized feather changes nothing. Pushed to 6x the derivative, on a
+// pinned plate, real GPU, frozen camera: the flicker was unchanged (mean 0.249
+// against 0.253, peak 97 either way) while the picture AT REST moved by 0.253 —
+// i.e. it bought nothing and cost a visible change to the layering. The blunt
+// feather x4 test that looked promising was measured on an unpinned plate and
+// did not survive pinning.
+//
+// The shimmer is ordinary temporal aliasing on thin high-contrast silhouettes,
+// not a threshold artifact. It is treated where such things are treated: see
+// SMAA in Finish.jsx.
 // Extension of every card beyond the artwork. The plane is built this much
 // wider/taller than the image, and the margins sample past [0,1] where the
 // textures' wrap modes fill them. BOTH axes now MIRROR.
@@ -270,16 +502,77 @@ const LAYER_FEATHER = 0.07;
 // artwork's top. Keep BOTH spans < 3 so neither mirror tiles.
 const EXTEND_X = 3.0;
 const EXTEND_Y = 2.9;
+
+// --- Turning all the way around ---------------------------------------------
+// The sideways extension is not only a cushion for parallax. Mirrored, it is the
+// beginning of a PANORAMA: slide the sample window along it (uPan) and the
+// reader can turn past the edge of the plate, through its mirrored bay, and
+// round to the plate again — a full circle that closes on the room it opened in.
+//
+// Mirrored repeat lays the plate down in BAYS one artwork wide: bay k holds the
+// picture, bay k+1 holds it reversed, and the joint between them is seamless by
+// construction (the fold hands back the very edge texel it arrived on). The
+// pattern therefore repeats every TWO bays, so a full turn has to span an EVEN
+// number of them or the reader completes the circle facing the room's
+// reflection rather than the room. Two is the largest even count that is not
+// simply the same pair of views gone round twice.
+export const TURN_BAYS = 2;
+// The angle one bay subtends at the dwelling eye. The turn is split against it:
+// near home the whole motion is real camera yaw — the body turning, with all the
+// parallax and relief that carries — and the scroll only takes over as that yaw
+// saturates. See YAW_SWING in Tour, which owns the split.
+export const BAY_ANGLE = 2 * Math.atan(
+  (frustumH(PLANE_Z) * OVERSCAN * ART_ASPECT * 0.5) / PLANE_Z
+);
+// How far the reader must turn off home before the margin fog opens out of the
+// way. At rest the fog seals this gallery into its own lit island (that is what
+// EXTEND_X's mirror is fogged FOR — an unfogged mirror reads as a duplicated
+// room); but a reader who is deliberately turning has to have somewhere to turn
+// INTO, and past the first fraction of a bay the mirror is no longer a thing
+// that can be hidden. So it opens as they leave and closes as they come back.
+const TURN_OPEN_LO = 0.03;
+const TURN_OPEN_HI = 0.28;
+// Bays are two wide and identical mod two, so the pan can always be carried in
+// [-1, 1] — which is what keeps `dHome` below meaningful and stops the shift
+// from growing without bound over a long visit.
+const wrapBays = (p) => p - TURN_BAYS * Math.round(p / TURN_BAYS);
+// Where a point of the ARTWORK (u in [0,1]) has got to on the card once the
+// reader has turned `pan` bays away — the nearest of its mirrored copies to the
+// gaze. The lamp is placed by this, so the glow keeps sitting on the light it
+// belongs to however far round the reader has come.
+const bayU = (u, pan) => {
+  const centre = 0.5 + pan;             // texture coord the gaze is resting on
+  let best = null;
+  for (const s of [u, -u]) {            // mirrored repeat puts it at +-u + 2k
+    const t = s + TURN_BAYS * Math.round((centre - s) / TURN_BAYS);
+    if (best === null || Math.abs(t - centre) < Math.abs(best - centre)) best = t;
+  }
+  return best - pan;                    // …back into card coordinates
+};
 // Anisotropic filtering for the painting/video surfaces. Slabs are viewed at a
 // grazing angle as the camera walks past and into them; without this the
 // stretched samples smear. Three clamps this to the GPU's max at upload, so we
 // request a value and let it settle to whatever the card offers.
 //
-// 8 rather than the common ceiling of 16: every one of these surfaces is a
-// large texture sampled per fragment, so the taps are a real cost across the
-// whole stack, and the difference between 8x and 16x only shows at the most
-// extreme grazing angles — which the margin fog-dissolve is already softening.
-const TEX_ANISOTROPY = 8;
+// 16 on a desktop, 8 where the mesh is already reduced.
+//
+// It was 8 everywhere, and the argument for that is still on the table: the taps
+// are a real cost across the whole stack, and 8x against 16x only shows at the
+// most extreme grazing angles — which the margin fog-dissolve is already
+// softening. Raised anyway, deliberately, as a quality call on the desktop
+// where there is headroom for it: the cards ARE read obliquely, both as the
+// walk-in sweeps the near ones past the eye and across the whole panorama once
+// the reader turns.
+//
+// The phone path keeps 8. Texture bandwidth is exactly what it is shortest of,
+// and the reduction it already accepts everywhere else makes this the wrong
+// place to spend.
+//
+// UNMEASURED. Unlike most numbers in this file this one was not A/B'd on real
+// hardware — it is one constant and it reverts cleanly, so if the corridor's
+// frame rate is being fought, try it. But look elsewhere first: the fill cost of
+// the stack itself dwarfs a filtering tap.
+const TEX_ANISOTROPY = LIGHT_MESH ? 8 : 16;
 // Unsharp-mask strength applied to the still painting in the fragment shader.
 // The relief slabs show the texture overscanned and trilinearly filtered, which
 // upscales and softens the already-painterly art; a light high-pass restores the
@@ -356,6 +649,61 @@ const REPLAY_GRACE = 2.5;
 // How recently a foot must have landed for the cut to ride it (seconds).
 const REPLAY_STEP_WINDOW = 0.18;
 
+// ── When a clip does not arrive ─────────────────────────────────────────────
+// The elements were created with no `error` listener, which made every way a
+// clip can fail to load look identical from the outside AND from the console: a
+// gallery that simply never wakes. The worst of them is silent by design — a
+// dev server answers a request for a file that is not there with index.html at
+// 200, so the element gets a perfectly successful response full of HTML, finds
+// nothing it can decode in it, and gives up without a sound. It cost an
+// afternoon once. One listener turns the whole class into a line of console.
+const MEDIA_FAULT = {
+  1: 'aborted',
+  2: 'network',
+  3: 'decode failed',
+  4: 'source not supported',
+};
+const mediaFault = (el, src) => {
+  const code = el.error?.code ?? 0;
+  const what = MEDIA_FAULT[code] ?? 'unknown';
+  // Code 4 on a path that ought to exist is nearly always the served-index.html
+  // trap above, so it is named rather than left as a number to look up.
+  const hint = code === 4
+    ? ' — check the file is actually there: a dev server answers a missing one'
+      + ' with index.html at 200, which decodes as nothing'
+    : '';
+  console.warn('[clip] %s did not load (%s)%s — the gallery keeps its painting',
+    src, what, hint);
+};
+
+// ── …and stillness is the whole condition of it ─────────────────────────────
+// The replay loop above is for a reader who is STANDING there. The moment they
+// steer again — a step, a wheel, a look-around drag, a hand on the plumb ring
+// — the gallery stops breathing and settles back to the painting, and it does
+// not wake a second time on this visit. The film runs on stillness; moving is
+// what ends it, and the painting is what you are left holding to leave on.
+//
+// "Steering" is deliberate navigation only (see `stir` in Tour): walking,
+// panning the gaze, the chain, a chapter jump. A bare mouse MOVE is not
+// steering — the pointer is half of what wakes a plate in the first place
+// (WAKE_GAZE_RADIUS reads it as looking), so counting a hovering hand as an
+// interruption would kill nearly every pass inside its first second.
+//
+// Leaving the gallery re-arms it as it always has (the dist > 1.1 reset), so
+// "does not start again" is bounded by the visit — and since the corridor
+// restocks a room that drops out of sight with an unseen variant, coming back
+// is a different painting anyway, not the one that was cut short.
+const LIVE_RISE = 0.7;
+// The settle back to the still, per second, and deliberately far faster than
+// the rise. Read LIVE_MAX: a clip ends as much as 1.3x zoomed from the plate
+// it animates, so dissolving the two IS the double exposure, and every extra
+// tenth of a second is another tenth with the figure drawn twice. It rides the
+// reader's own motion — that is what triggered it — which is the same mask
+// REPLAY_STEP_WINDOW hides the replay cut behind. At this rate it is done in
+// about a fifth of a second: quick enough not to read as a crossfade, soft
+// enough not to read as a cut.
+const LIVE_SETTLE = 5.0;
+
 // ── What wakes a painting ───────────────────────────────────────────────────
 // Arriving in the room used to be enough: the surface woke on proximity alone,
 // which meant it happened TO the reader rather than because of anything they
@@ -383,6 +731,17 @@ let WAKE_GAZE_DWELL = 1.4;
 // in the room the surface wakes anyway. Set it well past WAKE_GAZE_DWELL so
 // that looking is still visibly what causes it, and the floor is the exception.
 let WAKE_PATIENCE = 6.5;
+// …and how long the reader must have been STILL for either clock to be allowed
+// to fire (seconds since the last steering — see `stir` in Tour).
+//
+// Without this the two halves of the design work against each other: a plate
+// gets one awakening per visit, and the first steer after it ends the film for
+// good (LIVE_SETTLE), so a plate that wakes in the middle of someone walking
+// through spends its whole visit on a second and a half of clip and is then
+// finished. Better to not have woken: the reader keeps the painting, and the
+// gallery still has its film to give if they stop. Set to the gaze dwell, so
+// the same rest that counts as looking is the rest that counts as standing.
+let WAKE_STILL = 1.4;
 // Unsharp strength for the LIVE surface, applied at the video's own texel
 // spacing rather than the still's. The still's mask (TEX_SHARPEN) is faded out
 // while a clip runs because its taps are one 3376-wide texel apart — far
@@ -397,6 +756,14 @@ let WAKE_PATIENCE = 6.5;
 // way TEX_SHARPEN did at 0.4.
 //
 // This number is quoted AT VIDEO_SHARPEN_REF WIDTH and scaled per clip (below).
+//
+// This mask is a difference of samples, so its overshoot scales with whatever
+// space the samples are in: 0.34 was dialled against encoded values, and on a
+// correctly linear surface the same number reads roughly half as strong (dlin
+// /ds is ~0.5 around the midtones of this art). That is why the mask is taken
+// in the space VIDEO_LIFT selects, taps and centre alike — at lift 1 the 0.34
+// signed off on is the 0.34 being applied. Re-judge it if you ever dial the
+// lift down; __grade({ sharpen }) moves it live.
 const VIDEO_SHARPEN = 0.34;
 // The clip width VIDEO_SHARPEN is quoted for: the super-resolved batch, which
 // is what every clip was when it was dialled in.
@@ -414,6 +781,16 @@ const VIDEO_SHARPEN = 0.34;
 // Keeping strength x radius roughly constant is the usual unsharp trade, and it
 // is why this is a scale rather than a per-clip override table: it holds for any
 // future delivery at any size, without a list to maintain.
+//
+// RETUNE THIS WHEN A FULL-WIDTH CLIP LANDS (see X4_FULL_BATCH in Tour.jsx). The
+// clamp above was written when nothing exceeded the reference, and it holds the
+// strength at 0.34 however wide the clip gets. At 3376 that is the STILL's own
+// texel spacing — the same radius TEX_SHARPEN works at — but at nearly twice
+// the strength (0.34 against 0.18), so a plate-width clip would be sharpened
+// harder than the painting it animates, which is where this mask rings. The
+// number to try first is TEX_SHARPEN's 0.18, i.e. let the scale keep falling
+// past the reference instead of clamping; judge it on real hardware with
+// window.__grade({ sharpen }), which is live and needs no reload.
 const VIDEO_SHARPEN_REF = 1888;
 const videoSharpenScale = (vw) => Math.min(1, (vw || VIDEO_SHARPEN_REF) / VIDEO_SHARPEN_REF);
 // Grade the live surface toward the still it animates, applied to the video
@@ -439,41 +816,67 @@ const videoSharpenScale = (vw) => Math.min(1, (vw || VIDEO_SHARPEN_REF) / VIDEO_
 // numbers back up. Tune live with __grade({ sat, contrast }) in a dev build.
 const VIDEO_SATURATION = 1.0;
 const VIDEO_CONTRAST = 1.0;
-// Exposure on the live surface, applied last (1 = off, >1 darker). The i2v
-// clips read consistently LIGHTER than the stills they animate — measured on
-// 01-moonlit-labyrinth-var0, the painting means (33,74,75) while its clips
-// come back at or above that and clip0 reaches (49,94,96) — so a gallery used
-// to brighten as it woke, which reads backwards for night scenes. Gamma, not a
-// multiply: it sinks the ambient without touching the lanterns near white.
-// Tune live with __grade({ gamma }) in a dev build.
+// Exposure on the live surface, applied in the space VIDEO_LIFT selects and
+// before the unsharp mask (1 = off, >1 darker). __grade({ gamma }) moves it.
 //
-// Confirmed by eye with __grade({ live }): the clip really does render brighter
-// than the painting it animates, even with saturation/contrast off and even
-// though the two files measure nearly identically as flat images. So the woken
-// surface needs pulling down to sit in the same night as the still.
-//
-// A first attempt at 1.3 looked WORSE — but that version applied the curve
-// after the unsharp mask, which left the halos at full amplitude over a
-// darkened image and etched every edge. It now runs before the mask (see the
-// fragment shader), so the two scale together. Turning the mask off instead is
-// not the answer either: at sharpen 0 the surface goes to mush, which is the
-// worst of the options tried.
-//
-// 1.37 was the user's own value, dialled by eye on real hardware with
-// __grade({ gamma }) — headless cannot judge this (swiftshader never finishes
-// the reveal, so the still renders near-black and every comparison is poisoned).
-//
-// 1.31 is that same judgement, carried onto a different batch rather than
-// re-made. 1.37 was dialled while every clip came from /video-2x, and the
-// x4plus files that replaced them are measurably DARKER: across all 32 clips
-// that changed, median linear luminance falls by enough that preserving what
-// was on screen needs an exponent of 1.291-1.356 (median 1.314). Leaving 1.37
-// in place silently darkened the woken surface everywhere — small per clip,
-// but it applies to every gallery at once and it compounds with a batch that
-// already crushes its own shadows. Re-dial by eye if it still sits wrong; what
-// must not happen is a change of batch quietly moving an exposure nobody
-// re-checked.
+// 1.31 was dialled by eye against a surface that was reaching the shader
+// undecoded, so it is not exposure physics — it is half of a look, and the
+// other half is VIDEO_LIFT. The two are only legible read together, so the
+// whole story is told once, there.
 const VIDEO_GAMMA = 1.31;
+// How far the live sample is pushed back into the sRGB-ENCODED space this
+// surface was actually graded in. 1 = the curve the piece was signed off on;
+// 0 = the clip sitting physically on the still it animates.
+//
+// THE WHOLE HISTORY, because it is the only thing that makes this number
+// legible — and because the obvious "cleanup" here is to delete it.
+//
+// For months the woken surface rendered brighter than the painting under it,
+// nobody could explain it, and VIDEO_GAMMA was the standing correction (1.37
+// by eye, then 1.31 when a darker batch arrived). The cause was finally
+// measured in babel-tour/srgb-probe.html: a 0/64/128/192/255 ramp pushed
+// through both texture paths and read back off a render target. The still came
+// back on the sRGB->linear curve (3, 21, 64, 139, 232); the clip came back as
+// the ramp itself (12, 67, 128, 188, 242), through tagged, untagged and
+// full-range files alike. three drops the sRGB internal format on the VIDEO
+// upload path however `colorSpace` is set, so the shader was handed encoded
+// values for the clip and linear ones for the still and then mixed the two —
+// 0.502 where 0.216 was meant. That decode is fixed at the source now (see the
+// internalFormat line in the VideoTexture setup) and it STAYS fixed: it was a
+// real bug and that is the real cure.
+//
+// But the look the bug produced is the look every clip in this piece was
+// judged against, and it was never simply "brighter". Working in encoded
+// values and calling them linear IS a tone curve, and the unsharp mask below
+// laid another one on top of it: its centre sample had been through the gamma
+// while its taps were raw, so on a flat field the mask contributed a constant
+// rather than nothing. Measured end to end, the old live surface came out at
+//
+//     2.36 * s^1.31 - 1.36 * s        (s = the clip's sRGB-encoded value)
+//
+// — everything under linear 0.024 crushed to true black, everything over 0.06
+// lifted 1.20x to 1.25x. On art this dark (these plates run a median linear
+// luma of 0.046, measured over 05-impossible-prison-staircases-var16) that is
+// the difference between a room with lamps in it and a grey room. Removing it
+// did not reveal a better picture. It revealed that the grade had been living
+// inside the bug, and took the grade with it: waking a painting stopped
+// lighting it up, and the crossfade that used to bring a room to life read as
+// the room going dim.
+//
+// So the curve is written down instead of inherited. At 1.0 this reproduces
+// the signed-off surface exactly — the encode is the sRGB OETF, which is
+// precisely what the missing decode used to leave behind — with the taps
+// encoded alongside the centre, so the mask is the same mask in the same space
+// rather than the accidental offset it used to carry. At 0 the clip sits
+// physically on the still and the woken plate does not lift at all. Anywhere
+// between is a real choice: __grade({ lift: 0.5 }) is live and needs no
+// reload.
+//
+// Judge it on real hardware, one gallery at a time. Headless cannot judge it
+// (swiftshader never finishes the reveal, so the still renders near-black and
+// poisons every comparison), which is exactly what kept the original fault
+// hidden for so long.
+const VIDEO_LIFT = 1.0;
 // How strongly every card wraps onto the INSIDE OF A SPHERE centered on the
 // dwelling eye. Each vertex is pulled toward that eye by this fraction of how
 // much farther it sits than the card's on-axis distance — i.e. 1.0 would put
@@ -515,11 +918,18 @@ const paintingVert = /* glsl */`
   uniform float uEyeShift;    // slides the artwork UP the card so the plate's
                               // own eye line, not its geometric center, sits on
                               // the camera axis (see EYE_DROP)
+  uniform float uPan;         // how far round the reader has turned, in bays,
+                              // already divided by this card's own scale-up
+  uniform float uOpen;        // 0 at home, 1 once turning — see TURN_OPEN_LO
   varying vec2 vUv;
   varying float vDepth;
   varying float vFog;
   varying float vMargin;      // signed reach into the extension: negative inside
                               // the artwork, 0 at its edge, 1 at the card rim
+  varying float vRim;         // reach across the CARD itself: 0 at its center,
+                              // 1 at its geometric edge. Unlike vMargin this
+                              // cannot travel with the picture, because the
+                              // thing it has to keep hidden is the card's edge
   // Ease only the very nearest depths back toward the knee. Foreground rails,
   // rings and chains sit at a hard depth cliff against the far pit; left at full
   // relief they pop so far forward that the flat plane can only span the gap by
@@ -540,8 +950,24 @@ const paintingVert = /* glsl */`
     // the artwork's eye line on the axis. Everything downstream — the relief
     // sample, the depth-band cutout, vMargin — reads the shifted coordinate, so
     // the sculpt and the silhouettes travel with the picture.
-    vUv = (uv - 0.5) * uUvSpan + 0.5 - vec2(0.0, uEyeShift);
-    vec2 extS = (abs(vUv - 0.5) - 0.5) / max(0.5 * (uUvSpan - 1.0), vec2(1e-4));
+    // uPan then slides that window SIDEWAYS, which is the turn: the card holds
+    // still and the panorama runs through it.
+    vUv = (uv - 0.5) * uUvSpan + 0.5 + vec2(uPan, -uEyeShift);
+    vRim = abs(uv.x - 0.5) * 2.0;
+    // How deep into the extension this fragment lies. Two readings of that,
+    // crossfaded by the turn. dHome measures from THE artwork — the reading
+    // that fogs its mirror away and leaves one lit room standing in the dark.
+    // That is right for a reader facing forward and wrong for one turning: it
+    // fogs out everything they are turning toward, and never comes back, since
+    // it grows without bound as the pan runs on. dBay measures from whichever
+    // bay is nearest, so it is periodic — every bay gets the artwork's own
+    // clear reading, the circle closes, and there is a world to turn into.
+    float uc = vUv.x - 0.5;
+    float dHome = abs(uc);
+    float dBay = abs(uc - floor(uc + 0.5));
+    float dx = mix(dHome, dBay, uOpen);
+    vec2 extS = (vec2(dx, abs(vUv.y - 0.5)) - 0.5)
+              / max(0.5 * (uUvSpan - 1.0), vec2(1e-4));
     vMargin = max(extS.x, extS.y);
     // The DISPLACEMENT reads the depth 4 mip levels down (~a vertex's worth of
     // texels). The 240x120 vertex grid cannot resolve a 20 px chain anyway: at
@@ -569,8 +995,16 @@ const paintingVert = /* glsl */`
     // slab's macro Z offset (set on the mesh), not this displacement. The
     // margins flatten to a plain card — the wrapped depth map jumps at the
     // repeat seam, and displaced geometry would crease there.
+    //
+    // Once the turn opens the margins out (vMargin stops reading them as margin
+    // at all) the bays keep their sculpt, which is what makes turning into one
+    // feel like turning into a room rather than onto a poster; the mirror folds
+    // between them are a valley in the depth, not a jump, so nothing creases.
+    // The card's own rim still has to lie flat — there is no continuation past
+    // it to hold the displaced edge up.
     p.z += ((d - uBandCenter) * liveRelief * breath + ripple * liveRelief)
-         * (1.0 - smoothstep(0.0, 0.3, vMargin));
+         * (1.0 - smoothstep(0.0, 0.3, vMargin))
+         * (1.0 - smoothstep(0.86, 1.0, vRim));
     // Concave wrap — bend the card onto the inside of a sphere around the
     // dwelling eye (local (0,0,uDwellDist)). The pull is along each vertex's
     // own sight line from that eye, so at the dwell the projection (and the
@@ -610,13 +1044,22 @@ const paintingFrag = /* glsl */`
   uniform float depthGamma;
   uniform vec3 uAccent;
   uniform vec3 uFogColor;
+  uniform float uDefocus;   // mip levels this card is out of focus by — 0 at the
+                            // dwell, rising as the walk-in carries it past the
+                            // eye. Per card and per frame; see DOF_GAIN.
   uniform vec2 uTexel;      // 1/imageSize, for the unsharp mask taps
+  uniform vec2 uDepthTexel; // 1/depthSize — the depth map is its own resolution,
+                            // and the silhouette matting below measures in ITS
+                            // texels, not the painting's
   uniform float uSharpen;   // high-pass strength on the still surface
   uniform vec2 uVideoTexel; // 1/videoSize — ~3.6x coarser than uTexel
   uniform float uSharpenVideo; // high-pass strength on the live surface
   uniform float uVideoSat;     // chroma grade on the live surface (1 = off)
   uniform float uVideoContrast;// mid-grey contrast on the live surface (1 = off)
   uniform float uVideoGamma;   // exposure on the live surface (1 = off, >1 darker)
+  uniform float uVideoLift;    // how far the live sample is pushed back into the
+                               // encoded space it was graded in (1 = the
+                               // signed-off curve, 0 = physically on the still)
   uniform float uBandLo;    // this slab only draws depths in (uBandLo, uBandHi);
   uniform float uBandHi;    // the backdrop passes everything (lo<0, hi>1).
   uniform float uFeather;   // soft cross-fade width at each band edge
@@ -641,30 +1084,87 @@ const paintingFrag = /* glsl */`
   varying float vDepth;
   varying float vFog;
   varying float vMargin;    // signed reach into the extension (see vertex shader)
+  varying float vRim;       // reach across the card itself (see vertex shader)
 
-  // A secondary tap of the gallery's SURFACE — the still, or the clip if one is
-  // awake — for the two rites that draw the room more than once. Deliberately
-  // unsharpened and ungraded past the exposure: these are ghosts of the room,
-  // and the unsharp masks are tuned for the one true copy (see TEX_SHARPEN).
-  vec3 surfaceAt(vec2 uv, float bias) {
-    vec3 s = texture2D(map, uv, bias).rgb;
-    // Same gate as the main surface: the backdrop holds the still (see the note
-    // in main), so its ghosts read the still too. The bias these ghosts
-    // recede on now reaches the clip as well — mapVideo carries a mip chain
-    // (see the VideoTexture setup), without which the +0.4 / +0.8 the echo
-    // passes here were silently dropped and all three copies came back equally
-    // sharp, which reads as bad registration rather than as a recession.
-    float live = uLive * (1.0 - uBackdrop);
-    if (live > 0.001) {
-      s = mix(s, pow(texture2D(mapVideo, uv, bias).rgb, vec3(uVideoGamma)), live);
-    }
-    return s;
+  // The backdrop's dis-occlusion fill — see FILL and the block that reads this.
+  //   x = ramp low, y = ramp high  (y <= x switches the fill off outright)
+  //   z, w = reach of the two tap rings, as a fraction of plate HEIGHT (the x
+  //          offsets are divided by the aspect, so the rings come out round on
+  //          a 2.35:1 plate). The outer ring must clear the widest thing being
+  //          painted out or the fill finds no background to pull from.
+  uniform vec4 uFill;
+
+  // The live surface's own space. The clip arrives sRGB-DECODED now (the
+  // internalFormat line in the VideoTexture setup), which is correct and which
+  // is also not the space this surface was graded in — see VIDEO_LIFT for the
+  // whole story. This is the sRGB OETF, i.e. exactly what the decode undoes,
+  // mixed in by uVideoLift so the grade can be walked back toward physics
+  // without touching anything else.
+  //
+  // EVERY read of mapVideo goes through here, the unsharp's taps included. Not
+  // for tidiness: the taps and the centre have to be in the same space or the
+  // mask stops being a difference and starts carrying a constant, and a
+  // constant here is a black crush. The one asymmetry that remains — centre
+  // through the gamma, taps not — is deliberate and load-bearing; it is the
+  // crush that made these dark plates read as lit rather than grey, and it is
+  // the second half of the curve VIDEO_LIFT documents.
+  vec3 videoLift(vec3 c) {
+    vec3 enc = clamp(1.055 * pow(c, vec3(0.41666)) - 0.055, 0.0, 1.0);
+    return mix(c, enc, uVideoLift);
   }
 
-  // Cheap per-strand randomness for the weave. Two decorrelated draws from one
-  // strand index: which way the thread drifts, and when it lets go.
-  float threadHash(float i, float salt) {
-    return fract(sin(i * 12.9898 + salt) * 43758.5453);
+  // This slab's slice of the depth range, feathered at both edges so
+  // neighbouring cards cross-fade into one another instead of butting. The
+  // backdrop's band swallows [0,1] whole, so this is 1 everywhere for it.
+  float bandWindow(float d) {
+    return smoothstep(uBandLo - uFeather, uBandLo + uFeather, d)
+         * (1.0 - smoothstep(uBandHi - uFeather, uBandHi + uFeather, d));
+  }
+
+  // The same slice, but as the share this card must paint for the stack to
+  // composite — back to front, one src-over per card — to a SOLID surface at
+  // depth d. That is not the band weight: two cards each taking their honest
+  // half of a feathered depth leave a quarter of the pixel unpainted, and what
+  // shows through the gap is the backdrop. So the deepest card that owns the
+  // depth fills it outright and every card in front of it lays its own share
+  // over the top, which sums to exactly one however the feather divides them.
+  // (Both are painting the same texel of the same painting, so the result is
+  // that texel; only the alpha bookkeeping differs.)
+  // What is BEHIND the thing at this UV. Eight taps on a ring pair, each
+  // weighted by how FAR it lands: a tap that stays on the near feature counts
+  // for nothing, a tap that clears it onto the wall counts fully, so the result
+  // converges on the surface the feature stands in front of. Rings rather than
+  // a box — a box's corners are its longest reach and dilate into a square
+  // bloom. Where nothing within reach is background (deep inside a wide
+  // object), fall back to a very high mip: no structure left, but the right
+  // tone, which is all a hole filler is ever asked for.
+  //
+  // Two callers, both filling a hole they must not fill with its own occluder:
+  // the backdrop under a dis-occlusion, and a far slab taking its share of a
+  // silhouette's cliff.
+  vec3 dilateFar(vec2 uv, float bias, float lo, float hi) {
+    vec2 rad = vec2(1.0 / uArt, 1.0);   // round on a 2.35:1 plate
+    vec3 acc = vec3(0.0);
+    float wsum = 0.0;
+    for (int i = 0; i < 4; i++) {
+      float a = float(i) * 1.5707963;                 // 90°
+      for (int k = 0; k < 2; k++) {
+        float r   = k == 0 ? uFill.z : uFill.w;
+        float ang = a + (k == 0 ? 0.0 : 0.7853982);   // outer ring at 45°
+        vec2 o = vec2(cos(ang), sin(ang)) * r * rad;
+        float dt = pow(texture2D(depthMap, uv + o).r, depthGamma);
+        float w  = 1.0 - smoothstep(lo, hi, dt);
+        acc  += texture2D(map, uv + o, bias).rgb * w;
+        wsum += w;
+      }
+    }
+    return wsum > 0.08 ? acc / wsum : texture2D(map, uv, bias + 3.5).rgb;
+  }
+
+  float fillWindow(float d) {
+    float ahead = smoothstep(uBandHi - uFeather, uBandHi + uFeather, d);
+    return smoothstep(uBandLo - uFeather, uBandLo + uFeather, d)
+         * (1.0 - step(0.999, ahead));
   }
 
   void main() {
@@ -689,7 +1189,7 @@ const paintingFrag = /* glsl */`
     // hush drains the light along (part two).
     //
     // Behind a uniform branch: this is a length() on every fragment of every
-    // card in the stack, and only two of the eight thresholds ever read it.
+    // card in the stack, and only two of the seven thresholds ever read it.
     vec2 gd = vec2(0.0);
     float reach = 0.0;
     float drainFront = 0.0;
@@ -702,58 +1202,43 @@ const paintingFrag = /* glsl */`
       drainFront = 1.08 - 1.30 * pow(rp, 0.8);
     }
 
-    // ── The rite, part one: where this fragment reads its picture from ──────
-    // Only the two rites that MOVE the image touch the sample coordinate; the
-    // rest read the plate square-on as always. Everything downstream — the
-    // depth sample, the band window, the relief pulse — follows the moved
-    // coordinate, so a thread carries its own silhouette away with it.
-    vec2 sUv = vUv;
-    float below = -9.0;   // FLOOD: how far under the rising water this fragment lies
-    float thread = 0.0;   // WEAVE: when this strand lets go
-    float threadEdge = 0.0;
-    float part = 0.0;     // SPLIT: how far each half has drawn back from the tear
-    if (rite == RITE_SPLIT) {
-      // The room parts down its middle and the two halves draw away from each
-      // other, so the way ahead opens between them rather than melting: at the
-      // Fork the arriving plate IS an avenue running off down the centre, and
-      // this hands it to the reader through a widening gap.
-      part = 0.42 * smoothstep(0.0, 0.95, rp);
-      sUv.x += vUv.x < 0.5 ? -part : part;
-    } else if (rite == RITE_FLOOD) {
-      // The water climbs the plate. Margin fragments ride LOWER than they are
-      // drawn (the e term sinks them), so the periphery goes under first and
-      // the painting itself is the last thing the water takes — and that sink
-      // eases in with the crossing, or the whole lower margin would drop out
-      // in the first instant.
-      float line = -0.15 + rp * 1.45;
-      below = line - (vUv.y - e * 1.9 * smoothstep(0.0, 0.25, rp));
-      if (below > 0.0) {
-        float rip = sin(below * 34.0 - uTime * 1.7) * 0.007
-                  * smoothstep(0.0, 0.05, below);
-        // Mirrored about the surface: what stood above the line lies under it.
-        sUv = vec2(vUv.x + rip, 2.0 * line - vUv.y + rip * 0.5);
-      }
-    } else if (rite == RITE_WEAVE) {
-      // The picture comes apart into threads. The strand coordinate is warped
-      // before it is quantised, so the filaments wander down the frame instead
-      // of ruling it into bars.
-      // 40 strands, not 26: across the visible frame that is the difference
-      // between threads and planks. The slide is under half an image height,
-      // which keeps each thread's content recognisable as it goes out of true.
-      float wob = vUv.x + 0.035 * sin(vUv.y * 5.2 + 1.3);
-      float sIdx = floor(wob * 40.0);
-      float drift = threadHash(sIdx, 0.0);
-      float when = threadHash(sIdx, 3.7);
-      sUv.y += (drift - 0.5) * 0.42 * rp;   // each thread slides its own way
-      sUv.x += (when - 0.5) * 0.05 * rp;    // and the weave fans apart
-      // When this thread lets go. Spread across the middle of the crossing
-      // rather than starting at once: the first pass had threads dropping from
-      // rp 0.06 and the whole weave was gone by a third of the way over, which
-      // read as the picture being deleted rather than coming undone.
-      thread = 0.20 + when * 0.42 + e * 0.14;
-      float f = fract(wob * 40.0);
-      threadEdge = (1.0 - smoothstep(0.0, 0.16, f))
-                 + (1.0 - smoothstep(0.0, 0.16, 1.0 - f));
+    // ── The rite, part one: what the crossing asks of the eye ───────────────
+    // NO RITE MOVES THE PICTURE, and none of them draws a shape over it. That
+    // is the whole of the second pass at these thresholds. The first gave each
+    // crossing a gesture on the picture plane — the room torn down the middle
+    // and drawn aside, mirrored under a rippling waterline, quantised into
+    // forty sliding threads, superimposed on scaled copies of itself, wiped by
+    // a rotating vane — and each was carefully made, but laid side by side the
+    // seven of them are the transition menu of a video editor, and nothing
+    // else in this piece ever draws ON the artwork. The corridor's own
+    // language is light: lamps, fog, focus, the dark between galleries. So a
+    // rite is now an OPTICAL event in a lit room — where the light goes out
+    // first, how far it still reaches, what it costs the eye to hold the room
+    // — and the seven differ in WHICH PART OF THE PICTURE GOES FIRST and how
+    // long the light in it outlives the stone. Nothing is painted on.
+    //
+    // Two scalars are all the geometry any of them needs.
+    float sink = 0.0;    // FLOOD: how far under the falling light this fragment lies
+    float across = 0.0;  // SPLIT: which side of the room this fragment stands on
+    if (rite == RITE_FLOOD) {
+      // The Pavilion stands over water and you enter it by letting the room
+      // behind you go under. Not a waterline and not a reflection — no surface
+      // is drawn at all: a level climbs the plate, and below it the picture
+      // loses its focus and its light together, which is what a foot of water
+      // does to anything under it. Margin fragments ride LOWER than they are
+      // drawn, so the periphery goes under first and the painting itself is
+      // the last thing taken; the sink eases in with the crossing, or the
+      // whole lower margin would drop out in the first instant.
+      float level = -0.15 + rp * 1.35;
+      sink = level - (vUv.y - e * 1.9 * smoothstep(0.0, 0.25, rp));
+    } else if (rite == RITE_SPLIT) {
+      // Two futures, told as a change of light across the room rather than as
+      // a cut through it: the lamplight leaves one side as the moon arrives on
+      // the other. Feathered across the middle third — never an edge, because
+      // an edge is a graphic, and the first pass at this (a literal tear, with
+      // the two halves drawn aside and the garden's green poured through the
+      // gap) was the most obviously applied thing in the file.
+      across = smoothstep(0.26, 0.74, vUv.x);
     }
 
     // Sample depth per fragment for every visibility decision. vDepth is
@@ -762,7 +1247,7 @@ const paintingFrag = /* glsl */`
     // vertex used to spread the foreground slab across the whole triangle and
     // expose it as a broad grey polygon. The direct sample keeps the slab cutout
     // registered to the artwork's actual pixel silhouette.
-    float fragmentDepth = pow(texture2D(depthMap, sUv).r, depthGamma);
+    float fragmentDepth = pow(texture2D(depthMap, vUv).r, depthGamma);
     // Peripheral focus. The extension margins fall progressively OUT OF FOCUS
     // (mipmap bias), and the defocus begins just INSIDE the artwork's edge —
     // so the wrap/mirror seams land where the image is already soft, and a
@@ -777,22 +1262,76 @@ const paintingFrag = /* glsl */`
     // outline hugging every high-contrast edge. So the backdrop is blurred
     // hard and sunk toward the fog: what shows through a dis-occlusion is still
     // stone rather than void, but it carries no high frequencies to ring with.
-    float blurBias = smoothstep(-0.08, 0.4, vMargin) * 5.0 + uBackdrop * 3.5;
-    // Every sample below reads sUv, which is vUv except where a rite has moved
-    // this fragment's picture (the flood's reflection, the weave's threads).
-    vec4 tex = texture2D(map, sUv, blurBias);
+    // The flood adds to it: what has gone under is carried out of focus, and
+    // because this is a mip bias rather than a filter it costs nothing and
+    // reaches the clip too (see the VideoTexture setup for why that took work).
+    // …and the fourth term is the eye's own focus: this card's distance from
+    // the reader, spent as blur once they have walked in past it. Zero at the
+    // dwell, so the resting frame is exactly the frame it always was.
+    float blurBias = smoothstep(-0.08, 0.4, vMargin) * 5.0 + uBackdrop * 3.5
+                   + 3.4 * smoothstep(0.0, 0.30, sink)
+                   + uDefocus;
+    vec4 tex = texture2D(map, vUv, blurBias);
+
+    // ── The backdrop's dis-occlusion fill ───────────────────────────────────
+    // MEASURED, on the Vestibule's var17 plate, at the hanging lamp the reader
+    // reported as doubled: the lamp's glass globe carries depth 0.674 and every
+    // pixel around and below it carries 0.176 — a 0.5 cliff with no transition,
+    // so the globe hangs on band 3 while its own housing and the whole vault
+    // behind it hang on band 0, the farthest card of five. At the dwell the two
+    // register pixel-for-pixel and nothing shows. Walking in slides them apart,
+    // and the gap that opens beside the globe is filled by the BACKDROP —
+    // which, passing every depth, is carrying its own copy of that same lamp.
+    // Blurred by 3.5 mips and sunk 0.35 toward the fog, that copy is precisely
+    // the dark lamp-shaped twin standing beside the lit one.
+    //
+    // (Confirmed by painting the backdrop magenta and walking in: the magenta
+    // lands in exactly the twin's silhouette. Worth the two minutes — the same
+    // artifact had already been blamed on a fat depth halo and on slab-vs-slab
+    // duplication, and both readings were wrong.)
+    //
+    // Blur was treating frequencies when the fault is CONTENT: a lamp blurred
+    // is still lamp-shaped. A hole filler must not contain the thing it is
+    // filling the hole behind. So on the backdrop alone the foreground is
+    // painted out and the surround painted in over it — a depth-weighted
+    // dilation, the real-time half of the inpaint an offline pass would do
+    // properly. Eight taps ride a ring pair, each weighted by how FAR it lands:
+    // a tap that stays on the lamp contributes nothing, a tap that clears it
+    // onto the vault contributes fully, so the fill converges on the stone the
+    // lamp stands in front of. Rings rather than a box, because a box's corners
+    // are its longest reach and dilate into a square bloom.
+    //
+    // Only foreground fragments pay for it — on this plate the depth histogram
+    // puts 87% of pixels below 0.4, so the ramp catches barely a tenth of one
+    // card — and at the dwell it is invisible by construction, the slabs
+    // covering their own silhouettes. It only ever changes what parallax has
+    // just uncovered.
+    if (uBackdrop > 0.5 && uFill.y > uFill.x) {
+      float fgHere = smoothstep(uFill.x, uFill.y, fragmentDepth);
+      if (fgHere > 0.004) {
+        tex.rgb = mix(tex.rgb,
+                      dilateFar(vUv, blurBias + 1.5, uFill.x, uFill.y), fgHere);
+      }
+    }
+
     // Unsharp mask: subtract a 4-tap neighbourhood blur to restore the crisp
     // edges that overscan + trilinear filtering softened. Only on the still —
     // scaled to zero as the (soft, low-res) video takes over so it never
     // crunches, and held off the defocused margins entirely.
+    // …and off a card the eye is no longer focused on. Restoring "the crisp
+    // edges overscan softened" is exactly the wrong job on a foreground that is
+    // MEANT to be soft — it would spend four taps per fragment fighting the
+    // defocus, and win enough to leave the card looking sharpened AND blurred,
+    // which is what a bad print looks like rather than what a near object does.
     float sharpen = uSharpen * (1.0 - clamp(uLive, 0.0, 1.0))
                   * (1.0 - smoothstep(-0.08, 0.0, vMargin))
-                  * (1.0 - uBackdrop);
+                  * (1.0 - uBackdrop)
+                  * (1.0 - smoothstep(0.15, 1.0, uDefocus));
     if (sharpen > 0.001) {
-      vec3 blur = texture2D(map, sUv + vec2(uTexel.x, 0.0)).rgb
-                + texture2D(map, sUv - vec2(uTexel.x, 0.0)).rgb
-                + texture2D(map, sUv + vec2(0.0, uTexel.y)).rgb
-                + texture2D(map, sUv - vec2(0.0, uTexel.y)).rgb;
+      vec3 blur = texture2D(map, vUv + vec2(uTexel.x, 0.0)).rgb
+                + texture2D(map, vUv - vec2(uTexel.x, 0.0)).rgb
+                + texture2D(map, vUv + vec2(0.0, uTexel.y)).rgb
+                + texture2D(map, vUv - vec2(0.0, uTexel.y)).rgb;
       tex.rgb += (tex.rgb * 4.0 - blur) * sharpen;
     }
     // The living surface: while the camera dwells here, the still painting
@@ -816,7 +1355,7 @@ const paintingFrag = /* glsl */`
     // ever want it; it is held here for the reason in the paragraph above.
     float live = uLive * (1.0 - uBackdrop);
     if (live > 0.001) {
-      vec4 vid = texture2D(mapVideo, sUv, blurBias);
+      vec4 vid = texture2D(mapVideo, vUv, blurBias);
       // Exposure FIRST, before the unsharp — this ordering matters. Darkening
       // after the high-pass leaves the mask's overshoot at full amplitude on a
       // darkened image, so the halos gain contrast against their surroundings
@@ -824,21 +1363,36 @@ const paintingFrag = /* glsl */`
       // chain (which is exactly how the first attempt at this failed). Applied
       // to the sample, the halos are computed from already-darkened values and
       // scale down with everything else.
-      vid.rgb = pow(vid.rgb, vec3(uVideoGamma));
+      vid.rgb = pow(videoLift(vid.rgb), vec3(uVideoGamma));
       // The live surface gets its OWN unsharp mask, tapped at the video's texel
       // spacing. The clip is a ~944-wide render magnified across a 3376-wide
       // plate, so what softens it is pure resampling blur — a high-pass at the
       // right scale is the only thing that touches it. Same margin/backdrop
       // gates as the still's mask: never ring into the mirrored extension, and
       // never re-introduce high frequencies on the hole-filling backdrop.
+      // …and the same defocus gate the still's mask carries, for a reason that
+      // bites harder here. THE TAPS BELOW ARE UNBIASED — they read level 0
+      // whatever blurBias is — so the moment the centre sample comes from a
+      // higher mip the two are no longer the same image at two scales, and
+      // (vid*4 - liveBlur) stops being a local high-pass and becomes the
+      // difference between a blurred picture and a sharp one. That residual is
+      // enormous and structured, and it lands on the surface as blocking and
+      // ringing: the clip visibly breaks up. It never showed before depth of
+      // field because every other term in blurBias is already gated out of this
+      // mask (margins and backdrop, just above) — defocus was the first one
+      // that could reach a lit foreground card with the sharpen still running.
       float liveSharpen = uSharpenVideo
                         * (1.0 - smoothstep(-0.08, 0.0, vMargin))
-                        * (1.0 - uBackdrop);
+                        * (1.0 - uBackdrop)
+                        * (1.0 - smoothstep(0.15, 1.0, uDefocus));
       if (liveSharpen > 0.001) {
-        vec3 liveBlur = texture2D(mapVideo, sUv + vec2(uVideoTexel.x, 0.0)).rgb
-                      + texture2D(mapVideo, sUv - vec2(uVideoTexel.x, 0.0)).rgb
-                      + texture2D(mapVideo, sUv + vec2(0.0, uVideoTexel.y)).rgb
-                      + texture2D(mapVideo, sUv - vec2(0.0, uVideoTexel.y)).rgb;
+        // Through videoLift, like the centre — see the note on that function
+        // for why the two have to agree, and for the one difference between
+        // them that is meant.
+        vec3 liveBlur = videoLift(texture2D(mapVideo, vUv + vec2(uVideoTexel.x, 0.0)).rgb)
+                      + videoLift(texture2D(mapVideo, vUv - vec2(uVideoTexel.x, 0.0)).rgb)
+                      + videoLift(texture2D(mapVideo, vUv + vec2(0.0, uVideoTexel.y)).rgb)
+                      + videoLift(texture2D(mapVideo, vUv - vec2(0.0, uVideoTexel.y)).rgb);
         vid.rgb += (vid.rgb * 4.0 - liveBlur) * liveSharpen;
       }
       // Pull the flat clip back toward the still's body: saturation around
@@ -852,60 +1406,63 @@ const paintingFrag = /* glsl */`
     float pulse = 0.5 + 0.5 * sin(uTime * 0.35 + vDepth * 3.14159);
     tex.rgb += tex.rgb * pulse * 0.05 * uBreath * smoothstep(0.2, 1.0, fragmentDepth);
 
+    // The room's own light, read ONCE and before any rite has touched the
+    // colour: three of the crossings are sorted by it — what is lit leaves
+    // last, or lingers a moment after the stone holding it has gone — and none
+    // of them may read it back after it has been graded or fogged, or a rite
+    // would be sorting the room by what it had itself just done to it.
+    float lumRite = dot(tex.rgb, vec3(0.2126, 0.7152, 0.0722));
+
     // ── The rite, part two: what the room LOOKS like as it goes ─────────────
     // Colour work only, laid over the finished surface (still or clip) and
     // before the distance fog, so a room that is halfway down the corridor
-    // still sinks into the dark the same way it always did. The extra taps
-    // here are inside a uniform branch that is only ever taken by the ONE
-    // plate a crossing is dissolving, so the cost never lands on the stack
-    // as a whole.
+    // still sinks into the dark the same way it always did. Everything here is
+    // inside a uniform branch that is only ever taken by the ONE plate a
+    // crossing is dissolving, so the cost never lands on the stack as a whole.
+    //
+    // Note what is NOT here any more: no second tap of the surface, anywhere.
+    // Every rite that used to draw the room twice (the echo's receding copies,
+    // the split's ghost of the path not taken) has been cut. Two offset copies
+    // of one image are read as blur and never as two of anything — that was
+    // known — but even where the doubling read correctly it read as an EFFECT,
+    // and one tap is now the whole budget: what a rite may change is the light
+    // on the room, not how many rooms there are.
     if (rite == RITE_ECHO) {
-      // Tautology: the passage insists it has been walked before. The room is
-      // superimposed on ITSELF, twice, each copy smaller and dimmer and
-      // receding toward the same lamp — a gallery reflected down a corridor of
-      // its own copies. Two things earn their keep here:
-      //   • they converge on the plate's LIGHT, not on the middle of the frame,
-      //     so the recession runs along the room's own perspective;
-      //   • they arrive in BEATS rather than sitting there. A constant overlay
-      //     of a 90%-scale copy is not read as a repetition at all, only as a
-      //     softness over the plate — which is what the first pass at this
-      //     looked like. Pulsed, and clearly smaller, they read as the room
-      //     saying itself again.
-      // The scale factors are ABOVE one on purpose: sampling a wider range of
-      // the image across the same card draws it SMALLER. (Below one magnifies,
-      // which is the opposite of a copy receding, and looked like a badly
-      // focused zoom.) 1.4 and 2.0 put the two copies a room and two rooms
-      // further off.
-      float beat1 = sin(clamp((rp - 0.05) / 0.55, 0.0, 1.0) * 3.14159);
-      float beat2 = sin(clamp((rp - 0.32) / 0.55, 0.0, 1.0) * 3.14159);
-      vec3 once = surfaceAt((vUv - uGlowUV) * 1.40 + uGlowUV, blurBias + 0.4) * 0.88;
-      vec3 twice = surfaceAt((vUv - uGlowUV) * 2.00 + uGlowUV, blurBias + 0.8) * 0.76;
-      float back = 1.0 - uBackdrop;
-      tex.rgb = mix(tex.rgb, once, 0.30 * beat1 * back);
-      tex.rgb = mix(tex.rgb, twice, 0.20 * beat2 * back);
+      // Tautology: the passage insists it has been walked before. What says it
+      // again is the LIGHT — as the front reaches a lit part of the room that
+      // light swells a little before it goes, and (in part three) hangs a beat
+      // in the air after the stone that carried it has gone. So the gallery
+      // leaves in the order lamp-last, and its afterimage is its own lamps.
+      float lit = smoothstep(0.20, 0.62, lumRite);
+      tex.rgb += tex.rgb * lit * 0.40 * env * (1.0 - uBackdrop);
     } else if (rite == RITE_SPLIT) {
-      // Two futures. The picture has already been TORN down its middle in part
-      // one and drawn back to either side; here each half is graded away from
-      // the other — one keeping the library's lamplight, one cooled toward the
-      // moon it is walking into — and each carries a faint ghost of the
-      // content the other half took with it, so what you are looking at is the
-      // path you chose with the one you didn't still showing through it.
-      //
-      // This began as two whole copies of the room superimposed and diverging.
-      // It did not read as a fork: two offset copies of one image are read as
-      // BLUR — bad registration, a shaken camera — and never as two of
-      // anything. A tear cannot be misread.
-      float part = smoothstep(0.02, 0.3, rp) * (1.0 - uBackdrop);
-      vec3 other = surfaceAt(vUv - (sUv - vUv), blurBias + 0.8);
-      tex.rgb = mix(tex.rgb, other, 0.2 * part);
-      tex.rgb *= mix(vec3(1.0), vUv.x < 0.5 ? vec3(1.07, 1.0, 0.93)
-                                            : vec3(0.93, 1.0, 1.08), part);
-    } else if (rite == RITE_FLOOD && below > 0.0) {
-      // Under the surface: the reflection loses its light with depth and takes
-      // the corridor's own colour, so the water reads as water and not as an
-      // upside-down copy of the room hanging in the air.
-      float deep = smoothstep(0.0, 0.5, below);
-      tex.rgb = mix(tex.rgb, uFogColor, deep * 0.62) * (1.0 - 0.55 * deep);
+      // Two futures. Not two pictures — one room, with the weather changing
+      // across it: the library's lamplight draining out of the side you came
+      // from while the moon the Fork opens onto arrives on the other, and the
+      // moonward side losing the lamp's body along with its colour, so one
+      // half of the room is already the next chapter's light.
+      float graded = smoothstep(0.02, 0.35, rp) * (1.0 - uBackdrop);
+      tex.rgb *= mix(vec3(1.0), mix(vec3(1.10, 1.00, 0.88),
+                                    vec3(0.88, 0.97, 1.12), across), graded);
+      tex.rgb = mix(tex.rgb, uFogColor, across * graded * 0.22);
+    } else if (rite == RITE_WIND) {
+      // The floor is lost by the room losing its DEPTH: the far architecture
+      // sinks into the corridor's own darkness first, so the distance walks in
+      // toward you and what is left at the end is a shallow face and its lamp.
+      // The camera's slow roll (WIND_ROLL) is the other half of it, and is
+      // where the vertigo actually lives — this only takes the ground away.
+      // It runs on the fragment's depth rather than on any figure drawn over
+      // the plate, so it cannot be seen as a pattern: it is aerial perspective,
+      // the one thing this corridor already does everywhere else.
+      float far = 1.0 - smoothstep(0.10, 0.62, fragmentDepth);
+      tex.rgb = mix(tex.rgb, uFogColor, far * smoothstep(0.0, 0.55, rp) * 0.85);
+    } else if (rite == RITE_FLOOD && sink > 0.0) {
+      // Under: what has gone below the level loses its light and takes the
+      // corridor's colour, and part one has already carried it out of focus.
+      // Between them that is water without a drop of water being drawn — no
+      // surface, no ripple, no mirrored copy of the room hanging upside down.
+      float deep = smoothstep(0.0, 0.45, sink);
+      tex.rgb = mix(tex.rgb, uFogColor, deep * 0.72) * (1.0 - 0.45 * deep);
     } else if (rite == RITE_HUSH) {
       // The light leaves before the room does. Illumination collapses inward
       // toward the plate's own lamp — everything the front has reached goes
@@ -934,11 +1491,11 @@ const paintingFrag = /* glsl */`
     // measured against. As uFade rises the threshold sweeps from the nearest
     // stone (depth 1) back into the image, so the gallery melts away
     // front-first — like pushing through a curtain of masonry. A thin rim at
-    // the melt line catches the chapter accent, an ember edge on the stone.
-    // The extension margins melt AHEAD of the artwork (the periphery burns off
-    // first, narrowing the world to the true spiral before it gives way), and
-    // the ember rim stays off them — mid-melt margin content is viewed at
-    // grazing angles where the rim traces ugly blocky contours.
+    // the melt line brightens what is already there, a catch of light along the
+    // stone. The extension margins melt AHEAD of the artwork (the periphery
+    // burns off first, narrowing the world to the true spiral before it gives
+    // way), and the rim stays off them — mid-melt margin content is viewed at
+    // grazing angles where it traces ugly blocky contours.
     //
     // EVERY RITE KEEPS THIS SWEEP. That was learned the hard way: the first
     // pass had each rite REPLACE the threshold with its own — radial, water,
@@ -950,52 +1507,76 @@ const paintingFrag = /* glsl */`
     // the plain melt showed a lit hall and the thread rite showed an empty
     // frame — with identical thread alpha, identical everything else.
     //
-    // So a rite does not get its own threshold. It gets to BEND this one:
+    // So a rite does not get its own threshold. It gets to BEND this one, and
+    // the bend is now the whole of a rite's threshold work — the difference
+    // between the seven is nothing but WHICH FRAGMENTS THE FRONT REACHES FIRST:
     //   • the bias sends the front ahead of itself for some fragments — with
-    //     radius, and the room collapses toward its lamp; with a whirling
-    //     radius, and it drains down its own throat;
+    //     radius, and the room collapses toward its own lamp; with luminance,
+    //     and the light in it outlives the stone that carried it; with the
+    //     side of the frame, and one half of the room gives way before the
+    //     other. No figure, no pattern, no wipe: a picture-shaped ordering.
     //   • the rate slows the whole front where a rite needs the plate to stand
-    //     long enough for something else to happen to it;
-    // and then a rite may take MORE away on top (the water, the tear, the
-    // threads) — never less.
+    //     long enough for something to happen to its light.
+    //
+    // AND EVERY BIAS RUNS THE SAME WAY ROUND. The sign matters more than it
+    // looks: a positive bias melts a fragment EARLY, and biasing the LIT parts
+    // early is the same mistake the first pass made with its threads — it
+    // strips the lamp and the arcade and leaves the unlit near stone standing,
+    // which is the black frame described above. So where a rite sorts the room
+    // by its light, the dark always goes first and the light goes last. That
+    // is also the truer image: a room does not stop being lit, it stops being
+    // a room, and the last of it is the lamp.
     float rate = 1.72;
     float bias = 0.0;
-    float whirl = 0.0;
     if (rite == RITE_HUSH) {
       bias = reach * 1.55;
     } else if (rite == RITE_WIND) {
-      // A rotating vane rather than a ring: the front runs ahead of itself in
-      // a spiral arm that turns as it closes. It unwinds at the end so the
-      // last of the plate still clears on the melt's own schedule.
-      whirl = 0.30 * sin(atan(gd.y, gd.x) + length(gd) * 5.5 - rp * 7.5)
-            * (1.0 - smoothstep(0.62, 0.96, rp));
-      bias = (reach + whirl) * 1.55;
-    } else if (rite == RITE_SPLIT || rite == RITE_FLOOD) {
-      // Both of these need the room to stand while something is done to it —
-      // parted, or drowned — so their sweep runs well behind the plain one.
+      // The same collapse toward the lamp, shallower: here the room is closing
+      // rather than going out, and part two's recession does most of the
+      // telling. (This replaces a rotating spiral vane, which drew a turning
+      // arm of light across the plate — legible, and unmistakably a wipe.)
+      bias = reach * 0.95;
+    } else if (rite == RITE_WEAVE) {
+      // The web is what is left when everything that is not a thread of light
+      // has gone. The dark of the room goes first and steadily, so the picture
+      // thins down to a lacework of its own lit edges — balustrades, the rims
+      // of arches, the lamp — and only then lets go of those. Nothing is cut
+      // into strands; the strands are the ones the painting already has.
+      bias = (1.0 - smoothstep(0.16, 0.60, lumRite)) * 0.85;
+      rate = 1.45;   // a long tail, so the last filaments are seen to go
+    } else if (rite == RITE_ECHO) {
+      rate = 1.55;   // a shade slower: the lingering light needs room to be seen
+    } else if (rite == RITE_SPLIT) {
+      // One side gives way before the other — by little enough to be felt as
+      // the room going unevenly rather than seen as a line down the middle.
+      rate = 1.20;
+      bias = (across - 0.5) * 0.50;
+    } else if (rite == RITE_FLOOD) {
+      // The room must stand while it goes under, so its sweep runs well behind
+      // the plain one.
       rate = 1.20;
     }
     float th = 1.12 - rp * (rate + e * 4.0 + bias);
     float alpha = 1.0 - smoothstep(th - 0.10, th + 0.10, fragmentDepth);
     float rim = smoothstep(th - 0.14, th - 0.03, fragmentDepth)
               * (1.0 - smoothstep(th - 0.03, th + 0.08, fragmentDepth));
-    // How much ember this threshold is allowed. Most rites keep the melt's own
-    // 0.3; the Silence is given none, and the waterline is given more, being a
-    // single thin seam rather than a broad front.
-    float rimGain = 0.3;
+    // How much the front is allowed to brighten what it is passing over. This
+    // is no longer an ember: see the lift at the end of this section for what
+    // changed and why. The Silence is still given none.
+    float rimGain = 0.55;
 
     if (rite == RITE_ECHO) {
-      // What has melted does not quite go. A fainter copy of the stone lingers
-      // a beat behind the front, and the ember arrives three times, each wave
-      // weaker — the room answering itself down a corridor of its own copies.
-      float g1 = th + 0.34;
-      float g2 = th + 0.62;
-      alpha = max(alpha,
-        (1.0 - smoothstep(g1 - 0.10, g1 + 0.10, fragmentDepth)) * 0.24 * env);
-      rim += 0.5 * smoothstep(g1 - 0.12, g1 - 0.02, fragmentDepth)
-                 * (1.0 - smoothstep(g1 - 0.02, g1 + 0.07, fragmentDepth))
-           + 0.25 * smoothstep(g2 - 0.12, g2 - 0.02, fragmentDepth)
-                  * (1.0 - smoothstep(g2 - 0.02, g2 + 0.07, fragmentDepth));
+      // The light does not quite go with the stone. A band behind the front
+      // holds on — but only where the room was LIT, so what hangs in the air a
+      // beat after the masonry has gone is the room's own lamps and lit edges,
+      // not a second grey copy of the wall. (That is what it used to be: a flat
+      // 0.24 of everything the front had passed, which is a ghost image, plus
+      // three ember waves. A ghost image of stone is a video effect; a light
+      // outlasting the thing it fell on is what a room does.)
+      float g1 = th + 0.30;
+      float lag = (1.0 - smoothstep(g1 - 0.12, g1 + 0.12, fragmentDepth))
+                * smoothstep(0.20, 0.62, lumRite);
+      alpha = max(alpha, lag * 0.55 * env);
     } else if (rite == RITE_HUSH) {
       // An extinguishing rather than an announcement. The radial bias above
       // has already turned the sweep inside-out — it runs fastest where the
@@ -1003,69 +1584,49 @@ const paintingFrag = /* glsl */`
       // is the light itself — and this rite's real work is the draining of
       // the colour in part two. All it asks for here is silence.
       rimGain = 0.0; // nothing announces itself on the way into the Silence
-    } else if (rite == RITE_WIND) {
-      // The whirling bias is applied above; here the ember simply rides the
-      // vane, which is what makes the turn legible — a rotating arm of light
-      // closing on the pit.
-      rimGain = 0.34;
-    } else if (rite == RITE_SPLIT) {
-      // The tear: a gap down the middle that the two halves draw back from,
-      // opening until they are all but off the sides. It takes MORE than the
-      // melt behind it, never less — the halves both part and go.
-      float fromTear = abs(vUv.x - 0.5);
-      alpha *= smoothstep(part * 0.9, part * 1.04 + 0.0015, fromTear);
-      // The ember catches along both parting edges — which is exactly where
-      // the light of the room ahead is arriving from.
-      rim = max(rim, (1.0 - smoothstep(part, part * 1.35 + 0.03, fromTear))
-                   * step(part * 0.95, fromTear));
-      rimGain = 0.42;
-      // …and the opening itself is LIT. Left transparent, the tear was a black
-      // slot in the middle of the frame: the room it opens onto is still a
-      // chapter away, deep in the corridor's fog, and has nothing to put there
-      // yet. So the crack pours the garden's own green through it — brightest
-      // while it is still a crack, spent by the time it has opened wide enough
-      // to be a view. Only the BACKDROP card carries it: the six cards of a
-      // stack tear at the same UV but at six different screen positions, and
-      // six stacked glows would read as banding rather than as light.
-      if (uBackdrop > 0.5) {
-        float spill = (1.0 - smoothstep(part * 0.7, part * 1.05, fromTear))
-                    * env * (1.0 - smoothstep(0.16, 0.42, part));
-        tex.rgb = mix(tex.rgb, uAccent, spill * 0.85);
-        alpha = max(alpha, spill * 0.7);
-      }
     } else if (rite == RITE_FLOOD) {
-      // The water takes what it passes, and the ember becomes the surface
-      // itself: one bright seam where the world is being cut in half. The
-      // alpha reaches further down than the reflection's own dimming does, so
-      // there is a real band of water to see rather than a lit line over black.
-      alpha = min(alpha, 1.0 - smoothstep(0.06, 0.62, below));
-      rim = max(rim * 0.5, exp(-abs(below) * 70.0));
-      rimGain = 0.5;
-    } else if (rite == RITE_WEAVE) {
-      // Thread by thread, in no particular order, each in its own time — and
-      // each one LIT along its length, brightest in the moment it lets go.
-      // Without that the unravelling was dark threads over a dark room (the
-      // web this is opening onto is still a chapter away and has nothing to
-      // show through the gaps yet); with it, the picture comes apart into
-      // filaments of light, which is what the arriving room is about.
-      alpha *= 1.0 - smoothstep(thread, thread + 0.30, rp);
-      float letting = smoothstep(thread - 0.26, thread - 0.04, rp)
-                    * (1.0 - smoothstep(thread - 0.04, thread + 0.22, rp));
-      rim = max(rim, threadEdge * (0.3 + 1.1 * letting)
-                   * smoothstep(0.04, 0.22, rp));
-      rimGain = 0.4;
+      // What has gone under goes, once it is deep enough to have lost its
+      // light — no seam is drawn at the level itself. A lit line across the
+      // frame was the whole reason the old flood read as a waterline effect
+      // rather than as a room going under: water at this scale, in this light,
+      // has no highlight on it.
+      alpha = min(alpha, 1.0 - smoothstep(0.10, 0.75, sink));
+      rimGain = 0.40;
     }
     // No rite may lurch: whatever it takes on top of the melt, at rest the
-    // plate is whole. (The flood's waterline in particular starts under the
-    // card's bottom margin, which would otherwise drop out on the first frame
-    // of the crossing.) Held to the rites alone: the plain melt's own
-    // behaviour at rest — where the very nearest fragments already sit a
-    // little under 1 — is long since tuned around, and is not this change's
-    // business to alter.
+    // plate is whole. (The flood's level in particular starts under the card's
+    // bottom margin, which would otherwise drop out on the first frame of the
+    // crossing.) Held to the rites alone: the plain melt's own behaviour at
+    // rest — where the very nearest fragments already sit a little under 1 —
+    // is long since tuned around, and is not this change's business to alter.
     if (rite != RITE_PLAIN) {
       alpha = mix(1.0, alpha, smoothstep(0.0, 0.05, rp));
     }
-    tex.rgb += uAccent * rim * rimGain * env * (1.0 - smoothstep(0.05, 0.3, e));
+
+    // What the front does to the light it is passing over. This used to be an
+    // EMBER: the chapter's accent ADDED along the melt line, at full colour,
+    // on every threshold in the corridor. It is the single thing that made the
+    // crossings look bought rather than built — a glowing coloured edge
+    // travelling across a frame is the oldest transition in video, and because
+    // every rite carried it, the family resemblance between the seven
+    // thresholds was their cheapest element.
+    //
+    // It is now a LIFT: the front brightens whatever is already there, by a
+    // fraction of itself. The whole difference is that it MULTIPLIES. Added
+    // light draws its own shape and is at its most obvious over the dark parts
+    // of a plate — which is where most of a melt front lies, so the old rim
+    // literally drew a bright line across unlit stone. A multiply is zero
+    // wherever the picture is dark, so it can never draw a line: it can only
+    // catch on what the room already has to catch on, and it reads as a lamp
+    // brightening rather than as an edge sweeping past. The chapter's accent
+    // survives as a tilt in the colour of that lift (normalised by its own
+    // largest channel, so it changes the hue and not the exposure), which is
+    // as much as a colour should ever say here.
+    float lift = rim * rimGain * env * (1.0 - smoothstep(0.05, 0.3, e));
+    if (lift > 0.001) {
+      vec3 tint = uAccent / max(max(uAccent.r, max(uAccent.g, uAccent.b)), 0.001);
+      tex.rgb += tex.rgb * lift * mix(vec3(1.0), tint, 0.35);
+    }
 
     // Arrival gate. The plate's FAR architecture is always allowed (it is the
     // room seen down the corridor), but its NEAR foreground only fades in as
@@ -1077,8 +1638,81 @@ const paintingFrag = /* glsl */`
 
     // Depth-band window: keep only this slab's slice of the image, feathered so
     // it dissolves into its neighbours rather than cutting a hard silhouette.
-    float win = smoothstep(uBandLo - uFeather, uBandLo + uFeather, fragmentDepth)
-              * (1.0 - smoothstep(uBandHi - uFeather, uBandHi + uFeather, fragmentDepth));
+    //
+    // Matted at silhouettes, because a depth cliff is not a step in the map —
+    // it is a two-or-three-texel RAMP (the estimator's own softness, plus
+    // whatever the walk-in's magnification adds once the plate is blown up past
+    // 1:1). Handed to the window raw, those in-between values belong to the
+    // slabs BETWEEN the two surfaces, which have no business drawing the pixel
+    // at all: each cuts the same silhouette out of its own card and draws a thin
+    // arc of it, and since every card sits at its own depth the walk-in fans
+    // those arcs out sideways. That is the ring of bright squiggles around the
+    // lanterns, with the dis-occluded gap behind them widened to the union of
+    // every card's hole.
+    //
+    // So read the two surfaces the ramp actually runs between — the local
+    // extremes a couple of texels either side — and hand the pixel to THOSE two
+    // cards only. A boundary pixel is a mix of the lantern and the vault behind
+    // it, and they are the only two entitled to a share of it. At the dwell the
+    // two shares recompose into exactly the old image (the cards register
+    // pixel-for-pixel there); the matting only ever withholds the in-between
+    // copies, which are all that separates under parallax.
+    //
+    // The far side takes its share as a FILL rather than as its band weight
+    // (see fillWindow): the stack composites back to front, and a pair of
+    // honest partial alphas leaves a gap for the backdrop to leak through —
+    // a dark halo threaded along every silhouette, at rest as much as walked
+    // in, with the lanterns' painted glow rims visibly dimmed by it.
+    //
+    // It is still weighted by how much of the pixel is background, though, and
+    // that is not fussiness: a hanging chain or a lantern's spire is thinner
+    // than these taps are wide, so EVERY one of its pixels reads the vault as
+    // its far extreme. Let the far card fill those outright and it paints a
+    // solid copy of the chain — bright, and free to fly off on its own card,
+    // which is the artifact this whole passage exists to remove.
+    //
+    // Four taps, and behind the backdrop's own uniform: its band swallows the
+    // whole range, so every window here would come back 1 and the taps would be
+    // spent on a card that is deliberately blurred past the point of having
+    // silhouettes at all. The stack is fill-rate bound; the one card that
+    // cannot use this does not pay for it.
+    float win = 1.0;
+    if (uBackdrop < 0.5) {
+      vec2 dt = uDepthTexel * 2.0;
+      float dA = pow(texture2D(depthMap, vUv + vec2( dt.x,  dt.y)).r, depthGamma);
+      float dB = pow(texture2D(depthMap, vUv + vec2(-dt.x,  dt.y)).r, depthGamma);
+      float dC = pow(texture2D(depthMap, vUv + vec2( dt.x, -dt.y)).r, depthGamma);
+      float dD = pow(texture2D(depthMap, vUv + vec2(-dt.x, -dt.y)).r, depthGamma);
+      float dFar  = min(min(min(dA, dB), min(dC, dD)), fragmentDepth);
+      float dNear = max(max(max(dA, dB), max(dC, dD)), fragmentDepth);
+      float span  = dNear - dFar;
+      // How much of this pixel belongs to the near surface, and how much of a
+      // silhouette this is at all — ordinary modelling gradients keep the plain
+      // window, where in any case the two agree, span being small.
+      float cover = clamp((fragmentDepth - dFar) / max(span, 1e-4), 0.0, 1.0);
+      float cliff = smoothstep(0.04, 0.12, span);
+      float wFill = fillWindow(dFar);
+      float wNear = bandWindow(dNear);
+      win = mix(bandWindow(fragmentDepth), mix(wFill, wNear, cover), cliff);
+
+      // …and what that far card FILLS with. Owning the far side of a cliff but
+      // not the near one means standing in for what is BEHIND a silhouette —
+      // but the texel at this UV is the silhouette's own rim, a blend of
+      // occluder and background that on a lamp is BRIGHT. Painting it at far Z
+      // hangs a bright crescent of the globe's edge on a card six bands back,
+      // and walking in slides it across the glass as a seam. (Measured on
+      // var17: the globe's rim ramps down through the 0.6 band edge, and 24%
+      // of its painted pixels lie inside the 0.07 feather there.)
+      //
+      // So fill with what is behind it, not with it. Same dilation the backdrop
+      // uses; only silhouette fragments reach it, and the weight is exactly the
+      // share this card was about to paint wrongly.
+      float behind = cliff * wFill * (1.0 - wNear) * (1.0 - cover);
+      if (behind > 0.01 && uFill.y > uFill.x) {
+        tex.rgb = mix(tex.rgb, dilateFar(vUv, blurBias + 1.5, uFill.x, uFill.y),
+                      behind);
+      }
+    }
 
     // The extension margins carry the painting's wrap-around continuation (the
     // next bay of the endless gallery): clear near the artwork, then a LONG
@@ -1088,8 +1722,17 @@ const paintingFrag = /* glsl */`
     // overlapping at different screen scales) arrives at the same color as the
     // graded canvas background, so their rims and overlaps blend over equal
     // color and nothing can read as a boundary or a band.
-    tex.rgb = mix(tex.rgb, uFogColor, smoothstep(0.12, 0.7, e));
-    float rimFade = 1.0 - smoothstep(0.8, 1.0, e);
+    //
+    // A turning reader has that fog opened out of the way, so the card's own rim
+    // takes the job over: the same sink and the same fade, measured across the
+    // card instead of the picture. At rest it changes nothing — everything past
+    // vRim 0.86 is already deep in the margin's own fog — and once the panorama
+    // is open it is the only thing standing between the reader and a plain cut
+    // edge at the end of the plate.
+    tex.rgb = mix(tex.rgb, uFogColor,
+                  max(smoothstep(0.12, 0.7, e), smoothstep(0.86, 1.0, vRim)));
+    float rimFade = (1.0 - smoothstep(0.8, 1.0, e))
+                  * (1.0 - smoothstep(0.93, 1.0, vRim));
 
     gl_FragColor = vec4(tex.rgb, tex.a * alpha * win * rimFade * (1.0 - uGhost));
     if (gl_FragColor.a < 0.004) discard;
@@ -1106,6 +1749,23 @@ const paintingFrag = /* glsl */`
 function Painting({
   color, depth, video, videoRate = 1, index, chapters, aspect, relief, depthGamma, overscan,
   reduced, descentRef, accentRef, fogRef, diveRef, climbRef, libraryMax, stepRef,
+  // Timestamp (performance.now()) of the last time the reader STEERED — walked,
+  // panned the gaze, took the chain. A stamp newer than the one taken at the
+  // wake ends the film for this visit; see LIVE_SETTLE for what counts and why.
+  stirRef,
+  // False until the reader has clicked through the entry veil.
+  //
+  // A gallery gets ONE awakening per visit, and standing at the title card is
+  // the stillest the reader is ever going to be — so both wake clocks below run
+  // out behind the veil, and the opening gallery spends its whole film to an
+  // empty room. Nobody noticed while the Vestibule was the one node with no clip
+  // to spend; it now opens the tour with one, which is what surfaced this.
+  //
+  // Gating the wake alone is not enough: the clocks would bank the whole time
+  // the overture was up and the plate would go live the instant the veil
+  // cleared, which is the same bug wearing a hat. So the clocks do not start
+  // either — the room begins measuring attention when there is someone in it.
+  enteredRef,
   // Where this plate reports its awakening, so the drift can be paced by what
   // the gallery is actually doing rather than by a stopwatch: `{ woke, done }`
   // under this plate's index, cleared when the camera leaves. `done` is stamped
@@ -1116,6 +1776,8 @@ function Painting({
   // The rite this plate's own threshold is given (RITES[index]), and the point
   // in the artwork two of them collapse the room into — the plate's light.
   rite = RITE.PLAIN, glowAt,
+  // How far round the reader has turned, in bays. See TURN_BAYS.
+  panRef,
 }) {
   const mesh = useRef();
   // el: the <video>; tex: its VideoTexture; playing: true while it is running
@@ -1128,27 +1790,47 @@ function Painting({
   // inRoom: seconds spent standing in this gallery. The two clocks the first
   // awakening waits on (see WAKE_GAZE_DWELL / WAKE_PATIENCE); both are wound
   // back to zero each time the camera leaves, along with `armed`.
+  // stopped: the reader steered while it was running, so it settled back to the
+  // painting and is finished for this visit; stirMark: the steering stamp as it
+  // stood at the wake, which is what "again" is measured against (see
+  // LIVE_SETTLE). Both are cleared on leaving with the rest.
+  // failed: this clip cannot be played at all — see the error listener on the
+  // element below. Held for the life of the element so a broken source is not
+  // re-attempted every frame, and cleared with the element on teardown, which
+  // gives a clip that failed on a bad connection one fresh try per return.
   const live = useRef({
     el: null, tex: null, playing: false, ended: false, endedAt: 0, armed: true,
-    gaze: 0, inRoom: 0,
+    gaze: 0, inRoom: 0, stopped: false, stirMark: 0, failed: false,
   });
   // Scratch for the lamp's projection, so measuring attention allocates nothing
   // per frame.
   const lamp = useMemo(() => new THREE.Vector3(), []);
-  const [colorMap, depthMap] = useTexture([color, depth], (texes) => {
-    texes[0].colorSpace = THREE.SRGBColorSpace;
-    texes.forEach((t) => {
+  // The offline backdrop for this plate, if it has one. useTexture suspends,
+  // so the array has to keep a STABLE LENGTH across renders — a plate without
+  // a backdrop passes its own urls again rather than shortening the list.
+  // useLoader caches per url, so those repeats resolve to the very same
+  // texture objects and cost nothing.
+  const backdropPlate = BACKDROP_PLATES[color] ?? null;
+  const [colorMap, depthMap, backdropMap, backdropDepthMap] = useTexture(
+    [color, depth, backdropPlate?.color ?? color, backdropPlate?.depth ?? depth],
+    (texes) => {
+      // 0 and 2 are pictures and must decode as sRGB; 1 and 3 are depth and
+      // must stay linear. When there is no backdrop plate, 2 IS 0 and 3 IS 1,
+      // so this assigns each of them the space it already had.
+      texes[0].colorSpace = THREE.SRGBColorSpace;
+      texes[2].colorSpace = THREE.SRGBColorSpace;
+      texes.forEach((t) => {
       // Both axes mirror. Horizontal was a wrap-around until the butt-joint
       // between the plate's right and left edges started showing as a hard
       // vertical seam (see EXTEND_X for the measurements and the trade-off);
       // vertical has always mirrored, since wrapping would hang the floor
       // above the vault. Keep this in step with the video texture below —
       // if the two disagree the seam returns the moment a clip wakes.
-      t.wrapS = THREE.MirroredRepeatWrapping;
-      t.wrapT = THREE.MirroredRepeatWrapping;
-      t.anisotropy = TEX_ANISOTROPY;
+        t.wrapS = THREE.MirroredRepeatWrapping;
+        t.wrapT = THREE.MirroredRepeatWrapping;
+        t.anisotropy = TEX_ANISOTROPY;
+      });
     });
-  });
 
   // The slab stack: one full-image backdrop (index 0) behind LAYER_COUNT
   // depth-windowed foreground cards, near-band last so it draws over the rest.
@@ -1185,10 +1867,24 @@ function Painting({
     1 / (colorMap.image?.height || 1440),
   ), [colorMap]);
 
-  const materials = useMemo(() => layers.map((L) => new THREE.ShaderMaterial({
+  // The same for the depth map, which is not always the plate's own size — the
+  // silhouette matting steps in ITS texels, a texel being the width the depth
+  // estimator's soft cliffs are measured in.
+  const depthTexel = useMemo(() => new THREE.Vector2(
+    1 / (depthMap.image?.width || 3376),
+    1 / (depthMap.image?.height || 1440),
+  ), [depthMap]);
+
+  const materials = useMemo(() => layers.map((L) => {
+    // Layer 0 takes the offline backdrop where one exists. Every other card
+    // keeps the painting itself — the foreground has to stay in the picture
+    // for the slab that owns its depth to draw it.
+    const painted = L.backdrop && backdropPlate;
+    return new THREE.ShaderMaterial({
     uniforms: {
-      map: { value: colorMap },
+      map: { value: painted ? backdropMap : colorMap },
       uTexel: { value: texel },
+      uDepthTexel: { value: depthTexel },
       uSharpen: { value: TEX_SHARPEN },
       // Placeholder until the video's first frame is decodable; uLive stays 0
       // until then, so the sampler is never visibly wrong.
@@ -1203,8 +1899,14 @@ function Painting({
       uVideoSat: { value: VIDEO_SATURATION },
       uVideoContrast: { value: VIDEO_CONTRAST },
       uVideoGamma: { value: VIDEO_GAMMA },
+      uVideoLift: { value: VIDEO_LIFT },
       uLive: { value: 0 },
-      depthMap: { value: depthMap },
+      // The offline backdrop gets the matching offline DEPTH. Handing it the
+      // painting's depth would displace the filled-in stone into the shape of
+      // the chain that is no longer there — damped by reliefScale 0.4, but
+      // relief in the shape of a removed object is exactly the ghost this is
+      // meant to end.
+      depthMap: { value: painted ? backdropDepthMap : depthMap },
       relief: { value: relief * L.reliefScale },
       depthGamma: { value: depthGamma },
       uTime: { value: 0 },
@@ -1221,16 +1923,32 @@ function Painting({
       // their registration from the dwell holds.
       uCurve: { value: SPHERE_WRAP },
       uDwellDist: { value: PLANE_Z - L.macro },
+      uDefocus: { value: 0 },
       uBandLo: { value: L.lo },
       uBandHi: { value: L.hi },
       uFeather: { value: LAYER_FEATHER },
       uBackdrop: { value: L.backdrop ? 1 : 0 },
+      // hi <= lo switches the runtime dilation off, which is what a plate that
+      // has already been inpainted properly wants: dilating an image the
+      // occluder has been removed from would smear the stone that replaced it.
+      // Note this only silences it on THIS card — the far-side-of-a-cliff fill
+      // that ordinary slabs run (see the `behind` block) is untouched.
+      uFill: {
+        value: painted
+          ? new THREE.Vector4(0, 0, FILL.r1, FILL.r2)
+          : new THREE.Vector4(FILL.lo, FILL.hi, FILL.r1, FILL.r2),
+      },
       uUvSpan: { value: new THREE.Vector2(EXTEND_X, EXTEND_Y) },
       // Divided by this card's own scale-up: the backdrop draws the image 1.5×
       // larger than the foreground cards, so an equal UV shift would slide it
       // 1.5× further on screen and break the registration the stack depends on.
       // Divided, every layer's picture rises by the same ANGLE.
       uEyeShift: { value: EYE_DROP / L.over },
+      // Divided for exactly the reason uEyeShift is — an equal UV shift would
+      // slide the 1.5x backdrop 1.5x further and break the stack's
+      // registration. Divided, every layer's picture turns by the same ANGLE.
+      uPan: { value: 0 },
+      uOpen: { value: 0 },
       uReveal: { value: 1 },
       uGhost: { value: 0 },
       uRite: { value: rite },
@@ -1251,7 +1969,9 @@ function Painting({
     vertexShader: paintingVert,
     fragmentShader: paintingFrag,
     transparent: true,
-  })), [layers, colorMap, depthMap, relief, depthGamma, reduced, texel, rite, glowAt, aspect]);
+    });
+  }), [layers, colorMap, depthMap, backdropMap, backdropDepthMap, backdropPlate,
+       relief, depthGamma, reduced, texel, depthTexel, rite, glowAt, aspect]);
 
   // Release the video/texture with the painting, and the per-layer GPU
   // resources when they are rebuilt (HMR, prop changes).
@@ -1293,7 +2013,17 @@ function Painting({
     useTexture.clear([color, depth]);
     colorMap.dispose();
     depthMap.dispose();
-  }, [color, depth, colorMap, depthMap]);
+    // The backdrop pair goes the same way. Guarded, because a plate WITHOUT an
+    // offline backdrop was handed its own urls twice — those are the very same
+    // texture objects, already disposed on the two lines above, and clearing a
+    // url the cache no longer holds would be the second free of one entry.
+    if (backdropPlate) {
+      useTexture.clear([backdropPlate.color, backdropPlate.depth]);
+      backdropMap.dispose();
+      backdropDepthMap.dispose();
+    }
+  }, [color, depth, colorMap, depthMap, backdropPlate, backdropMap,
+      backdropDepthMap]);
   useEffect(() => () => {
     geos.forEach((g) => g.dispose());
     materials.forEach((m) => m.dispose());
@@ -1328,14 +2058,66 @@ function Painting({
     if (ghosting) {
       fade = 0;
     }
-    for (const m of materials) {
+    // How far round the reader has turned, in bays, carried in [-1, 1].
+    const pan = panRef ? wrapBays(panRef.current) : 0;
+    const open = THREE.MathUtils.smoothstep(Math.abs(pan), TURN_OPEN_LO, TURN_OPEN_HI);
+    // ── Where the eye is focused ──────────────────────────────────────────────
+    // On the artwork's own plane, always: it is the thing being looked at, and
+    // it is also where the whole stack registers, so focusing there is what
+    // keeps the PICTURE sharp while the room around it softens.
+    //
+    // `eye` is the reader's true distance from that plane, read off the camera
+    // rather than off immersion — so this answers to every way the body can be
+    // carried forward at once (the walk-in, the opening withdrawal, the dive)
+    // without any of them having to know depth of field exists.
+    const eye = camera.position.z - planeZ(index);
+    // How far in they have come, as a fraction of the walk-in. 0 at the dwell
+    // and 1 at the deepest stand a reader can reach; a dive goes further still,
+    // and is let a little past 1 before the ceiling takes over.
+    // …and NOT on a plate that is dissolving. A crossing is already the muddiest
+    // moment the corridor has — the room being left is melting (and the melt
+    // carries its own defocus, the `sink` term in blurBias) while the room being
+    // arrived at is still gated and still in fog — and the reader is walked in,
+    // so this would pile a third blur onto the one plate still carrying the
+    // picture. Measured at 0.9 mips on the departing near band mid-crossing,
+    // which is exactly where the frame reads as empty. Focus is for standing in
+    // a room, not for leaving one.
+    const held = 1 - THREE.MathUtils.clamp(fade, 0, 1);
+    const inness = THREE.MathUtils.clamp((PLANE_Z - eye) / APPROACH, 0, 1.2) * held;
+    materials.forEach((m, li) => {
+      // Only what is NEARER than the plate defocuses. The far bands and the
+      // backdrop are behind the focus and stay sharp — which is the half of
+      // this that sells it: blur everywhere is a smeared frame, blur in front
+      // of a crisp background is depth.
+      if (inness > 0.001) {
+        const macro = layers[li].macro;
+        const ahead = Math.max(macro, 0);
+        // Guarded: the dive can put the camera level with a card, and 1/0 would
+        // hand the sampler a NaN mip level.
+        const cardDist = Math.max(eye - macro, 1);
+        m.uniforms.uDefocus.value =
+          Math.min(DOF.max, DOF.gain * inness * (ahead / cardDist));
+      } else if (m.uniforms.uDefocus.value !== 0) {
+        m.uniforms.uDefocus.value = 0;
+      }
       m.uniforms.uTime.value = t;
       m.uniforms.uFade.value = fade;
       m.uniforms.uReveal.value = reveal;
       m.uniforms.uGhost.value = ghost;
+      m.uniforms.uPan.value = pan / layers[li].over;
+      m.uniforms.uOpen.value = open;
       m.uniforms.uAccent.value.copy(accentRef.current);
       m.uniforms.uFogColor.value.copy(fogRef.current);
-    }
+      // Constant in a shipped build; carried per-frame only so window.__fill can
+      // dial it live, which is the one way to A/B it inside a single session.
+      // …except on a card already carrying an inpainted plate, which has no
+      // dilation to dial. Without this guard window.__fill would switch the
+      // runtime smear back on over the offline fill and the A/B would compare
+      // two versions of "on".
+      if (import.meta.env.DEV && !(layers[li].backdrop && backdropPlate)) {
+        m.uniforms.uFill.value.set(FILL.lo, FILL.hi, FILL.r1, FILL.r2);
+      }
+    });
     // Skip galleries fully dissolved behind us or still buried in full fog
     // ahead — at most two or three galleries' stacks render at once.
     if (mesh.current) {
@@ -1359,6 +2141,13 @@ function Painting({
       // walking back up the corridor — with no lead time at all, so play() ran
       // against a readyState-0 element and the clip woke seconds into the dwell
       // or not at all.
+      // Undefined for anything that never passes the ref (the isolated
+      // reliefcheck harness, and any future caller) — those should behave as
+      // they always did, so treat "not told" as "inside".
+      const entered = enteredRef ? enteredRef.current : true;
+      // The element is still CREATED and preloaded behind the veil: only the
+      // waking is held back. Streaming it early is the whole point of the 1.15
+      // lead (see above), and it costs nothing to have it ready and paused.
       if (!state.el && dist < 1.15) {
         const el = document.createElement('video');
         el.src = video;
@@ -1380,20 +2169,46 @@ function Painting({
           const rec = passRef?.current?.[index];
           if (rec && !rec.done) rec.done = performance.now();
         });
+        // The clip is not coming. Say so once, put the surface beyond the wake
+        // gates for as long as this element lives, and — if it had already been
+        // woken — release the drift, which is otherwise left waiting for a pass
+        // that can never finish.
+        el.addEventListener('error', () => {
+          mediaFault(el, video);
+          state.failed = true;
+          state.playing = false;
+          state.ended = false;
+          state.endedAt = 0;
+          const rec = passRef?.current?.[index];
+          if (rec && !rec.done) rec.done = performance.now();
+        });
+        // Not a failure — the bytes are late, not absent. Worth exactly one
+        // line, because a clip that wakes seconds into the dwell and a clip
+        // that never wakes look the same from the reader's chair, and this is
+        // what tells them apart.
+        el.addEventListener('stalled', () => {
+          if (state.stalled) return;
+          state.stalled = true;
+          console.info('[clip] %s is stalled — the surface will wake late or '
+            + 'not at all', video);
+        }, { once: true });
         document.body.appendChild(el);
         state.el = el;
       }
       if (state.el) {
         // Is the reader looking at this room's lamp? Measured only while the
         // plate is still waiting to wake — once it has, none of this matters,
-        // and it is a projection per plate per frame.
-        if (state.armed && dist < 0.9) {
+        // and it is a projection per plate per frame. And only once they are
+        // actually inside: see `enteredRef`.
+        if (state.armed && dist < 0.9 && entered) {
           // The lamp in world space, from the same numbers the Glow itself is
           // placed by: glowAt is a point in the ARTWORK, and the artwork rides
-          // EYE_DROP higher on its card than the card's own centre.
+          // EYE_DROP higher on its card than the card's own centre — and slides
+          // along it as the reader turns, so the light this waits to be looked
+          // at is wherever the turn has carried it.
           const gh = frustumH(PLANE_Z) * overscan;
           const [gu, gv] = glowAt ?? [0.5, 0.5];
-          lamp.set((gu - 0.5) * gh * aspect,
+          lamp.set((bayU(gu, pan) - 0.5) * gh * aspect,
                    (0.5 - gv + EYE_DROP) * gh,
                    planeZ(index));
           lamp.project(camera);
@@ -1414,10 +2229,17 @@ function Painting({
         // The first pass waits on attention, then on patience. `armed` gates it
         // to a single awakening per visit; leaving re-arms it so a return
         // replays the whole thing from its first frame.
-        if (state.armed && !state.playing && !state.ended && dist < 0.9
-            && (state.gaze >= WAKE_GAZE_DWELL || state.inRoom >= WAKE_PATIENCE)) {
+        if (state.armed && !state.stopped && !state.failed
+            && !state.playing && !state.ended
+            && dist < 0.9 && entered
+            && (state.gaze >= WAKE_GAZE_DWELL || state.inRoom >= WAKE_PATIENCE)
+            && (performance.now() - (stirRef?.current ?? 0)) / 1000 > WAKE_STILL) {
           state.armed = false;
           state.playing = true;
+          // Everything the reader did up to this moment is what BROUGHT them
+          // here — the walk in, the turn toward the lamp. Only steering from
+          // here on counts as interrupting.
+          state.stirMark = stirRef?.current ?? 0;
           // `by` records which of the two clocks ran out first, so it is
           // visible whether attention is actually what wakes the galleries or
           // whether the patience floor is quietly doing all the work.
@@ -1434,6 +2256,26 @@ function Painting({
           if (p && typeof p.catch === 'function') {
             p.catch(() => { state.playing = false; });
           }
+        }
+        // The reader steers again: the film is over. Whether it was mid-pass or
+        // resting between passes, the surface lets go of the clip here and the
+        // painting comes back — and `stopped` keeps it back for the rest of
+        // this visit, so nothing starts up again behind a shoulder that has
+        // already turned. See LIVE_SETTLE.
+        if (!state.stopped && (state.playing || state.ended) && dist < 0.9
+            && stirRef && stirRef.current > state.stirMark) {
+          state.stopped = true;
+          state.playing = false;
+          state.ended = false;
+          state.endedAt = 0;
+          state.el.pause();
+          // The drift waits on this gallery having said itself once (passRef).
+          // A pass cut short never fires its `ended`, so stamp it here: the
+          // surface has finished speaking either way, and without this every
+          // room the reader walks out of would stall the drift until
+          // DRIFT_MAX_DWELL instead of the pass it is actually pacing to.
+          const rec = passRef?.current?.[index];
+          if (rec && !rec.done) rec.done = performance.now();
         }
         // The dwell breathes on. A pass rests on its last frame, then runs
         // again — for as long as the reader stands here. See REPLAY_REST for
@@ -1472,6 +2314,8 @@ function Painting({
           state.ended = false;
           state.endedAt = 0;
           state.armed = true;
+          state.stopped = false;
+          state.stirMark = 0;
           state.gaze = 0;
           state.inRoom = 0;
           state.el.pause();
@@ -1505,11 +2349,44 @@ function Painting({
           state.ended = false;
           state.endedAt = 0;
           state.armed = true;
+          state.stopped = false;
+          state.stirMark = 0;
+          // A new element gets a clean slate: a clip that failed on a bad
+          // connection is worth one more try when the reader comes back, and a
+          // clip that is genuinely missing costs one more line of console.
+          state.failed = false;
+          state.stalled = false;
         }
         if (state.el && !state.tex
             && state.el.readyState >= state.el.HAVE_CURRENT_DATA) {
           state.tex = new THREE.VideoTexture(state.el);
           state.tex.colorSpace = THREE.SRGBColorSpace;
+          // …AND THE INTERNAL FORMAT TO GO WITH IT. `colorSpace` alone is a
+          // promise three keeps for an image texture and drops for a video one:
+          // it is what makes three ask for an SRGB8_ALPHA8 texture, which is
+          // what makes the SAMPLER do the sRGB->linear decode in hardware. On
+          // the video upload path that selection does not happen, and since the
+          // painting's fragment shader samples with a raw texture2D() — no
+          // decode injected, by design — the shader was handed sRGB-encoded
+          // values for the clip and linear ones for the still, then mixed the
+          // two together with uLive. At mid-grey that is 0.502 where 0.216 was
+          // meant: the woken surface came up 2.3x too bright, and every attempt
+          // to correct it with exposure (see VIDEO_GAMMA) was chasing a decode
+          // with a curve that cannot be it.
+          //
+          // Measured in babel-tour/srgb-probe.html, which pushes a known ramp
+          // through both paths and reads the values back: with this line the
+          // clip lands on the still's numbers exactly, and the same clip drawn
+          // via a canvas already did — so this is three's video path, not the
+          // driver's. Harmless where a driver would have done it anyway.
+          //
+          // Fixing it also removed a grade nobody knew was a grade: this
+          // surface had been dialled for months against undecoded values, and
+          // with them gone the woken plate stopped lifting and every gallery
+          // read grey. That look is reconstructed explicitly in the shader now
+          // — see VIDEO_LIFT — so the decode can be right and the piece can
+          // still look like itself.
+          state.tex.internalFormat = 'SRGB8_ALPHA8';
           // Same wrap scheme as the still (mirrored on both axes), so the
           // living surface continues into the margins identically — and so the
           // seam the mirror removes does not reappear when the clip wakes.
@@ -1521,11 +2398,11 @@ function Painting({
           // with no mip chain does not fail an LOD-biased sample, it silently
           // serves level 0 and throws the bias away. Three separate blurs in the
           // fragment shader are expressed as nothing but a bias on mapVideo (the
-          // hole-filling backdrop, the defocused extension margins, and the
-          // receding copies the echo and split rites draw through surfaceAt), so
-          // all three came back at full sharpness the moment a clip woke, while
-          // their still counterparts blurred correctly — the doubling was on the
-          // moving surface only, which is why it read as a clip problem.
+          // hole-filling backdrop, the defocused extension margins, and what the
+          // flood carries under its level), so all three came back at full
+          // sharpness the moment a clip woke, while their still counterparts
+          // blurred correctly — the doubling was on the moving surface only,
+          // which is why it read as a clip problem.
           //
           // The cost is a glGenerateMipmap per uploaded frame, on the one or two
           // clips awake at a time. Cheap next to what it buys, but it IS per
@@ -1548,10 +2425,11 @@ function Painting({
         }
       }
       // The still exhales into motion when you arrive and settles back to the
-      // painting only once you have LEFT. In between, whether the clip is
-      // running or resting between passes (REPLAY_REST), the surface is the
-      // clip's — which is what lets a pass restart as a cut with nothing
-      // dissolving.
+      // painting when you move on — either by steering, which ends the film
+      // where you stand (LIVE_SETTLE), or by simply leaving, which lets it go a
+      // whole chapter back in the fog. In between, whether the clip is running
+      // or resting between passes (REPLAY_REST), the surface is the clip's —
+      // which is what lets a pass restart as a cut with nothing dissolving.
       //
       // It used to settle the instant the pass ended, and that dissolve was the
       // worst double in the scene: a clip ends as far as 1.3x zoomed from the
@@ -1565,7 +2443,11 @@ function Painting({
       const awake = state.tex && (state.playing || state.ended)
         ? (liveOverride ?? LIVE_MAX)
         : 0;
-      const step = Math.min(delta * 0.7, 1);
+      // Two rates, not one: an interrupted clip has to be off the surface
+      // before its own last frame can be read against the painting it doubles,
+      // while the leaving fade stays slow because a chapter of fog is already
+      // doing the work.
+      const step = Math.min(delta * (state.stopped ? LIVE_SETTLE : LIVE_RISE), 1);
       for (const m of materials) {
         const u = m.uniforms.uLive;
         u.value += (awake - u.value) * step;
@@ -1709,7 +2591,7 @@ function Fog({ depth, y, opacity, scale, aspect, index, descentRef }) {
 // Each gallery hangs its own lamp: an additive glow pinned to that image's
 // light source (a doorway of fire, a lantern, a moonlit shaft…). It breathes
 // and flickers while its chapter is current and dims away with distance.
-function Glow({ scene, index, aspect, overscan, accentRef, descentRef, portalRef, libraryMax, diveRef, climbRef, reduced }) {
+function Glow({ scene, index, aspect, overscan, accentRef, descentRef, portalRef, libraryMax, diveRef, climbRef, reduced, panRef }) {
   const ref = useRef();
   const { pointer } = useThree();
   const sprite = useMemo(
@@ -1721,11 +2603,15 @@ function Glow({ scene, index, aspect, overscan, accentRef, descentRef, portalRef
   const h = frustumH(PLANE_Z) * overscan;
   const w = h * aspect;
   const [u, v] = scene.glowAt;
-  const restX = (u - 0.5) * w;
   // + EYE_DROP: glowAt names a point in the ARTWORK, and the artwork now rides
   // that much higher on its card, so the glow has to travel with the lamp it
   // belongs to or it detaches and floats below it.
   const restY = (0.5 - v + EYE_DROP) * h;
+  // Where the lamp hangs before a single frame has run. Its resting X is now a
+  // per-frame quantity (the turn walks it to whichever mirrored copy of the
+  // artwork the gaze is on), so this is only the seed the first useFrame
+  // overwrites — the home bay, which is bayU(u, 0) = u.
+  const homeX = (u - 0.5) * w;
   const base = frustumH(PLANE_Z) * 0.4;
   useFrame(({ clock }) => {
     const proximity = Math.max(0, 1 - Math.abs(descentRef.current - index) * 1.5);
@@ -1738,9 +2624,17 @@ function Glow({ scene, index, aspect, overscan, accentRef, descentRef, portalRef
       Math.sin(t * 0.5) * 0.06 +
       Math.sin(t * 1.7 + 1.1) * 0.03 +
       Math.sin(t * 4.3 + 0.4) * 0.015;
+    // The turn carries the lamp along the card with the picture it belongs to —
+    // to the nearest of its mirrored copies, so every bay the reader turns into
+    // is lit by its own light rather than by a glow left behind at home.
+    const restX = (bayU(u, panRef ? wrapBays(panRef.current) : 0) - 0.5) * w;
     const px = reduced ? restX : restX + pointer.x * w * 0.12;
     const py = reduced ? restY : restY + pointer.y * h * 0.12;
-    ref.current.position.x += (px - ref.current.position.x) * 0.05;
+    // A turn can hand the glow a copy a whole bay away; easing across that gap
+    // would drag a light across the room. Cut to it instead — it is a different
+    // lamp, and the one it left is behind the reader.
+    const jump = Math.abs(px - ref.current.position.x) > w * 0.5;
+    ref.current.position.x = jump ? px : ref.current.position.x + (px - ref.current.position.x) * 0.05;
     ref.current.position.y += (py - ref.current.position.y) * 0.05;
     const near = reduced ? 0 : Math.max(0, 0.12 - Math.abs(pointer.x) * 0.06 - Math.abs(pointer.y) * 0.06);
     ref.current.material.opacity = (0.27 + flicker + near) * proximity;
@@ -1772,9 +2666,14 @@ function Glow({ scene, index, aspect, overscan, accentRef, descentRef, portalRef
         const surge = diveThrust(dp);
         ref.current.material.opacity = Math.min(
           1,
-          ref.current.material.opacity + surge * 0.18 * proximity,
+          ref.current.material.opacity + surge * 0.22 * proximity,
         );
-        s *= 1 + surge * 0.5;
+        // The throat throbs as it is fallen into — a slow swell out of phase
+        // with the kindle above it, so the light the fall aims at is never
+        // quite the size it was a moment ago. It is a small thing that does a
+        // lot of work: it is the only part of the frame the swim never moves
+        // off, so if it held still it would be a fixed point in a fall.
+        s *= 1 + surge * (0.62 + Math.sin(t * 1.7) * 0.14);
         ref.current.material.color.lerp(WARM_CORE, 0.12);
       }
     }
@@ -1783,7 +2682,7 @@ function Glow({ scene, index, aspect, overscan, accentRef, descentRef, portalRef
   return (
     <sprite
       ref={ref}
-      position={[restX, restY, planeZ(index) + 2]}
+      position={[homeX, restY, planeZ(index) + 2]}
       scale={[base, base, 1]}
       renderOrder={6}
     >
@@ -1906,10 +2805,14 @@ function PortalRings({ accentRef, descentRef, chapters }) {
 
 // Carries the ambient layers (dust, ground fog, light shafts) along with the
 // camera so the air travels down the corridor with you.
-function AtmosphereRig({ descentRef, immersionRef, children }) {
+function AtmosphereRig({ descentRef, immersionRef, introRef, children }) {
   const group = useRef();
   useFrame(() => {
-    group.current.position.z = camZImmersed(descentRef.current, immersionRef ? immersionRef.current : 0);
+    group.current.position.z = camZOpening(
+      descentRef.current,
+      immersionRef ? immersionRef.current : 0,
+      introRef ? introRef.current : 0,
+    );
   });
   return <group ref={group}>{children}</group>;
 }
@@ -1940,6 +2843,12 @@ function GradeRig({ scenes, descentRef, fogRef }) {
       contrast: 'uVideoContrast',
       sharpen: 'uSharpenVideo',
       gamma: 'uVideoGamma',
+      // The one to reach for if the woken surface is ever accused of exposure
+      // again: 1 is the curve the piece was signed off on, 0 is the clip
+      // sitting physically on its still, and the whole argument for both is in
+      // VIDEO_LIFT. Walk it, don't re-dial `gamma` — gamma only means anything
+      // in the space this selects.
+      lift: 'uVideoLift',
     };
     // The scene itself, for A/Bs that have to reach a texture rather than a
     // uniform. The one this exists for is the video mip chain: whether the clip
@@ -1986,15 +2895,36 @@ function GradeRig({ scenes, descentRef, fogRef }) {
       // all came back sharp with nothing anywhere saying why (see the
       // VideoTexture setup). If this ever reads NO MIP CHAIN while a clip is
       // awake, every blurBias in the fragment shader is being thrown away.
+      // `isVideoTexture`, not merely non-null: mapVideo is INITIALISED to the
+      // still (see the uniform), which stands in until a clip wakes. Reporting
+      // on that placeholder answered for the painting while claiming to answer
+      // for the film — and the still, being an ordinary image texture, gives
+      // the opposite verdict on both counts.
       const mip = new Set();
       scene.traverse((obj) => {
         const t = obj.material?.uniforms?.mapVideo?.value;
-        if (!t) return;
+        if (!t?.isVideoTexture) return;
         mip.add(t.generateMipmaps && t.minFilter !== THREE.LinearFilter
           && t.minFilter !== THREE.NearestFilter
           ? `mip (minFilter ${t.minFilter})` : 'NO MIP CHAIN — blurBias ignored');
       });
       seen.videoMip = mip.size === 0 ? 'no clip awake' : [...mip];
+      // …and whether the clip is being sRGB DECODED, reported for exactly the
+      // same reason: nothing anywhere says when it is not. three drops the sRGB
+      // internal format on the video upload path however the colourSpace is
+      // set, and the only symptom is a woken surface 2.3x too bright in the
+      // midtones — which for months was read as "the clips are pale" and
+      // answered with exposure. If this ever reads RAW sRGB, the live half of
+      // every mix is in the wrong space again.
+      const fmt = new Set();
+      scene.traverse((obj) => {
+        const t = obj.material?.uniforms?.mapVideo?.value;
+        if (!t?.isVideoTexture) return;
+        fmt.add(t.internalFormat === 'SRGB8_ALPHA8'
+          ? 'SRGB8_ALPHA8 (decoded)'
+          : `RAW sRGB — internalFormat ${t.internalFormat} — live surface too bright`);
+      });
+      seen.videoFormat = fmt.size === 0 ? 'no clip awake' : [...fmt];
       return seen;
     };
     // Live tuner for the eye line (see EYE_DROP), same reason: how high the
@@ -2049,13 +2979,16 @@ function GradeRig({ scenes, descentRef, fogRef }) {
     //   __attention()                  → read the current values
     //   __attention({ radius: 0.3 })   → tighter: the lamp must be nearer centre
     //   __attention({ patience: 1e9 }) → attention ONLY, to feel it unaided
+    //   __attention({ still: 0 })      → let a plate wake mid-stride again
     // Which clock actually fired is in Tour's __nav().pass, as gaze/patience.
     window.__attention = (next) => {
       if (next?.radius !== undefined) WAKE_GAZE_RADIUS = next.radius;
       if (next?.dwell !== undefined) WAKE_GAZE_DWELL = next.dwell;
       if (next?.patience !== undefined) WAKE_PATIENCE = next.patience;
+      if (next?.still !== undefined) WAKE_STILL = next.still;
       return {
         radius: WAKE_GAZE_RADIUS, dwell: WAKE_GAZE_DWELL, patience: WAKE_PATIENCE,
+        still: WAKE_STILL,
       };
     };
     return () => {
@@ -2081,7 +3014,7 @@ function GradeRig({ scenes, descentRef, fogRef }) {
 // chapter. Gazes into the corridor and can pan left/right (yaw) and tilt
 // up/down (pitch) to look around. Never rushes, and never gains height by
 // moving: the walk-in is pure translation along z (the footfall bob aside).
-function DescentRig({ descentRef, immersionRef, yawRef, pitchRef, diveRef, climbRef, refuseRef, coreUV, portalRef, libraryMax, aspect, parallax, reduced, onStep }) {
+function DescentRig({ descentRef, immersionRef, introRef, lamps, yawRef, pitchRef, diveRef, climbRef, refuseRef, coreUV, portalRef, libraryMax, aspect, parallax, reduced, onStep, tiltRef }) {
   const { camera, pointer } = useThree();
   const lookAt = useRef(new THREE.Vector3(0, 0, -PLANE_Z));
   const scratch = useRef(new THREE.Vector3());
@@ -2091,7 +3024,7 @@ function DescentRig({ descentRef, immersionRef, yawRef, pitchRef, diveRef, climb
   // The gait's running state: distance-paced phase, swing strength, smoothed
   // bob/sway offsets, the last footfall index (for the step sounds), and the
   // eased spiral draw.
-  const walk = useRef({ prevZ: null, phase: 0, intensity: 0, bob: 0, sway: 0, lastStep: 0, draw: 0 });
+  const walk = useRef({ prevZ: null, phase: 0, intensity: 0, bob: 0, sway: 0, nod: 0, lastStep: 0, draw: 0, seeded: false });
   // Dev-only live tuner for the gait (stripped from production builds). How
   // much step a body should feel is pure judgement and needs a real screen and
   // a real walk down the corridor; from the console, mid-walk:
@@ -2102,13 +3035,51 @@ function DescentRig({ descentRef, immersionRef, yawRef, pitchRef, diveRef, climb
   useEffect(() => {
     if (!import.meta.env.DEV) return undefined;
     window.__gait = (next) => Object.assign(GAIT, next);
-    return () => { delete window.__gait; };
+    // The same, for the eye's focus — how much softness a near foreground
+    // should carry is pure judgement, and judgement needs a real screen and a
+    // real walk in. Live, no reload, so it can be A/B'd against ITSELF without
+    // the per-load random draw changing the artwork underneath the comparison:
+    //   __dof()              → read the current values
+    //   __dof({ gain: 0 })   → off; __dof({ gain: 6 }) → plainly overdone
+    window.__dof = (next) => Object.assign(DOF, next ?? {});
+    // …and the opening shot's reach. See SHOT.
+    window.__shot = (next) => Object.assign(SHOT, next ?? {});
+    // …and the backdrop's dis-occlusion fill. See FILL. The A/B this exists for
+    // is __fill({ hi: 0 }), and it MUST be shot inside one session.
+    window.__fill = (next) => Object.assign(FILL, next ?? {});
+    // Stand the body on its mark NOW, skipping the follower — the seeding path
+    // below, reopened. The follower is wall-clock eased but its dt is clamped
+    // to 0.1 s a frame, so under headless GL's handful of frames per second it
+    // takes the better part of two minutes to cover ground it covers in one
+    // second on a real screen. Worse, a poll that watches for it to stop moving
+    // cannot tell "arrived" from "has not drawn a frame yet", which is how a
+    // capture ends up reporting a framing nobody is looking at.
+    //   __intro(1); __reseat()   → the opening framing, on the next frame
+    // Nothing about the tour needs this; it exists so a framing can be shot.
+    window.__reseat = () => { walk.current.seeded = false; };
+    return () => {
+      delete window.__gait; delete window.__dof;
+      delete window.__shot; delete window.__reseat; delete window.__fill;
+    };
   }, []);
   useFrame(({ clock }, delta) => {
     const immersion = immersionRef ? immersionRef.current : 0;
     const z = camZImmersed(descentRef.current, immersion);
     const yaw = yawRef ? yawRef.current : 0;
     const pitch = pitchRef ? pitchRef.current : 0;
+    // How much of the opening withdrawal is still standing in the room. 1 the
+    // instant the title card lets go, 0 once the shot has handed the corridor
+    // over — and 0 for the whole of the rest of the tour.
+    const intro = introRef ? Math.min(Math.max(introRef.current, 0), 1) : 0;
+
+    // Where the body actually ended up. R3F keeps its camera OUT of the scene
+    // graph, so __scene.traverse cannot find it and there is otherwise no way
+    // to ask "did that gesture move me, or only turn my head?" from the console
+    // or from a headless check. Set BEFORE the reduced-motion return, not after
+    // it: a still frame — no clip, no gait, no breath — is the one a capture
+    // most wants to compare against itself, and reduced motion is how you get
+    // one, so having the hook vanish in exactly that mode was backwards.
+    if (import.meta.env.DEV) window.__cam = camera;
 
     if (reduced) {
       camera.position.set(0, 0, z);
@@ -2135,7 +3106,13 @@ function DescentRig({ descentRef, immersionRef, yawRef, pitchRef, diveRef, climb
     if (w.prevZ === null) w.prevZ = zEased;
     const travelled = Math.abs(zEased - w.prevZ);
     w.prevZ = zEased;
-    const speed = borne > 0.001 ? 0 : travelled / Math.max(delta, 1e-4);
+    // …and nor does the opening withdrawal: the establishing shot is a CAMERA
+    // drawing back, not a body walking backwards out of the room. Left to the
+    // gait it laid a full stride's worth of footfalls under the one stretch of
+    // the piece where nobody has taken a step yet.
+    const speed = (borne > 0.001 || intro > 0.002)
+      ? 0
+      : travelled / Math.max(delta, 1e-4);
     // Advance the gait phase by (capped) distance covered, so it only stirs
     // while you move and never quickens into a jog on a fast step-in.
     const gaitStep = Math.min(speed, GAIT_SPEED_CAP) * dt;
@@ -2157,11 +3134,16 @@ function DescentRig({ descentRef, immersionRef, yawRef, pitchRef, diveRef, climb
     const dip = Math.pow(Math.abs(Math.sin(w.phase)), GAIT.cusp);
     const bobTarget = (dip - 0.6) * GAIT.bob * gI;
     const swayTarget = Math.sin(w.phase) * GAIT.sway * gI;
+    // The nod rides the SAME dip as the bob — head down as the foot plants,
+    // up through the middle of the stride — so the two read as one movement
+    // rather than two rhythms beating against each other.
+    const nodTarget = (dip - 0.6) * GAIT.pitch * gI;
     // A fast follower — enough smoothing to round any residual edge without
     // flattening the ~2 Hz step rhythm the way the main position ease would.
     const gaitEase = 1 - Math.exp(-dt * 14);
     w.bob += (bobTarget - w.bob) * gaitEase;
     w.sway += (swayTarget - w.sway) * gaitEase;
+    w.nod += (nodTarget - w.nod) * gaitEase;
     // Each half-stride boundary while genuinely walking is a footfall — let the
     // soundscape place a soft step under it.
     const stepIndex = Math.floor(w.phase / Math.PI);
@@ -2174,9 +3156,17 @@ function DescentRig({ descentRef, immersionRef, yawRef, pitchRef, diveRef, climb
 
     // --- Idle: the faint life of standing still. Kept to a breath — a slow
     // rise-and-fall and the barest lateral drift — so waiting reads as a body
-    // at rest, not something adrift on water. Yields to the gait while walking.
+    // at rest, not something adrift on water.
+    //
+    // IT MUST YIELD COMPLETELY WHILE WALKING, and used not to: at (1 - gI*0.7)
+    // a full walk still carried 30% of it, which is ~0.033 units of lateral
+    // drift on a ~126-second period. That is the same order as the entire
+    // footfall bob (0.047 p-p) but SLOW and CONTINUOUS — and a slow continuous
+    // sideways drift is not a detail underneath a walk, it IS the sensation of
+    // floating. It was quietly outweighing the rhythm it was meant to sit
+    // under. Now it goes to nothing as the gait comes up.
     const calm = 1 - immersion * 0.6;
-    const idle = (1 - gI * 0.7) * calm;
+    const idle = (1 - gI) * calm;
     const swayX = (Math.sin(t * 0.05) * 0.07 + Math.sin(t * 0.021) * 0.04) * idle;
     const swayY = (Math.sin(t * 1.1) * 0.022 + Math.cos(t * 0.04) * 0.04) * idle;
 
@@ -2231,7 +3221,55 @@ function DescentRig({ descentRef, immersionRef, yawRef, pitchRef, diveRef, climb
       // there sank the eye — an elevation change bought by walking forward,
       // which is precisely what the walk-in must never do.
       leanY = dy * leanFall;
-      plungeZ = DIVE_PLUNGE * thrust;
+      // The fall is measured from the DWELL, not from wherever the body is
+      // standing when it commits: the ground the walk-in already covered is
+      // ground the plunge starts FROM rather than covers twice. Subtracting it
+      // live is what lets Tour hold the immersion through the fall instead of
+      // zeroing it — with the old flat `DIVE_PLUNGE * thrust`, holding it would
+      // have driven the camera a full APPROACH past the near cards at the
+      // crest, and zeroing it opened every dive with the body being hauled ten
+      // units back out of the mouth it had just walked into. This way the total
+      // travel from the dwell is immersion·APPROACH at p=0 (continuous with the
+      // walk, no yank), exactly DIVE_PLUNGE at the crest whatever the reader
+      // did on the way in, and 0 on landing as Tour releases the immersion.
+      plungeZ = (DIVE_PLUNGE - immersion * APPROACH) * thrust;
+      // The swim. Rides on thrust², so it is absent at both lips of the fall
+      // and strongest in the deep, where it turns a straight plunge into
+      // vertigo — the eye keeps losing the throat and finding it again.
+      const swim = thrust * thrust;
+      coreX += Math.sin(t * 0.77) * fh * aspect * DIVE_SWIM_X * swim;
+      coreY += Math.cos(t * 0.53) * fh * DIVE_SWIM_Y * swim;
+    }
+
+    // The opening's pan. The shot starts turned toward the lamp this gallery
+    // hangs — its doorway of fire, its lantern, its moonlit shaft — and unwinds
+    // to square as the body draws back, so the room is arrived at head-on. The
+    // aim is CLAMPED to a fraction of the frame: a lamp sitting near the plate's
+    // edge would otherwise swing the frame off the artwork and onto the fogged
+    // mirror margin, which at rest is meant never to be seen.
+    if (intro > 0.0001) {
+      // Spent while the withdrawal still has INTRO_GAZE_SPENT left to run, so
+      // the frame squares up first and then goes on opening.
+      // …and yields to the spiral's draw. A reader can resume standing AT the
+      // vortex with the door already earned (both the position and the door
+      // survive the visit), and there the gaze is being turned toward that same
+      // light by something with a great deal more to say about it. Summed, the
+      // two swings would carry the frame further off the plate than either was
+      // ever measured against; handed over, the opening's pan simply gives way
+      // as the draw rises.
+      const g = THREE.MathUtils.smoothstep(intro, INTRO_GAZE_SPENT, 1) * (1 - draw);
+      if (g > 0.0001) {
+        const fh = frustumH(PLANE_Z);
+        const lamp = lamps?.[Math.round(descentRef.current)];
+        const cap = INTRO_SWING * fh * aspect;
+        const dx = lamp ? (lamp[0] - 0.5) * fh * aspect * INTRO_AIM : 0;
+        coreX += Math.min(Math.max(dx, -cap), cap) * g;
+        // The vault, given back. Flat rather than aimed at the lamp: the plates
+        // are painted from above head height and the eye line already rides on
+        // the axis (EYE_DROP), so a vertical aim here would spend the opening
+        // re-hoisting the vantage the framing exists to have brought down.
+        coreY += INTRO_RISE * fh * g;
+      }
     }
 
     // The climb: the same fall run backwards. The shaft hauls the body back up
@@ -2246,13 +3284,25 @@ function DescentRig({ descentRef, immersionRef, yawRef, pitchRef, diveRef, climb
       coreY += CLIMB_LIFT * frustumH(PLANE_Z) * haul;
     }
 
-    const targetX = pointer.x * parallax.x + swayX + leanX;
+    // The look-around offset: the mouse where there is one, the handset's own
+    // tilt where there is not. They ADD rather than switch, so a touch laptop
+    // (which has both) gets each without a mode to choose between, and a device
+    // with no tilt sensor simply contributes zero here.
+    const tilt = tiltRef?.current;
+    const aimX = pointer.x + (tilt?.x ?? 0);
+    const aimY = pointer.y + (tilt?.y ?? 0);
+    const targetX = aimX * parallax.x + swayX + leanX;
     // No term here scales with immersion: moving in changes z and nothing else,
     // so the eye holds its level from the gallery mouth to the deepest stand.
     // (The footfall bob is added after the ease, below — that is a stride, not
     // a change of vantage.)
-    const targetY = pointer.y * parallax.y + swayY + leanY;
-    const targetZ = z - plungeZ;
+    const targetY = aimY * parallax.y + swayY + leanY;
+    // …and the opening's dolly, which is the whole of the withdrawal's travel:
+    // the shot opens SHOT.push deep in the room and draws back out to the
+    // dwell. Folded into the target rather than added after the ease, so the
+    // body carries the same inertia into and out of it that it carries
+    // everywhere else — the crane has weight.
+    const targetZ = z - plungeZ - intro * SHOT.push;
 
     // Very soft easing of the BASE position — the body glides, it never snaps.
     // Wall-clock based so the glide is identical on every refresh rate. During
@@ -2261,8 +3311,27 @@ function DescentRig({ descentRef, immersionRef, yawRef, pitchRef, diveRef, climb
     // The gait offsets are added on top AFTER the ease (from their own fast
     // follower above): step rhythm survives, and it can't feed back into the
     // ease and accumulate.
-    const ease = 1 - Math.exp(-dt * 1.2);
+    //
+    // The one exception is being CARRIED. A body in free fall is not a camera
+    // being dolly-dragged toward a mark, and at the walk's 1.2/s the follower's
+    // near-second of lag low-passed the plunge's acceleration into a glide —
+    // the fall's whole build got smoothed off. So the follower tightens with
+    // the fall and lets the body go where the shaft takes it.
+    const ease = 1 - Math.exp(-dt * (1.2 + borne * 2.4));
     const bp = basePos.current;
+    // First frame: STAND the body where it belongs rather than easing in to it
+    // from the world origin. The follower needs a couple of seconds to cover
+    // any distance, and there are two ways that distance is not zero — a walk
+    // resumed deep in the corridor (camZ of a chapter several galleries down),
+    // and the opening withdrawal, which starts the camera pressed into the
+    // room. Both would otherwise open on the body being flown to its mark.
+    let seated = false;
+    if (!walk.current.seeded) {
+      walk.current.seeded = true;
+      seated = true;
+      bp.set(targetX, targetY, targetZ);
+      walk.current.prevZ = targetZ;   // …and no phantom stride to show for it
+    }
     bp.x += (targetX - bp.x) * ease;
     bp.y += (targetY - bp.y) * ease;
     bp.z += (targetZ - bp.z) * ease;
@@ -2290,24 +3359,64 @@ function DescentRig({ descentRef, immersionRef, yawRef, pitchRef, diveRef, climb
     const lookZ = camera.position.z - Math.cos(yaw) * cosPitch * PLANE_Z;
     const lookY = camera.position.y * 0.25 + Math.sin(pitch) * PLANE_Z + coreY;
     scratch.current.set(lookX, lookY, lookZ);
-    lookAt.current.lerp(scratch.current, 1 - Math.exp(-Math.min(delta, 0.1) * 3));
+    // The aim eases like the body does — except on the frame the body was
+    // seated, where there is nothing to ease FROM: the gaze would otherwise
+    // start at the origin's straight-ahead and swing to its mark over the first
+    // second, which is the same wrong-first-second the seeding exists to
+    // remove. (It is also what lets __reseat stand the whole camera on its mark
+    // for a capture, rather than the position alone.)
+    if (seated) {
+      lookAt.current.copy(scratch.current);
+    } else {
+      lookAt.current.lerp(scratch.current, 1 - Math.exp(-Math.min(delta, 0.1) * 3));
+    }
     camera.lookAt(lookAt.current);
 
     // The gait's weight-shift roll: the head tips a fraction toward the planted
     // foot. lookAt has just set the orientation fresh, so this rolls on top —
     // and it scales with the smoothed sway, so it fades out with the walk.
     camera.rotateZ(-w.sway * GAIT.roll);
+    // …and the footfall nod, on the camera's own X after lookAt for the same
+    // reason the roll is here: lookAt has just set the orientation fresh, so
+    // these ride on top of the aim instead of fighting it.
+    camera.rotateX(w.nod);
 
-    // …and corkscrew the whole camera into the spiral, hardest where the plunge
-    // is fastest. lookAt has just set the orientation fresh, so this rolls on top;
-    // sharing the fall-shape means the roll accelerates with the dive and unwinds
-    // to upright by the time the garden is reached (under cover of the warm flash).
-    if (thrust > 0.0001) {
-      camera.rotateZ(thrust * DIVE_BANK);
+    // …and corkscrew the whole camera into the spiral. lookAt has just set the
+    // orientation fresh, so this rolls on top. It is deliberately NOT a lean
+    // that comes back: the body turns a whole revolution as it falls, which is
+    // what makes the shaft read as winding AROUND the reader rather than as a
+    // tilted dolly — and a full turn lands upright on its own, so the fall can
+    // end mid-roll without the camera ever being seen to right itself. The bank
+    // bell rides on top so the corkscrew arrives and leaves off-square rather
+    // than turning like a metronome.
+    if (dive > 0.0001) {
+      camera.rotateZ(-Math.PI * 2 * DIVE_TURNS * spinEase(dive) + thrust * DIVE_BANK);
     }
-    // …and unwind it the other way, more gently, on the way back up.
-    if (haul > 0.0001) {
-      camera.rotateZ(haul * -DIVE_BANK * 0.7);
+    // …and unwind it the other way on the climb: the same revolution given back.
+    if (climb > 0.0001) {
+      camera.rotateZ(Math.PI * 2 * DIVE_TURNS * spinEase(climb) + haul * -DIVE_BANK * 0.7);
+    }
+
+    // The vertigo zoom, last: the frustum opens as the body is carried, so the
+    // walls streak outward past a core that barely grows. The plunge alone is
+    // only seven units once the walk-in is counted against it (see plungeZ) —
+    // this is what makes those seven units read as a fall rather than a lean.
+    // The climb gets a shallower one; being hauled up a shaft you have already
+    // fallen down should not be the same event twice.
+    const gape = Math.max(thrust, haul * 0.55);
+    const opened = gape > 0.0001
+      ? 1 + gape * (DIVE_FOV + Math.sin(t * 0.9) * DIVE_FOV_BREATH)
+      : 1;
+    // …and the opening's zoom-out, which is the other half of its withdrawal:
+    // the long lens gives its 16° back as the body draws away, so the room
+    // opens faster than the dolly alone could open it. Multiplied against the
+    // fall's own gape rather than branched with it — they never overlap today
+    // (the shot is spent long before any crossing), and one product means they
+    // could without either having to know about the other.
+    const fovWant = FOV * opened * (1 - intro * SHOT.lens);
+    if (Math.abs(camera.fov - fovWant) > 0.002) {
+      camera.fov = fovWant;
+      camera.updateProjectionMatrix();
     }
 
     // The winding (III → IV): the crossing into the stairwell that has no floor
@@ -2323,9 +3432,23 @@ function DescentRig({ descentRef, immersionRef, yawRef, pitchRef, diveRef, climb
   return null;
 }
 
+// A gallery whose plates have not arrived yet. It draws nothing — there is
+// nothing to draw — and exists only to SAY that, for the whole time it stands in
+// for the room. Mount and unmount are the two edges of the wait, so the report
+// is exact: no polling, and no guessing from a global loader that is also busy
+// with everything the restock is quietly warming up behind the reader.
+function Arriving({ index, onArriving }) {
+  useEffect(() => {
+    if (!onArriving) return undefined;
+    onArriving(index, true);
+    return () => onArriving(index, false);
+  }, [index, onArriving]);
+  return null;
+}
+
 export default function DioramaScene({
   scenes,
-  aspect = 3376 / 1440,
+  aspect = ART_ASPECT,
   // In-slab depth-displacement strength. The macro depth lives in the slab
   // stack's Z placement (DEPTH_SPREAD); relief only curves each card around its
   // own band center, so features inside one band lean toward or away from you.
@@ -2344,11 +3467,23 @@ export default function DioramaScene({
   // the depth-sliced cards past one another when the reader moves the mouse —
   // the strongest everyday depth cue the scene has.
   parallax = { x: 1.4, y: 0.7 },
+  // A phone's stand-in for the mouse: {x, y} in the same -1..1 the pointer uses,
+  // fed by the device's own tilt so the cards slide as the reader leans the
+  // handset. Without it a touch reader gets NO parallax at all — `pointer` never
+  // leaves the origin when nothing hovers — and the strongest depth cue in the
+  // piece is simply absent on half the devices it runs on. See Tour's tiltRef.
+  tiltRef,
   descentRef,
   immersionRef,
+  // The opening withdrawal, 1 → 0 across the establishing shot Tour runs the
+  // moment the title card lets go. See SHOT and the block above it.
+  introRef,
   accentRef,
   yawRef,
   pitchRef,
+  // How far round the reader has turned, in bays — the part of the turn the
+  // camera's own yaw could not carry. See TURN_BAYS here and YAW_SWING in Tour.
+  panRef,
   diveRef,
   // 0→1 across the CLIMB back out of the garden — the dive mirrored. Kept as
   // its own ref rather than a sign on diveRef so that every place reading the
@@ -2367,11 +3502,33 @@ export default function DioramaScene({
   // Where each plate reports its awakening, for the drift's pacing. See the
   // `passRef` note on Painting.
   passRef,
+  // When the reader last steered the world themselves (Tour's `stir`). A woken
+  // gallery reads it to know it has been walked out on — see LIVE_SETTLE.
+  stirRef,
+  // False until the reader clicks through the entry veil. See the note on
+  // Painting's copy: nothing may wake while the overture is still up.
+  enteredRef,
+  // The GPU taking its context back, and (if we are lucky) handing it over
+  // again. Tour covers the gap — see `glLost` there — because the canvas keeps
+  // showing its last frame and then simply stops, which is indistinguishable
+  // from a piece that has quietly died.
+  onContextLost,
+  onContextRestored,
+  // Called `(index, true)` while a gallery's plates are still loading and
+  // `(index, false)` the moment they land. The Suspense below renders NOTHING
+  // in the meantime, which off screen is right and on screen is a lit HUD
+  // wrapped around an empty black box — see Tour's `arriving` whisper.
+  onArriving,
 }) {
   const chapters = scenes.length;
   // The vortex is the deepest library gallery; its glow anchor is the warm
   // tunnel core the dive plunges toward (Vertigo's lower-right light).
   const coreUV = libraryMax != null ? scenes[libraryMax]?.glowAt : undefined;
+  // Every gallery's lamp, in the order they hang — the opening shot turns its
+  // gaze onto whichever one belongs to the room it is withdrawing out of. Held
+  // apart from `scenes` so a restock (which re-hangs the art, lamp and all)
+  // cannot hand the rig a stale anchor.
+  const lamps = useMemo(() => scenes.map((s) => s.glowAt), [scenes]);
   // Shared, per-frame graded fog color (GradeRig writes, paintings read).
   const fogRef = useRef(new THREE.Color(scenes[0].fog));
   // When the last foot landed (performance.now()/1000). The gait owns the
@@ -2388,12 +3545,42 @@ export default function DioramaScene({
       // Capped below 2: the slab stack is fill-rate bound (a million displaced
       // vertices, each fragment doing relief + unsharp work), so on a high-DPI
       // screen the full 2x costs roughly twice the frame for detail the soft,
-      // fogged surfaces do not show. 1.5 keeps the painting crisp.
-      dpr={[1, 1.5]}
+      // fogged surfaces do not show. 1.5 keeps the painting crisp — and a phone,
+      // whose 3x screen is exactly where that hurts most, is capped lower again
+      // (see DPR_MAX; the figures there are reasoned, not yet measured).
+      dpr={[1, DPR_MAX]}
       // On a laptop with switchable graphics the default lets the browser pick
       // the integrated GPU, which cannot keep up with a million displaced
       // vertices and a video texture. Ask for the discrete one explicitly.
       gl={{ antialias: true, powerPreference: 'high-performance' }}
+      // Six slab stacks of 29k segments each, a video texture or two, and a
+      // driver that may be running a game in another tab: losing the context is
+      // not an exotic case here, it is the likeliest way this piece breaks on a
+      // machine it was working on a minute ago. preventDefault is what makes
+      // the loss RECOVERABLE — without it the browser never attempts a restore
+      // and the canvas is dead for good. three rebuilds its own state and
+      // re-uploads the textures on the way back; all Tour has to do is say what
+      // is happening in the meantime.
+      onCreated={({ gl }) => {
+        const canvas = gl.domElement;
+        // The diorama is a PICTURE, and to a screen reader it was an unlabelled
+        // rectangle — the one element on the page carrying everything the piece
+        // is. It cannot be described once and for all, because what it shows
+        // changes with every gallery, so the name is fixed and the description
+        // is a line Tour keeps current (see #gallery-caption there).
+        canvas.setAttribute('role', 'img');
+        canvas.setAttribute('aria-label', 'The gallery, drawn in depth');
+        canvas.setAttribute('aria-describedby', 'gallery-caption');
+        canvas.addEventListener('webglcontextlost', (event) => {
+          event.preventDefault();
+          console.warn('[gl] the graphics context was lost — waiting for it back');
+          onContextLost?.();
+        });
+        canvas.addEventListener('webglcontextrestored', () => {
+          console.info('[gl] the graphics context came back');
+          onContextRestored?.();
+        });
+      }}
     >
       <color attach="background" args={[scenes[0].fog]} />
       <GradeRig scenes={scenes} descentRef={descentRef} fogRef={fogRef} />
@@ -2403,34 +3590,43 @@ export default function DioramaScene({
         // the whole corridor while its plates loaded. The restock preloads them
         // and commits in a transition, so this should never actually show —
         // it is here so that if it ever does, it costs one gallery, off screen.
-        <Suspense key={`painting-${i}`} fallback={null}>
-          <Painting
-            color={scene.color} depth={scene.depth} video={scene.video}
-            videoRate={scene.videoRate}
-            index={i} chapters={chapters} aspect={aspect}
-            relief={relief} depthGamma={depthGamma} overscan={overscan}
-            reduced={reduced} descentRef={descentRef}
-            accentRef={accentRef} fogRef={fogRef}
-            diveRef={diveRef} climbRef={climbRef}
-            libraryMax={libraryMax} stepRef={stepRef}
-            passRef={passRef}
-            // The rite belongs to the crossing that DEPARTS this chapter, and
-            // the plate that dissolves across it is this one.
-            rite={RITES[i] ?? RITE.PLAIN} glowAt={scene.glowAt}
-          />
-        </Suspense>
+        // …and one error boundary around each, for the other way a gallery can
+        // fail to arrive: useTexture THROWS on a plate that 404s or will not
+        // decode, and a throw with no boundary anywhere between here and the
+        // root takes the entire corridor down with it. Caught here it costs the
+        // one room, which goes dark and is walked through.
+        <PlateBoundary key={`painting-${i}`} name={scene.color.split('/').pop()}>
+          <Suspense fallback={<Arriving index={i} onArriving={onArriving} />}>
+            <Painting
+              color={scene.color} depth={scene.depth} video={scene.video}
+              videoRate={scene.videoRate}
+              index={i} chapters={chapters} aspect={aspect}
+              relief={relief} depthGamma={depthGamma} overscan={overscan}
+              reduced={reduced} descentRef={descentRef}
+              accentRef={accentRef} fogRef={fogRef}
+              diveRef={diveRef} climbRef={climbRef}
+              libraryMax={libraryMax} stepRef={stepRef}
+              passRef={passRef} stirRef={stirRef} panRef={panRef}
+              enteredRef={enteredRef}
+              // The rite belongs to the crossing that DEPARTS this chapter, and
+              // the plate that dissolves across it is this one.
+              rite={RITES[i] ?? RITE.PLAIN} glowAt={scene.glowAt}
+            />
+          </Suspense>
+        </PlateBoundary>
       ))}
       {scenes.map((scene, i) => (
         <Glow
           key={`glow-${i}`}
           scene={scene} index={i} aspect={aspect} overscan={overscan}
           accentRef={accentRef} descentRef={descentRef} reduced={reduced}
+          panRef={panRef}
           portalRef={portalRef} libraryMax={libraryMax}
           diveRef={diveRef} climbRef={climbRef}
         />
       ))}
       <PortalRings accentRef={accentRef} descentRef={descentRef} chapters={chapters} />
-      <AtmosphereRig descentRef={descentRef} immersionRef={immersionRef}>
+      <AtmosphereRig descentRef={descentRef} immersionRef={immersionRef} introRef={introRef}>
         <Fog depth={PLANE_Z + 3} y={-0.58} opacity={0.14} scale={1.5} aspect={aspect} index={0} descentRef={descentRef} />
         <Fog depth={PLANE_Z - 6} y={-0.62} opacity={0.20} scale={1.2} aspect={aspect} index={1} descentRef={descentRef} />
         <LightShafts aspect={aspect} accentRef={accentRef} reduced={reduced} />
@@ -2438,12 +3634,19 @@ export default function DioramaScene({
       </AtmosphereRig>
       <DescentRig
         descentRef={descentRef} immersionRef={immersionRef} yawRef={yawRef}
+        introRef={introRef} lamps={lamps}
         pitchRef={pitchRef} diveRef={diveRef} climbRef={climbRef}
         refuseRef={refuseRef}
         coreUV={coreUV} aspect={aspect}
         portalRef={portalRef} libraryMax={libraryMax}
         parallax={parallax} reduced={reduced} onStep={onFootfall}
+        tiltRef={tiltRef}
       />
+      {/* Last, and outside every boundary above: the finish is applied to
+          whatever the corridor managed to draw. A gallery that failed to load
+          its plate still gets the same grain and vignette as its neighbours, so
+          a dark room reads as a dark room rather than as a hole in the film. */}
+      <Finish reduced={reduced} />
     </Canvas>
   );
 }

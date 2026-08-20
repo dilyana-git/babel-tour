@@ -8,6 +8,41 @@
 
 const NOISE_SECONDS = 8;
 
+// ── The root of each room ────────────────────────────────────────────────────
+// The drone used to sit on one fixed pair of sines for the whole tour, so every
+// gallery rested on the same note and the only thing that changed with depth was
+// how dark the filter was. That makes the descent a change of BRIGHTNESS and
+// nothing else — the ear has no way to tell the Echo from the Vertigo, only that
+// one is muddier. Giving each room its own root is what lets a reader know where
+// they are with their eyes shut, which is the whole argument for having sound.
+//
+// Read as a line rather than as eight numbers. The library falls — A, G, F, and
+// then a drop of a minor third to D for the stairwell with no floor, the lowest
+// and least resolved note here. Coming through the door the garden climbs back
+// out of it: G, A, B, D, ending a full octave above where the Vertigo left off.
+// The descent is felt going down and the garden is felt as release, which is
+// exactly what the picture and the filter are already doing.
+//
+// All eight are degrees of A natural minor, chosen so the rites' own tones (96,
+// 147, 62 Hz, and the weave's C-major triad up top) stay consonant against every
+// root they can be heard over.
+const ROOTS = [
+  55.00, // I    The Vestibule    A1
+  49.00, // II   The Echo         G1
+  43.65, // III  The Silence      F1
+  36.71, // IV   The Vertigo      D1  — the floor of the piece
+  49.00, // V    The Door         G1  — the climb out begins
+  55.00, // VI   The Fork         A1
+  61.74, // VII  The Pavilion     B1
+  73.42, // VIII The Web of Time   D2
+];
+// The second sine sits this much above the first, so the two beat against each
+// other. Proportional rather than a fixed offset in Hz, which means the beat
+// slows as the rooms get lower — about one every three seconds in the Vestibule,
+// one every five in the Vertigo. Deep rooms breathe more slowly; that falls out
+// of the arithmetic rather than needing a table of its own.
+const DETUNE = 1 + 0.3 / 55;
+
 function brownNoiseBuffer(ctx) {
   const length = ctx.sampleRate * NOISE_SECONDS;
   const buffer = ctx.createBuffer(1, length, ctx.sampleRate);
@@ -109,11 +144,13 @@ export default class AmbientSound {
     lfo.connect(lfoDepth).connect(this.noiseGain.gain);
     lfo.start();
 
-    // Ground: two low sines a hair apart, beating roughly every three seconds.
+    // Ground: two low sines a hair apart, beating slowly against each other.
+    // Their pitch is not fixed — setStation slides it between the ROOTS above as
+    // the reader walks, so each gallery rests on its own note.
     this.droneGain = ctx.createGain();
     this.droneGain.gain.value = 0.018;
     this.droneGain.connect(this.master);
-    [55, 55.3].forEach((freq) => {
+    this.droneOsc = [ROOTS[0], ROOTS[0] * DETUNE].map((freq) => {
       const osc = ctx.createOscillator();
       osc.type = 'sine';
       osc.frequency.value = freq;
@@ -121,6 +158,7 @@ export default class AmbientSound {
       g.gain.value = 0.5;
       osc.connect(g).connect(this.droneGain);
       osc.start();
+      return osc;
     });
 
     // A dedicated channel for chapter-change swells: the same air, one octave
@@ -193,10 +231,44 @@ export default class AmbientSound {
     this.applyTone();
   }
 
+  // Where the reader is standing, as the tour's own continuous descent float —
+  // 0 in the Vestibule, 7 in the Web of Time, and every fraction between while a
+  // crossing is under way. The drone is slid along ROOTS by it.
+  //
+  // Interpolated in LOG space, because pitch is logarithmic: a linear ramp
+  // between two notes spends most of its time near the top and arrives with a
+  // lurch, while this glides evenly and lands exactly on the next root. The
+  // crossing takes about seven seconds, which is slow enough that the slide is
+  // felt as the room changing rather than heard as a portamento.
+  //
+  // Written every frame like the tone above, and for the same reason: the
+  // per-frame change is minute, so the parameter moves smoothly without any
+  // scheduled automation that the next frame would only have to cancel.
+  setStation(d) {
+    if (!this.ctx || !this.droneOsc) {
+      return;
+    }
+    const top = ROOTS.length - 1;
+    const at = Math.min(Math.max(d, 0), top);
+    const i = Math.min(Math.floor(at), top - 1);
+    const f = at - i;
+    const root = ROOTS[i] * Math.pow(ROOTS[i + 1] / ROOTS[i], f);
+    this.droneOsc[0].frequency.value = root;
+    this.droneOsc[1].frequency.value = root * DETUNE;
+  }
+
   // A single soft footfall on stone: a low, pitch-dropping thump and a brief
   // brush of scuff, both very quiet — felt under the room tone more than heard.
   // Alternating feet land a shade apart (and every step varies a little) so a
   // walk never turns into a metronome. `intensity` is the gait's strength.
+  //
+  // The feet also land on opposite SIDES. Everything in this soundscape was mono
+  // — one signal, dead centre, identical in both ears — and a walk rendered that
+  // way is a rhythm rather than a body: two footfalls in the same place is
+  // something tapping, not someone walking. Left and right are the cheapest
+  // possible cue that the sound has a person in it, and they cost one node.
+  // Kept narrow (the feet are directly below the listener, not out to the side)
+  // and slightly varied, so it reads as gait rather than as ping-pong.
   step(intensity = 1) {
     if (!this.ctx || this.muted) {
       return;
@@ -205,6 +277,16 @@ export default class AmbientSound {
     const t = ctx.currentTime;
     this.stepFoot = !this.stepFoot;
     const vary = 0.9 + Math.random() * 0.2;
+    // Both halves of the footfall go through one panner, so the thump and its
+    // scuff are the same foot in the same place rather than two events that
+    // happen to coincide. Older Safari has no StereoPannerNode; there the step
+    // falls back to the master bus and is simply centred, as it was before.
+    const foot = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
+    if (foot) {
+      foot.pan.value = (this.stepFoot ? 1 : -1) * (0.16 + Math.random() * 0.1);
+      foot.connect(this.master);
+    }
+    const out = foot ?? this.master;
 
     const thump = ctx.createOscillator();
     thump.type = 'sine';
@@ -216,7 +298,7 @@ export default class AmbientSound {
     tg.gain.setValueAtTime(0.0001, t);
     tg.gain.exponentialRampToValueAtTime(Math.max(peak, 0.0002), t + 0.012);
     tg.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
-    thump.connect(tg).connect(this.master);
+    thump.connect(tg).connect(out);
     thump.start(t);
     thump.stop(t + 0.22);
 
@@ -231,7 +313,7 @@ export default class AmbientSound {
       sg.gain.setValueAtTime(0.0001, t);
       sg.gain.exponentialRampToValueAtTime(Math.max(0.006 * intensity, 0.0002), t + 0.008);
       sg.gain.exponentialRampToValueAtTime(0.0001, t + 0.09);
-      scuff.connect(bp).connect(sg).connect(this.master);
+      scuff.connect(bp).connect(sg).connect(out);
       scuff.start(t, Math.random() * (NOISE_SECONDS - 1));
       scuff.stop(t + 0.12);
     }

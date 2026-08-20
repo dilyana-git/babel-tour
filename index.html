@@ -15,7 +15,28 @@
       property="og:description"
       content="A slow descent through Borges' Library of Babel — an interactive diorama of hexagonal galleries, golden light, and infinite shelves."
     />
-    <meta property="og:image" content="/nodes/descent/impossible_1.png" />
+    <!-- The share card. Cut from the staircase batch's var18 — the only plate in
+         the library that hangs its lamps as lit spherical lanterns ("spherical
+         fruit which bear the name of lamps"), and the one that puts a single
+         small figure dead centre at the foot of a lit vault. That scale contrast
+         is what survives a 1200×630 thumbnail; the wide 21:9 gallery plates do
+         not, and the old card here (impossible_1.png) was also a 7.7 MB PNG,
+         above what several scrapers will fetch. Cropped to 1.91:1 off the bottom
+         so the figure stays in frame — regenerate with:
+           ffmpeg -i public/nodes/descent/05-impossible-prison-staircases-var18.png \
+             -vf "crop=2944:1541:0:107,scale=1200:630:flags=lanczos" -q:v 3 \
+             public/og-card.jpg
+         var18 has no depth map, so it is a poster rather than a walkable
+         gallery; if that mismatch ever matters, var17 is the nearest plate that
+         IS in rotation (the Echo's bridge, two lit lanterns, same read). -->
+    <meta property="og:image" content="/og-card.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="A lone figure at the foot of vast stone staircases, dwarfed by a lit vault and hanging lantern-lamps."
+    />
+    <meta name="twitter:card" content="summary_large_image" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
