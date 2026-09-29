@@ -180,9 +180,15 @@ const GAIT = {
   bob: 0.05,    // vertical dip into each footfall (subtle by necessity — see above)
   sway: 0.026,  // side-to-side weight shift, once per stride
   roll: 0.022,  // camera roll per unit of sway — the head tips with the weight
-  pitch: 0.010, // radians (~0.57 deg) the head nods DOWN as weight lands.
-                // ~11 px at 1080p, the low end of the 10-21 px a first-person
-                // walk normally moves. Start here and dial with __gait.
+  pitch: 0,     // DISABLED 2026-08-21. The footfall nod is kept in the code but
+                // OFF by default: at 0.010 rad (~0.57 deg, ~11 px at 1080p —
+                // the low end of a first-person game's walk cue) it read as
+                // SHAKING, which is the same verdict this project's first gait
+                // pass got ("I see too much shake") and the reason every other
+                // amplitude here was halved. A game's norms are the wrong
+                // reference for a piece the reader stands still inside.
+                // Dial it up with __gait({ pitch: 0.004 }) if a hint of nod is
+                // ever wanted; do not restore a default without a real screen.
   cusp: 1.7,    // exponent rounding the bottom of each dip
 };
 
@@ -584,306 +590,12 @@ const TEX_ANISOTROPY = LIGHT_MESH ? 8 : 16;
 // The relief slabs show the texture overscanned and trilinearly filtered, which
 // upscales and softens the already-painterly art; a light high-pass restores the
 // edge definition (chains, carvings, balustrades) that filtering washed out.
-// Faded out as the surface goes live — the video is low-res and would crunch.
 // Keep this LOW. The taps are one texel of the 3376-wide plate apart, which is
 // sub-pixel at the gallery mouth but several screen pixels once the walk-in
 // magnifies the plate past 1:1 — so the mask's overshoot stops being a crisp
 // edge and becomes a visible bright rim on the chains and an engraved-metal
 // etch across the stonework. 0.4 rang; this still lifts the filtered softness.
 const TEX_SHARPEN = 0.18;
-// How much of the living surface replaces the still while a clip runs. This is
-// 1.0 — the video takes the surface completely — and it must stay there.
-//
-// It was 0.82 for a while, keeping a sliver of the sharp 3376-wide painting
-// mixed over the (then 944-wide) clip to lend it high-frequency detail. That
-// only works while the clip still REGISTERS with the still, and a clip stops
-// registering the moment it starts animating — which is its whole job.
-// Measured over the batch, two ways it walks off:
-//   • the camera dollies. Best-fit centre zoom, first frame vs last: 24 of the
-//     45 clips reach 1.15 or more, 8 of them 1.30 or more.
-//   • the SUBJECT moves even when the frame does not. 04-gothic-library-var3's
-//     clips hold their framing (background registers with the plate at zoom
-//     1.00, no offset) and the robed figure still walks out from under its
-//     painted self — at 4 s the difference image carries two whole figures.
-// So the retained 18% was a static copy of the painting sitting under a moving
-// one, and every isolated high-contrast object — that figure above all — drew
-// as a visible DOUBLE, one copy trailing the other by however far it had gone.
-// (A handful of clips are also globally reframed from frame 0: moonlit-var0-clip0
-// at 1.35, starry-var2-clip1 at 1.30, pavilion-var2 at 0.85. Those never
-// registered at all, not even at the wake-up.)
-//
-// The detail that mix was buying is now bought honestly instead: nearly every
-// clip is served 2x super-resolved (the `best` chain in Tour — x4plus or
-// RealBasicVSR, whichever exists) and VIDEO_SHARPEN high-passes it at its own
-// texel spacing. Raising this below 1.0 again brings the ghost back with it.
-const LIVE_MAX = 1.0;
-// Dev-only override of the still/clip mix, set by __grade({ live }). null =
-// normal behaviour; 0 pins the painting, 1 pins the clip. This is the only
-// honest way to compare the two surfaces — same scene, same fog, same reveal,
-// same frame — because everything else about the render differs between a
-// woken and an unwoken gallery, and a headless screenshot cannot be trusted
-// to have finished revealing.
-let liveOverride = null;
-// The dwell keeps breathing. A clip runs one pass (~12 s at videoRate 0.42) and
-// then rests on its last frame; after REPLAY_REST seconds of that rest it runs
-// again, and goes on doing so for as long as the reader stands there. Without
-// this a gallery was alive for twelve seconds of a dwell that can last minutes
-// — and since the surface now HOLDS the last frame (see LIVE_MAX) rather than
-// settling back to the painting, nothing about it changed again either.
-//
-// The return to frame 0 is a CUT, not a dissolve. uLive stays pinned at
-// LIVE_MAX across it and only the video's own currentTime jumps. This is not a
-// shortcut: 24 of the 45 clips end 1.15x or more zoomed from where they began,
-// so the last frame and the first do not register, and crossfading two images
-// that do not register is precisely the double exposure LIVE_MAX documents.
-// Two images that cannot be dissolved can still be cut between.
-//
-// Raised from 6.0 when the four figure-bearing clips went from 0.38 to 0.58
-// (see VIDEO_RATE in Tour). Their passes shortened by ~4.7 s, and since the cut
-// is the thing this file already admits cannot be hidden — the end frame and the
-// first do not register — shortening the pass without lengthening the rest would
-// have bought smoother figures by showing the one unhideable seam ~30% more
-// often. The number that matters is the CUT-TO-CUT period, not the rest: it was
-// ~19.7 s at 0.38 + 6.0, and is ~19.5 s at 0.58 + 10.5. The seam keeps its
-// rhythm; only the motion between seams got finer. Clips still on the slower
-// rates simply rest longer, which is the harmless direction.
-const REPLAY_REST = 10.5;
-// A cut lands softest under the reader's own motion, so once the rest is up the
-// replay waits for the next footfall to hide behind. Standing perfectly still
-// there are no footfalls, so it gives up waiting after this long and cuts
-// anyway — the rest is the rhythm, the footfall is only a bonus.
-const REPLAY_GRACE = 2.5;
-// How recently a foot must have landed for the cut to ride it (seconds).
-const REPLAY_STEP_WINDOW = 0.18;
-
-// ── When a clip does not arrive ─────────────────────────────────────────────
-// The elements were created with no `error` listener, which made every way a
-// clip can fail to load look identical from the outside AND from the console: a
-// gallery that simply never wakes. The worst of them is silent by design — a
-// dev server answers a request for a file that is not there with index.html at
-// 200, so the element gets a perfectly successful response full of HTML, finds
-// nothing it can decode in it, and gives up without a sound. It cost an
-// afternoon once. One listener turns the whole class into a line of console.
-const MEDIA_FAULT = {
-  1: 'aborted',
-  2: 'network',
-  3: 'decode failed',
-  4: 'source not supported',
-};
-const mediaFault = (el, src) => {
-  const code = el.error?.code ?? 0;
-  const what = MEDIA_FAULT[code] ?? 'unknown';
-  // Code 4 on a path that ought to exist is nearly always the served-index.html
-  // trap above, so it is named rather than left as a number to look up.
-  const hint = code === 4
-    ? ' — check the file is actually there: a dev server answers a missing one'
-      + ' with index.html at 200, which decodes as nothing'
-    : '';
-  console.warn('[clip] %s did not load (%s)%s — the gallery keeps its painting',
-    src, what, hint);
-};
-
-// ── …and stillness is the whole condition of it ─────────────────────────────
-// The replay loop above is for a reader who is STANDING there. The moment they
-// steer again — a step, a wheel, a look-around drag, a hand on the plumb ring
-// — the gallery stops breathing and settles back to the painting, and it does
-// not wake a second time on this visit. The film runs on stillness; moving is
-// what ends it, and the painting is what you are left holding to leave on.
-//
-// "Steering" is deliberate navigation only (see `stir` in Tour): walking,
-// panning the gaze, the chain, a chapter jump. A bare mouse MOVE is not
-// steering — the pointer is half of what wakes a plate in the first place
-// (WAKE_GAZE_RADIUS reads it as looking), so counting a hovering hand as an
-// interruption would kill nearly every pass inside its first second.
-//
-// Leaving the gallery re-arms it as it always has (the dist > 1.1 reset), so
-// "does not start again" is bounded by the visit — and since the corridor
-// restocks a room that drops out of sight with an unseen variant, coming back
-// is a different painting anyway, not the one that was cut short.
-const LIVE_RISE = 0.7;
-// The settle back to the still, per second, and deliberately far faster than
-// the rise. Read LIVE_MAX: a clip ends as much as 1.3x zoomed from the plate
-// it animates, so dissolving the two IS the double exposure, and every extra
-// tenth of a second is another tenth with the figure drawn twice. It rides the
-// reader's own motion — that is what triggered it — which is the same mask
-// REPLAY_STEP_WINDOW hides the replay cut behind. At this rate it is done in
-// about a fifth of a second: quick enough not to read as a crossfade, soft
-// enough not to read as a cut.
-const LIVE_SETTLE = 5.0;
-
-// ── What wakes a painting ───────────────────────────────────────────────────
-// Arriving in the room used to be enough: the surface woke on proximity alone,
-// which meant it happened TO the reader rather than because of anything they
-// did. Attention is the better trigger — the room answers being looked at — so
-// the first pass now waits until the gaze has rested near the plate's own lamp
-// (its glowAt, the point the light comes from and the rites collapse into).
-//
-// "Gaze" is whichever is nearer: the middle of the frame, or the mouse. Yaw and
-// pitch move the camera, so looking around genuinely sweeps the lamp across the
-// frame — and a reader driving with the mouse is pointing at what they are
-// reading. Either counts; neither is required.
-//
-// Radius in normalised device coordinates, so it is a fraction of the frame
-// rather than a distance in the world, and a lamp at the edge of a wide monitor
-// is as reachable as one on a phone. Generous on purpose: this is "looking that
-// way", not an aiming test.
-let WAKE_GAZE_RADIUS = 0.42;
-// How long the gaze must REST there. Long enough that sweeping past the lamp on
-// the way to somewhere else does not trip it, short enough that the answer
-// still feels like a response to having looked.
-let WAKE_GAZE_DWELL = 1.4;
-// The patience floor. Attention is the intended trigger, but a reader who walks
-// in and simply stands — never moving the mouse, never centring the lamp —
-// must not be silently denied the one thing the gallery does. After this long
-// in the room the surface wakes anyway. Set it well past WAKE_GAZE_DWELL so
-// that looking is still visibly what causes it, and the floor is the exception.
-let WAKE_PATIENCE = 6.5;
-// …and how long the reader must have been STILL for either clock to be allowed
-// to fire (seconds since the last steering — see `stir` in Tour).
-//
-// Without this the two halves of the design work against each other: a plate
-// gets one awakening per visit, and the first steer after it ends the film for
-// good (LIVE_SETTLE), so a plate that wakes in the middle of someone walking
-// through spends its whole visit on a second and a half of clip and is then
-// finished. Better to not have woken: the reader keeps the painting, and the
-// gallery still has its film to give if they stop. Set to the gaze dwell, so
-// the same rest that counts as looking is the rest that counts as standing.
-let WAKE_STILL = 1.4;
-// Unsharp strength for the LIVE surface, applied at the video's own texel
-// spacing rather than the still's. The still's mask (TEX_SHARPEN) is faded out
-// while a clip runs because its taps are one 3376-wide texel apart — far
-// sub-pixel on a 944-wide video, so it sharpened nothing and only rang. This
-// one taps 1/944 instead, which is the actual scale of the softness you see.
-//
-// Higher than TEX_SHARPEN on purpose: the clips are encoded at 9-17 Mbps for
-// 944x400 (1.0-1.9 bits/px, visually lossless), so there is no block noise or
-// mosquito ringing for the high-pass to amplify — only the resampling blur of
-// magnifying 944 px across a plate the camera walks into. Keep it under ~0.5;
-// past that the overshoot starts drawing bright rims on the chains the same
-// way TEX_SHARPEN did at 0.4.
-//
-// This number is quoted AT VIDEO_SHARPEN_REF WIDTH and scaled per clip (below).
-//
-// This mask is a difference of samples, so its overshoot scales with whatever
-// space the samples are in: 0.34 was dialled against encoded values, and on a
-// correctly linear surface the same number reads roughly half as strong (dlin
-// /ds is ~0.5 around the midtones of this art). That is why the mask is taken
-// in the space VIDEO_LIFT selects, taps and centre alike — at lift 1 the 0.34
-// signed off on is the 0.34 being applied. Re-judge it if you ever dial the
-// lift down; __grade({ sharpen }) moves it live.
-const VIDEO_SHARPEN = 0.34;
-// The clip width VIDEO_SHARPEN is quoted for: the super-resolved batch, which
-// is what every clip was when it was dialled in.
-//
-// The mask's taps are one VIDEO texel apart, so on screen the halo is as wide
-// as one texel is — and a clip served at half the width draws a halo twice as
-// wide from the same number. That is not a subtlety: the two clips with no SR
-// twin play from their 832x354 source, and at 0.34 the mask ruled every stair
-// tread of the Echo with hard black-and-white etching. Sharpening is bounded by
-// the resolution it is applied to, so the strength travels with it: an 832-wide
-// clip gets 0.15, a 1664-wide one 0.30, and anything at or above the reference
-// keeps the full value (clamped — an unusually large clip is already sharp and
-// does not want more).
-//
-// Keeping strength x radius roughly constant is the usual unsharp trade, and it
-// is why this is a scale rather than a per-clip override table: it holds for any
-// future delivery at any size, without a list to maintain.
-//
-// RETUNE THIS WHEN A FULL-WIDTH CLIP LANDS (see X4_FULL_BATCH in Tour.jsx). The
-// clamp above was written when nothing exceeded the reference, and it holds the
-// strength at 0.34 however wide the clip gets. At 3376 that is the STILL's own
-// texel spacing — the same radius TEX_SHARPEN works at — but at nearly twice
-// the strength (0.34 against 0.18), so a plate-width clip would be sharpened
-// harder than the painting it animates, which is where this mask rings. The
-// number to try first is TEX_SHARPEN's 0.18, i.e. let the scale keep falling
-// past the reference instead of clamping; judge it on real hardware with
-// window.__grade({ sharpen }), which is live and needs no reload.
-const VIDEO_SHARPEN_REF = 1888;
-const videoSharpenScale = (vw) => Math.min(1, (vw || VIDEO_SHARPEN_REF) / VIDEO_SHARPEN_REF);
-// Grade the live surface toward the still it animates, applied to the video
-// sample only so the painting itself is untouched. 1.0 / 1.0 = grade off.
-//
-// BOTH ARE OFF NOW, because the premise they were built on does not survive
-// measurement. They were added when the clips looked "pale", but on frame 60 of
-// 01-moonlit-labyrinth-var0-clip1 the raw clip already matches its painting:
-// mean RGB (29,71,73) against the still's (33,74,75), and signalstats
-// YMIN/YLOW/YAVG of 0/12/54 against 0/15/57 — the blacks are not lifted, the
-// clip is if anything a touch darker.
-//
-// What the grade actually did to teal night scenes was wreck their hue.
-// Saturation-around-luma has nothing to push green and blue toward when both
-// already dominate, so the entire effect lands on draining RED: 29 -> 20 at
-// 1.28, then -> 12 once contrast-around-mid-grey pulls the (dark) red down
-// further. An image with two thirds of its red removed is turquoise by
-// definition, and that — not the codec, the upscale, or the color tags — is
-// the cyan cast that kept showing up in screenshots.
-//
-// If some warmer clip genuinely does look pale, prefer a per-clip override
-// (the way VIDEO_RATE already keys pacing per clip) over pushing these global
-// numbers back up. Tune live with __grade({ sat, contrast }) in a dev build.
-const VIDEO_SATURATION = 1.0;
-const VIDEO_CONTRAST = 1.0;
-// Exposure on the live surface, applied in the space VIDEO_LIFT selects and
-// before the unsharp mask (1 = off, >1 darker). __grade({ gamma }) moves it.
-//
-// 1.31 was dialled by eye against a surface that was reaching the shader
-// undecoded, so it is not exposure physics — it is half of a look, and the
-// other half is VIDEO_LIFT. The two are only legible read together, so the
-// whole story is told once, there.
-const VIDEO_GAMMA = 1.31;
-// How far the live sample is pushed back into the sRGB-ENCODED space this
-// surface was actually graded in. 1 = the curve the piece was signed off on;
-// 0 = the clip sitting physically on the still it animates.
-//
-// THE WHOLE HISTORY, because it is the only thing that makes this number
-// legible — and because the obvious "cleanup" here is to delete it.
-//
-// For months the woken surface rendered brighter than the painting under it,
-// nobody could explain it, and VIDEO_GAMMA was the standing correction (1.37
-// by eye, then 1.31 when a darker batch arrived). The cause was finally
-// measured in babel-tour/srgb-probe.html: a 0/64/128/192/255 ramp pushed
-// through both texture paths and read back off a render target. The still came
-// back on the sRGB->linear curve (3, 21, 64, 139, 232); the clip came back as
-// the ramp itself (12, 67, 128, 188, 242), through tagged, untagged and
-// full-range files alike. three drops the sRGB internal format on the VIDEO
-// upload path however `colorSpace` is set, so the shader was handed encoded
-// values for the clip and linear ones for the still and then mixed the two —
-// 0.502 where 0.216 was meant. That decode is fixed at the source now (see the
-// internalFormat line in the VideoTexture setup) and it STAYS fixed: it was a
-// real bug and that is the real cure.
-//
-// But the look the bug produced is the look every clip in this piece was
-// judged against, and it was never simply "brighter". Working in encoded
-// values and calling them linear IS a tone curve, and the unsharp mask below
-// laid another one on top of it: its centre sample had been through the gamma
-// while its taps were raw, so on a flat field the mask contributed a constant
-// rather than nothing. Measured end to end, the old live surface came out at
-//
-//     2.36 * s^1.31 - 1.36 * s        (s = the clip's sRGB-encoded value)
-//
-// — everything under linear 0.024 crushed to true black, everything over 0.06
-// lifted 1.20x to 1.25x. On art this dark (these plates run a median linear
-// luma of 0.046, measured over 05-impossible-prison-staircases-var16) that is
-// the difference between a room with lamps in it and a grey room. Removing it
-// did not reveal a better picture. It revealed that the grade had been living
-// inside the bug, and took the grade with it: waking a painting stopped
-// lighting it up, and the crossfade that used to bring a room to life read as
-// the room going dim.
-//
-// So the curve is written down instead of inherited. At 1.0 this reproduces
-// the signed-off surface exactly — the encode is the sRGB OETF, which is
-// precisely what the missing decode used to leave behind — with the taps
-// encoded alongside the centre, so the mask is the same mask in the same space
-// rather than the accidental offset it used to carry. At 0 the clip sits
-// physically on the still and the woken plate does not lift at all. Anywhere
-// between is a real choice: __grade({ lift: 0.5 }) is live and needs no
-// reload.
-//
-// Judge it on real hardware, one gallery at a time. Headless cannot judge it
-// (swiftshader never finishes the reveal, so the still renders near-black and
-// poisons every comparison), which is exactly what kept the original fault
-// hidden for so long.
-const VIDEO_LIFT = 1.0;
 // How strongly every card wraps onto the INSIDE OF A SPHERE centered on the
 // dwelling eye. Each vertex is pulled toward that eye by this fraction of how
 // much farther it sits than the card's on-axis distance — i.e. 1.0 would put
@@ -905,7 +617,6 @@ const paintingVert = /* glsl */`
   #define texture2DLodEXT textureLod
   uniform sampler2D depthMap;
   uniform float relief;
-  uniform float uLive;
   uniform float depthGamma;
   uniform float uTime;
   uniform float uBreath;
@@ -989,13 +700,6 @@ const paintingVert = /* glsl */`
     float breath = 1.0 + sin(uTime * 0.5) * 0.06 * uBreath;
     float ripple = sin(d * 9.0 - uTime * 0.7) * 0.015 * uBreath;
     // Bright compact features that hang on a hard depth cliff — the lanterns,
-    // white against the near-black gaps behind them — get sheared when relief
-    // displaces the plane across that cliff, smearing a dark rim around them. On
-    // the still it barely shows, but the video's soft, drifting edges no longer
-    // register against the static depth window and the rim reads plainly. Ease
-    // the sculpt off as the surface goes live so the video plays flat; the still
-    // keeps its full relief, and it eases back as the camera leaves.
-    float liveRelief = relief * (1.0 - clamp(uLive * 1.25, 0.0, 1.0));
     vec3 p = position;
     // Relief now wraps this slab's own band center, so each card carries only a
     // little surface sculpt around its plane; the depth between cards is the
@@ -1009,7 +713,7 @@ const paintingVert = /* glsl */`
     // between them are a valley in the depth, not a jump, so nothing creases.
     // The card's own rim still has to lie flat — there is no continuation past
     // it to hold the displaced edge up.
-    p.z += ((d - uBandCenter) * liveRelief * breath + ripple * liveRelief)
+    p.z += ((d - uBandCenter) * relief * breath + ripple * relief)
          * (1.0 - smoothstep(0.0, 0.3, vMargin))
          * (1.0 - smoothstep(0.86, 1.0, vRim));
     // Concave wrap — bend the card onto the inside of a sphere around the
@@ -1042,9 +746,7 @@ const paintingFrag = /* glsl */`
   #define RITE_FLOOD 5
   #define RITE_WEAVE 6
   uniform sampler2D map;
-  uniform sampler2D mapVideo;
   uniform sampler2D depthMap;
-  uniform float uLive;
   uniform float uTime;
   uniform float uBreath;
   uniform float uFade;
@@ -1058,15 +760,7 @@ const paintingFrag = /* glsl */`
   uniform vec2 uDepthTexel; // 1/depthSize — the depth map is its own resolution,
                             // and the silhouette matting below measures in ITS
                             // texels, not the painting's
-  uniform float uSharpen;   // high-pass strength on the still surface
-  uniform vec2 uVideoTexel; // 1/videoSize — ~3.6x coarser than uTexel
-  uniform float uSharpenVideo; // high-pass strength on the live surface
-  uniform float uVideoSat;     // chroma grade on the live surface (1 = off)
-  uniform float uVideoContrast;// mid-grey contrast on the live surface (1 = off)
-  uniform float uVideoGamma;   // exposure on the live surface (1 = off, >1 darker)
-  uniform float uVideoLift;    // how far the live sample is pushed back into the
-                               // encoded space it was graded in (1 = the
-                               // signed-off curve, 0 = physically on the still)
+  uniform float uSharpen;   // high-pass strength on the surface
   uniform float uBandLo;    // this slab only draws depths in (uBandLo, uBandHi);
   uniform float uBandHi;    // the backdrop passes everything (lo<0, hi>1).
   uniform float uFeather;   // soft cross-fade width at each band edge
@@ -1100,25 +794,6 @@ const paintingFrag = /* glsl */`
   //          a 2.35:1 plate). The outer ring must clear the widest thing being
   //          painted out or the fill finds no background to pull from.
   uniform vec4 uFill;
-
-  // The live surface's own space. The clip arrives sRGB-DECODED now (the
-  // internalFormat line in the VideoTexture setup), which is correct and which
-  // is also not the space this surface was graded in — see VIDEO_LIFT for the
-  // whole story. This is the sRGB OETF, i.e. exactly what the decode undoes,
-  // mixed in by uVideoLift so the grade can be walked back toward physics
-  // without touching anything else.
-  //
-  // EVERY read of mapVideo goes through here, the unsharp's taps included. Not
-  // for tidiness: the taps and the centre have to be in the same space or the
-  // mask stops being a difference and starts carrying a constant, and a
-  // constant here is a black crush. The one asymmetry that remains — centre
-  // through the gamma, taps not — is deliberate and load-bearing; it is the
-  // crush that made these dark plates read as lit rather than grey, and it is
-  // the second half of the curve VIDEO_LIFT documents.
-  vec3 videoLift(vec3 c) {
-    vec3 enc = clamp(1.055 * pow(c, vec3(0.41666)) - 0.055, 0.0, 1.0);
-    return mix(c, enc, uVideoLift);
-  }
 
   // This slab's slice of the depth range, feathered at both edges so
   // neighbouring cards cross-fade into one another instead of butting. The
@@ -1322,15 +997,14 @@ const paintingFrag = /* glsl */`
     }
 
     // Unsharp mask: subtract a 4-tap neighbourhood blur to restore the crisp
-    // edges that overscan + trilinear filtering softened. Only on the still —
-    // scaled to zero as the (soft, low-res) video takes over so it never
-    // crunches, and held off the defocused margins entirely.
+    // edges that overscan + trilinear filtering softened. Held off the
+    // defocused margins entirely.
     // …and off a card the eye is no longer focused on. Restoring "the crisp
     // edges overscan softened" is exactly the wrong job on a foreground that is
     // MEANT to be soft — it would spend four taps per fragment fighting the
     // defocus, and win enough to leave the card looking sharpened AND blurred,
     // which is what a bad print looks like rather than what a near object does.
-    float sharpen = uSharpen * (1.0 - clamp(uLive, 0.0, 1.0))
+    float sharpen = uSharpen
                   * (1.0 - smoothstep(-0.08, 0.0, vMargin))
                   * (1.0 - uBackdrop)
                   * (1.0 - smoothstep(0.15, 1.0, uDefocus));
@@ -1340,75 +1014,6 @@ const paintingFrag = /* glsl */`
                 + texture2D(map, vUv + vec2(0.0, uTexel.y)).rgb
                 + texture2D(map, vUv - vec2(0.0, uTexel.y)).rgb;
       tex.rgb += (tex.rgb * 4.0 - blur) * sharpen;
-    }
-    // The living surface: while the camera dwells here, the still painting
-    // exhales into its own image-to-video render — same artwork, in motion —
-    // and inhales back to stillness as the camera leaves.
-    //
-    // THE BACKDROP NEVER WAKES, and this is now a choice rather than a repair.
-    // It is a hole filler: still and clip are the same artwork, and what has to
-    // show through a dis-occlusion is tone, not readable content — so it holds
-    // the properly blurred, properly fogged still and costs nothing to run.
-    //
-    // It used to be the only thing standing between a woken gallery and a
-    // razor-sharp parallax-offset ghost of the clip, because mapVideo had no mip
-    // chain and so DISCARDED the LOD bias of every sample below. That is fixed
-    // at the source now (see the VideoTexture setup: generateMipmaps and a
-    // mipmap min filter, set explicitly against three's defaults), so blurBias
-    // reaches the clip everywhere it reaches the still — the backdrop's 3.5, and
-    // the margin's 5.0 on the slabs, which was the same defect one card forward:
-    // the mirrored extension came back sharp on a woken plate while the still
-    // behind it was defocused. Waking the backdrop would be correct again if you
-    // ever want it; it is held here for the reason in the paragraph above.
-    float live = uLive * (1.0 - uBackdrop);
-    if (live > 0.001) {
-      vec4 vid = texture2D(mapVideo, vUv, blurBias);
-      // Exposure FIRST, before the unsharp — this ordering matters. Darkening
-      // after the high-pass leaves the mask's overshoot at full amplitude on a
-      // darkened image, so the halos gain contrast against their surroundings
-      // and the surface reads as hard white etching along every balustrade and
-      // chain (which is exactly how the first attempt at this failed). Applied
-      // to the sample, the halos are computed from already-darkened values and
-      // scale down with everything else.
-      vid.rgb = pow(videoLift(vid.rgb), vec3(uVideoGamma));
-      // The live surface gets its OWN unsharp mask, tapped at the video's texel
-      // spacing. The clip is a ~944-wide render magnified across a 3376-wide
-      // plate, so what softens it is pure resampling blur — a high-pass at the
-      // right scale is the only thing that touches it. Same margin/backdrop
-      // gates as the still's mask: never ring into the mirrored extension, and
-      // never re-introduce high frequencies on the hole-filling backdrop.
-      // …and the same defocus gate the still's mask carries, for a reason that
-      // bites harder here. THE TAPS BELOW ARE UNBIASED — they read level 0
-      // whatever blurBias is — so the moment the centre sample comes from a
-      // higher mip the two are no longer the same image at two scales, and
-      // (vid*4 - liveBlur) stops being a local high-pass and becomes the
-      // difference between a blurred picture and a sharp one. That residual is
-      // enormous and structured, and it lands on the surface as blocking and
-      // ringing: the clip visibly breaks up. It never showed before depth of
-      // field because every other term in blurBias is already gated out of this
-      // mask (margins and backdrop, just above) — defocus was the first one
-      // that could reach a lit foreground card with the sharpen still running.
-      float liveSharpen = uSharpenVideo
-                        * (1.0 - smoothstep(-0.08, 0.0, vMargin))
-                        * (1.0 - uBackdrop)
-                        * (1.0 - smoothstep(0.15, 1.0, uDefocus));
-      if (liveSharpen > 0.001) {
-        // Through videoLift, like the centre — see the note on that function
-        // for why the two have to agree, and for the one difference between
-        // them that is meant.
-        vec3 liveBlur = videoLift(texture2D(mapVideo, vUv + vec2(uVideoTexel.x, 0.0)).rgb)
-                      + videoLift(texture2D(mapVideo, vUv - vec2(uVideoTexel.x, 0.0)).rgb)
-                      + videoLift(texture2D(mapVideo, vUv + vec2(0.0, uVideoTexel.y)).rgb)
-                      + videoLift(texture2D(mapVideo, vUv - vec2(0.0, uVideoTexel.y)).rgb);
-        vid.rgb += (vid.rgb * 4.0 - liveBlur) * liveSharpen;
-      }
-      // Pull the flat clip back toward the still's body: saturation around
-      // luma, then contrast around mid-grey. Clamped so the sharpen's
-      // overshoot can't be driven out of gamut by the grade.
-      float vidLuma = dot(vid.rgb, vec3(0.2126, 0.7152, 0.0722));
-      vid.rgb = mix(vec3(vidLuma), vid.rgb, uVideoSat);
-      vid.rgb = clamp((vid.rgb - 0.5) * uVideoContrast + 0.5, 0.0, 1.0);
-      tex = mix(tex, vid, live);
     }
     float pulse = 0.5 + 0.5 * sin(uTime * 0.35 + vDepth * 3.14159);
     tex.rgb += tex.rgb * pulse * 0.05 * uBreath * smoothstep(0.2, 1.0, fragmentDepth);
@@ -1750,36 +1355,10 @@ const paintingFrag = /* glsl */`
 
 // One gallery relief. `index` fixes its station along the corridor; its own
 // useFrame drives the dissolve as the camera crosses it and keeps its fog
-// color in step with the graded background. If the artwork has a `video`
-// (an image-to-video render of this exact image), the surface wakes into it
-// while the camera is near and settles back to the still when it leaves.
+// color in step with the graded background.
 function Painting({
-  color, depth, video, videoRate = 1, index, chapters, aspect, relief, depthGamma, overscan,
-  reduced, descentRef, accentRef, fogRef, diveRef, climbRef, libraryMax, stepRef,
-  // Timestamp (performance.now()) of the last time the reader STEERED — walked,
-  // panned the gaze, took the chain. A stamp newer than the one taken at the
-  // wake ends the film for this visit; see LIVE_SETTLE for what counts and why.
-  stirRef,
-  // False until the reader has clicked through the entry veil.
-  //
-  // A gallery gets ONE awakening per visit, and standing at the title card is
-  // the stillest the reader is ever going to be — so both wake clocks below run
-  // out behind the veil, and the opening gallery spends its whole film to an
-  // empty room. Nobody noticed while the Vestibule was the one node with no clip
-  // to spend; it now opens the tour with one, which is what surfaced this.
-  //
-  // Gating the wake alone is not enough: the clocks would bank the whole time
-  // the overture was up and the plate would go live the instant the veil
-  // cleared, which is the same bug wearing a hat. So the clocks do not start
-  // either — the room begins measuring attention when there is someone in it.
-  enteredRef,
-  // Where this plate reports its awakening, so the drift can be paced by what
-  // the gallery is actually doing rather than by a stopwatch: `{ woke, done }`
-  // under this plate's index, cleared when the camera leaves. `done` is stamped
-  // by the FIRST pass to finish — the clip keeps replaying for as long as the
-  // reader stands here (see REPLAY_REST), so "has stopped" never arrives and
-  // "has said itself once" is the only meaningful signal.
-  passRef,
+  color, depth, index, chapters, aspect, relief, depthGamma, overscan,
+  reduced, descentRef, accentRef, fogRef, diveRef, climbRef, libraryMax,
   // The rite this plate's own threshold is given (RITES[index]), and the point
   // in the artwork two of them collapse the room into — the plate's light.
   rite = RITE.PLAIN, glowAt,
@@ -1787,31 +1366,6 @@ function Painting({
   panRef,
 }) {
   const mesh = useRef();
-  // el: the <video>; tex: its VideoTexture; playing: true while it is running
-  // through a pass; ended: true once a pass finished (the surface keeps holding
-  // its last frame — it settles back to the still only after the camera has
-  // left); endedAt: when that pass finished, which paces the replay rest;
-  // armed: whether a new arrival is allowed to trigger the first play (re-armed
-  // each time the camera leaves).
-  // gaze: seconds the reader's attention has RESTED on this plate's lamp;
-  // inRoom: seconds spent standing in this gallery. The two clocks the first
-  // awakening waits on (see WAKE_GAZE_DWELL / WAKE_PATIENCE); both are wound
-  // back to zero each time the camera leaves, along with `armed`.
-  // stopped: the reader steered while it was running, so it settled back to the
-  // painting and is finished for this visit; stirMark: the steering stamp as it
-  // stood at the wake, which is what "again" is measured against (see
-  // LIVE_SETTLE). Both are cleared on leaving with the rest.
-  // failed: this clip cannot be played at all — see the error listener on the
-  // element below. Held for the life of the element so a broken source is not
-  // re-attempted every frame, and cleared with the element on teardown, which
-  // gives a clip that failed on a bad connection one fresh try per return.
-  const live = useRef({
-    el: null, tex: null, playing: false, ended: false, endedAt: 0, armed: true,
-    gaze: 0, inRoom: 0, stopped: false, stirMark: 0, failed: false,
-  });
-  // Scratch for the lamp's projection, so measuring attention allocates nothing
-  // per frame.
-  const lamp = useMemo(() => new THREE.Vector3(), []);
   // The offline backdrop for this plate, if it has one. useTexture suspends,
   // so the array has to keep a STABLE LENGTH across renders — a plate without
   // a backdrop passes its own urls again rather than shortening the list.
@@ -1893,21 +1447,6 @@ function Painting({
       uTexel: { value: texel },
       uDepthTexel: { value: depthTexel },
       uSharpen: { value: TEX_SHARPEN },
-      // Placeholder until the video's first frame is decodable; uLive stays 0
-      // until then, so the sampler is never visibly wrong.
-      mapVideo: { value: colorMap },
-      // Overwritten with the clip's true 1/size the moment its first frame is
-      // decodable; the placeholder matches the still so the taps are never
-      // wildly off-scale if a clip is missing.
-      uVideoTexel: { value: texel.clone() },
-      // Likewise rewritten per clip, scaled to the width that clip turns out to
-      // be (see VIDEO_SHARPEN_REF).
-      uSharpenVideo: { value: VIDEO_SHARPEN },
-      uVideoSat: { value: VIDEO_SATURATION },
-      uVideoContrast: { value: VIDEO_CONTRAST },
-      uVideoGamma: { value: VIDEO_GAMMA },
-      uVideoLift: { value: VIDEO_LIFT },
-      uLive: { value: 0 },
       // The offline backdrop gets the matching offline DEPTH. Handing it the
       // painting's depth would displace the filled-in stone into the shape of
       // the chain that is no longer there — damped by reliefScale 0.4, but
@@ -1980,36 +1519,6 @@ function Painting({
   }), [layers, colorMap, depthMap, backdropMap, backdropDepthMap, backdropPlate,
        relief, depthGamma, reduced, texel, depthTexel, rite, glowAt, aspect]);
 
-  // Release the video/texture with the painting, and the per-layer GPU
-  // resources when they are rebuilt (HMR, prop changes).
-  //
-  // Keyed on `video` rather than mount, because a gallery can be handed a
-  // different artwork mid-tour (Tour's restock) without unmounting. The frame
-  // loop below only ever creates the element once — `if (!state.el)` — so a
-  // clip left standing here would go on playing over the painting that replaced
-  // it. The whole live state resets with it, so the new surface is armed to wake
-  // from its own first frame.
-  useEffect(() => {
-    const state = live.current;
-    return () => {
-      if (state.el) {
-        state.el.pause();
-        state.el.removeAttribute('src');
-        state.el.load();
-        state.el.remove();
-      }
-      if (state.tex) {
-        state.tex.dispose();
-      }
-      state.el = null;
-      state.tex = null;
-      state.playing = false;
-      state.ended = false;
-      state.endedAt = 0;
-      state.armed = true;
-    };
-  }, [video]);
-
   // The still's plates go with the artwork too. Nothing else in the corridor
   // draws this pair — every gallery owns its own files — so when a restock
   // replaces them the GPU copies are freed rather than accumulating one set per
@@ -2036,7 +1545,7 @@ function Painting({
     materials.forEach((m) => m.dispose());
   }, [geos, materials]);
 
-  useFrame(({ clock, camera, pointer }, delta) => {
+  useFrame(({ clock, camera }) => {
     const descent = descentRef.current;
     // f > 0 once the camera has begun crossing this gallery.
     const f = descent - index;
@@ -2131,335 +1640,6 @@ function Painting({
       mesh.current.visible = f < 0.96 && index - descent < 1.4;
     }
 
-    if (video && !reduced) {
-      const dist = Math.abs(descent - index);
-      const state = live.current;
-      // Begin streaming shortly before arrival, so the surface is ready to wake
-      // the moment the camera gets there. This radius costs nothing extra on a
-      // forward walk — the element a gallery gets on approach survives until it
-      // is a full two chapters behind (the teardown below), so the only time
-      // this gate fires at all is for a gallery whose element has already been
-      // torn down, i.e. one being approached from more than two chapters away.
-      //
-      // It was forward-only (`ahead > -0.25`) for a while, to stop two
-      // neighbours decoding at once. It did not: on a forward walk the gallery
-      // behind is still holding its element from before regardless. All the
-      // asymmetry did was leave a gallery approached from BELOW — the whole of
-      // walking back up the corridor — with no lead time at all, so play() ran
-      // against a readyState-0 element and the clip woke seconds into the dwell
-      // or not at all.
-      // Undefined for anything that never passes the ref (the isolated
-      // reliefcheck harness, and any future caller) — those should behave as
-      // they always did, so treat "not told" as "inside".
-      const entered = enteredRef ? enteredRef.current : true;
-      // The element is still CREATED and preloaded behind the veil: only the
-      // waking is held back. Streaming it early is the whole point of the 1.15
-      // lead (see above), and it costs nothing to have it ready and paused.
-      if (!state.el && dist < 1.15) {
-        const el = document.createElement('video');
-        el.src = video;
-        el.muted = true;
-        el.loop = false; // one pass only — the surface animates, then holds
-        el.playsInline = true;
-        el.preload = 'auto';
-        el.playbackRate = videoRate; // <1 stretches the pass into a slow drift
-        el.style.display = 'none';
-        // performance.now(), not the frame clock: this fires from the media
-        // element's own thread, long after the frame that created it, so a
-        // captured `t` would freeze at the moment of creation.
-        el.addEventListener('ended', () => {
-          state.playing = false;
-          state.ended = true;
-          state.endedAt = performance.now() / 1000;
-          // First completed pass wins: later replays leave it standing, so the
-          // drift reads "this gallery has woken and said itself once".
-          const rec = passRef?.current?.[index];
-          if (rec && !rec.done) rec.done = performance.now();
-        });
-        // The clip is not coming. Say so once, put the surface beyond the wake
-        // gates for as long as this element lives, and — if it had already been
-        // woken — release the drift, which is otherwise left waiting for a pass
-        // that can never finish.
-        el.addEventListener('error', () => {
-          mediaFault(el, video);
-          state.failed = true;
-          state.playing = false;
-          state.ended = false;
-          state.endedAt = 0;
-          const rec = passRef?.current?.[index];
-          if (rec && !rec.done) rec.done = performance.now();
-        });
-        // Not a failure — the bytes are late, not absent. Worth exactly one
-        // line, because a clip that wakes seconds into the dwell and a clip
-        // that never wakes look the same from the reader's chair, and this is
-        // what tells them apart.
-        el.addEventListener('stalled', () => {
-          if (state.stalled) return;
-          state.stalled = true;
-          console.info('[clip] %s is stalled — the surface will wake late or '
-            + 'not at all', video);
-        }, { once: true });
-        document.body.appendChild(el);
-        state.el = el;
-      }
-      if (state.el) {
-        // Is the reader looking at this room's lamp? Measured only while the
-        // plate is still waiting to wake — once it has, none of this matters,
-        // and it is a projection per plate per frame. And only once they are
-        // actually inside: see `enteredRef`.
-        if (state.armed && dist < 0.9 && entered) {
-          // The lamp in world space, from the same numbers the Glow itself is
-          // placed by: glowAt is a point in the ARTWORK, and the artwork rides
-          // EYE_DROP higher on its card than the card's own centre — and slides
-          // along it as the reader turns, so the light this waits to be looked
-          // at is wherever the turn has carried it.
-          const gh = frustumH(PLANE_Z) * overscan;
-          const [gu, gv] = glowAt ?? [0.5, 0.5];
-          lamp.set((bayU(gu, pan) - 0.5) * gh * aspect,
-                   (0.5 - gv + EYE_DROP) * gh,
-                   planeZ(index));
-          lamp.project(camera);
-          // Nearest of the two things that can count as looking. Behind the
-          // camera (z > 1 after projection) is never looking, whatever the
-          // x/y say — without that check a lamp directly at your back reads as
-          // dead centre.
-          const behind = lamp.z > 1;
-          const toCentre = Math.hypot(lamp.x, lamp.y);
-          const toPointer = Math.hypot(lamp.x - pointer.x, lamp.y - pointer.y);
-          const resting = !behind && Math.min(toCentre, toPointer) < WAKE_GAZE_RADIUS;
-          // Rests, not merely touches: the gaze has to stay there. Looking away
-          // spends the count rather than zeroing it, so a hand that wobbles off
-          // the lamp for a frame does not start the reader over.
-          state.gaze = Math.max(0, state.gaze + (resting ? delta : -delta * 1.5));
-          state.inRoom += delta;
-        }
-        // The first pass waits on attention, then on patience. `armed` gates it
-        // to a single awakening per visit; leaving re-arms it so a return
-        // replays the whole thing from its first frame.
-        if (state.armed && !state.stopped && !state.failed
-            && !state.playing && !state.ended
-            && dist < 0.9 && entered
-            && (state.gaze >= WAKE_GAZE_DWELL || state.inRoom >= WAKE_PATIENCE)
-            && (performance.now() - (stirRef?.current ?? 0)) / 1000 > WAKE_STILL) {
-          state.armed = false;
-          state.playing = true;
-          // Everything the reader did up to this moment is what BROUGHT them
-          // here — the walk in, the turn toward the lamp. Only steering from
-          // here on counts as interrupting.
-          state.stirMark = stirRef?.current ?? 0;
-          // `by` records which of the two clocks ran out first, so it is
-          // visible whether attention is actually what wakes the galleries or
-          // whether the patience floor is quietly doing all the work.
-          if (passRef) {
-            passRef.current[index] = {
-              woke: performance.now(),
-              done: 0,
-              by: state.gaze >= WAKE_GAZE_DWELL ? 'gaze' : 'patience',
-            };
-          }
-          state.el.currentTime = 0;
-          state.el.playbackRate = videoRate; // reassert (load can reset it)
-          const p = state.el.play();
-          if (p && typeof p.catch === 'function') {
-            p.catch(() => { state.playing = false; });
-          }
-        }
-        // The reader steers again: the film is over. Whether it was mid-pass or
-        // resting between passes, the surface lets go of the clip here and the
-        // painting comes back — and `stopped` keeps it back for the rest of
-        // this visit, so nothing starts up again behind a shoulder that has
-        // already turned. See LIVE_SETTLE.
-        if (!state.stopped && (state.playing || state.ended) && dist < 0.9
-            && stirRef && stirRef.current > state.stirMark) {
-          state.stopped = true;
-          state.playing = false;
-          state.ended = false;
-          state.endedAt = 0;
-          state.el.pause();
-          // The drift waits on this gallery having said itself once (passRef).
-          // A pass cut short never fires its `ended`, so stamp it here: the
-          // surface has finished speaking either way, and without this every
-          // room the reader walks out of would stall the drift until
-          // DRIFT_MAX_DWELL instead of the pass it is actually pacing to.
-          const rec = passRef?.current?.[index];
-          if (rec && !rec.done) rec.done = performance.now();
-        }
-        // The dwell breathes on. A pass rests on its last frame, then runs
-        // again — for as long as the reader stands here. See REPLAY_REST for
-        // why the return to frame 0 is a cut and not a dissolve; uLive is
-        // untouched across it (`awake` below reads the same whether the clip is
-        // playing or resting), so nothing crossfades, the video's own time just
-        // jumps back. The cut rides the next footfall if one lands soon enough,
-        // and goes ahead unmasked if the reader is standing perfectly still.
-        if (state.ended && dist < 0.9) {
-          const rested = performance.now() / 1000 - state.endedAt;
-          const onFoot = stepRef
-            && performance.now() / 1000 - stepRef.current < REPLAY_STEP_WINDOW;
-          if (rested > REPLAY_REST
-              && (onFoot || rested > REPLAY_REST + REPLAY_GRACE)) {
-            state.ended = false;
-            state.playing = true;
-            state.el.currentTime = 0;
-            state.el.playbackRate = videoRate;
-            const p = state.el.play();
-            if (p && typeof p.catch === 'function') {
-              // Back to resting rather than to the still, so a refused replay
-              // costs one rest and tries again instead of dropping uLive and
-              // dissolving the end frame into the painting.
-              p.catch(() => {
-                state.playing = false;
-                state.ended = true;
-                state.endedAt = performance.now() / 1000;
-              });
-            }
-          }
-        }
-        // Once the camera has clearly left, reset to a still and re-arm so the
-        // next arrival can wake it again from its first frame.
-        if (dist > 1.1 && (state.playing || state.ended || !state.armed)) {
-          state.playing = false;
-          state.ended = false;
-          state.endedAt = 0;
-          state.armed = true;
-          state.stopped = false;
-          state.stirMark = 0;
-          state.gaze = 0;
-          state.inRoom = 0;
-          state.el.pause();
-          // Re-armed: the next arrival is a fresh awakening, so the drift must
-          // wait for it again rather than reading the last visit's pass.
-          if (passRef) delete passRef.current[index];
-        }
-        // Well out of range: tear the element down rather than leaving it
-        // parked in the DOM. Paused clips still hold their decoded buffers, so
-        // walking the whole corridor used to accumulate one per gallery and the
-        // heap climbed the further you went. It is recreated (from its first
-        // frame, still armed) whenever the camera comes back within range.
-        if (dist > 2.0) {
-          for (const m of materials) {
-            m.uniforms.mapVideo.value = null;
-            // The sampler is going away, so the surface must already be back on
-            // the still. It is, by dist 1.1 — but the ease is asymptotic, and
-            // sampling a null map with any uLive left would show as a dark wash.
-            m.uniforms.uLive.value = 0;
-          }
-          if (state.tex) {
-            state.tex.dispose();
-            state.tex = null;
-          }
-          state.el.pause();
-          state.el.removeAttribute('src');
-          state.el.load();
-          state.el.remove();
-          state.el = null;
-          state.playing = false;
-          state.ended = false;
-          state.endedAt = 0;
-          state.armed = true;
-          state.stopped = false;
-          state.stirMark = 0;
-          // A new element gets a clean slate: a clip that failed on a bad
-          // connection is worth one more try when the reader comes back, and a
-          // clip that is genuinely missing costs one more line of console.
-          state.failed = false;
-          state.stalled = false;
-        }
-        if (state.el && !state.tex
-            && state.el.readyState >= state.el.HAVE_CURRENT_DATA) {
-          state.tex = new THREE.VideoTexture(state.el);
-          state.tex.colorSpace = THREE.SRGBColorSpace;
-          // …AND THE INTERNAL FORMAT TO GO WITH IT. `colorSpace` alone is a
-          // promise three keeps for an image texture and drops for a video one:
-          // it is what makes three ask for an SRGB8_ALPHA8 texture, which is
-          // what makes the SAMPLER do the sRGB->linear decode in hardware. On
-          // the video upload path that selection does not happen, and since the
-          // painting's fragment shader samples with a raw texture2D() — no
-          // decode injected, by design — the shader was handed sRGB-encoded
-          // values for the clip and linear ones for the still, then mixed the
-          // two together with uLive. At mid-grey that is 0.502 where 0.216 was
-          // meant: the woken surface came up 2.3x too bright, and every attempt
-          // to correct it with exposure (see VIDEO_GAMMA) was chasing a decode
-          // with a curve that cannot be it.
-          //
-          // Measured in babel-tour/srgb-probe.html, which pushes a known ramp
-          // through both paths and reads the values back: with this line the
-          // clip lands on the still's numbers exactly, and the same clip drawn
-          // via a canvas already did — so this is three's video path, not the
-          // driver's. Harmless where a driver would have done it anyway.
-          //
-          // Fixing it also removed a grade nobody knew was a grade: this
-          // surface had been dialled for months against undecoded values, and
-          // with them gone the woken plate stopped lifting and every gallery
-          // read grey. That look is reconstructed explicitly in the shader now
-          // — see VIDEO_LIFT — so the decode can be right and the piece can
-          // still look like itself.
-          state.tex.internalFormat = 'SRGB8_ALPHA8';
-          // Same wrap scheme as the still (mirrored on both axes), so the
-          // living surface continues into the margins identically — and so the
-          // seam the mirror removes does not reappear when the clip wakes.
-          state.tex.wrapS = THREE.MirroredRepeatWrapping;
-          state.tex.wrapT = THREE.MirroredRepeatWrapping;
-          state.tex.anisotropy = TEX_ANISOTROPY;
-          // A MIP CHAIN, explicitly — three's VideoTexture ships with
-          // generateMipmaps false and a plain LINEAR min filter, and a texture
-          // with no mip chain does not fail an LOD-biased sample, it silently
-          // serves level 0 and throws the bias away. Three separate blurs in the
-          // fragment shader are expressed as nothing but a bias on mapVideo (the
-          // hole-filling backdrop, the defocused extension margins, and what the
-          // flood carries under its level), so all three came back at full
-          // sharpness the moment a clip woke, while their still counterparts
-          // blurred correctly — the doubling was on the moving surface only,
-          // which is why it read as a clip problem.
-          //
-          // The cost is a glGenerateMipmap per uploaded frame, on the one or two
-          // clips awake at a time. Cheap next to what it buys, but it IS per
-          // frame: if a profile ever shows it, the answer is a fixed small blur
-          // in the shader, not dropping back to level 0 everywhere.
-          state.tex.generateMipmaps = true;
-          state.tex.minFilter = THREE.LinearMipmapLinearFilter;
-          // videoWidth/Height are only populated once metadata has loaded,
-          // which HAVE_CURRENT_DATA guarantees. The clips are not all one size
-          // (1888x800 super-resolved, 1664x708 for the staircases, and the two
-          // with no SR twin at their 832x354 source), so BOTH the live unsharp's
-          // tap spacing and its strength have to be read per clip.
-          const vw = state.el.videoWidth || 944;
-          const vh = state.el.videoHeight || 400;
-          for (const m of materials) {
-            m.uniforms.mapVideo.value = state.tex;
-            m.uniforms.uVideoTexel.value.set(1 / vw, 1 / vh);
-            m.uniforms.uSharpenVideo.value = VIDEO_SHARPEN * videoSharpenScale(vw);
-          }
-        }
-      }
-      // The still exhales into motion when you arrive and settles back to the
-      // painting when you move on — either by steering, which ends the film
-      // where you stand (LIVE_SETTLE), or by simply leaving, which lets it go a
-      // whole chapter back in the fog. In between, whether the clip is running
-      // or resting between passes (REPLAY_REST), the surface is the clip's —
-      // which is what lets a pass restart as a cut with nothing dissolving.
-      //
-      // It used to settle the instant the pass ended, and that dissolve was the
-      // worst double in the scene: a clip ends as far as 1.3x zoomed from the
-      // plate it animates, and its figures have walked regardless (see
-      // LIVE_MAX), so crossing back to the still ran a ~1.4 s double exposure —
-      // the robed figure of the gothic-library plates plainly drawn twice at
-      // full strength, not at the 18% the old mix leaked. Two images that
-      // do not register cannot be crossfaded in front of the reader; the fade is
-      // therefore pushed out to dist > 1.1 below, a whole chapter away, where
-      // the plate is deep in fog and already melting.
-      const awake = state.tex && (state.playing || state.ended)
-        ? (liveOverride ?? LIVE_MAX)
-        : 0;
-      // Two rates, not one: an interrupted clip has to be off the surface
-      // before its own last frame can be read against the painting it doubles,
-      // while the leaving fade stays slow because a chapter of fog is already
-      // doing the work.
-      const step = Math.min(delta * (state.stopped ? LIVE_SETTLE : LIVE_RISE), 1);
-      for (const m of materials) {
-        const u = m.uniforms.uLive;
-        u.value += (awake - u.value) * step;
-      }
-    }
   });
 
   return (
@@ -2832,108 +2012,15 @@ function AtmosphereRig({ descentRef, immersionRef, introRef, children }) {
 function GradeRig({ scenes, descentRef, fogRef }) {
   const { scene } = useThree();
   const fogs = useMemo(() => scenes.map((s) => new THREE.Color(s.fog)), [scenes]);
-  // Dev-only live tuner for the video grade (stripped from production builds).
-  // These four were tuned against soft 400p clips and a different complaint
-  // ("the clips look pale"), and were still on the retune-on-real-hardware
-  // list — swiftshader can't judge them, so they have to be dialled by eye in
-  // a real browser. From the console:
-  //   __grade()                  → read the current values
-  //   __grade({ sat: 1.1 })      → set one, live, across every card on screen
-  // Nothing here persists: reload restores the module constants above. `sharpen`
-  // is additionally rewritten whenever a clip wakes, to VIDEO_SHARPEN scaled to
-  // that clip's width — so read it back after a wake, and judge it on one
-  // gallery at a time rather than expecting a value to hold across the corridor.
+  // Dev-only live tuners (stripped from production builds). What they have in
+  // common is that every one of them dials a judgement a headless renderer
+  // cannot make — how high the viewer sits in a plate, how hard the relief
+  // bites — so they exist to be turned by hand in a real browser.
   useEffect(() => {
     if (!import.meta.env.DEV) return undefined;
-    const KEYS = {
-      sat: 'uVideoSat',
-      contrast: 'uVideoContrast',
-      sharpen: 'uSharpenVideo',
-      gamma: 'uVideoGamma',
-      // The one to reach for if the woken surface is ever accused of exposure
-      // again: 1 is the curve the piece was signed off on, 0 is the clip
-      // sitting physically on its still, and the whole argument for both is in
-      // VIDEO_LIFT. Walk it, don't re-dial `gamma` — gamma only means anything
-      // in the space this selects.
-      lift: 'uVideoLift',
-    };
-    // The scene itself, for A/Bs that have to reach a texture rather than a
-    // uniform. The one this exists for is the video mip chain: whether the clip
-    // can be blurred at all is a property of the TEXTURE, so __grade can report
-    // it (videoMip, below) but not toggle it. With this you can flip it live and
-    // judge the difference on real hardware — which is the only place it can be
-    // judged, since headless swiftshader's own frame-to-frame motion measures
-    // larger than the change being looked at. From the console:
-    //   const mip = (on) => window.__scene.traverse((o) => {
-    //     const t = o.material?.uniforms?.mapVideo?.value; if (!t) return;
-    //     t.generateMipmaps = on;
-    //     t.minFilter = on ? THREE.LinearMipmapLinearFilter : THREE.LinearFilter;
-    //     t.needsUpdate = true;
-    //   });
-    // mip(false) is the old behaviour; mip(true) is what ships. Walk into a
-    // gallery and let the clip wake first, or nothing will differ.
+    // The scene itself, for A/Bs that have to reach a texture or a material
+    // rather than a uniform this file already exposes.
     window.__scene = scene;
-    window.__grade = (next) => {
-      // `live` is not a uniform — it pins the still/clip mix at its source, so
-      // the per-frame ease cannot immediately overwrite it. null restores normal.
-      if (next && next.live !== undefined) liveOverride = next.live;
-      const seen = { live: liveOverride ?? `auto (${LIVE_MAX})` };
-      // Read back the DISTINCT values, not the last card traversed. `sharpen`
-      // is per-clip now (VIDEO_SHARPEN_REF), so the corridor legitimately holds
-      // several at once — reporting one of them at random hid whether the
-      // per-clip write had happened at all.
-      const found = Object.fromEntries(Object.keys(KEYS).map((k) => [k, new Set()]));
-      scene.traverse((obj) => {
-        const u = obj.material?.uniforms;
-        if (!u?.uVideoSat) return;
-        for (const [name, uniform] of Object.entries(KEYS)) {
-          if (next && next[name] !== undefined) u[uniform].value = next[name];
-          found[name].add(Math.round(u[uniform].value * 1e4) / 1e4);
-        }
-      });
-      for (const [name, values] of Object.entries(found)) {
-        const all = [...values].sort((a, b) => a - b);
-        seen[name] = all.length === 1 ? all[0] : all;
-      }
-      // Whether the woken clip can actually be blurred. Reported because the
-      // failure it guards against is INVISIBLE at the API: sampling an LOD bias
-      // on a texture with no mip chain is not an error, it silently returns
-      // level 0 — so the margins, the backdrop and the echo's receding copies
-      // all came back sharp with nothing anywhere saying why (see the
-      // VideoTexture setup). If this ever reads NO MIP CHAIN while a clip is
-      // awake, every blurBias in the fragment shader is being thrown away.
-      // `isVideoTexture`, not merely non-null: mapVideo is INITIALISED to the
-      // still (see the uniform), which stands in until a clip wakes. Reporting
-      // on that placeholder answered for the painting while claiming to answer
-      // for the film — and the still, being an ordinary image texture, gives
-      // the opposite verdict on both counts.
-      const mip = new Set();
-      scene.traverse((obj) => {
-        const t = obj.material?.uniforms?.mapVideo?.value;
-        if (!t?.isVideoTexture) return;
-        mip.add(t.generateMipmaps && t.minFilter !== THREE.LinearFilter
-          && t.minFilter !== THREE.NearestFilter
-          ? `mip (minFilter ${t.minFilter})` : 'NO MIP CHAIN — blurBias ignored');
-      });
-      seen.videoMip = mip.size === 0 ? 'no clip awake' : [...mip];
-      // …and whether the clip is being sRGB DECODED, reported for exactly the
-      // same reason: nothing anywhere says when it is not. three drops the sRGB
-      // internal format on the video upload path however the colourSpace is
-      // set, and the only symptom is a woken surface 2.3x too bright in the
-      // midtones — which for months was read as "the clips are pale" and
-      // answered with exposure. If this ever reads RAW sRGB, the live half of
-      // every mix is in the wrong space again.
-      const fmt = new Set();
-      scene.traverse((obj) => {
-        const t = obj.material?.uniforms?.mapVideo?.value;
-        if (!t?.isVideoTexture) return;
-        fmt.add(t.internalFormat === 'SRGB8_ALPHA8'
-          ? 'SRGB8_ALPHA8 (decoded)'
-          : `RAW sRGB — internalFormat ${t.internalFormat} — live surface too bright`);
-      });
-      seen.videoFormat = fmt.size === 0 ? 'no clip awake' : [...fmt];
-      return seen;
-    };
     // Live tuner for the eye line (see EYE_DROP), same reason: how high the
     // viewer sits in a painting is a judgement only a real screen can make.
     //   __eye()        → current shift, in fractions of the artwork's height
@@ -2978,29 +2065,8 @@ function GradeRig({ scenes, descentRef, fogRef }) {
       });
       return seen;
     };
-    // What it takes to wake a painting. How wide "looking at the lamp" should
-    // be, and how long it must last, are judgements about feel that only a real
-    // screen and a real hand can make — the same reason __grade and __gait
-    // exist. Takes effect on the next gallery to wake; galleries already awake
-    // keep their pass.
-    //   __attention()                  → read the current values
-    //   __attention({ radius: 0.3 })   → tighter: the lamp must be nearer centre
-    //   __attention({ patience: 1e9 }) → attention ONLY, to feel it unaided
-    //   __attention({ still: 0 })      → let a plate wake mid-stride again
-    // Which clock actually fired is in Tour's __nav().pass, as gaze/patience.
-    window.__attention = (next) => {
-      if (next?.radius !== undefined) WAKE_GAZE_RADIUS = next.radius;
-      if (next?.dwell !== undefined) WAKE_GAZE_DWELL = next.dwell;
-      if (next?.patience !== undefined) WAKE_PATIENCE = next.patience;
-      if (next?.still !== undefined) WAKE_STILL = next.still;
-      return {
-        radius: WAKE_GAZE_RADIUS, dwell: WAKE_GAZE_DWELL, patience: WAKE_PATIENCE,
-        still: WAKE_STILL,
-      };
-    };
     return () => {
-      delete window.__grade; delete window.__eye; delete window.__rites;
-      delete window.__scene; delete window.__attention;
+      delete window.__eye; delete window.__rites; delete window.__scene;
     };
   }, [scene]);
   useFrame(() => {
@@ -3455,6 +2521,10 @@ function Arriving({ index, onArriving }) {
 
 export default function DioramaScene({
   scenes,
+  // While the entry map covers the room, draw only when something asks to:
+  // the live map is its own canvas, and two scenes rendering flat out at once
+  // is more than an integrated GPU has.
+  idle = false,
   aspect = ART_ASPECT,
   // In-slab depth-displacement strength. The macro depth lives in the slab
   // stack's Z placement (DEPTH_SPREAD); relief only curves each card around its
@@ -3506,15 +2576,6 @@ export default function DioramaScene({
   // Called once per footfall while the camera is walking (with the gait's
   // current strength) — Tour lays a soft step sound under each one.
   onStep,
-  // Where each plate reports its awakening, for the drift's pacing. See the
-  // `passRef` note on Painting.
-  passRef,
-  // When the reader last steered the world themselves (Tour's `stir`). A woken
-  // gallery reads it to know it has been walked out on — see LIVE_SETTLE.
-  stirRef,
-  // False until the reader clicks through the entry veil. See the note on
-  // Painting's copy: nothing may wake while the overture is still up.
-  enteredRef,
   // The GPU taking its context back, and (if we are lucky) handing it over
   // again. Tour covers the gap — see `glLost` there — because the canvas keeps
   // showing its last frame and then simply stops, which is indistinguishable
@@ -3541,16 +2602,12 @@ export default function DioramaScene({
   const lamps = useMemo(() => scenes.map((s) => s.glowAt), [scenes]);
   // Shared, per-frame graded fog color (GradeRig writes, paintings read).
   const fogRef = useRef(new THREE.Color(scenes[0].fog));
-  // When the last foot landed (performance.now()/1000). The gait owns the
-  // footfalls; the paintings read them to hide a clip's replay cut under the
-  // reader's own motion (see REPLAY_STEP_WINDOW).
-  const stepRef = useRef(0);
   const onFootfall = useCallback((intensity) => {
-    stepRef.current = performance.now() / 1000;
     if (onStep) onStep(intensity);
   }, [onStep]);
   return (
     <Canvas
+      frameloop={idle ? 'demand' : 'always'}
       camera={{ fov: FOV, position: [0, 0, 0], near: 0.1, far: 240 }}
       // Capped below 2: the slab stack is fill-rate bound (a million displaced
       // vertices, each fragment doing relief + unsharp work), so on a high-DPI
@@ -3585,11 +2642,15 @@ export default function DioramaScene({
         canvas.setAttribute('aria-label', 'The gallery, drawn in depth');
         canvas.setAttribute('aria-describedby', 'gallery-caption');
         canvas.addEventListener('webglcontextlost', (event) => {
+          // R3F releases the old renderer after leaving for the balcony. Its
+          // detached canvas is an intentional disposal, not a tour failure.
+          if (!canvas.isConnected) return;
           event.preventDefault();
           console.warn('[gl] the graphics context was lost — waiting for it back');
           onContextLost?.();
         });
         canvas.addEventListener('webglcontextrestored', () => {
+          if (!canvas.isConnected) return;
           console.info('[gl] the graphics context came back');
           onContextRestored?.();
         });
@@ -3612,16 +2673,13 @@ export default function DioramaScene({
         <PlateBoundary key={`painting-${i}`} name={scene.color.split('/').pop()}>
           <Suspense fallback={<Arriving index={i} onArriving={onArriving} />}>
             <Painting
-              color={scene.color} depth={scene.depth} video={scene.video}
-              videoRate={scene.videoRate}
+              color={scene.color} depth={scene.depth}
               index={i} chapters={chapters} aspect={aspect}
               relief={relief} depthGamma={depthGamma} overscan={overscan}
               reduced={reduced} descentRef={descentRef}
               accentRef={accentRef} fogRef={fogRef}
               diveRef={diveRef} climbRef={climbRef}
-              libraryMax={libraryMax} stepRef={stepRef}
-              passRef={passRef} stirRef={stirRef} panRef={panRef}
-              enteredRef={enteredRef}
+              libraryMax={libraryMax} panRef={panRef}
               // The rite belongs to the crossing that DEPARTS this chapter, and
               // the plate that dissolves across it is this one.
               rite={RITES[i] ?? RITE.PLAIN} glowAt={scene.glowAt}

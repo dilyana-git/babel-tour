@@ -33,7 +33,34 @@
 import { useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { DPR_LADDER, FRAME_BUDGET_MS, GOVERNS } from './capability';
-import { judge } from './governorRule';
+import { judge, PATIENCE, GROSS } from './governorRule';
+
+// What it gives back, and in what ORDER. Pixels last.
+//
+// This used to be a ladder of nothing but pixel ratios, and that was the wrong
+// shape: told twice that the piece blinks, and once that it got WORSE after the
+// ratio came down, the thing to notice is that drawing below the screen's own
+// grid does not soften a thin bright line — it makes the line crawl, because
+// every frame resamples it differently. Measured on the integrated AMD this is
+// made on, at the reader's own 1536x730 at 1.25 — 1.75 million pixels — three
+// interleaved passes, best of each:
+//
+//   everything on, native            38.3 ms
+//   no contact shadow, native        32.1      -16%
+//   four lamps instead of six        35.0       -9%
+//   both, native                     ~29        1.75 Mpix
+//   everything on, ratio 0.85        ~26        0.81 Mpix
+//
+// The same frame time for more than twice the pixels. So the contact shadow
+// goes first, then two of the six lamps, and only then does the picture get
+// smaller. Two and not three: the Vertigo is lamps at every depth of its well,
+// and it falls off a cliff between four and three (mean luminance 29.1 against
+// 17.3, and over half the frame down in the dark).
+// Both are per-fragment work, which is what this scene is short of; neither
+// rebuilds any geometry (see "never re-tessellates" below). Each costs one
+// shader recompile as it is spent — a single hitch, once, against a softness
+// that would last the rest of the walk.
+const GIVE = ['ao', 'lights'];
 
 // How long a window of frames has to be before it is allowed to mean anything.
 // Long enough that a stutter cannot fill it, short enough that a reader is not
@@ -56,6 +83,16 @@ export default function Governor({ onQuality }) {
   const frames = useRef([]);
   const elapsed = useRef(0);
   const state = useRef({ rung: 0, late: 0, floored: false });
+  const spent = useRef(0);      // how many of GIVE have gone
+  const late = useRef(0);       // lateness while concessions are still available
+  // Windows to throw away after acting. Giving back the contact shadow or a
+  // light rebuilds a shader, and that recompile lands in the NEXT window as a
+  // spike of a few hundred milliseconds — which is not the machine being slow,
+  // it is the machine doing what it was just asked to. Measured without this,
+  // the governor read 38 ms, gave back the AO, read 65, gave back the lamps,
+  // read 59, and dropped the pixels too: it spent the whole budget reacting to
+  // its own cost. One window discarded is enough for the recompile to be over.
+  const settle = useRef(0);
 
   useFrame((_, delta) => {
     const ms = delta * 1000;
@@ -77,13 +114,31 @@ export default function Governor({ onQuality }) {
     const mid = sorted[sorted.length >> 1];
     frames.current = [];
     elapsed.current = 0;
+    if (settle.current > 0) { settle.current -= 1; return; }
 
+    // The concessions come first, one to a window, on the same terms the ratio
+    // ladder moves on: two late windows in a row, or one that is not close.
+    if (spent.current < GIVE.length) {
+      if (mid <= FRAME_BUDGET_MS) { late.current = 0; onQuality?.({ median: mid, dpr: DPR_LADDER[state.current.rung], acted: false }); return; }
+      late.current += 1;
+      if (mid < FRAME_BUDGET_MS * GROSS && late.current < PATIENCE) {
+        onQuality?.({ median: mid, dpr: DPR_LADDER[state.current.rung], acted: false });
+        return;
+      }
+      late.current = 0;
+      const give = GIVE[spent.current];
+      spent.current += 1;
+      settle.current = 1;
+      console.info(`[gl] frames running ${mid.toFixed(0)} ms (budget ${FRAME_BUDGET_MS}); giving back ${give} before any pixels`);
+      onQuality?.({ median: mid, give, acted: GOVERNS });
+      return;
+    }
     const acted = judge(state.current, mid, DPR_LADDER, FRAME_BUDGET_MS);
     if (!acted) {
       onQuality?.({ median: mid, dpr: DPR_LADDER[state.current.rung], acted: false });
       return;
     }
-    if (!acted.floor && GOVERNS) setDpr(acted.dpr);
+    if (!acted.floor && GOVERNS) { setDpr(acted.dpr); settle.current = 1; }
     console.info(`[gl] frames running ${mid.toFixed(0)} ms`
       + ` (budget ${FRAME_BUDGET_MS}); pixel ratio → ${acted.dpr}`
       + (acted.floor ? ' — the last rung; nothing further to give' : '')

@@ -91,22 +91,20 @@ export const BACKDROP_PLATES = {
     color: '/nodes/garden/01-moonlit-labyrinth-var3-backdrop.webp',
     depth: '/nodes/garden/01-moonlit-labyrinth-var3-backdrop-depth.webp',
   },
-  '/nodes/garden/02-endless-garden-starry-var0.webp': {
-    color: '/nodes/garden/02-endless-garden-starry-var0-backdrop.webp',
-    depth: '/nodes/garden/02-endless-garden-starry-var0-backdrop-depth.webp',
-  },
-  '/nodes/garden/02-endless-garden-starry-var1.webp': {
-    color: '/nodes/garden/02-endless-garden-starry-var1-backdrop.webp',
-    depth: '/nodes/garden/02-endless-garden-starry-var1-backdrop-depth.webp',
-  },
-  '/nodes/garden/02-endless-garden-starry-var2.webp': {
-    color: '/nodes/garden/02-endless-garden-starry-var2-backdrop.webp',
-    depth: '/nodes/garden/02-endless-garden-starry-var2-backdrop-depth.webp',
-  },
-  '/nodes/garden/02-endless-garden-starry-var3.webp': {
-    color: '/nodes/garden/02-endless-garden-starry-var3-backdrop.webp',
-    depth: '/nodes/garden/02-endless-garden-starry-var3-backdrop-depth.webp',
-  },
+  // The starry plates have NO backdrop entry, on purpose (dropped 2026-08-21 at
+  // the user's request, files deleted with them). They are the only plates in
+  // the piece without one, so they are also the only ones still filling their
+  // dis-occlusion gaps with the runtime dilation smear rather than a baked
+  // inpaint — see the note at the head of this file for what that costs, and
+  // `git show HEAD:src/backdrops.js` for the four entries if they are ever
+  // wanted back. Whatever hangs at the Web of Time is the gallery to look at
+  // when judging the difference between the two fills.
+  //
+  // The declarations had to go WITH the files. A key here whose file is missing
+  // is not a soft fallback: useTexture would suspend on a URL the dev server
+  // answers with index.html at 200, the decode fails, and the plate's error
+  // boundary takes the whole gallery dark. Absent, the plate simply reads
+  // BACKDROP_PLATES[color] as null and takes the dilation path.
   '/nodes/garden/03-solitary-pavilion-var0.webp': {
     color: '/nodes/garden/03-solitary-pavilion-var0-backdrop.webp',
     depth: '/nodes/garden/03-solitary-pavilion-var0-backdrop-depth.webp',

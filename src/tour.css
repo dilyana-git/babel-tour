@@ -338,6 +338,9 @@
   color: #fff3cd;
 }
 
+.air-act.is-explore { color: #e3cd9b; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: .2em; }
+.air-act.is-explore:disabled { opacity: .4; cursor: default; }
+
 .air-act.is-on {
   color: #ffe9b0;
   text-shadow: 0 0 20px rgba(255, 226, 150, 0.5), 0 2px 12px rgba(0, 0, 0, 0.85);
@@ -1496,7 +1499,9 @@
      moving as the camera pushes in. Up here the type sits in the dark vault
      above the bridge and the architecture stays a clean stage under it. */
   padding: 2rem 2rem 15vh;
-  background: radial-gradient(ellipse at 50% 60%, #1c1710 0%, #0b0906 70%);
+  /* No ground of its own: the canvas draws the room through it. The dark the
+     card opens on is .entry-film-ground below, which fades off once the plate
+     has decoded. */
   cursor: pointer;
   transition: opacity 1100ms ease;
   overflow: hidden;
@@ -1516,17 +1521,38 @@
   pointer-events: none;
 }
 
-/* The film sits UNDER the title (the flex children above have no z-index and so
-   stack after it in DOM order) and takes no clicks, so the whole veil stays one
-   big button. */
+/* The scrim and the ground sit UNDER the title (the flex children above have no
+   z-index and so stack after them in DOM order) and take no clicks, so the whole
+   veil stays one big button. */
 .entry-film {
   position: absolute;
   inset: 0;
   pointer-events: none;
 }
 
-.entry-film-still,
-.entry-film-reel {
+/* What the card opens on, and the ONLY thing between the reader and a canvas
+   that has not drawn its plate yet. It is the veil's old background, moved onto
+   a layer of its own so it can be taken away: the room surfaces through it as
+   the plate decodes rather than cutting in behind the title.
+
+   Slow on purpose. The plate lands in one frame and a 1.6 s fade is what turns
+   that into an arrival; matched to the crossfade the poster→film used to run,
+   which was the one thing worth keeping from it. */
+.entry-film-ground {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 60%, #1c1710 0%, #0b0906 70%);
+  transition: opacity 1600ms ease;
+}
+
+.entry-film-ground.is-lit {
+  opacity: 0;
+}
+
+/* The failure page's ground. It is the ONE place a picture is still needed:
+   the canvas is broken or absent there by definition, so there is no live room
+   to show through and the card would otherwise sit on nothing. */
+.entry-film-still {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -1535,41 +1561,35 @@
      arch is centred, so the crop takes it off the sides where there is only
      stairway, and a portrait phone still gets the lit arch and the figures. */
   object-fit: cover;
-  /* Hold the arch's mouth on the centre line as the sides are cropped away. */
   object-position: 50% 50%;
 }
 
-/* Crossfade poster → film only once the clip is actually running, so a blocked
-   or stalled autoplay simply leaves the still in place. */
-.entry-film-reel {
-  opacity: 0;
-  transition: opacity 1600ms ease;
-}
-
-.entry-film-reel.is-playing {
-  opacity: 1;
-}
-
-/* Shade over the art: a light wash that settles the frame back so it reads as
-   ground rather than subject, and a soft ellipse that deepens the middle where
-   the type lands. Deliberately WEAK — the clip is already graded down (the same
-   gamma the live surfaces get) and a heavy scrim on top of that turned the whole
-   arch to mud, flattened the blue depth and put out the two lanterns, which are
-   the best thing in the shot. The type is defended by its own shadow below
-   instead, which costs the picture nothing. */
+/* Shade over the art: one soft ellipse that deepens the middle where the type
+   lands, and nothing else. Deliberately WEAK — a heavy scrim turns the arch to
+   mud, flattens the blue depth and puts out the lanterns, which are the best
+   thing in the shot. The type is defended by its own halo below instead, which
+   costs the picture nothing.
+   Lightened when the card stopped standing on a film and started standing on the
+   live gallery. The old values were tuned against the overture clip, which had
+   been gamma-lifted in the bake; a raw plate arrives darker and already fogged,
+   so the same scrim over it was subtraction on top of subtraction. Measured
+   against the poster frame the card used to show — the level was never the
+   problem, the HIGHLIGHTS were: with the old wash the frame's 95th percentile
+   came out at 0.29 against the poster's 0.49, which is the lamps going out.
+   Dropping the flat wash and halving the outer ring puts it at 0.35 and the
+   carved stone, the balustrade and the figures crossing it all come back. */
 .entry-film-scrim {
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(ellipse at 50% 52%, rgba(8, 6, 4, 0.52) 0%,
-                    rgba(8, 6, 4, 0.16) 44%, rgba(8, 6, 4, 0.46) 100%),
-    linear-gradient(rgba(11, 9, 6, 0.14), rgba(11, 9, 6, 0.14));
+    radial-gradient(ellipse at 50% 52%, rgba(8, 6, 4, 0.50) 0%,
+                    rgba(8, 6, 4, 0.10) 46%, rgba(8, 6, 4, 0.22) 100%);
 }
 
-/* The title card now sits on a moving picture, so every line carries its own
-   halo — a scrim heavy enough to guarantee contrast would cost more than this
-   does. The glow is the veil's own background colour, so it reads as the dark
-   deepening behind the letters rather than as an outline on them. */
+/* The title card sits on the live gallery, so every line carries its own halo —
+   a scrim heavy enough to guarantee contrast would cost more than this does. The
+   glow is the ground's own colour, so it reads as the dark deepening behind the
+   letters rather than as an outline on them. */
 .entry-eyebrow,
 .entry-title,
 .entry-status {
@@ -1764,5 +1784,175 @@
     bottom: 5rem;
     font-size: 0.62rem;
     letter-spacing: 0.16em;
+  }
+}
+
+/* --- The terrace's walk -----------------------------------------------------
+   The balcony's footer (balcony.css), carried into every gallery: the keys, the
+   look, the offer to capture the mouse, and on a touch screen the arrow pad.
+   Set in this margin's own voice — mono, parchment, a dark halo under it —
+   rather than on the balcony's bar, because the corridor puts no rectangle over
+   the artwork. It hangs under the attribution, which owns the same margin a
+   little higher up. Last in the file so it wins over the narrow layout above. */
+.walk-keys {
+  position: fixed;
+  left: 3rem;
+  bottom: 2.2rem;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 1.6rem;
+  font: 400 0.6rem/1 var(--mono);
+  letter-spacing: 0.12em;
+  color: rgba(226, 214, 186, 0.72);
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.85);
+}
+
+.walk-keys-hint {
+  display: flex;
+  gap: 1.6rem;
+  margin: 0;
+}
+
+.walk-keys kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.3rem;
+  height: 1.3rem;
+  margin-right: 0.2rem;
+  border: 1px solid rgba(181, 172, 145, 0.3);
+  border-radius: 2px;
+  background: rgba(8, 6, 4, 0.35);
+  font: 0.6rem var(--mono);
+  color: #dbd1ba;
+}
+
+.walk-mouse {
+  min-height: 44px;
+  padding: 0 0.2rem;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  text-shadow: inherit;
+  transition: color 300ms ease;
+}
+
+.walk-mouse span {
+  margin-left: 0.6rem;
+  color: var(--accent);
+}
+
+.walk-mouse:hover,
+.walk-mouse:focus-visible {
+  color: #ffedb8;
+}
+
+.walk-mouse:disabled {
+  cursor: default;
+  opacity: 0.65;
+}
+
+.walk-lock-error {
+  margin: 0;
+  color: #d5bd8a;
+}
+
+.walk-reticle {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 40;
+  width: 3px;
+  height: 3px;
+  margin: -1.5px;
+  border-radius: 50%;
+  background: #eee0be;
+  pointer-events: none;
+}
+
+.walk-pad,
+.walk-touch-hint {
+  display: none;
+}
+
+.walk-keys,
+.walk-pad {
+  transition: opacity 900ms ease;
+}
+
+.tour-root.is-diving .walk-keys,
+.tour-root.is-diving .walk-pad,
+.tour-root.is-diving .walk-reticle {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.tour-root.is-sealed .walk-keys,
+.tour-root.is-sealed .walk-pad {
+  opacity: 0;
+  visibility: hidden;
+}
+
+@media (max-width: 720px) {
+  .walk-keys {
+    left: 1rem;
+    bottom: 1rem;
+  }
+
+  .walk-keys-hint {
+    display: none;
+  }
+}
+
+/* A finger walks on the pad, as it does on the balcony — hung up the left
+   margin where the balcony hangs it, clear of the attribution below and of the
+   stateful words in the opposite corner. */
+@media (pointer: coarse) {
+  .walk-pad {
+    position: fixed;
+    left: 1.5rem;
+    bottom: 9rem;
+    z-index: 40;
+    display: grid;
+    grid-template-columns: repeat(3, 46px);
+    grid-template-rows: repeat(2, 46px);
+    gap: 5px;
+  }
+
+  .walk-pad button {
+    border: 1px solid rgba(189, 161, 106, 0.4);
+    border-radius: 0;
+    background: rgba(22, 27, 29, 0.73);
+    color: #e3d8be;
+    font-size: 1.2rem;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  .walk-pad button:first-child {
+    grid-column: 2;
+  }
+
+  .walk-pad button:nth-child(2) {
+    grid-column: 1;
+  }
+
+  .walk-mouse,
+  .walk-keys-hint {
+    display: none;
+  }
+
+  .walk-touch-hint {
+    display: block;
+  }
+
+  .walk-keys {
+    left: 1.5rem;
+    bottom: calc(9rem + 97px + 0.6rem);
   }
 }

@@ -16,6 +16,24 @@
 // in a row, five seconds apart, is the machine.
 export const PATIENCE = 2;
 
+// ...unless the miss is not close. At twice the budget nothing is "a room
+// arriving": a frame of 49 ms against a budget of 24 is a machine in the wrong
+// place, and making it prove that twice costs the reader five more seconds of
+// exactly what they are complaining about. Measured on the integrated AMD this
+// is made on, at a 1536x730 window and a ratio of 1.25 — 1.75 million pixels —
+// the walk runs at 20 fps, and it is 16 seconds before patience and one rung at
+// a time arrive at the ratio the first window already pointed to.
+export const GROSS = 2;
+
+// How far a single decision may move. The frame of this scene is very nearly
+// all fill rate — measured, the time goes as the square of the ratio and no
+// single pass in the composer is worth more than 13% — so from a median you can
+// say where the ratio needs to be rather than creep toward it. Capped at two
+// rungs because the governor NEVER CLIMBS BACK: a decision made on one bad
+// window is permanent for the session, so it may be quick without being
+// reckless, and one more window will take it further if it was not enough.
+export const REACH = 2;
+
 // The decision, as a function of nothing but the numbers.
 //
 // `state` is { rung, late, floored } and is MUTATED in place — it is a ref's contents in
@@ -32,9 +50,15 @@ export const judge = (state, medianMs, ladder, budget, patience = PATIENCE) => {
     return null;
   }
   state.late += 1;
-  if (state.late < patience) return null;
+  if (medianMs < budget * GROSS && state.late < patience) return null;
   state.late = 0;
-  const next = state.rung + 1;
+  // Where the numbers point: time goes as the ratio squared, so the ratio that
+  // would have made this window's median fit the budget is the current one
+  // scaled by sqrt(budget / median). Step to the first rung at or below it,
+  // and never more than REACH rungs at once.
+  const want = ladder[state.rung] * Math.sqrt(budget / medianMs);
+  let next = state.rung + 1;
+  while (next + 1 < ladder.length && next < state.rung + REACH && ladder[next] > want) next += 1;
   // Out of rungs. The piece has given back every pixel it is willing to and the
   // machine is still behind; what is left to give is the video, and that is the
   // reader's call to make with ?stills=1, not one to make for them by silently

@@ -1,8 +1,8 @@
 // ── The catalogue ────────────────────────────────────────────────────────────
 // What hangs where: every gallery of the library and the garden, every variant
-// of every gallery, the clip each variant wakes into, and the rules for drawing
-// one — at random on a first visit, unseen on a restock, pinned when ?variant=
-// or ?clip= is asking a question about one particular pairing.
+// of every gallery, and the rules for drawing one — at random on a first visit,
+// unseen on a restock, pinned when ?variant= is asking a question about one
+// particular painting.
 //
 // It is a catalogue and it reads like one: it grows when art lands, and it is
 // the part of this piece most often edited by someone who is not thinking about
@@ -11,94 +11,59 @@
 //
 // The order of NODES is the order of the descent, and POOLS is the same list
 // with its variants intact — the corridor reads NODES, a restock reads POOLS.
-import { STILLS_ONLY } from './capability';
-import { servedVideo, VIDEO_RATE, VIDEO_RATE_DEFAULT } from './clips';
 import { unseenFirst } from './memory';
 
-// Draw one variant of a node at random (stable seed would defeat the "world
-// stirs on revisit" point) and, if it carries video clips, one clip from it.
-// Pinning, for looking at ONE painting/clip pairing on demand instead of
-// waiting for it — every pool is a random draw, so a given pairing can be
-// many revisits away. Both take a filename fragment; nodes that match neither
-// are drawn at random as usual. Pair with ?node=<slug> (below) to land on the
-// node holding them rather than walking there.
+// Draw one variant of a node at random — a stable seed would defeat the "world
+// stirs on revisit" point.
+//
+// Pinning, for looking at ONE painting on demand instead of waiting for it:
+// every pool is a random draw, so a given plate can be many revisits away. It
+// takes a filename fragment; nodes that match it are left to the random draw as
+// usual. Pair with ?node=<slug> (below) to land on the node holding it rather
+// than walking there.
 //   ?variant=01-moonlit-labyrinth-var0     — pin the painting
-//   ?clip=01-moonlit-labyrinth-var0-clip1  — pin the clip
-// Given together they may name DIFFERENT variants, which deliberately plays
-// one painting under another's clip — that cross-pairing is how a clip is
-// judged against the still it is supposed to be animating.
 const pinParam = (key) => (typeof window === 'undefined'
   ? null
   : new URLSearchParams(window.location.search).get(key));
 const PIN_VARIANT = pinParam('variant');
-const PIN_CLIP = pinParam('clip');
 
-// Anything pinned is meant to STAY pinned — the point of ?variant/?clip is to
-// hold one pairing still and look at it — so a pinned session never restocks.
-export const PINNED = Boolean(PIN_VARIANT || PIN_CLIP);
+// A pin is meant to STAY pinned — the point of ?variant is to hold one painting
+// still and look at it — so a pinned session never restocks.
+export const PINNED = Boolean(PIN_VARIANT);
 
 // The renderable half of a node: everything a chapter's slab stack and glow
 // need, and the only half that changes when a gallery re-draws itself.
-export const sceneOf = (node, variant, video) => ({
+export const sceneOf = (node, variant) => ({
   color: variant.color,
   depth: variant.depth,
   glowAt: variant.glowAt,
   glowScale: variant.glowScale,
-  video: servedVideo(video),
-  videoRate: video ? (VIDEO_RATE[video] ?? VIDEO_RATE_DEFAULT) : undefined,
   fog: node.fog,
 });
 
-// A gallery ought to be able to STIR. Several plates in the pools carry no
-// clip — the mismatched i2v pairs that were pulled for animating a different
-// painting (pavilion var1/var2), and the four original Midjourney descent
-// plates, which have none — and while the draw treated every variant alike,
-// each visit was a coin flip on whether the room could move at all: 1/3 at the
-// Echo and the Vertigo, 1/2 at the Silence and the Pavilion, on load AND on
-// every restock. So a living plate is always preferred, and a still-only one is
-// hung only where its node has nothing living to offer. That is the Vestibule
-// today and nowhere else: its lone plate has no clip, and the one staircase
-// variant that could have filled the slot renders ghosted there (see the note
-// on its variants). The still-only plates are not retired — they still hang
-// wherever they are all a node has — they simply stop displacing a clip.
-export const livingFirst = (variants) => {
-  // With the video off no plate can move, so "living" names nothing and
-  // preferring it would only narrow the draw for a distinction that has stopped
-  // existing — pinning the reader to the handful of plates that carry clips
-  // they will never be served. With the preference lifted the whole pool is in
-  // play, and the unseen-first draw underneath gets the widest choice of
-  // paintings.
-  if (STILLS_ONLY) return variants;
-  const living = variants.filter((v) => v.videos?.length);
-  return living.length ? living : variants;
-};
-
 // Re-draw one gallery: a different version of the same room, for the restock in
 // the tick below. Never the version just shown — with two variants that
-// alternates, with four it wanders — and where a node owns only one painting, a
-// different clip of it still counts as a different version of the room. Returns
-// null when the node has nothing else to show, so the caller can drop it from
-// the rotation rather than churn its textures for the same picture.
+// alternates, with four it wanders. Returns null when the node has nothing else
+// to show, so the caller can drop it from the rotation rather than churn its
+// textures for the same picture.
+//
+// A node with ONE variant can therefore never restock, and walking back to it
+// is a literal rewind. That is the argument for every node fielding at least
+// two plates; see the note on the Web of Time, which was the last node stuck at
+// one and is the reason this is written down.
 export const redrawScene = (nodeMap, slug, current) => {
   const node = nodeMap[slug];
-  // Never the version just shown, then a living one over a still one, then —
-  // and this is the part that reaches past the end of the session — one this
-  // reader has never been shown at all. The restock only ever guaranteed
-  // freshness within a visit; a returning reader could walk the same corridor
-  // twice and be re-hung plates they had already stood in front of.
-  const others = unseenFirst(
-    livingFirst(node.variants.filter((v) => v.color !== current.color)));
-  const variant = others.length
-    ? others[Math.floor(Math.random() * others.length)]
-    : node.variants.find((v) => v.color === current.color) ?? node.variants[0];
-  const clips = variant.videos ?? [];
-  const unseen = clips.filter((p) => servedVideo(p) !== current.video);
-  const pool = unseen.length ? unseen : clips;
-  const video = pool.length ? pool[Math.floor(Math.random() * pool.length)] : undefined;
+  // Never the version just shown, and then — this is the part that reaches past
+  // the end of the session — one this reader has never been shown at all. The
+  // restock only ever guaranteed freshness within a visit; a returning reader
+  // could walk the same corridor twice and be re-hung plates they had already
+  // stood in front of.
+  const others = unseenFirst(node.variants.filter((v) => v.color !== current.color));
+  if (!others.length) return null;
+  const variant = others[Math.floor(Math.random() * others.length)];
   // Fog is the node's mood, not the variant's, and `current` already carries the
   // right one even where a chapter is standing in for another (GARDEN_ART_READY).
-  const next = { ...sceneOf(node, variant, video), fog: current.fog };
-  return (next.color === current.color && next.video === current.video) ? null : next;
+  return { ...sceneOf(node, variant), fog: current.fog };
 };
 
 export const selectRandomVariant = (nodeMap, slug) => {
@@ -106,32 +71,28 @@ export const selectRandomVariant = (nodeMap, slug) => {
   const byVariant = PIN_VARIANT
     ? node.variants.find((v) => v.color.includes(PIN_VARIANT))
     : undefined;
-  const byClip = PIN_CLIP
-    ? node.variants.find((v) => v.videos?.some((p) => p.includes(PIN_CLIP)))
-    : undefined;
-  // A living plate first, and among those the ones this reader has not been
-  // shown on a previous visit — so the second walk down the corridor opens on
-  // paintings the first one never hung. Pins are untouched by any of it: they
-  // exist to hold one thing still.
-  const pool = unseenFirst(livingFirst(node.variants));
-  const variant = byVariant ?? byClip
+  // The ones this reader has not been shown on a previous visit come first, so
+  // the second walk down the corridor opens on paintings the first one never
+  // hung. A pin is untouched by it: it exists to hold one thing still.
+  const pool = unseenFirst(node.variants);
+  // …and one node gets to name its own opening plate. See `opens` on the
+  // Vestibule's arch: that gallery is the one the title card stands on, so
+  // which version of it draws is not only a question about the gallery.
+  //
+  // It only wins while it is still UNSEEN — `pool` is the unseen-first list, so
+  // a reader who has already had the arch gets the ordinary random draw and the
+  // node keeps stirring across visits. A first visit is the only one this
+  // decides, which is exactly the visit it is about.
+  const opener = pool.find((v) => v.opens);
+  const variant = byVariant ?? opener
     ?? pool[Math.floor(Math.random() * pool.length)];
-  // The pinned clip is looked for in the chosen variant first, then anywhere in
-  // the node — so ?variant=A&clip=B lands B's video on A's painting.
-  const pinnedVideo = PIN_CLIP
-    ? (variant.videos?.find((p) => p.includes(PIN_CLIP))
-      ?? node.variants.flatMap((v) => v.videos ?? []).find((p) => p.includes(PIN_CLIP)))
-    : undefined;
-  const video = pinnedVideo ?? (variant.videos
-    ? variant.videos[Math.floor(Math.random() * variant.videos.length)]
-    : undefined);
   return {
     slug,
     title: node.title,
     subtitle: node.subtitle,
     summary: node.summary,
     accent: node.accent,
-    scene: sceneOf(node, variant, video),
+    scene: sceneOf(node, variant),
     folio: node.folio,
   };
 };
@@ -151,9 +112,9 @@ const STAIRCASE_READY = true;
 // the picture. The library's four galleries come first; dwelling in the
 // deepest one opens a door onto the garden's four paths (see GARDEN.md).
 //
-// Same variants+video shape as GARDEN_NODE_VARIANTS below: one Midjourney
-// original per node plus (once STAIRCASE_READY) a couple of the new
-// staircase renders, each an image-to-video pair that breathes on dwell.
+// Same shape as GARDEN_NODE_VARIANTS below: one Midjourney original per node
+// plus a couple of the newer staircase renders, each a colour plate and the
+// depth map the slab stack is cut from.
 const LIBRARY_NODE_VARIANTS = {
   vestibule: {
     title: 'The Vestibule',
@@ -162,40 +123,39 @@ const LIBRARY_NODE_VARIANTS = {
     accent: '#c9a24c',
     variants: [
       {
-        // The room the tour opens in, and the same artwork the overture plays
-        // over (OVERTURE_CLIP) — so the title card does not merely dissolve
-        // into node I, it dissolves into the very arch it was showing, and the
-        // first thing the reader does is walk into the picture they were just
-        // looking at.
+        // The room the tour opens in, and the artwork the title card stands
+        // on — the card is transparent now, so this plate IS the first thing a
+        // reader ever sees, and the withdrawal then draws back out of the very
+        // frame they were reading the title over.
         //
-        // Moved here from the Echo, where it was one of three. The Vestibule
-        // was the only node in the library that could not STIR — see
-        // livingFirst above, whose comment named this slot as the sole place a
-        // still-only plate still had to hang, because impossible_1 has no clip
-        // and the one staircase variant that could have filled it (var9)
-        // renders ghosted here. That gap sat on the first gallery a visitor
-        // ever sees. This plate closes it: depth-mapped, verified, and with
-        // three content-matched clips.
+        // Which is why it is marked `opens`: a first visit gets this one rather
+        // than a coin flip with impossible_1 below. The two plates are not
+        // interchangeable behind a title card. This is the arch — carved span,
+        // the procession of figures crossing its balustrade, depth on both
+        // sides of it — and it holds the type in the dark of its own vault.
+        // impossible_1 is a dim vaulted hall, fogged almost flat at the opening
+        // framing; measured against this plate it loses about a third of its
+        // frame luminance and most of its highlights, and the card sits on mud.
+        // It is still a good painting and it still hangs here — from the second
+        // visit on, when there is no title over it.
         //
-        // livingFirst now prefers this over impossible_1 below on load AND on
-        // restock, so node I is reliably the one that moves rather than a coin
-        // flip. The Echo keeps impossible_2 + var9 and still lives.
+        // (The arch used to win this slot as a side effect of a rule about
+        // clips: it was the only Vestibule plate with one, and the draw
+        // preferred plates that could move. That rule went with the video, and
+        // took this choice with it silently. `opens` is the same decision made
+        // on its own terms.)
+        //
+        // Moved here from the Echo, where it was one of three.
+        opens: true,
         color: '/nodes/descent/05-impossible-prison-staircases-var17.webp',
         depth: '/nodes/descent/05-impossible-prison-staircases-var17-depth.webp',
-        videos: [
-          '/video/05-impossible-prison-staircases-var17-clip0.mp4',
-          '/video/05-impossible-prison-staircases-var17-clip1.mp4',
-          '/video/05-impossible-prison-staircases-var17-clip3.mp4',
-        ],
         glowAt: [0.69, 0.76], glowScale: 0.85,
       },
       // The original Vestibule plate — twin stairways, chains hanging like
-      // plumb lines, one robed reader at the door of fire. It has no clip, so
-      // livingFirst filters it out of the draw entirely while the plate above
-      // is present, and it is kept rather than deleted: it is the node's
-      // original artwork and putting it back is a matter of removing the
-      // variant above. (The old node summary described THIS plate; the summary
-      // now describes the one that actually hangs.)
+      // plumb lines, one robed reader at the door of fire. It shares the node
+      // with the arch above, so the two alternate across visits. (The old node
+      // summary described THIS plate; the summary now describes the arch, which
+      // is what a first visit is most likely to open on.)
       {
         color: '/nodes/descent/impossible_1.webp',
         depth: '/nodes/descent/impossible_1_depth.webp',
@@ -241,20 +201,10 @@ const LIBRARY_NODE_VARIANTS = {
           // read badly walked-in: its content is mostly large smooth vaulting, and
           // the still's unsharp mask taps at a fixed TEXTURE texel, so magnifying
           // the plate magnifies the halo into hard etching along every balustrade.
-          // var16's plate and its four clips are all still on disk and verified —
+          // var16's plate and depth map are both still on disk and verified —
           // put it back if the sharpen is ever reworked to tap in screen space.
           color: '/nodes/descent/05-impossible-prison-staircases-var9.webp',
           depth: '/nodes/descent/05-impossible-prison-staircases-var9-depth.webp',
-          videos: [
-            // The only clip for this plate, and one of just two reachable clips
-            // with no super-resolved twin anywhere: it was left off the upscale
-            // keep-list as an orphan, back when no variant referenced var9. So
-            // it plays from its 832×354 source, which is honest but soft under
-            // the walk-in's magnification — this is the gallery to look at when
-            // judging whether a clip needs the x4plus pass. Add it to
-            // tools/upscale-keeplist.txt on the next run.
-            '/video/05-impossible-prison-staircases-var9-clip3.mp4',
-          ],
           // Starting estimate from the plate's dominant warm source; the shrine
           // glow sits right of centre. Worth an eye — the automatic pick agrees
           // with the hand-tuned value on impossible_2 but not on plates with
@@ -263,10 +213,9 @@ const LIBRARY_NODE_VARIANTS = {
         },
         // var17 (the procession crossing the bridge) used to hang here as a
         // third variant — thematically it belongs to the Echo, repetition made
-        // literal. It now opens the tour at the Vestibule instead, which had no
-        // moving plate at all; see the note in that node. Two plates were not
-        // worth showing the same bridge twice in one walk, and with var9 above
-        // the Echo still has something that stirs.
+        // literal. It now opens the tour at the Vestibule instead; see the note
+        // in that node. Two plates were not worth showing the same bridge twice
+        // in one walk.
       ] : []),
     ],
     fog: '#141009',
@@ -293,21 +242,6 @@ const LIBRARY_NODE_VARIANTS = {
         // Darkest of the batch: one hooded figure on a high landing, one
         // small flame keeping the dark honest below.
         //
-        // HANGS AS A STILL. Both of its clips (clip0, clip3) are pulled: this
-        // is the plate whose i2v renders read worst of any in the tour. They
-        // are near-identical slow dollies into the bridge, and the push is
-        // exactly what the render cannot pay for — the far vault flattens to
-        // untextured grey, the balconies over it slump into drooping tongues
-        // of stone, and the whole plate turns to smoothed plaster while the
-        // painting beside it stays cut. It reads as damage rather than as
-        // motion, and at this size the walk-in magnifies it further.
-        //
-        // Dropping both matters, not just the worse one: a woken gallery draws
-        // an UNSEEN clip each visit (see the pool in useClip), so leaving one
-        // in only delays the same deformation to the next pass through III.
-        // Both files stay on disk and stay listed in X4_FILES above, so ?clip=
-        // still reaches them at full super-resolution if they are ever worth
-        // another look — nothing here needs re-upscaling to restore them.
         color: '/nodes/descent/05-impossible-prison-staircases-var19.webp',
         depth: '/nodes/descent/05-impossible-prison-staircases-var19-depth.webp',
         glowAt: [0.49, 0.88], glowScale: 0.75,
@@ -343,21 +277,12 @@ const LIBRARY_NODE_VARIANTS = {
           // batch, a distant warm point where the two stairs finally meet.
           color: '/nodes/descent/05-impossible-prison-staircases-var4.webp',
           depth: '/nodes/descent/05-impossible-prison-staircases-var4-depth.webp',
-          videos: [
-            '/video/05-impossible-prison-staircases-var4-clip0.mp4',
-            '/video/05-impossible-prison-staircases-var4-clip3.mp4',
-          ],
           glowAt: [0.61, 0.54], glowScale: 0.7,
         },
         {
           // A single spiral winding down into a lit tunnel mouth.
           color: '/nodes/descent/05-impossible-prison-staircases-var11.webp',
           depth: '/nodes/descent/05-impossible-prison-staircases-var11-depth.webp',
-          videos: [
-            '/video/05-impossible-prison-staircases-var11-clip0.mp4',
-            '/video/05-impossible-prison-staircases-var11-clip1.mp4',
-            '/video/05-impossible-prison-staircases-var11-clip2.mp4',
-          ],
           glowAt: [0.49, 0.88], glowScale: 0.95,
         },
       ] : []),
@@ -381,12 +306,11 @@ export const LIBRARY_NODES = LIBRARY_SLUGS.map((slug) =>
 // the Library its home. Warm amber cools into jade, flares gold once at the
 // pavilion, then dissolves into moon-silver.
 //
-// Each node offers several Midjourney variants; one is drawn per page load.
-// A variant's `videos` are image-to-video renders OF THAT EXACT ARTWORK —
-// when the camera dwells at the node, DioramaScene crossfades the relief's
-// surface from the still to its playing video, so the world itself stirs
-// (matched by content, not filename: the "library_*.mp4" clips are all Door
-// artwork and must never play elsewhere).
+// Each node offers several Midjourney variants; one is drawn per page load,
+// and a node the reader walks back to re-hangs itself with one they have not
+// seen (see redrawScene). Every variant is a colour plate plus the depth map
+// its slab stack is cut from, and the two must be the same picture — a plate
+// wearing another's depth reads as a room melting.
 const GARDEN_NODE_VARIANTS = {
   door: {
     title: 'The Door',
@@ -397,7 +321,6 @@ const GARDEN_NODE_VARIANTS = {
       {
         color: '/nodes/garden/04-gothic-library-var0.webp',
         depth: '/nodes/garden/04-gothic-library-var0-depth.webp',
-        videos: ['/video/04-gothic-library-var0-clip0.mp4', '/video/04-gothic-library-var0-clip1.mp4', '/video/04-gothic-library-var0-clip2.mp4'],
         glowAt: [0.5, 0.45], glowScale: 1.1,
       },
       {
@@ -406,19 +329,16 @@ const GARDEN_NODE_VARIANTS = {
         // variant so far, the figure standing right in the threshold light.
         color: '/nodes/garden/04-gothic-library-var1.webp',
         depth: '/nodes/garden/04-gothic-library-var1-depth.webp',
-        videos: ['/video/04-gothic-library-var1-clip0.mp4', '/video/04-gothic-library-var1-clip1.mp4'],
         glowAt: [0.505, 0.39], glowScale: 1.15,
       },
       {
         color: '/nodes/garden/04-gothic-library-var2.webp',
         depth: '/nodes/garden/04-gothic-library-var2-depth.webp',
-        videos: ['/video/04-gothic-library-var2-clip0.mp4', '/video/04-gothic-library-var2-clip1.mp4', '/video/04-gothic-library-var2-clip2.mp4'],
         glowAt: [0.47, 0.7], glowScale: 0.9,
       },
       {
         color: '/nodes/garden/04-gothic-library-var3.webp',
         depth: '/nodes/garden/04-gothic-library-var3-depth.webp',
-        videos: ['/video/04-gothic-library-var3-clip0.mp4', '/video/04-gothic-library-var3-clip1.mp4', '/video/04-gothic-library-var3-clip2.mp4', '/video/04-gothic-library-var3-clip3.mp4'],
         glowAt: [0.49, 0.5], glowScale: 1.0,
       },
     ],
@@ -442,26 +362,32 @@ const GARDEN_NODE_VARIANTS = {
         // away down the centre line toward a warm box-lantern at right.
         color: '/nodes/garden/01-moonlit-labyrinth-var0.webp',
         depth: '/nodes/garden/01-moonlit-labyrinth-var0-depth.webp',
-        // clip0 PULLED: it is not an animation of this painting at all — a
-        // different composition in a different (cartoon/CGI) register, so waking
-        // the gallery replaced the plate wholesale. SSIM of its first frame
-        // against this still is 0.32, where every honest i2v pair in the pool
-        // scores 0.90+ (an i2v render is seeded FROM the still, so frame 0 must
-        // resemble it; later divergence is just the camera moving and is fine).
-        videos: ['/video/01-moonlit-labyrinth-var0-clip1.mp4'],
         glowAt: [0.68, 0.6], glowScale: 0.95,
       },
       {
         color: '/nodes/garden/01-moonlit-labyrinth-var1.webp',
         depth: '/nodes/garden/01-moonlit-labyrinth-var1-depth.webp',
-        videos: ['/video/01-moonlit-labyrinth-var1-clip0.mp4', '/video/01-moonlit-labyrinth-var1-clip2.mp4', '/video/01-moonlit-labyrinth-var1-clip3.mp4'],
         glowAt: [0.74, 0.55], glowScale: 0.85,
       },
       {
         color: '/nodes/garden/01-moonlit-labyrinth-var2.webp',
         depth: '/nodes/garden/01-moonlit-labyrinth-var2-depth.webp',
-        videos: ['/video/01-moonlit-labyrinth-var2-clip1.mp4', '/video/01-moonlit-labyrinth-var2-clip2.mp4', '/video/01-moonlit-labyrinth-var2-clip3.mp4', '/video/01-moonlit-labyrinth-var2-clip4.mp4'],
         glowAt: [0.585, 0.56], glowScale: 0.9,
+      },
+      {
+        // Wisteria arcade under a night sky, a corridor of paper lanterns
+        // receding to a lit gap, the small figure stopped at the mouth of the
+        // hedge. It had been finished and left unhung: full 3376x1440 plate, a
+        // matching depth map, and a baked backdrop at the same quarter-res as
+        // every other garden plate — everything the slab stack asks for.
+        color: '/nodes/garden/01-moonlit-labyrinth-var3.webp',
+        depth: '/nodes/garden/01-moonlit-labyrinth-var3-depth.webp',
+        // The big pendant lantern right of centre. Picked by the brightest
+        // lamp-sized area of the plate, a measure that reproduces the
+        // hand-tuned glowAt of all three variants above to within 0.06 — this
+        // plate has one clearly dominant source, which is the case that measure
+        // gets right.
+        glowAt: [0.60, 0.47], glowScale: 0.95,
       },
     ],
     fog: '#0a140d',
@@ -482,28 +408,21 @@ const GARDEN_NODE_VARIANTS = {
       {
         color: '/nodes/garden/03-solitary-pavilion-var0.webp',
         depth: '/nodes/garden/03-solitary-pavilion-var0-depth.webp',
-        videos: ['/video/03-solitary-pavilion-var0-clip0.mp4', '/video/03-solitary-pavilion-var0-clip1.mp4', '/video/03-solitary-pavilion-var0-clip2.mp4'],
         glowAt: [0.5, 0.55], glowScale: 1.15,
       },
       {
         color: '/nodes/garden/03-solitary-pavilion-var1.webp',
         depth: '/nodes/garden/03-solitary-pavilion-var1-depth.webp',
-        // clip0 PULLED (frame-0 SSIM 0.37 vs 0.90+ for every honest pair): it
-        // renders a DIFFERENT gothic doorway — same register, not the same
-        // painting. Still-only until a clip is generated from this plate.
         glowAt: [0.56, 0.55], glowScale: 1.1,
       },
       {
         color: '/nodes/garden/03-solitary-pavilion-var2.webp',
         depth: '/nodes/garden/03-solitary-pavilion-var2-depth.webp',
-        // BOTH clips PULLED (frame-0 SSIM 0.37): same story as var1 above —
-        // a different doorway, differently framed. Still-only for now.
         glowAt: [0.3, 0.52], glowScale: 1.0,
       },
       {
         color: '/nodes/garden/03-solitary-pavilion-var3.webp',
         depth: '/nodes/garden/03-solitary-pavilion-var3-depth.webp',
-        videos: ['/video/03-solitary-pavilion-var3-clip0.mp4', '/video/03-solitary-pavilion-var3-clip1.mp4', '/video/03-solitary-pavilion-var3-clip3.mp4'],
         glowAt: [0.55, 0.55], glowScale: 1.1,
       },
     ],
@@ -525,11 +444,44 @@ const GARDEN_NODE_VARIANTS = {
       {
         color: '/nodes/garden/02-endless-garden-starry-var1.webp',
         depth: '/nodes/garden/02-endless-garden-starry-var1-depth.webp',
-        videos: ['/video/02-endless-garden-starry-var1-clip1.mp4', '/video/02-endless-garden-starry-var1-clip2.mp4'],
         glowAt: [0.48, 0.31], glowScale: 0.7,
       },
-      // var2 pulled from rotation: the still is only 1680×720 (missed the MJ
-      // upscale step). Restore once re-exported at 3376×1440 with a fresh depth map.
+      {
+        // The firefly maze under the Milky Way, one lamp burning at the vanishing
+        // point of the hedges. Finished and left unhung like the labyrinth plate
+        // above, and this node is the one that most needed it: the Web was the
+        // last gallery in the tour standing on a SINGLE variant, so it could not
+        // restock, and walking back to it was the literal rewind the restock
+        // exists to prevent (see redrawScene, which returns null there).
+        color: '/nodes/garden/02-endless-garden-starry-var3.webp',
+        depth: '/nodes/garden/02-endless-garden-starry-var3-depth.webp',
+        // BY EYE, not by measure. Both starry plates defeat the automatic pick
+        // the same way — their star field and their firefly-lit hedges are each
+        // brighter, over a lamp-sized area, than the lamp — which is why var1's
+        // value above is hand-set too. This names the same thing var1's does:
+        // the single warm lamp on the horizon. Worth an eye on real hardware.
+        glowAt: [0.52, 0.33], glowScale: 0.7,
+      },
+      // Neither of these two hangs with a baked backdrop: the starry plates are
+      // the only ones in the piece with no entry in BACKDROP_PLATES, so their
+      // dis-occlusion gaps are filled by the runtime dilation smear instead of
+      // an inpaint. Dropped deliberately, see the note in src/backdrops.js.
+      //
+      // The rest of the starry family stays on disk and stays unhung. Six more
+      // paintings sit beside these two — var0, var2, and a `-b` draft of each
+      // of the four — and they are NOT resolution tiers of one another, which
+      // is the thing to know before reaching for one: `-a` and `-b` are
+      // Midjourney siblings from a single prompt, different pictures, measuring
+      // 0.17-0.25 RMS apart where two sizes of one image would measure ~0.
+      // var0, var2 and every `-b` are the un-upscaled drafts at 1680x720; only
+      // var0-a and var2-a reach 3376x1440.
+      //
+      // So there is no rename that adds a variant here. Hanging one means
+      // choosing a painting, running it through the depth pass at full size,
+      // and giving it a glowAt by eye — these plates defeat the automatic pick
+      // (their star field and firefly-lit hedges each read brighter, over a
+      // lamp-sized area, than the lamp), which is why both values above are
+      // hand-set.
     ],
     fog: '#0c1114',
     folio: {

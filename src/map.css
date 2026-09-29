@@ -1,0 +1,1082 @@
+/* --- The entry map -----------------------------------------------------------
+   See EntryMap.jsx. The live world fills the screen; the route, the hit areas
+   and the room names sit over it, projected through its camera; the key, the
+   room card and the title are set in the corners, after the game map sheet the
+   design came from. On a portrait screen the world is shown whole and the rest
+   stacks above and below it. Standing in a room (the world tour), all of that
+   gives way to the room's own card and the walk's controls.
+
+   No animation here may touch a property a state rule also sets — an animation
+   outranks every declaration (the plumb halo trap). The resting outline
+   breathes by stroke-opacity; the shown state sets opacity. */
+
+.entry-map {
+  --gold-lit: #e8c35a;
+  --jade: #9fc48a;
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  overflow: hidden;
+  background: #0c0a08;
+  color: var(--ink);
+  transition: opacity 1100ms ease;
+}
+
+.entry-map.is-leaving {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.entry-map.is-leaving .map-stage {
+  transform: scale(2.6);
+}
+
+.entry-map.is-leaving .map-key,
+.entry-map.is-leaving .map-card,
+.entry-map.is-leaving .map-title {
+  opacity: 0;
+  transition: opacity 450ms ease;
+}
+
+.map-stage {
+  position: absolute;
+  inset: 0;
+  transform-origin: var(--zoom-origin, 50% 50%);
+  transition: transform 1100ms cubic-bezier(0.55, 0, 0.9, 0.45);
+}
+
+.map-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.map-frame {
+  position: absolute;
+  inset: 16px;
+  border: 1px solid rgba(236, 228, 210, 0.14);
+  pointer-events: none;
+}
+
+/* A dark corner under the title, so it reads over the galleries there. */
+.map-scrim {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: min(640px, 60vw);
+  height: min(320px, 40vh);
+  background: radial-gradient(ellipse at 100% 100%, rgba(8, 6, 5, 0.85) 0%, rgba(8, 6, 5, 0.5) 45%, rgba(8, 6, 5, 0) 75%);
+  pointer-events: none;
+}
+
+/* --- The route --- */
+
+.map-route line,
+.map-route polyline {
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linejoin: round;
+  opacity: 0.85;
+}
+
+.map-route .is-library {
+  stroke: var(--gold);
+}
+
+.map-route .is-garden {
+  stroke: var(--jade);
+}
+
+/* The glow under each route line: wide, faint, round. */
+.map-route .map-glow line,
+.map-route .map-glow polyline {
+  stroke-width: 7;
+  stroke-linecap: round;
+  opacity: 0.22;
+}
+
+.map-chevrons use {
+  fill: none;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.map-chevrons.is-library { stroke: #f3d99a; }
+.map-chevrons.is-garden { stroke: #d3ecbf; }
+
+.map-route .map-not-taken {
+  stroke: rgba(159, 196, 138, 0.55);
+  stroke-width: 2.6;
+  stroke-dasharray: 0.5 8;
+  stroke-linecap: round;
+}
+
+.map-fall,
+.map-route .map-fall {
+  fill: none;
+  stroke: rgba(236, 228, 210, 0.75);
+  stroke-width: 2.6;
+  stroke-dasharray: 0.5 9;
+  stroke-linecap: round;
+}
+
+.map-pit-rim {
+  fill: rgba(10, 8, 6, 0.55);
+  stroke: #e6c77c;
+  stroke-width: 1.6;
+}
+
+.map-pit-spiral {
+  fill: none;
+  stroke: #ffe7b0;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+
+.map-entrance {
+  fill: var(--gold-lit);
+  stroke: rgba(232, 195, 90, 0.35);
+  stroke-width: 4;
+  paint-order: stroke;
+}
+
+/* --- Rooms: an invisible hit area, and an outline that lights when shown --- */
+
+.map-room {
+  --accent: var(--gold-lit);
+  cursor: pointer;
+  outline: none;
+}
+
+.map-room.is-garden {
+  --accent: var(--jade);
+}
+
+.map-hit {
+  fill: var(--accent);
+  fill-opacity: 0;
+  transition: fill-opacity 300ms ease;
+}
+
+.map-room:hover .map-hit,
+.map-room.is-shown .map-hit {
+  fill-opacity: 0.07;
+}
+
+.map-outline,
+.map-outline-glow {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  opacity: 0;
+  transition: opacity 300ms ease;
+  pointer-events: none;
+}
+
+.map-outline-glow {
+  stroke-width: 9;
+}
+
+.map-room.is-shown .map-outline {
+  opacity: 1;
+}
+
+.map-room.is-shown .map-outline-glow {
+  opacity: 0.2;
+}
+
+.map-room.is-resting .map-outline {
+  animation: map-breathe 2600ms ease-in-out infinite;
+}
+
+.map-room:focus-visible .map-outline {
+  opacity: 1;
+  stroke-width: 3.5;
+}
+
+.map-room.is-opening .map-outline {
+  stroke-width: 3.5;
+}
+
+@keyframes map-breathe {
+  50% { stroke-opacity: 0.35; }
+}
+
+/* --- Room names, set like engraved labels --- */
+
+.map-labels {
+  pointer-events: none;
+}
+
+.map-label {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  fill: rgba(236, 228, 210, 0.82);
+  paint-order: stroke;
+  stroke: rgba(6, 5, 4, 0.85);
+  stroke-width: 4px;
+  stroke-linejoin: round;
+  transition: fill 300ms ease;
+}
+
+.map-label.is-shown {
+  fill: #fff6e2;
+}
+
+.map-label-numeral {
+  font-family: var(--serif);
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: 0;
+  fill: var(--gold-lit);
+}
+
+.map-label.is-garden .map-label-numeral {
+  fill: var(--jade);
+}
+
+/* --- The key --- */
+
+.map-key {
+  position: absolute;
+  left: 2.5rem;
+  top: 3.25rem;
+  z-index: 2;
+  padding: 1.1rem 1.25rem 0.9rem;
+  border: 1.5px solid rgba(236, 228, 210, 0.72);
+  border-radius: 10px;
+  background: rgba(10, 8, 6, 0.74);
+  pointer-events: none;
+}
+
+.map-key-tab,
+.map-card-tab {
+  position: absolute;
+  left: 0.75rem;
+  top: -1.3rem;
+  padding: 0.32rem 0.75rem 0.25rem;
+  border-radius: 6px 6px 0 0;
+  background: var(--ink);
+  color: #15120d;
+  font: 600 0.66rem/1 var(--mono);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.map-key ul {
+  display: grid;
+  gap: 0.62rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.map-key li {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font: 400 0.66rem/1 var(--mono);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(236, 228, 210, 0.9);
+}
+
+.map-key li svg {
+  flex: none;
+  width: 1.1rem;
+  height: 1.1rem;
+  overflow: visible;
+}
+
+.map-key .map-key-scale {
+  margin-top: 0.15rem;
+  padding-top: 0.62rem;
+  border-top: 1px solid rgba(236, 228, 210, 0.16);
+  font-size: 0.6rem;
+  letter-spacing: 0.14em;
+  color: #a89c82;
+}
+
+.map-key-lamp-halo { fill: rgba(255, 196, 110, 0.24); }
+.map-key-lamp { fill: #ffe2a6; }
+
+.map-key-walk {
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.map-key-walk.is-library { stroke: var(--gold); }
+.map-key-walk.is-garden { stroke: var(--jade); }
+
+.map-key-not-taken {
+  fill: none;
+  stroke: rgba(159, 196, 138, 0.8);
+  stroke-width: 2.4;
+  stroke-dasharray: 0.5 4;
+  stroke-linecap: round;
+}
+
+.map-key-hex {
+  fill: none;
+  stroke: #a89c82;
+  stroke-width: 1.3;
+}
+
+/* --- The room card --- */
+
+.map-card {
+  --card-accent: var(--gold-lit);
+  position: absolute;
+  left: 2.5rem;
+  top: 45%;
+  z-index: 2;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  width: min(19rem, 30vw);
+  padding: 1.3rem 1.3rem 1.15rem;
+  border: 1.5px solid var(--card-accent);
+  border-radius: 10px;
+  background: rgba(10, 8, 6, 0.82);
+  transition: border-color 400ms ease;
+}
+
+.map-card.is-garden {
+  --card-accent: var(--jade);
+}
+
+.map-card-tab {
+  background: var(--card-accent);
+  transition: background 400ms ease;
+}
+
+.map-card-title {
+  margin: 0;
+  font: italic 500 clamp(1.6rem, 2.3vw, 2.15rem) / 1.05 var(--serif);
+  color: var(--ink);
+}
+
+.map-card-sub {
+  margin: 0.1rem 0 0;
+  font: 700 clamp(1.5rem, 2vw, 1.9rem) / 1.1 var(--script);
+  color: rgba(236, 228, 210, 0.84);
+}
+
+.map-card-summary {
+  margin: 0.65rem 0 0;
+  font: 400 0.72rem/1.7 var(--mono);
+  color: #b3a78c;
+  text-wrap: pretty;
+}
+
+.map-card-here {
+  margin: 0.6rem 0 0;
+  font: 400 0.62rem/1 var(--mono);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--card-accent);
+}
+
+.map-enter {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 0.65rem;
+  box-sizing: border-box;
+  min-height: 44px;
+  margin-top: 0.95rem;
+  padding: 0 1.15rem;
+  border: 1px solid var(--card-accent);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+  font: 400 0.66rem/1 var(--mono);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 300ms ease, border-color 400ms ease;
+}
+
+.map-enter svg {
+  width: 1rem;
+  height: 0.65rem;
+  fill: none;
+  stroke: var(--card-accent);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.map-enter:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--card-accent) 20%, transparent);
+}
+
+.map-enter:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+
+/* --- The title --- */
+
+.map-title {
+  position: absolute;
+  right: 3rem;
+  bottom: 2.6rem;
+  z-index: 2;
+  text-align: right;
+}
+
+.map-title-eyebrow {
+  margin-bottom: 0.75rem;
+  font: 400 0.62rem/1 var(--mono);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: #b3a78c;
+}
+
+.map-title-name {
+  margin: 0 -0.34em 0 0;
+  font: 400 clamp(1rem, 1.55vw, 1.4rem) / 1 var(--mono);
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+.map-status {
+  margin-top: 0.8rem;
+  font: 400 0.66rem/1.4 var(--mono);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--gold-lit);
+  animation: entry-breathe 3200ms 1200ms ease-in-out infinite;
+}
+
+/* --- Portrait: title, the render whole, key, card --- */
+
+.entry-map.is-tall {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.entry-map.is-tall .map-frame,
+.entry-map.is-tall .map-scrim {
+  display: none;
+}
+
+.entry-map.is-tall .map-title {
+  position: static;
+  order: 0;
+  padding: 1.5rem 1rem 1rem;
+  text-align: center;
+}
+
+.entry-map.is-tall .map-title-name {
+  margin: 0 -0.26em 0 0;
+  font-size: clamp(0.95rem, 4.2vw, 1.4rem);
+  letter-spacing: 0.26em;
+}
+
+.entry-map.is-tall .map-stage {
+  position: relative;
+  order: 1;
+  flex: none;
+  width: 100%;
+  aspect-ratio: 1440 / 900;
+}
+
+.entry-map.is-tall .map-label:not(.is-shown) {
+  display: none;
+}
+
+/* The still overlay is drawn in the 1440×900 frame and shrinks with the stage;
+   the live overlay is already in screen pixels. */
+.entry-map.is-tall .map-svg:not(.is-live) .map-label {
+  font-size: 30px;
+}
+
+.entry-map.is-tall .map-svg:not(.is-live) .map-label-numeral {
+  font-size: 44px;
+}
+
+.entry-map.is-tall .map-card {
+  position: relative;
+  order: 2;
+  top: auto;
+  left: auto;
+  width: auto;
+  margin: 2rem 1rem 1rem;
+}
+
+.entry-map.is-tall .map-key {
+  position: relative;
+  order: 3;
+  top: auto;
+  left: auto;
+  margin: 1.8rem 1rem 1.5rem;
+}
+
+@media (max-width: 520px) {
+  .map-card-summary {
+    display: none;
+  }
+}
+
+/* --- The live world ----------------------------------------------------------
+   The canvas sits between the still and the overlay, and fades in over the
+   still once it has drawn. During a flight everything drawn over the world
+   leaves, because the camera is leaving the plan the overlay belongs to; and
+   once inside a room there is nothing left to zoom into, so the leave is a
+   plain dissolve onto the painting. */
+
+.map-world {
+  opacity: 0;
+  transition: opacity 1200ms ease;
+}
+
+.entry-map.is-world .map-world {
+  opacity: 1;
+}
+
+.map-svg {
+  transition: opacity 700ms ease;
+}
+
+.entry-map.is-flying .map-svg,
+.entry-map.is-flying .map-key,
+.entry-map.is-flying .map-card,
+.entry-map.is-flying .map-title,
+.entry-map.is-flying .map-frame,
+.entry-map.is-flying .map-scrim {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 700ms ease;
+}
+
+.entry-map.is-flying.is-leaving .map-stage {
+  transform: none;
+}
+
+/* --- The world tour: standing in a room --- */
+
+/* The light at the bottom of the Vertigo's funnel (opacity set by World.jsx). */
+.world-fade {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  background: radial-gradient(circle at 50% 50%, #fffaf0 0%, #ffe9bf 45%, #f2c77e 100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.entry-map.is-world-tour .map-svg,
+.entry-map.is-world-tour .map-key,
+.entry-map.is-world-tour .map-card,
+.entry-map.is-world-tour .map-title,
+.entry-map.is-world-tour .map-frame,
+.entry-map.is-world-tour .map-scrim {
+  transition: opacity 900ms ease 150ms, border-color 400ms ease;
+}
+
+.entry-map.is-assembling .map-key,
+.entry-map.is-assembling .map-card {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.entry-map.is-in-room .map-svg,
+.entry-map.is-in-room .map-key,
+.entry-map.is-in-room .map-card,
+.entry-map.is-in-room .map-title,
+.entry-map.is-in-room .map-frame,
+.entry-map.is-in-room .map-scrim {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 600ms ease;
+}
+
+.entry-map.is-in-room .map-stage {
+  cursor: grab;
+  touch-action: none;
+}
+
+.entry-map.is-in-room .map-stage:active {
+  cursor: grabbing;
+}
+
+.room-hud {
+  --card-accent: var(--gold-lit);
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 4;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem 1.5rem;
+  padding: 0 2.5rem 2.2rem;
+  pointer-events: none;
+  animation: room-hud-in 900ms 150ms ease both;
+}
+
+.room-hud.is-garden {
+  --card-accent: var(--jade);
+}
+
+.room-hud > * {
+  pointer-events: auto;
+}
+
+@keyframes room-hud-in {
+  from { opacity: 0; transform: translateY(10px); }
+}
+
+/* The room's caption. It was a boxed card with a bright yellow tab — the most
+   saturated thing on the screen — and the Borges-voiced summary set in mono,
+   lying over the stair the room is about. Now it is type on the dark: a
+   numbered kicker, the name, the script line, a short gold rule and the
+   summary in the book face, held legible by a soft pool of shadow in the
+   corner rather than a panel. */
+.room-plate {
+  position: relative;
+  isolation: isolate;
+  box-sizing: border-box;
+  width: min(27rem, 100%);
+  padding: 0 0 0.2rem 0.2rem;
+  text-shadow: 0 0 12px rgba(6, 5, 4, 0.95), 0 0 3px rgba(6, 5, 4, 0.9);
+}
+
+.room-plate::before {
+  content: '';
+  position: absolute;
+  inset: -6rem -9rem -2.2rem -2.5rem;
+  z-index: -1;
+  background: radial-gradient(ellipse 100% 100% at 0% 100%, rgba(8, 6, 4, 0.86) 0%, rgba(8, 6, 4, 0.55) 45%, rgba(8, 6, 4, 0) 78%);
+  pointer-events: none;
+}
+
+.room-kicker {
+  font: 500 0.68rem/1 var(--mono);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--card-accent);
+}
+
+.room-title {
+  margin: 0.45rem 0 0;
+  font: italic 500 clamp(2rem, 3.2vw, 3.1rem) / 1.02 var(--serif);
+  color: var(--ink);
+}
+
+.room-sub {
+  margin: 0.1rem 0 0;
+  font: 700 clamp(1.6rem, 2.3vw, 2.3rem) / 1.05 var(--script);
+  color: rgba(236, 228, 210, 0.84);
+}
+
+.room-plate-rule {
+  display: block;
+  width: 3rem;
+  height: 1px;
+  margin: 0.9rem 0 0.7rem;
+  background: var(--card-accent);
+}
+
+.room-summary {
+  min-height: 2.9em;
+  margin: 0;
+  font: 500 clamp(1.05rem, 1.25vw, 1.2rem) / 1.45 var(--serif);
+  color: rgba(236, 228, 210, 0.9);
+  text-wrap: pretty;
+}
+
+/* The summary is a voice now (RoomVoice): the room's line, then the story's,
+   one at a time. Every line the room can say sits in the one grid cell, all
+   but one unseen, so the caption is as tall as its longest line and nothing
+   above it moves. A line going out fades; the one coming in surfaces a word at
+   a time a beat later — the dark goes first. Only opacity moves: a blur per
+   word would be thirty filtered layers over a world already short of frames. */
+.room-voice {
+  display: grid;
+}
+
+.room-voice-line {
+  grid-area: 1 / 1;
+  align-self: start;
+  margin: 0;
+  opacity: 0;
+  /* Hidden, not only clear, once it has gone: still sizing the cell, but not
+     there to select or to find on the page. */
+  visibility: hidden;
+  transition: opacity 600ms ease, visibility 0s 600ms;
+}
+
+.room-voice-line.is-on {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 300ms 350ms ease, visibility 0s;
+}
+
+.room-voice-line.is-on .room-voice-w {
+  animation: room-voice-in 900ms calc(350ms + var(--i) * 45ms) ease both;
+}
+
+/* A quotation: the book face in italic, in the warmer quill ink the plate
+   tour sets its quotations in, and under it the story it is from. */
+.room-voice-line.is-quote {
+  font-style: italic;
+  color: var(--ink-quill);
+}
+
+.room-voice-from {
+  display: block;
+  margin-top: 0.55rem;
+  font: 500 0.62rem/1.2 var(--mono);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--card-accent);
+}
+
+.room-voice-from::before {
+  content: '— ';
+}
+
+.room-voice-line.is-on .room-voice-from {
+  animation: room-voice-in 1200ms calc(650ms + var(--n) * 45ms) ease both;
+}
+
+@keyframes room-voice-in {
+  from { opacity: 0; }
+}
+
+/* The walk, as one line at the foot of the room: the room behind, the eight
+   cells of the walk with this one lit, the room ahead — and apart from them,
+   the map. No pills: the buttons are words on the dark, and a soft pool of
+   shadow behind the whole line keeps them legible over a lit wall. */
+.room-nav {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.6rem 1.1rem;
+  text-shadow: 0 0 10px rgba(6, 5, 4, 0.95), 0 0 3px rgba(6, 5, 4, 0.9);
+}
+
+.room-nav::before {
+  content: '';
+  position: absolute;
+  inset: -3rem -2.5rem -2.2rem -4rem;
+  z-index: -1;
+  background: radial-gradient(ellipse 100% 100% at 70% 85%, rgba(8, 6, 4, 0.78) 0%, rgba(8, 6, 4, 0.45) 45%, rgba(8, 6, 4, 0) 78%);
+  pointer-events: none;
+}
+
+.room-walk {
+  display: flex;
+  align-items: center;
+  gap: 1.1rem;
+}
+
+.room-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  box-sizing: border-box;
+  min-height: 44px;
+  padding: 0 0.35rem;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--ink);
+  font: 500 0.7rem/1 var(--mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 250ms ease, opacity 300ms ease;
+}
+
+.room-step svg {
+  flex: none;
+  width: 1rem;
+  height: 0.65rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* The number of the room a button goes to, in the map's own numerals. */
+.room-step-num {
+  font: 600 1.25rem/1 var(--serif);
+  letter-spacing: 0;
+  color: var(--gold-lit);
+}
+
+.room-step-num.is-garden {
+  color: var(--jade);
+}
+
+/* The way up to a room's vantage and back down: the same button, an arrow on
+   its end like the walk's, but standing up. */
+.room-step.is-climb svg {
+  width: 0.72rem;
+  height: 0.72rem;
+}
+
+.room-step:hover:not(:disabled) {
+  color: var(--card-accent);
+}
+
+.room-step:focus-visible,
+.room-map:focus-visible {
+  outline: 2px solid var(--card-accent);
+  outline-offset: 3px;
+}
+
+.room-step:disabled,
+.room-map:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.room-hud.is-moving .room-step:disabled,
+.room-hud.is-moving .room-map:disabled {
+  cursor: progress;
+}
+
+/* Where the reader is among the eight: the cells walked through, the one
+   stood in, the ones still ahead. The Library's in gold, the garden's in jade. */
+.room-progress {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.room-cell {
+  width: 10px;
+  height: 11.5px;
+  overflow: visible;
+}
+
+.room-cell polygon {
+  fill: none;
+  stroke: rgba(236, 228, 210, 0.5);
+  stroke-width: 1.4;
+}
+
+.room-cell.is-past polygon {
+  stroke: none;
+  fill: color-mix(in srgb, var(--gold-lit) 55%, transparent);
+}
+
+.room-cell.is-past.is-garden polygon {
+  fill: color-mix(in srgb, var(--jade) 55%, transparent);
+}
+
+.room-cell.is-here {
+  width: 14px;
+  height: 16px;
+}
+
+.room-cell.is-here polygon {
+  stroke: none;
+  fill: var(--gold-lit);
+}
+
+.room-cell.is-here.is-garden polygon {
+  fill: var(--jade);
+}
+
+/* Stopped halfway along a walk: the room it was going to. */
+.room-cell.is-next polygon {
+  stroke: var(--card-accent);
+  animation: room-cell-next 1.6s ease-in-out infinite alternate;
+}
+
+@keyframes room-cell-next {
+  from { opacity: 0.45; }
+}
+
+.room-rule {
+  width: 1px;
+  height: 28px;
+  background: rgba(236, 228, 210, 0.25);
+}
+
+.room-map {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid rgba(236, 228, 210, 0.4);
+  border-radius: 50%;
+  background: rgba(10, 8, 6, 0.45);
+  color: var(--ink);
+  cursor: pointer;
+  transition: color 250ms ease, border-color 250ms ease, opacity 300ms ease;
+}
+
+.room-map svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.room-map:hover:not(:disabled) {
+  border-color: var(--card-accent);
+  color: var(--card-accent);
+}
+
+/* The keys, as key caps. Shown when a reader first stands in a room, gone once
+   they have walked, back if they stand with their hands off everything for a
+   while (EntryMap's HINT_IDLE_MS). */
+.room-hint {
+  position: absolute;
+  top: 1.5rem;
+  left: 50%;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 1.1rem;
+  margin: 0;
+  padding: 0.6rem 1.1rem;
+  border-radius: 999px;
+  background: rgba(10, 8, 6, 0.62);
+  transform: translateX(-50%);
+  font: 400 0.68rem/1.3 var(--mono);
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  color: rgba(236, 228, 210, 0.9);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 700ms ease;
+}
+
+.room-hint.is-shown {
+  opacity: 1;
+}
+
+.room-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.room-key kbd {
+  display: inline-block;
+  box-sizing: border-box;
+  min-width: 1.6em;
+  padding: 0.18em 0.45em;
+  border: 1px solid rgba(236, 228, 210, 0.45);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  font: 600 0.66rem/1.2 var(--mono);
+  text-align: center;
+  color: var(--ink);
+}
+
+.room-key kbd:last-of-type {
+  margin-right: 0.2rem;
+}
+
+/* The heart of the maze (world/finale.js): a film, so the walk's buttons give
+   way to it; the caption stays and says what is happening. As the camera rises
+   out of the maze the room's name goes, leaving the quotation over the net of
+   light like an epigraph, and in the last seconds that goes too, so the map
+   comes up under nothing. */
+.room-hud.is-finale .room-nav {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 900ms ease;
+}
+
+.room-hud.is-finale-rise .room-kicker,
+.room-hud.is-finale-rise .room-title,
+.room-hud.is-finale-rise .room-sub,
+.room-hud.is-finale-rise .room-plate-rule,
+.room-hud.is-finale-leave .room-kicker,
+.room-hud.is-finale-leave .room-title,
+.room-hud.is-finale-leave .room-sub,
+.room-hud.is-finale-leave .room-plate-rule {
+  opacity: 0;
+  transition: opacity 1800ms ease;
+}
+
+.room-hud.is-finale-leave .room-plate {
+  opacity: 0;
+  transition: opacity 2200ms ease;
+}
+
+.entry-map.is-tall.is-in-room {
+  overflow: hidden;
+}
+
+.entry-map.is-tall.is-in-room .map-stage {
+  position: absolute;
+  inset: 0;
+  aspect-ratio: auto;
+}
+
+.entry-map.is-tall .room-hud {
+  padding: 0 1rem 1rem;
+}
+
+.entry-map.is-tall .room-nav {
+  width: 100%;
+  justify-content: space-between;
+}
+
+/* On a phone the names do not fit: the walk keeps its numerals and arrows
+   (each button still says its whole way to a screen reader), the rule goes,
+   and the room's own way up and down gets a line of its own under it. */
+.entry-map.is-tall .room-walk {
+  flex: 1;
+  justify-content: space-between;
+}
+
+.entry-map.is-tall .room-walk .room-step-name,
+.entry-map.is-tall .room-rule {
+  display: none;
+}
+
+.entry-map.is-tall .room-step.is-climb {
+  order: 1;
+  flex: 1 0 100%;
+  justify-content: center;
+}
+
+.entry-map.is-tall .room-summary,
+.entry-map.is-tall .room-plate-rule {
+  display: none;
+}
+
+.entry-map.is-tall .room-hint {
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem 0.9rem;
+  width: max-content;
+  max-width: calc(100% - 2rem);
+  white-space: normal;
+  text-align: center;
+}
