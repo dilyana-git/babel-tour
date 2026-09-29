@@ -25,12 +25,9 @@ dist-ssr
 *.sln
 *.sw?
 
-# The video archive. The tour no longer plays any of it — the clips are gone
-# from the piece, nothing in src/ names a .mp4, and the build drops anything
-# matching video* on the way out (see vite.config.js). What is left here is
-# ~2.4 GB of source renders and super-resolution experiments, kept because
-# several clips survive nowhere else, and never tracked: a `git add -A` would
-# otherwise commit the lot.
+# The ~2.4 GB video archive is preserved under source-assets/video-archive/,
+# which is ignored below. Keep these guards if clips are accidentally put back
+# under public/: Vite would otherwise copy them into the deploy artifact.
 /public/video/
 /public/video-2x/
 /public/video-fit/

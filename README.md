@@ -45,9 +45,11 @@ npm run check:walk       # needs the dev server; teleports through all eight
 npm run check:walls       # needs the dev server; walks every leg of the world
                           # tour and fails where it passes through the stone
 npm run check:governor    # the frame-rate rule, handed numbers directly
+npm run check:plates      # successful and failed image decoding, including older browsers
 npm run verify:assets     # every plate and depth map a walk can ask for — and
                           # every finished plate the catalogue never hung
 npm run review:ux         # needs the dev server; the heuristic UX pass below
+npm run review:world      # needs the dev server; default tour, mobile and no-WebGL smoke check
 ```
 
 `check:walk` is the one to run after moving code between modules. A free
@@ -79,7 +81,7 @@ Upload the contents of `dist/` to the **site root** on a static host. The build
 is currently around **58 MB**, mostly WebP plates and depth maps. Its asset URLs
 begin with `/`, so serving it from a subdirectory needs a Vite `base` setting
 and an updated build. `check:deploy` lints the source, verifies art references,
-checks the frame-rate governor, builds the site, and checks the output for
+checks the frame-rate governor and image decoding, builds the site, and checks the output for
 missing art and stray video. Run the browser checks above against the intended
 source before publishing. A Git-based deployment must include the new `src/`,
 `tools/`, and artwork files in a commit; an uncommitted working tree is not what
@@ -91,13 +93,12 @@ The tour was built around image-to-video clips: each painting woke into an i2v
 render of itself while the reader stood in front of it, and there was a 5.7 MB
 film behind the title card. All of it is gone from the piece.
 
-What is left locally is ~2.4 GB of archive under `public/`: `video/` (the untagged
-originals), seven super-resolution experiment roots, `overture.mp4`, and
+What is left locally is ~2.4 GB of archive under `source-assets/video-archive/`: `video/` (the untagged
+originals), nine super-resolution experiment roots, `overture.mp4`, and
 `clip.mp4`. They are ignored for future commits (see `.gitignore`) and
-**deliberately kept on disk** — several clips survive nowhere else. They are
-equally deliberately never shipped: the build drops
-anything matching `video*` plus any loose media file, which is the difference
-between a 2.4 GB deploy and a 55 MB one. See `vite.config.js`.
+**deliberately kept on disk** — several clips survive nowhere else. The archive
+sits outside Vite's `public/` directory so local builds do not copy it into
+`dist/` before removing it. `verify-dist.mjs` still checks that no video ships.
 
 Nothing in `src/` names a `.mp4`. Putting the clips back is not a flag flip; it
 means restoring the delivery table, the wake/replay loop, and the live half of
@@ -111,7 +112,14 @@ With the Vite app running on `localhost:5173`, run:
 npm run review:ux
 ```
 
-The review agent opens a headless Chromium browser, clicks through the entry,
+`npm run review:ux` checks the optional `?plates` tour. `npm run review:world`
+checks the default 3D route, its lightweight entry map, keyboard and room
+navigation, the 390 px layout, and the reading route when WebGL is unavailable.
+It runs Chromium with the reduced mesh and postprocessing off so headless
+software rendering can complete the interactions; `check:walls` covers the full
+world geometry. Its evidence is written to `.ux-review/world/`.
+
+The plate review agent opens a headless Chromium browser, clicks through the entry,
 help, audio, autoplay and chapter controls, checks keyboard navigation, repeats
 the layout check at 390 px, and writes screenshots plus prioritized feedback to
 `.ux-review/latest/report.md`. It uses the browser's DevTools protocol directly,

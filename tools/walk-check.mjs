@@ -48,7 +48,7 @@ const b = spawn(EXE, [`--remote-debugging-port=${PORT}`, '--headless=new', '--no
   // undefined (reading 'useCache')", which is not a thing the tour did. What is
   // asserted here is that nothing THIS app threw while walking.
   '--disable-extensions', '--disable-component-extensions-with-background-pages',
-  '--no-default-browser-check', '--use-gl=angle', '--use-angle=swiftshader',
+  '--no-default-browser-check', '--enable-unsafe-swiftshader', '--use-gl=angle', '--use-angle=swiftshader',
   '--window-size=400,300', '--user-data-dir=' + PROFILE, 'about:blank'],
   { stdio: 'ignore' })
 const sleep = ms => new Promise(r => setTimeout(r, ms))
