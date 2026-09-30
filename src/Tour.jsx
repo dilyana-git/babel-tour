@@ -5,27 +5,24 @@
 // 13 (postprocessing) is done — see src/Finish.jsx.
 // 14 (device tier) is done — powerPreference, the dpr cap, and the plane-segment
 // reduction on coarse-pointer devices all read from src/capability.js.
-import { useState, useEffect, useRef, useCallback, startTransition, lazy, Suspense, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback, startTransition } from 'react';
 import * as THREE from 'three';
-import { useTexture } from '@react-three/drei';
+import { useProgress, useTexture } from '@react-three/drei';
 import DioramaScene, { BAY_ANGLE, TURN_BAYS } from './DioramaScene';
 import { platesOf } from './backdrops';
 import AmbientSound from './ambientSound';
 import { RITE_NAME } from './rites';
 import { Failure, SceneBoundary, canDraw } from './Failure';
-import EntryMap from './EntryMap';
 import {
-  recallWalk, rememberWalk, markSeen, unseenFirst,
+  recallWalk, rememberWalk, forgetPosition, markSeen, unseenFirst,
   sharedSlug, writeSlug,
 } from './memory';
 import { COARSE } from './capability';
 import {
   NODES, POOLS, PINNED, LIBRARY_NODES, LIBRARY_SLUGS,
-  sceneOf, redrawScene,
+  sceneOf, livingFirst, redrawScene,
 } from './catalogue';
 import { SCATTER, SCATTER_GONE_MS } from './scatter';
-
-const Balcony = lazy(() => import('./Balcony'));
 
 
 
@@ -77,30 +74,10 @@ const TURN_HOLD = 0.28;   // bays per second held
 // at all on this axis before (Shift+←/→ was plain ←/→), while Shift+↑/↓ tilted
 // the gaze — so a reader who found the one reasonably expected the other.
 const TURN_FINE = 0.25;
-// Tilt, paced the way the turn is: a tap is one PITCH_STEP (what Shift+↑/↓ was
-// worth before the arrows took over looking) and a hold tilts at PITCH_HOLD —
-// floor to vault in a little under two seconds.
-const PITCH_STEP = 0.06;
-const PITCH_HOLD = 0.28;  // radians per second held
-// A held W is a walk, not a queue of steps. Each frame the walk-in target is set
-// this far ahead of where the body actually is: enough to keep the clamped
-// walk-in (WALK.imm) at full stride for as long as the key is down, little
-// enough that it comes to rest within a pace of letting go — the terrace's
-// stop, not a glide.
-const WALK_LEAD = 0.08;
-// The terrace's keys (see Visitor in Balcony.jsx), carried into every gallery:
-// everything that is HELD rather than pressed. A gallery has no sideways — its
-// rooms are painted, and a strafe would open the seams of the slab stack — so
-// A and D turn here where out on the ledge they step, and the arrows look.
-const HOLD_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown']);
-// The balcony's touch pad, in the same order: its first button sits over the
-// middle of the three below it.
-const WALK_PAD = [
-  ['KeyW', '↑', 'Walk forward'],
-  ['KeyA', '←', 'Turn left'],
-  ['KeyS', '↓', 'Walk back'],
-  ['KeyD', '→', 'Turn right'],
-];
+// How far a touch has to travel before the gesture decides what it IS. Below
+// this the drag is still ambiguous and only turns the world; past it the larger
+// axis wins and holds for the rest of the gesture — see handlePointerMove.
+const AXIS_LOCK = 10;
 const FORK_WHISPER_MS = 6600;
 const forkWhisper = (missed) => `in another garden, you turned ${missed}.`;
 // …and the invitation that has to come BEFORE it. The choice is read off the
@@ -129,17 +106,23 @@ const ARRIVING_WHISPER = 'the room is still arriving…';
 const forkCandidates = () => {
   const { map, slug } = POOLS[FORK_INDEX];
   const node = map[slug];
-  if (node.variants.length < 2) return null;
+  const living = livingFirst(node.variants);
+  if (living.length < 2) return null;
   // Both roads unseen where the node can still field two of them — a fork whose
   // other side is a garden this reader already walked is only half a choice.
-  const fresh = unseenFirst(node.variants);
-  const pool = fresh.length >= 2 ? fresh : node.variants;
+  const fresh = unseenFirst(living);
+  const pool = fresh.length >= 2 ? fresh : living;
   const a = Math.floor(Math.random() * pool.length);
   // Draw the second from the remaining ones by index, so the two can never be
   // the same garden and neither is favoured.
   let b = Math.floor(Math.random() * (pool.length - 1));
   if (b >= a) b += 1;
-  return { left: sceneOf(node, pool[a]), right: sceneOf(node, pool[b]) };
+  const hang = (variant) => {
+    const clips = variant.videos ?? [];
+    return sceneOf(node, variant,
+      clips.length ? clips[Math.floor(Math.random() * clips.length)] : undefined);
+  };
+  return { left: hang(pool[a]), right: hang(pool[b]) };
 };
 
 // A gallery may only be re-hung while nobody can see it. Behind the camera
@@ -194,7 +177,7 @@ const smootherstep = (x) => {
 };
 
 // ── Where the walk begins, and whether it is remembered ─────────────────────
-// A session driven by the query pins (?variant, ?dev, ?ch, ?node) is a
+// A session driven by the query pins (?variant, ?clip, ?dev, ?ch, ?node) is a
 // workshop session: it exists to hold one thing still and look at it, and it
 // must not leave marks on the reader's own walk — neither the position it ends
 // at nor the plates it hangs count as having been shown.
@@ -206,8 +189,8 @@ const REMEMBERS = !PINNED && !DEV_PINNED;
 // Three things can say where the reader starts, in this order:
 //
 //   the query pins   — handled elsewhere (the dev hook below); this stands off
-//   a #hash          — someone was SENT here. ?variant names a file and is a
-//                      tool; what a reader can pass on is a room, so the hash
+//   a #hash          — someone was SENT here. ?variant/?clip name files and are
+//                      tools; what a reader can pass on is a room, so the hash
 //                      carries the gallery's slug and outranks the bookmark
 //   the last walk    — where they left off, if they have been here before
 //
@@ -259,11 +242,12 @@ const PATH_END_WHISPER = 'the web closes here. turn back.';
 
 
 // The drift's floor and ceiling. Between them it waits on the room itself: the
-// quote's full cycle.
+// quote's full cycle, and the surface's first pass.
 //   MIN — even a room that says nothing gets long enough to be looked at, and
 //         it covers the ~7 s crossing that precedes the dwell.
-//   MAX — nothing may stall the drift forever. A tab throttled in the
-//         background lands here, and the drift moves on rather than parking.
+//   MAX — nothing may stall the drift forever. A gallery with no clip, one
+//         whose clip fails to decode, or a tab throttled in the background all
+//         land here, and the drift moves on rather than parking.
 // --- How fast the body moves --------------------------------------------
 // Mutable and dialled live by window.__walk, for the same reason FILL and GAIT
 // are: pace is judged by feel, and a compile-time constant cannot be compared
@@ -320,6 +304,160 @@ function FadeSwap({ id, render }) {
   );
 }
 
+// The overture's backdrop: /overture.mp4, cut from the Echo's var17 clip1 (the
+// great arch, the procession crossing it, two lit lanterns) — the one library
+// clip whose push-in leaves a dark, quiet centre under the arch for the title to
+// sit in. Built PING-PONG, forward then reversed with both seam frames dropped,
+// so a reader who sits here watches the camera breathe in and out of the arch
+// rather than hit a cut every five seconds. Baked with the same gamma the live
+// surfaces get (VIDEO_GAMMA in DioramaScene) because the i2v renders are pale
+// against the stills, and played at half rate so the overture moves at the
+// tour's pace and not the clip's. Regenerate with:
+//   ffmpeg -i public/video-x4/05-impossible-prison-staircases-var17-clip1.mp4 \
+//     -filter_complex "[0:v]eq=gamma=0.763,split[a][b];[b]reverse,\
+//       trim=start_frame=1:end_frame=120,setpts=PTS-STARTPTS[r];\
+//       [a][r]concat=n=2:v=1:a=0[v]" -map "[v]" -an -c:v libx264 -preset slow \
+//     -crf 23 -pix_fmt yuv420p -movflags +faststart public/overture.mp4
+const OVERTURE_CLIP = '/overture.mp4';
+const OVERTURE_POSTER = '/overture-poster.jpg';
+// The clip's own tempo is a five-second dolly. The tour walks slower than that
+// (VIDEO_RATE runs the surfaces at 0.42), so the overture is halved to land in
+// the same register — 20 s a round trip through the arch.
+const OVERTURE_RATE = 0.5;
+
+// The overture: a title card over the arch while textures stream in, then an
+// invitation. The dismissing click doubles as the user gesture that unlocks audio.
+//
+// `resume` is where this reader was left standing — their own last position, or
+// the gallery a link sent them to (see openingPosition). It never takes the
+// choice away: the invitation names the room the click will open on, and the
+// Vestibule is one line below it. Absent, this is the title card it always was.
+function EntryVeil({ leaving, onEnter, onBegin, resume, reduced, first }) {
+  const { active, progress } = useProgress();
+  const [timedOut, setTimedOut] = useState(false);
+  const [plated, setPlated] = useState(false);
+  const [filmed, setFilmed] = useState(false);
+  const videoRef = useRef(null);
+  useEffect(() => {
+    // The last resort, not the plan: if the opening plates never decode at all
+    // the reader still gets in, onto whatever the corridor manages to draw.
+    const timer = setTimeout(() => setTimedOut(true), 15000);
+    return () => clearTimeout(timer);
+  }, []);
+  // What the door actually waits on: the ONE gallery this click opens into.
+  //
+  // It used to wait on drei's global progress, which is every plate in the
+  // corridor — eight images for four rooms, of which the reader can see one.
+  // On a cold cache that is thirteen seconds of a title card that cannot be
+  // dismissed, and the piece's whole first impression is a wait. The rooms
+  // behind this one have a whole gallery's dwell to arrive in, and if one is
+  // still missing when it is reached the corridor already says so in its own
+  // voice (ARRIVING_WHISPER) rather than presenting an empty black box.
+  //
+  // Decoded off the same URLs the loader is fetching, so this rides the
+  // browser's cache rather than doubling the download.
+  const firstColor = first?.color;
+  const firstDepth = first?.depth;
+  useEffect(() => {
+    if (!firstColor) return undefined;
+    let alive = true;
+    decodePlates({ color: firstColor, depth: firstDepth })
+      .then(() => { if (alive) setPlated(true); });
+    return () => { alive = false; };
+  }, [firstColor, firstDepth]);
+  const ready = plated || timedOut || (!active && progress === 100);
+
+  const enter = (event) => {
+    event.stopPropagation();
+    if (ready) {
+      onEnter();
+    }
+  };
+  return (
+    <div
+      className={`entry-veil${leaving ? ' is-leaving' : ''}`}
+      role="button"
+      tabIndex={0}
+      aria-label="Enter the Library"
+      onClick={enter}
+      onKeyDown={(event) => {
+        // The card is one big button, and now has a small one inside it. A
+        // keyboard activation of "begin again" would otherwise be answered
+        // twice — the button's own click AND the card's, which is the walk the
+        // reader just declined. Same guard the corridor's keydown uses.
+        if (event.target instanceof Element && event.target.closest('button')) {
+          return;
+        }
+        if (event.key === 'Enter' || event.key === ' ') {
+          enter(event);
+        }
+      }}
+    >
+      {/* The poster carries the frame until the clip can play, and stays as the
+          whole backdrop under prefers-reduced-motion — the overture is a title
+          card either way, so there is nothing to lose by holding it still. The
+          film only fades in on `playing`, so a stalled or blocked autoplay
+          (a data-saver, a battery-saver, an old iOS) degrades to the poster
+          rather than to black. Neither one gates `ready`: this is scenery, and
+          the reader waits on the textures, never on it. */}
+      <div className="entry-film" aria-hidden="true">
+        <img className="entry-film-still" src={OVERTURE_POSTER} alt="" />
+        {!reduced && (
+          <video
+            ref={videoRef}
+            className={`entry-film-reel${filmed ? ' is-playing' : ''}`}
+            src={OVERTURE_CLIP}
+            poster={OVERTURE_POSTER}
+            autoPlay
+            loop
+            muted
+            playsInline
+            preload="auto"
+            onPlaying={() => {
+              // playbackRate resets whenever the element re-loads a source, so
+              // set it here rather than once on mount.
+              if (videoRef.current) {
+                videoRef.current.playbackRate = OVERTURE_RATE;
+              }
+              setFilmed(true);
+            }}
+            // The poster carries the card if this never arrives, so the reader
+            // loses nothing — but "the overture is a still today" is otherwise
+            // silent, and it is the same missing-file trap the gallery clips
+            // have (see mediaFault in DioramaScene).
+            onError={() => console.warn(
+              '[overture] %s did not load (%s) — the title card holds its poster',
+              OVERTURE_CLIP, videoRef.current?.error?.code ?? '?')}
+          />
+        )}
+        <div className="entry-film-scrim" />
+      </div>
+      <div className="entry-eyebrow">J. L. Borges — 1941</div>
+      <h1 className="entry-title">La Biblioteca de Babel</h1>
+      <div className="entry-rule" />
+      <div className="entry-status">
+        {ready
+          ? (resume
+            ? `Click to ${resume.shared ? 'enter' : 'return to'} ${resume.title}`
+            : 'Click to descend')
+          : `The Library is assembling… ${Math.min(99, Math.round(progress))}%`}
+      </div>
+      {ready && resume && (
+        <button
+          type="button"
+          className="entry-restart"
+          onClick={(event) => {
+            event.stopPropagation(); // not the veil's own "enter where you were"
+            onBegin();
+          }}
+        >
+          or begin again at the Vestibule
+        </button>
+      )}
+    </div>
+  );
+}
+
 // After a MOUSE click on a HUD control, hand focus back to the page so Space
 // keeps walking the corridor (a focused control claims Space for itself —
 // see the keydown guard). Keyboard activation arrives with detail 0 and keeps
@@ -331,29 +469,6 @@ function releaseFocus(event) {
 }
 
 export default function Tour() {
-  const [exploring, setExploring] = useState(false);
-  const exploringRef = useRef(false);
-  const exploreButtonRef = useRef(null);
-  // Focus has to come back to the button the balcony was opened from, and it
-  // can only do that AFTER the commit that puts the tour back on screen: while
-  // `exploring` is true this root carries both `display: none` and `inert`, and
-  // neither will let a descendant take focus. A raw requestAnimationFrame
-  // scheduled here races React's own render — when it loses, .focus() lands on
-  // a hidden button, fails silently, and a keyboard reader comes back from the
-  // balcony with focus on <body> and no way back into the piece but Tab from
-  // the top. It won that race for a long time; a heavier scene behind the
-  // balcony is all it took to start losing it every single time.
-  const restoreFocus = useRef(false);
-  const closeBalcony = useCallback(() => {
-    exploringRef.current = false;
-    restoreFocus.current = true;
-    setExploring(false);
-  }, []);
-  useEffect(() => {
-    if (exploring || !restoreFocus.current) return;
-    restoreFocus.current = false;
-    exploreButtonRef.current?.focus({ preventScroll: true });
-  }, [exploring]);
   const reduced =
     typeof window !== 'undefined' &&
     window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -371,9 +486,10 @@ export default function Tour() {
 
   const [opening] = useState(openingPosition);
   const startAt = opening?.at ?? 0;
-  // The room the entry map marks as where this reader left off (or was sent
-  // to), and offers first. Null on a first visit, when it offers the Vestibule.
-  const resumeAt = startAt > 0 ? startAt : null;
+  // The invitation on the veil, and what it says. Cleared by `beginAgain`.
+  const [resume, setResume] = useState(() => (startAt > 0
+    ? { title: NODES[startAt].title, shared: opening.shared }
+    : null));
 
   // Live, render-free state driving the persistent canvas.
   const descentRef = useRef(startAt);   // current camera depth (float)
@@ -566,11 +682,15 @@ export default function Tour() {
   const narrowRef = useRef(false);
   langRef.current = lang;
   narrowRef.current = narrow;
+  // Where each plate reports its awakening (see Painting's `passRef`), so the
+  // drift can wait for the surface to have said itself once.
+  const passRef = useRef({});
   // ── When the reader last STEERED ───────────────────────────────────────────
-  // The one stamp that says "they did something": walking (advance, in all its
-  // forms — keys, wheel, click, swipe), panning the gaze, the plumb ring, a
-  // chapter chosen by name. It ends the opening shot — steering is precisely
-  // what the withdrawal exists to make room for.
+  // A woken painting runs its clip for as long as the reader stands still and
+  // lets go of it the moment they don't (see LIVE_SETTLE in DioramaScene). This
+  // is the one stamp that says "they did something": walking (advance, in all
+  // its forms — keys, wheel, click, swipe), panning the gaze, the plumb ring, a
+  // chapter chosen by name.
   //
   // What is deliberately NOT here: a bare mouse move, which is looking, not
   // steering — the pointer is half of what wakes a plate at all — and the
@@ -646,7 +766,7 @@ export default function Tour() {
     }
   }, []);
 
-  const pointerStart = useRef(null); // { x, y, turn, pitch }
+  const pointerStart = useRef(null); // { x, y, turn, pitch, swiped }
 
   // Free look-around. Pitch tilts the gaze up/down within a bounded range; the
   // turn goes all the way round.
@@ -669,16 +789,10 @@ export default function Tour() {
   // circle closes on itself with nothing left over.
   const turnRef = useRef(0);
   const turnTarget = useRef(0);
-  // The keys held down right now, by code — a WASD or arrow key, or a button of
-  // the touch pad standing in for one. The tick reads the walk, the turn and the
-  // tilt off this every frame (see HOLD_KEYS), so a hold is paced by the clock
-  // rather than by the keyboard's repeat rate — see TURN_HOLD.
-  const heldRef = useRef(new Set());
-  const fineRef = useRef(false); // Shift: TURN_FINE of every held rate
-  // A held walk goes through a wall ONCE per hold — into the next gallery, or
-  // into the world's refusal. Cleared by the crossing it started, or by letting
-  // go, so holding W at the end of the path is one bump rather than a drumroll.
-  const walkSpentRef = useRef(false);
+  // Which way a held arrow is turning the head, and how strongly: 0 when no
+  // arrow is down, ±1 held, ±TURN_FINE with Shift. The tick advances the turn
+  // by this each frame — see TURN_HOLD.
+  const turnHeldRef = useRef(0);
   const yawRef = useRef(0);
   const panRef = useRef(0);
   const pitchRef = useRef(0);
@@ -835,7 +949,6 @@ export default function Tour() {
   // gallery; once immersion tops out the next step crosses to the following
   // chapter. Backing out empties immersion first, then retreats a chapter.
   const advance = useCallback((step) => {
-    if (exploringRef.current) return;
     if (diveAnimRef.current) return; // mid-fall: the plunge cannot be steered
     stir();
     // Taking the walk back stops the drift. It used to keep its own clock
@@ -866,10 +979,6 @@ export default function Tour() {
       immersionTargetRef.current = next;
     }
   }, [setTarget, refuse, stir]);
-  // For the tick, which walks a held W through a wall and keeps an empty
-  // dependency list.
-  const advanceRef = useRef(advance);
-  useEffect(() => { advanceRef.current = advance; }, [advance]);
 
   const go = useCallback((dir) => {
     if (diveAnimRef.current) return; // mid-fall: the plunge cannot be steered
@@ -995,8 +1104,8 @@ export default function Tour() {
   }, [stationAt, jumpTo]);
 
   // ── The corridor restocks behind you ───────────────────────────────────────
-  // Every gallery holds several Midjourney versions of its painting; one is
-  // drawn on arrival. A gallery you have stood in is
+  // Every gallery holds several Midjourney versions of its painting (and of the
+  // clip that wakes it); one is drawn on arrival. A gallery you have stood in is
   // SPENT, and the moment it drops out of sight it quietly re-hangs itself with
   // a version you have not seen. So walking back up the corridor is not a rewind
   // of the descent — the same rooms, in the same order, under different pictures
@@ -1005,10 +1114,10 @@ export default function Tour() {
   //
   // `spent` holds the chapters owed a fresh painting. A chapter is marked on
   // arrival and cleared when it has been re-drawn (or when the node turns out to
-  // have nothing else to offer).
+  // have nothing else to offer, e.g. the Vestibule's single plate).
   const spentRef = useRef(new Set([startAt]));
-  // At most one gallery re-draws at a time: two plate decodes at once is a
-  // visible hitch, and there is never a reason to need both in the same frame.
+  // At most one gallery re-draws at a time — two plate decodes at once is the
+  // same load the video streamer already refuses to run concurrently.
   const restockingRef = useRef(false);
 
   const restock = useCallback((descent) => {
@@ -1166,37 +1275,22 @@ export default function Tour() {
     remember(Math.round(targetRef.current));
   }, [muted, reduced, remember, startTilt]);
 
-  // A room chosen on the entry map (see EntryMap.jsx). The camera is stood in it
-  // outright, with no crossing — the map is opaque, so nothing sees the move —
-  // and the map keeps the screen until that room's plates have decoded, so it
-  // lets go onto the painting and never onto dark. The same fifteen seconds of
-  // patience the title card had, after which the reader goes in regardless and
-  // the corridor's own ARRIVING_WHISPER speaks for a room still on its way.
-  //
-  // Choosing a room other than the one a walk was resumed at gives up only the
-  // POSITION: the door the reader earned and the paintings they have been shown
-  // stay theirs. `enter` writes the new position down.
-  const enterAt = useCallback((index) => {
-    if (enteredRef.current) return;
-    if (index !== Math.round(targetRef.current)) {
-      descentRef.current = index;
-      targetRef.current = index;
-      settledRef.current = index;
-      velRef.current = 0;
-      immersionRef.current = 0;
-      immersionTargetRef.current = 0;
-      spentRef.current.add(index);
-      setChapter(index);
-    }
-    // Landing in the garden implies the door, exactly as a shared link into it
-    // does (see openingPosition): a world the tour still believed was locked
-    // would refuse the reader's first step back toward the library.
-    if (index > LIBRARY_MAX && !doorOpenRef.current) {
-      doorOpenRef.current = true;
-      setDoorOpen(true);
-    }
-    const patience = new Promise((resolve) => { setTimeout(resolve, 15000); });
-    Promise.race([decodePlates(scenesRef.current[index]), patience]).then(enter);
+  // "or begin again at the Vestibule": the reader had a walk to resume and did
+  // not want it. Only the POSITION is given up — the door they earned and the
+  // paintings they have been shown are theirs, and making them dwell for the
+  // door a second time would be the piece punishing them for starting over.
+  const beginAgain = useCallback(() => {
+    descentRef.current = 0;
+    targetRef.current = 0;
+    settledRef.current = 0;
+    velRef.current = 0;
+    immersionRef.current = 0;
+    immersionTargetRef.current = 0;
+    spentRef.current.add(0);
+    setChapter(0);
+    setResume(null);
+    forgetPosition();
+    enter();
   }, [enter]);
 
   // One footfall from the walking gait (DescentRig calls this mid-stride):
@@ -1218,7 +1312,7 @@ export default function Tour() {
   }, []);
 
   // The single, persistent animation loop. Runs for the component's lifetime —
-  // eases descent + accent, updates the progress bar and the ambience,
+  // eases descent + accent, updates the progress bar, video flash, and ambience,
   // and only pokes React state when the settled chapter actually changes.
   useEffect(() => {
     let frame;
@@ -1229,12 +1323,6 @@ export default function Tour() {
       // refresh rate (clamped so a background tab doesn't lurch on return).
       const dt = Math.min((now - last) / 1000, 0.1);
       last = now;
-
-      if (exploringRef.current) {
-        lastRestock = now;
-        frame = requestAnimationFrame(tick);
-        return;
-      }
 
       // ── The opening withdrawal ─────────────────────────────────────────────
       // Its own wall clock, read straight off `now` rather than integrated: a
@@ -1340,28 +1428,6 @@ export default function Tour() {
       // plunge owns it above, and this drain would otherwise empty it in the
       // first half-second and undo the hand-over.
       const settled = Math.abs(cur - Math.round(cur)) < 0.02;
-      // The held walk — W/S, or the touch pad's arrows. While there is room it
-      // leads the walk-in target just ahead of the body; at the far wall (or
-      // back at the mouth) it hands one step to `advance`, which crosses on into
-      // the next gallery, into the fall, or into a refusal. Only while standing
-      // in a room: mid-crossing the immersion is being drained below, and a
-      // walk pushing against that would be the two fighting.
-      if (diving || Math.abs(targetRef.current - cur) >= 0.02) {
-        walkSpentRef.current = false;
-      } else if (enteredRef.current) {
-        const held = heldRef.current;
-        const walkDir = Number(held.has('KeyW')) - Number(held.has('KeyS'));
-        if (walkDir !== 0) {
-          const at = immersionRef.current;
-          if (walkDir > 0 ? at < 0.97 : at > 0.03) {
-            immersionTargetRef.current = Math.min(1, Math.max(0, at + walkDir * WALK_LEAD));
-            stirRef.current = performance.now();
-          } else if (!walkSpentRef.current) {
-            walkSpentRef.current = true;
-            advanceRef.current(walkDir * 0.5);
-          }
-        }
-      }
       if (settled && !diving) {
         // Walk-in: a clamped exponential. A pure exponential front-loads the
         // move — fastest the instant you scroll, then a seconds-long drifting
@@ -1394,26 +1460,16 @@ export default function Tour() {
       // came, they are carried on to the far side, which is the same room. The
       // fall aims itself at the vortex core, so a turned reader is brought
       // round hard rather than plunging sideways down the shaft.
-      // A held key turns the head (A/D, ←/→) or tilts it (↑/↓) at a steady
-      // rate, paced here rather than by the keyboard's repeat rate (see
-      // TURN_HOLD). Applied before the drift home below, so holding against the
-      // drift simply wins.
-      const held = heldRef.current;
-      if (held.size && !diving) {
-        const fine = fineRef.current ? TURN_FINE : 1;
-        const turn = Number(held.has('ArrowRight') || held.has('KeyD'))
-          - Number(held.has('ArrowLeft') || held.has('KeyA'));
-        const tilt = Number(held.has('ArrowUp')) - Number(held.has('ArrowDown'));
-        if (turn || tilt) {
-          turnTarget.current += turn * fine * TURN_HOLD * dt;
-          pitchTarget.current = Math.min(Math.max(
-            pitchTarget.current + tilt * fine * PITCH_HOLD * dt, -PITCH_MAX), PITCH_MAX);
-          // Turning your head is steering, for as long as it lasts. The stamp is
-          // written straight rather than through `stir` so the tick keeps its
-          // empty dependency list — the first press already went through
-          // panGaze, which raised the stamp and cut the opening shot properly.
-          stirRef.current = performance.now();
-        }
+      // A held arrow turns the head at a steady rate, paced here rather than by
+      // the keyboard's repeat rate (see TURN_HOLD). Applied before the drift
+      // home below, so holding against the drift simply wins.
+      if (turnHeldRef.current !== 0 && !diving) {
+        turnTarget.current += turnHeldRef.current * TURN_HOLD * dt;
+        // Turning your head is steering, for as long as it lasts. The stamp is
+        // written straight rather than through `stir` so the tick keeps its
+        // empty dependency list — the first press already went through panGaze,
+        // which raised the stamp and cut the opening shot properly.
+        stirRef.current = performance.now();
       }
       const home = Math.round(turnTarget.current / TURN_BAYS) * TURN_BAYS;
       turnTarget.current += (home - turnTarget.current)
@@ -1459,8 +1515,7 @@ export default function Tour() {
       }
 
       // Update HUD chapter when we cross a rounded boundary — right at the
-      // bridge's peak, so the card swap happens at the busiest point of the
-      // crossing rather than in the quiet of a dwell.
+      // bridge's peak, so the card swap happens under the video's cover.
       const nearest = Math.round(cur);
       // ── The room running late ────────────────────────────────────────────
       // Only ever about the gallery being stood in, and never during the fall
@@ -1618,9 +1673,9 @@ export default function Tour() {
   // progress, so headless screenshots can inspect any instant of the fall.
   // See the capture recipe in the project memory.
   //
-  // ?node= and ?ch= imply the jump on their own, so a pinned painting
-  // (?variant=, see selectRandomVariant) can be landed on with one URL:
-  //   ?node=fork&variant=01-moonlit-labyrinth-var0
+  // ?node= and ?ch= imply the jump on their own, so a pinned pairing
+  // (?variant=/?clip=, see selectRandomVariant) can be landed on with one URL:
+  //   ?node=fork&variant=01-moonlit-labyrinth-var0&clip=01-moonlit-labyrinth-var0-clip1
   // What actually got drawn is logged to the console — the pools are random,
   // so this is the only way to be sure you are looking at what you asked for.
   useEffect(() => {
@@ -1657,7 +1712,9 @@ export default function Tour() {
     // fires for it.
     spentRef.current.add(at);
     const landed = NODES[at];
-    console.info('[pin] %s — %o', landed.slug, landed.scene.color.split('/').pop());
+    console.info('[pin] %s — still %o, clip %o', landed.slug,
+      landed.scene.color.split('/').pop(),
+      landed.scene.video ? landed.scene.video.split('/').pop() : '(none)');
     window.__setDive = (el) => {
       diveAnimRef.current = { frozen: Math.max(0, Math.min(1, el)) };
       setIsDiving(true);
@@ -1681,8 +1738,6 @@ export default function Tour() {
       turn: turnRef.current,
       yaw: yawRef.current,
       pan: panRef.current,
-      // The tilt, which the arrow keys hold now as they do on the terrace.
-      pitch: pitchRef.current,
       fork: {
         taken: forkTakenRef.current,
         missed: forkMissedRef.current,
@@ -1699,6 +1754,13 @@ export default function Tour() {
       // seen, so this is the only way to watch it work.
       art: scenesRef.current.map((s) => s.color.split('/').pop()),
       spent: [...spentRef.current],
+      // Which galleries have woken and finished a pass, which is one of the two
+      // things the drift waits on. Reported because a gate that never fires is
+      // indistinguishable from one that always passes: if this stays empty on a
+      // gallery whose clip is plainly running, the drift is being paced by the
+      // quote and DRIFT_MAX_DWELL alone.
+      pass: Object.fromEntries(Object.entries(passRef.current)
+        .map(([i, p]) => [i, `${p.done ? 'said' : 'waking'}/${p.by}`])),
     });
     // Walk the camera without the input layer, for scripted capture. Crossing
     // into the garden still dives, as it does for a reader.
@@ -1875,16 +1937,13 @@ export default function Tour() {
   // Autoplay: drift forward, loop back to the top at the reachable end.
   //
   // Paced by what the gallery is DOING, not by a stopwatch. On a 9 s interval
-  // the drift saw nothing a gallery had to say: a crossing alone takes about
-  // seven seconds, leaving a ~2 s dwell, while the quote needs its whole
-  // gather-hold-dissolve cycle (12 s for a twelve-word line). A drift that skips
-  // it is a slide show of rooms nobody is inside. So: arrive, let the room
-  // finish speaking, then move.
-  //
-  // It used to wait on a second thing as well — the surface waking into its clip
-  // and running one pass — which is what pushed a gallery to 25-30 s. With the
-  // clips gone the quote and DRIFT_MAX_DWELL are the whole pacing, and a gallery
-  // comes out around 14-18 s. DRIFT_MIN_DWELL is the floor under that.
+  // the drift saw neither of the two things a gallery says: a crossing alone
+  // takes about seven seconds, leaving a ~2 s dwell, while the quote needs its
+  // whole gather-hold-dissolve cycle (12 s for a twelve-word line) and the
+  // surface needs to wake and run one pass. A drift that skips both is a slide
+  // show of rooms nobody is inside. So: arrive, let the room finish speaking,
+  // then move — which comes out around 25-30 s a gallery, the pace of a reading
+  // rather than a carousel.
   useEffect(() => {
     if (!autoplay || NODES.length <= 1) {
       return undefined;
@@ -1924,6 +1983,11 @@ export default function Tour() {
       const layout = SCATTER[narrowRef.current ? 'narrow' : 'wide'][langRef.current];
       const quoteMs = (layout[chapter]?.attrOutD ?? 0) + SCATTER_GONE_MS;
       if (waited < quoteMs) return;
+      // …and the surface has to have woken and said itself once. A gallery
+      // with no clip, or one whose clip never reaches the DOM, has no record
+      // here and is carried by DRIFT_MAX_DWELL instead of stalling the drift.
+      const pass = passRef.current[chapter];
+      if (pass && !pass.done) return;
       step();
     };
     const timer = window.setInterval(tick, 500);
@@ -1940,10 +2004,6 @@ export default function Tour() {
   useEffect(() => {
     if (!showHelp) {
       return undefined;
-    }
-    // A captured mouse has no cursor to use the panel with.
-    if (document.pointerLockElement) {
-      document.exitPointerLock();
     }
     const panel = helpPanelRef.current;
     if (!panel) {
@@ -1994,14 +2054,12 @@ export default function Tour() {
     };
   }, [showHelp]);
 
-  // Keyboard — the terrace's keys, carried into every gallery (see Visitor in
-  // Balcony.jsx). W/S walk for as long as they are held, on through the far
-  // wall into the next room; A/D and ←/→ turn; ↑/↓ tilt the gaze. Shift makes
-  // any of them fine. Space still takes a single step in. Every hold is paced
-  // by the tick, not by the keyboard's repeat rate — see TURN_HOLD.
+  // Keyboard: Up/Down + Space move deeper/shallower; Left/Right pan the gaze;
+  // Shift+Up/Down tilt the gaze up and down instead of walking; Shift+Left/Right
+  // turn finely. A held ←/→ is paced by the tick, not by the keyboard's repeat
+  // rate — see TURN_HOLD.
   useEffect(() => {
     const onKey = (event) => {
-      if (exploringRef.current) return;
       if (!enteredRef.current) {
         return;
       }
@@ -2016,38 +2074,6 @@ export default function Tour() {
         setShowHelp(false);
         return;
       }
-      // None of the held keys activates a control, so unlike Space and Enter
-      // below they belong to the room even while a HUD button has focus.
-      if (HOLD_KEYS.has(event.code)) {
-        event.preventDefault();
-        fineRef.current = event.shiftKey;
-        // Every press after the first is the OS repeating a key the reader is
-        // simply holding down. The tick is already walking or turning at a
-        // steady rate for as long as it stays down, so acting on the repeats
-        // too would count the same gesture twice, at whatever rate this
-        // particular keyboard happens to repeat at.
-        if (event.repeat || heldRef.current.has(event.code)) {
-          return;
-        }
-        heldRef.current.add(event.code);
-        if (event.code === 'KeyW' || event.code === 'KeyS') {
-          // Taking the walk is steering: the drift stops and the opening shot
-          // is cut, exactly as for a step (see `advance`).
-          setAutoplay(false);
-          stir();
-          return;
-        }
-        // The FIRST press of a look is a step, so a tap answers crisply and
-        // lands somewhere definite; the hold takes over from there.
-        const fine = event.shiftKey ? TURN_FINE : 1;
-        if (event.code === 'ArrowUp' || event.code === 'ArrowDown') {
-          panGaze(0, (event.code === 'ArrowUp' ? 1 : -1) * PITCH_STEP * fine);
-        } else {
-          const dir = event.code === 'ArrowRight' || event.code === 'KeyD' ? 1 : -1;
-          panGaze(dir * TURN_STEP * fine);
-        }
-        return;
-      }
       // A focused HUD control owns Space and Enter — let the browser's native
       // activation run instead of stealing the keys for navigation. (Stealing
       // Space here made a Tab-focused mute button walk the camera deeper
@@ -2056,39 +2082,57 @@ export default function Tour() {
       if (event.target instanceof Element && event.target.closest('button, [role="button"]')) {
         return;
       }
-      if (event.key === ' ') {
+      if (['ArrowDown', ' '].includes(event.key)) {
         event.preventDefault();
-        advance(0.5); // step deeper into the room, then on to the next chapter
+        if (event.shiftKey && event.key === 'ArrowDown') {
+          panGaze(0, -0.06); // tilt the gaze down
+        } else {
+          advance(0.5); // step deeper into the room, then on to the next chapter
+        }
+      }
+      if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        if (event.shiftKey) {
+          panGaze(0, 0.06); // tilt the gaze up
+        } else {
+          advance(-0.5); // step back out toward the mouth, then to the previous
+        }
+      }
+      if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
+        event.preventDefault();
+        const dir = event.key === 'ArrowRight' ? 1 : -1;
+        // Shift turns the head finely — a quarter of everything.
+        const fine = event.shiftKey ? TURN_FINE : 1;
+        turnHeldRef.current = dir * fine;
+        // The FIRST press is a step, so a tap answers crisply and lands
+        // somewhere definite. Every press after it is the OS repeating a key
+        // the reader is simply holding down, and those are ignored — the tick
+        // is turning the head at TURN_HOLD for as long as it stays down, so
+        // acting on them too would be counting the same gesture twice, at
+        // whatever rate this particular keyboard happens to repeat at.
+        if (!event.repeat) {
+          panGaze(dir * TURN_STEP * fine);
+        }
       }
     };
-    // Letting go stops the walk or the turn. So does the window losing focus:
-    // a key held through an alt-tab never sends its keyup, and the room would
-    // go on walking behind an unfocused tab until the reader came back to it.
+    // Letting go stops the turn. So does the window losing focus: a key held
+    // through an alt-tab never sends its keyup, and the room would go on
+    // turning behind an unfocused tab until the reader came back to it.
     const onKeyUp = (event) => {
-      heldRef.current.delete(event.code);
-      fineRef.current = event.shiftKey;
-      if (event.code === 'KeyW' || event.code === 'KeyS') {
-        walkSpentRef.current = false;
+      if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
+        turnHeldRef.current = 0;
       }
     };
-    const release = () => {
-      heldRef.current.clear();
-      walkSpentRef.current = false;
-    };
-    const onVisibility = () => {
-      if (document.hidden) release();
-    };
+    const onBlur = () => { turnHeldRef.current = 0; };
     window.addEventListener('keydown', onKey);
     window.addEventListener('keyup', onKeyUp);
-    window.addEventListener('blur', release);
-    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('blur', onBlur);
     return () => {
       window.removeEventListener('keydown', onKey);
       window.removeEventListener('keyup', onKeyUp);
-      window.removeEventListener('blur', release);
-      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('blur', onBlur);
     };
-  }, [advance, panGaze, stir]);
+  }, [advance, panGaze]);
 
   // Scroll wheel walks the camera in and out in small, calm increments — deeper
   // into the current gallery first, rolling on to the next once fully immersed.
@@ -2104,72 +2148,25 @@ export default function Tour() {
     return () => window.removeEventListener('wheel', onWheel);
   }, [advance]);
 
-  // Pointer: a drag looks, on both axes at once, the way it does out on the
-  // terrace — the view goes where the hand goes: drag right, look right; drag
-  // down, look down. It used to be the other way about (grab the world and pull
-  // it), and a finger used to be split between looking and walking by an axis
-  // lock that turned a vertical swipe into a step. Out on the balcony a finger
-  // walks on the arrow pad and a drag is only ever a look, and so it is here
-  // now (see .walk-pad). With the mouse captured (mouse look, below) the hand
-  // steers with no button down at all. A plain click still steps deeper.
+  // Pointer: a mouse/pen drag pans the gaze freely on both axes (grab the
+  // world and pull it). Touch has to share ONE finger between looking and
+  // walking, so a touch gesture picks an axis and keeps it — see below.
+  // A plain click drifts deeper.
   const dragMoved = useRef(false);
-  const rootRef = useRef(null);
-  const [mouseLook, setMouseLook] = useState(false);
-  const [mouseLookError, setMouseLookError] = useState('');
-  useEffect(() => {
-    // The root is mounted for the life of the tour, so this is the same node
-    // at cleanup as it is now.
-    const root = rootRef.current;
-    const onChange = () => {
-      // Captured or released, nothing held carries across it: a key that was
-      // down when the capture changed may never send its keyup here.
-      heldRef.current.clear();
-      pointerStart.current = null;
-      setMouseLook(root !== null && document.pointerLockElement === root);
-    };
-    document.addEventListener('pointerlockchange', onChange);
-    return () => {
-      document.removeEventListener('pointerlockchange', onChange);
-      if (root && document.pointerLockElement === root) {
-        document.exitPointerLock();
-      }
-    };
-  }, []);
-  const lockMouse = async (event) => {
-    event.stopPropagation(); // the room behind reads a click as a step
-    releaseFocus(event);
-    try {
-      if (!rootRef.current?.requestPointerLock) throw new Error('unavailable');
-      await rootRef.current.requestPointerLock();
-      setMouseLookError('');
-    } catch {
-      setMouseLookError('Mouse capture unavailable. Drag the view or use the arrow keys.');
-    }
-  };
   const handlePointerDown = (event) => {
-    if (document.pointerLockElement) {
-      pointerStart.current = null;
-      return;
-    }
     pointerStart.current = {
       x: event.clientX,
       y: event.clientY,
       turn: turnTarget.current,
       pitch: pitchTarget.current,
+      swiped: false,
+      // null until the gesture has moved far enough to say what it is:
+      // 'walk' (a vertical swipe in or out) or 'look' (turn and tilt).
+      axis: null,
     };
     dragMoved.current = false;
   };
   const handlePointerMove = (event) => {
-    if (rootRef.current && document.pointerLockElement === rootRef.current) {
-      if (!event.movementX && !event.movementY) {
-        return;
-      }
-      stir();
-      turnTarget.current += (event.movementX / window.innerWidth) * TURN_DRAG;
-      const pitch = pitchTarget.current - (event.movementY / window.innerHeight) * PITCH_MAX * 2.2;
-      pitchTarget.current = Math.min(Math.max(pitch, -PITCH_MAX), PITCH_MAX);
-      return;
-    }
     const start = pointerStart.current;
     if (!start) {
       return;
@@ -2183,77 +2180,58 @@ export default function Tour() {
       // only: a click that trembles is not a reader looking around.
       stir();
     }
-    // Pitch maps a full-height drag to its full range; the turn has no range
-    // to map to, so it takes a rate instead — a bit over two thirds of a bay
-    // per full-width drag, which puts a complete circle at three drags. Nothing
-    // clamps it: keep dragging and the world keeps coming round.
-    turnTarget.current = start.turn + (dx / window.innerWidth) * TURN_DRAG;
-    const pitch = start.pitch - (dy / window.innerHeight) * PITCH_MAX * 2.2;
-    pitchTarget.current = Math.min(Math.max(pitch, -PITCH_MAX), PITCH_MAX);
+    const isTouch = event.pointerType === 'touch';
+    // The axis lock. A mouse has a scroll wheel for walking, so its drag is free
+    // to do both axes at once; a finger has only itself, and vertical drag was
+    // spent entirely on the walk. That left the gaze unable to TILT on a phone —
+    // and since these plates are painted from above head height, the eye line is
+    // exactly what a reader needs to be able to pull down. (Sliding the artwork
+    // up its card fixed where the eye RESTS; it did not give the reader a way to
+    // look about from there.)
+    //
+    // So the gesture commits once, at AXIS_LOCK, to whichever axis is winning,
+    // and holds it until the finger lifts. A drag that sets off sideways is a
+    // LOOK for its whole life — curve it upward and it tilts, and it can never
+    // trip the walk by accident. One that sets off downward is a WALK and stays
+    // one. Deciding once, early, is what makes it predictable: the alternative
+    // (judging every move event afresh) lets a single curved drag flip roles
+    // halfway through, which feels like the piece wrestling the reader.
+    if (isTouch && !start.axis
+        && (Math.abs(dx) > AXIS_LOCK || Math.abs(dy) > AXIS_LOCK)) {
+      start.axis = Math.abs(dy) > Math.abs(dx) ? 'walk' : 'look';
+    }
+    if (isTouch && start.axis === 'walk' && !start.swiped
+        && Math.abs(dy) > 60 && Math.abs(dy) > Math.abs(dx)) {
+      start.swiped = true;
+      advance(dy < 0 ? 0.5 : -0.5); // swipe up = press deeper into the room
+      return;
+    }
+    // Grab-the-world: pulling the scene right swings the gaze left, pulling it
+    // down tips the gaze up. Pitch maps a full-height drag to its full range;
+    // the turn has no range to map to, so it takes a rate instead — a bit over
+    // two thirds of a bay per full-width drag, which is the same wrist movement
+    // the old bounded pan asked for and puts a complete circle at three drags.
+    // Nothing clamps it: keep dragging and the world keeps coming round.
+    turnTarget.current = start.turn - (dx / window.innerWidth) * TURN_DRAG;
+    // A mouse always tilts; a finger tilts only once it has committed to
+    // looking, so a swipe meant as a walk never drags the eye line with it.
+    if (!isTouch || start.axis === 'look') {
+      const pitch = start.pitch + (dy / window.innerHeight) * PITCH_MAX * 2.2;
+      pitchTarget.current = Math.min(Math.max(pitch, -PITCH_MAX), PITCH_MAX);
+    }
   };
   const handlePointerUp = () => {
     pointerStart.current = null;
   };
   const handleClick = () => {
-    // Only act if this was a click, not the end of a look-around drag — and
-    // not while the mouse is captured, when a click is aimed at nothing.
-    if (!enteredRef.current || dragMoved.current || document.pointerLockElement) {
+    // Only act if this was a click, not the end of a look-around drag.
+    if (!enteredRef.current || dragMoved.current) {
       return;
     }
     advance(0.5); // a click steps you further into the room
   };
-  // The arrow pad. A finger on ↑/↓ is a held W/S and on ←/→ a held A/D, read by
-  // the same tick as the keys.
-  const holdPad = (code) => {
-    if (!enteredRef.current) return;
-    heldRef.current.add(code);
-    if (code === 'KeyW' || code === 'KeyS') setAutoplay(false);
-    stir();
-  };
-  const releasePad = (code) => {
-    heldRef.current.delete(code);
-    if (code === 'KeyW' || code === 'KeyS') walkSpentRef.current = false;
-  };
-  // A pad button activated by keyboard or a screen reader has no hold to read,
-  // so it takes the one step a tap of the matching key takes.
-  const tapPad = (code) => {
-    if (code === 'KeyW' || code === 'KeyS') {
-      advance(code === 'KeyW' ? 0.5 : -0.5);
-    } else {
-      panGaze((code === 'KeyD' ? 1 : -1) * TURN_STEP);
-    }
-  };
 
   const node = NODES[chapter];
-
-  // ── What the balcony is told about where it is ────────────────────────────
-  // It used to be told nothing at all — `<Balcony onClose>` and no more — and
-  // that is most of why it read as a separate application bolted to the side of
-  // this one. It hardcoded the Vestibule's numeral, so a reader who stepped out
-  // of the Vertigo was greeted by "Ⅰ VESTIBULE"; it hardcoded a gold accent
-  // while the corridor re-grades its own with every chapter; and it looked out
-  // on a library staircase even from the far end of the garden, which is a
-  // different WORLD, not merely a different room.
-  //
-  // So it gets the reader's place: the same numeral the plumb line marks, the
-  // same accent the HUD is wearing, the same fog the gallery is graded to, and
-  // the plates of the room they are actually standing in.
-  const balconyPlace = useMemo(() => {
-    const pool = POOLS[chapter];
-    const variants = pool.map[pool.slug]?.variants ?? [];
-    const hanging = scenes[chapter]?.color;
-    return {
-      numeral: NUMERAL[chapter],
-      title: node.title,
-      kind: chapter > LIBRARY_MAX ? 'PATH' : 'GALLERY',
-      accent: node.accent,
-      fog: scenes[chapter]?.fog ?? node.scene.fog,
-      // The archive continues BEYOND the stone, so prefer what this gallery is
-      // not already showing: stepping onto the ledge should reveal more of the
-      // room, never the same wall a second time.
-      plates: variants.map((v) => v.color).filter((c) => c !== hanging),
-    };
-  }, [chapter, node, scenes]);
   // ── What the world says back, in order of who wins the one spot ──────────
   // The room running late comes first and silences the rest: the other three
   // are all things to say about a gallery that is standing there, and this one
@@ -2311,15 +2289,14 @@ export default function Tour() {
     <main
       className={`tour-root${isDiving ? ' is-diving' : ''}`
         + (veil === 'shown' ? ' is-sealed' : '')}
-      style={{ '--accent': node.accent, display: exploring ? 'none' : undefined }}
-      ref={rootRef}
+      style={{ '--accent': node.accent }}
       /* The landmark the whole piece lives in. Everything a reader comes here
          for is inside this one element, so it is worth being able to jump
          straight to it — the interface used to expose nothing but the controls
          `nav`, which is the margin, not the room. */
       aria-label="The descent"
-      inert={sealed || exploring}
-      aria-hidden={sealed || exploring || undefined}
+      inert={sealed}
+      aria-hidden={sealed || undefined}
       onClick={handleClick}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
@@ -2331,9 +2308,8 @@ export default function Tour() {
           has open. Caught here it becomes the same still page the other two
           failures land on. */}
       <SceneBoundary onError={() => setFault('crash')}>
-        {!exploring && <DioramaScene
+        <DioramaScene
           scenes={scenes}
-          idle={veil === 'shown'}
           onQuality={onQuality}
           descentRef={descentRef}
           immersionRef={immersionRef}
@@ -2350,10 +2326,13 @@ export default function Tour() {
           libraryMax={LIBRARY_MAX}
           reduced={reduced}
           onStep={handleStep}
+          passRef={passRef}
+          stirRef={stirRef}
+          enteredRef={enteredRef}
           onContextLost={onContextLost}
           onContextRestored={onContextRestored}
           onArriving={noteArriving}
-        />}
+        />
       </SceneBoundary>
 
       {/* What the canvas is showing, in one sentence — the node's own summary,
@@ -2473,23 +2452,6 @@ export default function Tour() {
       <nav className="air-acts" aria-label="Tour controls">
         <button
           type="button"
-          className="air-act is-explore"
-          ref={exploreButtonRef}
-          disabled={isDiving || Math.abs(descentRef.current - chapter) > 0.05}
-          onClick={(e) => {
-            e.stopPropagation();
-            cutIntro();
-            setAutoplay(false);
-            heldRef.current.clear();
-            if (document.pointerLockElement) document.exitPointerLock();
-            exploringRef.current = true;
-            setExploring(true);
-          }}
-        >
-          explore balcony
-        </button>
-        <button
-          type="button"
           className={`air-act${autoplay ? ' is-on' : ''}`}
           aria-label={autoplay ? 'Pause the drift' : 'Drift downward on its own'}
           aria-pressed={autoplay}
@@ -2528,60 +2490,6 @@ export default function Tour() {
         </button>
       </nav>
 
-      {/* The terrace's walk, carried into every gallery (see the footer in
-          Balcony.jsx): the same keys, the same look, the same offer to capture
-          the mouse, and on a touch screen the same arrow pad. Written into this
-          margin in the HUD's own voice rather than on the balcony's bar, since
-          nothing in the corridor gets a rectangle over the artwork. */}
-      <div className="walk-keys">
-        <p className="walk-keys-hint">
-          <span><kbd>W</kbd><kbd>S</kbd> walk</span>
-          <span><kbd>A</kbd><kbd>D</kbd> turn</span>
-          <span>drag / arrows to look</span>
-        </p>
-        <button
-          type="button"
-          className="walk-mouse"
-          onClick={lockMouse}
-          disabled={mouseLook}
-        >
-          {mouseLook ? 'Esc to release mouse' : 'Enable mouse look'} <span aria-hidden="true">⤢</span>
-        </button>
-        <span className="walk-touch-hint">Drag to look · Hold arrows to walk</span>
-        {mouseLookError && <p className="walk-lock-error" role="status">{mouseLookError}</p>}
-      </div>
-      <div
-        className="walk-pad"
-        role="group"
-        aria-label="Walking controls"
-        /* A press here is a foot on the pad, never a drag or a click on the
-           room behind it. */
-        onPointerDown={(e) => e.stopPropagation()}
-        onPointerMove={(e) => e.stopPropagation()}
-        onPointerUp={(e) => e.stopPropagation()}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {WALK_PAD.map(([code, glyph, label]) => (
-          <button
-            key={code}
-            type="button"
-            aria-label={label}
-            onPointerDown={(e) => {
-              e.preventDefault();
-              e.currentTarget.setPointerCapture(e.pointerId);
-              holdPad(code);
-            }}
-            onPointerUp={() => releasePad(code)}
-            onPointerCancel={() => releasePad(code)}
-            onLostPointerCapture={() => releasePad(code)}
-            onClick={(e) => { if (e.detail === 0) tapPad(code); }}
-          >
-            {glyph}
-          </button>
-        ))}
-      </div>
-      {mouseLook && <div className="walk-reticle" aria-hidden="true" />}
-
       {/* The plumb line — one cord, two instruments, because the two halves of
           the journey are not the same kind of travel.
 
@@ -2602,7 +2510,7 @@ export default function Tour() {
           type="button"
           className="plumb-step"
           aria-label="Ascend one gallery"
-          title="Ascend one gallery"
+          title="Ascend one gallery (↑)"
           onClick={(e) => { e.stopPropagation(); releaseFocus(e); go(-1); }}
           disabled={chapter === 0}
         >
@@ -2705,7 +2613,7 @@ export default function Tour() {
           type="button"
           className="plumb-step"
           aria-label="Descend one gallery"
-          title="Descend one gallery"
+          title="Descend one gallery (↓)"
           onClick={(e) => { e.stopPropagation(); releaseFocus(e); go(1); }}
           disabled={chapter === (doorOpen ? MAX : LIBRARY_MAX)}
         >
@@ -2790,13 +2698,12 @@ export default function Tour() {
           <div className="help-panel" tabIndex={-1}>
             <div className="help-title" id="help-title">Navigation help</div>
             <div className="help-body">
-              • Hold W to walk into a gallery and on through it to the next; S
-              walks back. Scroll, space or a click take a single step<br />
-              • A / D or ← / → turn; ↑ / ↓ tilt the gaze up and down. Hold to
-              keep turning; add Shift for a finer, slower turn<br />
-              • Drag to look anywhere, or enable mouse look to steer with the
-              mouse alone — Esc lets it go<br />
-              • On touch, drag to look and hold the arrow pad to walk<br />
+              • Scroll, ↑ / ↓, or space walk into a gallery, then on to the next<br />
+              • Drag with the mouse to look anywhere — left, right, up, below<br />
+              • ← / → also look around; Shift + ↑ / ↓ tilt the gaze up and down<br />
+              • Hold an arrow to keep turning; add Shift for a finer, slower turn<br />
+              • Swipe up or down to walk in and move between galleries on touch<br />
+              • Click to step further into the room<br />
               • Descend and the galleries speak in translation; climb back and
               they speak in Borges' own Spanish<br />
               • Press H or ? to open this guide, Esc to close it<br />
@@ -2839,23 +2746,17 @@ export default function Tour() {
 
     </main>
 
-    {exploring && <Suspense fallback={
-      <section style={{ position: 'fixed', inset: 0, background: '#101519', display: 'grid', placeContent: 'center' }}>
-        <p role="status">Opening the reading balcony…</p>
-        <button onClick={closeBalcony}>Return to tour</button>
-      </section>
-    }><Balcony onClose={closeBalcony} place={balconyPlace} reduced={reduced} /></Suspense>}
-
     {/* Outside the shell above, and after it: the one thing on the page that is
         NOT inert while the overture is up. */}
     {sealed && (
-      <EntryMap
+      <EntryVeil
         leaving={veil === 'leaving'}
-        scenes={scenes}
-        libraryMax={LIBRARY_MAX}
-        resumeAt={resumeAt}
-        shared={opening?.shared === true}
-        onChoose={enterAt}
+        onEnter={enter}
+        onBegin={beginAgain}
+        resume={resume}
+        reduced={reduced}
+        /* The room behind the card — the only one the door has to wait for. */
+        first={scenes[startAt]}
       />
     )}
     </>

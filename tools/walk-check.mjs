@@ -19,10 +19,9 @@
 // Start the app first (npm run dev), then: npm run check:walk
 
 import { spawn } from 'node:child_process'
-import { existsSync, rmSync } from 'node:fs'
+import { existsSync } from 'node:fs'
 const arg = process.argv.slice(2).find((a) => a.startsWith('http'));
-// The plate tour (the world tour is the page's default now; see main.jsx).
-const URL_ = arg ?? 'http://localhost:5173/?plates&dev=1';
+const URL_ = arg ?? 'http://localhost:5173/?dev=1';
 const EXE = [
   process.env.BROWSER_PATH,
   'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
@@ -35,21 +34,9 @@ if (!EXE) {
   process.exit(1);
 }
 const PORT = 9334
-// A throwaway profile, thrown away. One that survives a killed run can come
-// back up with an empty page, no console error and every dev hook missing,
-// which reads as a broken app or a production build and sends you looking in
-// the wrong place entirely. Measured 2026-09-19, after exactly that.
-const PROFILE = (process.env.TEMP || '/tmp') + '/walk-probe'
-rmSync(PROFILE, { recursive: true, force: true })
 const b = spawn(EXE, [`--remote-debugging-port=${PORT}`, '--headless=new', '--no-first-run',
-  // No extensions. Edge installs policy-managed ones into even a throwaway
-  // profile, and their content scripts throw into the same console this check
-  // collects — a run failed on an ad blocker's "Cannot read properties of
-  // undefined (reading 'useCache')", which is not a thing the tour did. What is
-  // asserted here is that nothing THIS app threw while walking.
-  '--disable-extensions', '--disable-component-extensions-with-background-pages',
   '--no-default-browser-check', '--use-gl=angle', '--use-angle=swiftshader',
-  '--window-size=400,300', '--user-data-dir=' + PROFILE, 'about:blank'],
+  '--window-size=400,300', '--user-data-dir=' + process.env.TEMP + '/walk-probe', 'about:blank'],
   { stdio: 'ignore' })
 const sleep = ms => new Promise(r => setTimeout(r, ms))
 let ver
@@ -63,27 +50,11 @@ if (!ver) {
 }
 const ws = new WebSocket(ver.webSocketDebuggerUrl)
 await new Promise(r => ws.addEventListener('open', r, { once: true }))
-// Errors from the PAGE, not from whatever the browser brought with it. Edge
-// installs policy-managed extensions into even a throwaway profile and
-// --disable-extensions does not override policy, so their content scripts throw
-// into the very console these checks collect: one run failed on an ad blocker's
-// "Cannot read properties of undefined (reading 'useCache')" plus the two
-// extension-messaging errors that always trail it. None of that is a thing the
-// tour did. Filtered by ORIGIN rather than by message, so it cannot quietly
-// swallow a real error that happens to read similarly.
-const fromPage = (d) => {
-  const url = d?.url || d?.stackTrace?.callFrames?.[0]?.url || ''
-  const text = (d?.exception?.description || d?.text || '')
-  if (url.startsWith('chrome-extension://') || text.includes('chrome-extension://')) return false
-  // The extension messaging API's own failures arrive with no URL at all.
-  if (!url && /Receiving end does not exist|message channel closed/.test(text)) return false
-  return true
-}
 let id = 0; const waiting = new Map(); const errs = []
 ws.addEventListener('message', e => {
   const m = JSON.parse(e.data)
   if (m.id && waiting.has(m.id)) { waiting.get(m.id)(m); waiting.delete(m.id) }
-  if (m.method === 'Runtime.exceptionThrown' && fromPage(m.params.exceptionDetails))
+  if (m.method === 'Runtime.exceptionThrown')
     errs.push((m.params.exceptionDetails.exception?.description || m.params.exceptionDetails.text).split('\n').slice(0,2).join(' | '))
   if (m.method === 'Runtime.consoleAPICalled' && m.params.type === 'error')
     errs.push('console.error: ' + m.params.args.map(a => a.value || a.description).join(' ').slice(0, 160))
@@ -99,21 +70,9 @@ await send('Runtime.enable', {}, sid); await send('Page.enable', {}, sid)
 await send('Page.navigate', { url: URL_ }, sid)
 const ev = async (expr) => (await send('Runtime.evaluate',
   { expression: expr, returnByValue: true, awaitPromise: true }, sid)).result?.result?.value
-// Poll, do not guess. This used to sleep 4s, click, sleep 1.5s and then demand
-// the hooks — a budget sized against a lighter build on an idle machine. They
-// actually land between 10s and 20s under swiftshader when the box is busy
-// compiling the corridor's shaders, and a fixed sleep turns "slow" into "the
-// dev hooks are not there", which reads as a broken or production build and
-// sends you looking in entirely the wrong place. Measured 2026-09-12, after
-// exactly that.
-const waitFor = async (expr, timeout = 60000) => {
-  const end = Date.now() + timeout
-  while (Date.now() < end) { if (await ev(expr)) return true; await sleep(300) }
-  return false
-}
-await waitFor(`document.readyState === 'complete'`, 20000)
+await sleep(4000)
 await ev(`(()=>{const b=[...document.querySelectorAll('button')].find(x=>/enter|begin|walk/i.test(x.textContent)); b&&b.click(); return !!b})()`)
-await waitFor(`['__at','__nav','__quality'].every(k=>typeof window[k]==='function')`)
+await sleep(1500)
 const hooks = await ev(`['__at','__nav','__quality'].filter(k=>typeof window[k]==='function').length`)
 if (hooks < 3) {
   console.error(`the dev hooks are not there (${hooks}/3) — is the URL missing ?dev=1,`

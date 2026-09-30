@@ -82,10 +82,6 @@ const KEYS = {
   Tab: { windowsVirtualKeyCode: 9, code: 'Tab', key: 'Tab' },
   KeyH: { windowsVirtualKeyCode: 72, code: 'KeyH', key: 'h', text: 'h' },
   KeyM: { windowsVirtualKeyCode: 77, code: 'KeyM', key: 'm', text: 'm' },
-  // The world tour's walk: W on, S back, E up to a room's vantage and down again.
-  KeyW: { windowsVirtualKeyCode: 87, code: 'KeyW', key: 'w', text: 'w' },
-  KeyS: { windowsVirtualKeyCode: 83, code: 'KeyS', key: 's', text: 's' },
-  KeyE: { windowsVirtualKeyCode: 69, code: 'KeyE', key: 'e', text: 'e' },
   KeyQ: { windowsVirtualKeyCode: 81, code: 'KeyQ', key: 'q', text: 'q' },
   Slash: { windowsVirtualKeyCode: 191, code: 'Slash', key: '/', text: '/' },
 };

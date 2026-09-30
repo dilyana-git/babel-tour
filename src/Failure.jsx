@@ -10,13 +10,10 @@ import React from 'react';
 //
 // It is fine for this to be plain. What it must not be is blank.
 
-// A frame of the Vestibule's arch. This is now the only picture of a gallery
-// the piece carries, and the only place one is still warranted: everywhere else
-// the entry veil shows the LIVE room through itself, which it cannot do here —
-// this page exists precisely because there is no live room. The fallback needs
-// no visual language of its own; it is the entry veil with a different last
-// line, and a reader who cannot be shown the diorama is at least shown the
-// picture of it.
+// The overture's own poster (see OVERTURE_POSTER in Tour). Using it here means
+// a reader who cannot be shown the diorama is at least shown the picture the
+// title card was already going to show them, and the fallback needs no visual
+// language of its own — it is the entry veil with a different last line.
 const POSTER = '/overture-poster.jpg';
 
 const FAULTS = {
@@ -53,9 +50,6 @@ export function Failure({ kind, onRetry }) {
   return (
     <div className="entry-veil is-failure" role="alert">
       <div className="entry-film" aria-hidden="true">
-        {/* Under the poster, in case it is one more thing this browser cannot
-            fetch — the page must never be readable text on nothing. */}
-        <div className="entry-film-ground" />
         <img className="entry-film-still" src={POSTER} alt="" />
         <div className="entry-film-scrim" />
       </div>

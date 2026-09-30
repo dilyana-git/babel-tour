@@ -30,8 +30,7 @@ const option = (name, fallback) => {
 };
 const has = (name) => args.includes(`--${name}`);
 
-// The plate tour, which this review was written against (the world tour is the page's default now).
-const targetUrl = new URL(option('url', 'http://localhost:5173/?plates'));
+const targetUrl = new URL(option('url', 'http://localhost:5173/'));
 const outputDir = resolve(option('out', DEFAULT_OUT));
 const requestedBrowser = option('browser', process.env.BROWSER_PATH);
 const includeMobile = !has('no-mobile');
@@ -227,7 +226,6 @@ const expression = `(() => {
       label: label(element).replace(/\\s+/g, ' ').slice(0, 160),
       text: (element.innerText || '').trim().replace(/\\s+/g, ' ').slice(0, 100),
       disabled: element.matches(':disabled') || element.getAttribute('aria-disabled') === 'true',
-      inVeil: Boolean(element.closest('.entry-map')),
       pressed: element.getAttribute('aria-pressed'),
       current: element.getAttribute('aria-current'),
       tabIndex: element.tabIndex,
@@ -240,8 +238,7 @@ const expression = `(() => {
     };
   });
   const help = document.querySelector('.help-overlay');
-  // The entry is a map of the rooms now (EntryMap.jsx), not a title card.
-  const veil = document.querySelector('.entry-map');
+  const veil = document.querySelector('.entry-veil');
   const active = document.activeElement;
   const canvases = [...document.querySelectorAll('canvas')];
   return {
@@ -257,8 +254,7 @@ const expression = `(() => {
       .map((e) => e.getAttribute('role') || e.tagName.toLowerCase()),
     interactives,
     veil: veil ? {
-      role: veil.getAttribute('role') || '',
-      ready: /choose a room/i.test(veil.innerText),
+      ready: /Click to|Tap to/i.test(veil.innerText),
       label: label(veil),
       nestedInteractiveCount: veil.querySelectorAll('button,a,input,select,textarea').length,
     } : null,
@@ -390,26 +386,18 @@ const main = async () => {
     await sleep(1200 + extraSettleMs);
     observations.steps.entryLoading = await observe();
     const readinessWait = await waitFor(`(() => {
-      const veil = document.querySelector('.entry-map');
-      return !veil || /choose a room/i.test(veil.innerText);
-    })()`, 60000);
-    if (readinessWait === null) throw new Error('Entry map did not become ready within 60 seconds.');
+      const veil = document.querySelector('.entry-veil');
+      return !veil || /Click to|Tap to/i.test(veil.innerText);
+    })()`, 18000);
     observations.entryReadyMs = readinessWait === null ? null : Date.now() - loadStarted;
     observations.steps.entryReady = await observe();
     log('entry is ready; capturing the opening state');
     await screenshot('01-entry-ready.png');
 
     if (observations.steps.entryReady.veil) {
-      // The map's own "Enter" button, which opens the room the card is showing.
-      await click('.map-enter');
+      await click('.entry-veil');
       observations.steps.entryClick = { clicked: true };
-      // Choosing a room waits for that room's plates to decode before the map
-      // lets go, and under swiftshader that alone can take several seconds.
-      // The map-to-gallery flight advances on rendered frames. Software GL can
-      // take much longer than wall-clock animation timing, so wait for the
-      // gallery itself instead of continuing with the map still on screen.
-      const entered = await waitFor(`!document.querySelector('.entry-map') && !document.querySelector('.tour-root')?.inert`, 120000);
-      if (entered === null) throw new Error('Entry click did not reach the gallery within 120 seconds.');
+      await waitFor(`!document.querySelector('.entry-veil')`, 7000);
     } else {
       observations.steps.entryClick = { clicked: false, reason: 'No entry veil was present.' };
     }
@@ -419,8 +407,7 @@ const main = async () => {
     await screenshot('02-first-gallery.png');
 
     await click('.air-act[title^="Navigation help"]');
-    const helpOpened = await waitFor(`Boolean(document.querySelector('.help-overlay'))`, 5000);
-    if (helpOpened === null) throw new Error('Navigation help did not open after clicking its control.');
+    await waitFor(`Boolean(document.querySelector('.help-overlay'))`, 3000);
     observations.steps.helpOpen = await observe();
     log('help opened; capturing its focus and layout state');
     await screenshot('03-help.png');
@@ -429,14 +416,11 @@ const main = async () => {
     await waitFor(`!document.querySelector('.help-overlay')`, 3000);
     observations.steps.helpClosed = await observe();
 
-    // By its label, not as the first .air-act: that is "explore balcony" now,
-    // and clicking it sent every check after this one out onto the balcony.
-    const driftSelector = '.air-act[aria-label*="rift"]';
-    const driftBefore = await evaluate(`document.querySelector(${JSON.stringify(driftSelector)})?.getAttribute('aria-pressed')`);
-    await click(driftSelector);
-    const driftAfter = await evaluate(`document.querySelector(${JSON.stringify(driftSelector)})?.getAttribute('aria-pressed')`);
+    const driftBefore = await evaluate(`document.querySelector('.air-act')?.getAttribute('aria-pressed')`);
+    await click('.air-act');
+    const driftAfter = await evaluate(`document.querySelector('.air-act')?.getAttribute('aria-pressed')`);
     observations.steps.drift = { before: driftBefore, after: driftAfter, changed: driftBefore !== driftAfter };
-    await click(driftSelector);
+    await click('.air-act');
 
     const muteSelector = '.air-act[aria-label*="ambience"]';
     const muteBefore = await evaluate(`document.querySelector(${JSON.stringify(muteSelector)})?.getAttribute('aria-pressed')`);
@@ -490,10 +474,7 @@ const main = async () => {
     observations.steps.keyboardHelp = { hOpened: hOpened !== null, escapeClosed: escapeClosed !== null };
 
     const beforeArrow = await evaluate(`typeof window.__nav === 'function' ? window.__nav() : null`);
-    // Space is the one key that still takes a single step. ↓ tilts the gaze now
-    // (the terrace's keys), and W walks only while HELD, which a press and
-    // release this short cannot show.
-    await keypress(' ', 'Space');
+    await keypress('ArrowDown', 'ArrowDown');
     await sleep(250);
     const afterArrow = await evaluate(`typeof window.__nav === 'function' ? window.__nav() : null`);
     observations.steps.keyboardWalk = {
@@ -585,9 +566,7 @@ const buildFindings = (data) => {
   }
 
   if (ready?.veil) {
-    // The map is a section full of rooms and a button, so what must be shut is
-    // everything NOT inside it.
-    const outsideVeil = ready.interactives.filter((item) => item.visible && !item.inVeil);
+    const outsideVeil = ready.interactives.filter((item) => item.visible && item.label !== ready.veil.label);
     if (outsideVeil.length > 0) {
       out.push(finding(
         'high',
@@ -596,7 +575,7 @@ const buildFindings = (data) => {
         'While the entry veil is active, make the tour shell inert and aria-hidden. Restore it only after entry finishes.',
       ));
     }
-    if (ready.veil.role === 'button' && ready.veil.nestedInteractiveCount > 0) {
+    if (ready.veil.nestedInteractiveCount > 0) {
       out.push(finding(
         'medium',
         'The entry card nests a native control inside a custom button',

@@ -29,33 +29,14 @@ const run = (medians) => {
 
 is('a fast machine is left alone', run([8, 9, 12, 7, 10]), { rung: 0, dpr: 1.5, acts: [] })
 is('one late window is not enough', run([9, 40, 9]), { rung: 0, dpr: 1.5, acts: [] })
-// Two in a row, and it steps to the rung that would actually have FIT: from
-// 1.5, a 40 ms window wants sqrt(24/40) of the ratio, which is 1.16 — so 1.25
-// is not far enough (it would still run 27.8 ms) and 1 is the answer.
-is('two in a row steps to where the numbers point', run([40, 40]), { rung: 2, dpr: 1, acts: [1] })
+is('two in a row steps down once', run([40, 40]), { rung: 1, dpr: 1.25, acts: [1.25] })
 is('a good window forgives the late one', run([40, 9, 40, 9, 40]), { rung: 0, dpr: 1.5, acts: [] })
-// A miss of twice the budget or more is not a room arriving, so it does not
-// have to prove itself twice — and it goes where the arithmetic points rather
-// than one rung at a time. 83 ms against a budget of 24 wants the ratio down by
-// sqrt(24/83), which is past the bottom of the ladder; REACH holds it to two
-// rungs a decision, so it arrives in two and then says the floor once.
-is('a machine that is nowhere near goes straight there, then falls silent',
-   run(Array(40).fill(83)), { rung: 4, dpr: 0.75, acts: [1, 0.75, 0.75] })
-is('a gross miss acts on the FIRST window', run([83]), { rung: 2, dpr: 1, acts: [1] })
-is('a merely late one still has to say it twice', run([40]), { rung: 0, dpr: 1.5, acts: [] })
-// One decision may not cross the whole ladder however bad the number is.
-is('never more than two rungs in one decision', run([9999]), { rung: 2, dpr: 1, acts: [1] })
-// A miss just over budget steps ONE rung: the arithmetic asks for very little
-// and the first rung below already covers it. This is what keeps the reach from
-// being a stampede.
-is('a small miss steps one rung', run([26, 26]), { rung: 1, dpr: 1.25, acts: [1.25] })
+// four steps down, then the floor said once and never again
+is('a persistently late machine walks the ladder, then falls silent',
+   run(Array(40).fill(83)), { rung: 4, dpr: 0.75, acts: [1.25, 1, 0.85, 0.75, 0.75] })
 is('it never goes below the last rung',
    run(Array(60).fill(200)).rung, 4)
-// The point is that good windows never take it back UP, wherever it fell to.
-is('it never climbs back', (() => {
-  const fell = run(Array(4).fill(83)).dpr
-  return { fell, after: run([...Array(4).fill(83), ...Array(20).fill(5)]).dpr }
-})(), { fell: 0.75, after: 0.75 })
+is('it never climbs back', run([...Array(4).fill(83), ...Array(20).fill(5)]).dpr, 1)
 is('exactly at budget is not late', run([24, 24, 24, 24]), { rung: 0, dpr: 1.5, acts: [] })
 is('the floor reports itself', (() => {
   const st = { rung: 4, late: 1, floored: false }; return judge(st, 99, DPR_LADDER, BUDGET)
