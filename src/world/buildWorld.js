@@ -27,6 +27,7 @@ import { buildPortal, PORTAL } from './portal';
 import { makeWater, WATER_Y } from './water';
 import { makeLilyPads, lilyFlowerGeometry, lilyBudGeometry, makeFlowerMaterial, makeKoi } from './pond';
 import { buildFinale } from './finale';
+import { VANTAGES } from './vantages';
 import { lightPoolSize } from '../capability';
 
 export const FRAME = [1440, 900];
@@ -56,22 +57,8 @@ export const CAP = 3;        // the pale stone laid on top of them
 // back down from — somewhere the room only shows itself from, which the walk
 // through it cannot stop at.
 //
-// The geometry hangs on the stand itself (`stands[i].vantage`); the names are
-// out here because the HUD has to label the way up before the world is built.
-export const VANTAGES = {
-  // The Echo. From the floor you look ALONG one flight, which is the only way
-  // the two of them are legible from down there — end-on they are a heap. But
-  // the room is named after what crosses over your head, and the crown where
-  // the flights meet is the one place in the piece that shows it.
-  1: {
-    name: 'the crossing',
-    up: 'The crossing',
-    down: 'The floor',
-    climbing: 'Climbing to the crossing…',
-    descending: 'Coming down to the floor…',
-    standing: 'You are on the crown, where the two flights cross — one stair running out from under your feet, the other down behind you, and the arcades standing level with the eye.',
-  },
-};
+// The geometry hangs on the stand itself (`stands[i].vantage`); the names live
+// in vantages.js so the HUD can load before the world builder.
 const deg = Math.PI / 180;
 
 export function buildWorld({ light = false, paintings = true } = {}) {

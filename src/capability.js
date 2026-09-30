@@ -32,10 +32,10 @@ const flag = (name) => {
 };
 
 // How many real point lights a gallery may have at once (buildWorld's light
-// pool). Each one is per-fragment work across the whole screen, and this scene
-// is fill-rate bound, so it is one of the few dials that buys frames without
-// costing resolution. `?wlights=3` to measure it.
-export const lightPoolSize = () => num('wlights') ?? (LIGHT_MESH ? 3 : 6);
+// pool). Each one is per-fragment work across the whole screen. Four instead
+// of six measured 9% faster without losing the Vertigo's light; the phone mesh
+// uses three. `?wlights=6` restores the fuller desktop pool for comparison.
+export const lightPoolSize = () => num('wlights') ?? (LIGHT_MESH ? 3 : 4);
 
 // A pointer that cannot hover. This is the honest test for "phone or tablet" —
 // far better than a user-agent sniff, and better than a width query, which a

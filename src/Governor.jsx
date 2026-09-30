@@ -32,7 +32,7 @@
 //   to those would spend the walk chasing events that were over before it moved.
 import { useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import { DPR_LADDER, FRAME_BUDGET_MS, GOVERNS } from './capability';
+import { DPR_LADDER, FRAME_BUDGET_MS, GOVERNS, lightPoolSize } from './capability';
 import { judge, PATIENCE, GROSS } from './governorRule';
 
 // What it gives back, and in what ORDER. Pixels last.
@@ -51,16 +51,18 @@ import { judge, PATIENCE, GROSS } from './governorRule';
 //   both, native                     ~29        1.75 Mpix
 //   everything on, ratio 0.85        ~26        0.81 Mpix
 //
-// The same frame time for more than twice the pixels. So the contact shadow
-// goes first, then two of the six lamps, and only then does the picture get
-// smaller. Two and not three: the Vertigo is lamps at every depth of its well,
-// and it falls off a cliff between four and three (mean luminance 29.1 against
-// 17.3, and over half the frame down in the dark).
+// Four lamps are now the default, saving the measured 9% from the first frame.
+// The contact shadow goes first if the frame is still late, then the picture
+// gets smaller. A six-lamp override gets a light concession back to four too.
+// Three lamps make the Vertigo too dark (mean luminance 17.3 against 29.1 at
+// four), so a desktop never steps below four.
 // Both are per-fragment work, which is what this scene is short of; neither
 // rebuilds any geometry (see "never re-tessellates" below). Each costs one
 // shader recompile as it is spent — a single hitch, once, against a softness
 // that would last the rest of the walk.
-const GIVE = ['ao', 'lights'];
+// Four lamps are the default now, so a light concession is only useful when
+// someone explicitly asks for more with ?wlights=6.
+const GIVE = lightPoolSize() > 4 ? ['ao', 'lights'] : ['ao'];
 
 // How long a window of frames has to be before it is allowed to mean anything.
 // Long enough that a stutter cannot fill it, short enough that a reader is not

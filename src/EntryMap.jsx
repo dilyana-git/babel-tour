@@ -14,23 +14,24 @@
 //               for the room, the walk on and back, the map again. Drag, A/D
 //               and the arrows look around; W walks on, S back, M is the map,
 //               and E climbs to the room's vantage where it has one (the Echo's
-//               crossing — buildWorld's VANTAGES) and back down again.
+//               crossing — vantages.js) and back down again.
 //   the plates  Tour.jsx (?plates). The flight ends at the room's Midjourney
 //               plate and the reader is handed on to it (onChoose); with
 //               reduced motion, or before the world has drawn, `enterAt` in
 //               Tour.jsx stands the camera in the room and the map dissolves.
 //               Until the world draws, the overlay waits alone over the dark
 //               in its old 1440 × 900 frame.
-import { Component, useCallback, useEffect, useRef, useState } from 'react';
+import { Component, Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
 import { useProgress } from '@react-three/drei';
 import { NODES } from './catalogue';
 import { canDraw } from './Failure';
 import { COARSE } from './capability';
-import World from './world/World';
-import { VANTAGES } from './world/buildWorld';
+import { VANTAGES } from './world/vantages';
 import RoomVoice from './RoomVoice';
 import { PASSAGES, STORY, VOICES } from './voices';
 import './map.css';
+
+const World = lazy(() => import('./world/World'));
 
 // If the live world throws, the still stays the map and nothing else changes.
 class WorldBoundary extends Component {
@@ -149,7 +150,7 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
   const sectionRef = useRef(null);
   const [place, setPlace] = useState(null);
   const [target, setTarget] = useState(null);
-  // And, inside a room that has a second place to stand (buildWorld's VANTAGES),
+  // And, inside a room that has a second place to stand (vantages.js),
   // whether the reader is up at it and whether they are headed there. The pair
   // is the room's own small walk, and it moves the same way the big one does.
   const [up, setUp] = useState(false);
@@ -642,24 +643,26 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
       <div className="map-stage" ref={stageRef} {...(worldRooms && place !== null ? lookHandlers : {})}>
         {worldOn && !worldFailed && (worldRooms || scenes) && (
           <WorldBoundary onError={() => setWorldFailed(true)}>
-            <World
-              rooms={worldRooms}
-              scenes={scenes}
-              reserveLeft={!tall}
-              target={worldRooms ? target : flying}
-              vantage={worldRooms && toUp}
-              reducedMotion={worldRooms && reducedMotion}
-              lookRef={lookRef}
-              walkRef={walkRef}
-              fadeRef={fadeRef}
-              onReady={() => setWorldReady(true)}
-              onArrive={worldRooms ? undefined : (i) => onChoose(i)}
-              onSettle={worldRooms ? settle : undefined}
-              onPace={worldRooms ? setPace : undefined}
-              finale={worldRooms ? finale : null}
-              onFinale={worldRooms ? onFinale : undefined}
-              onLayout={setLayout}
-            />
+            <Suspense fallback={null}>
+              <World
+                rooms={worldRooms}
+                scenes={scenes}
+                reserveLeft={!tall}
+                target={worldRooms ? target : flying}
+                vantage={worldRooms && toUp}
+                reducedMotion={worldRooms && reducedMotion}
+                lookRef={lookRef}
+                walkRef={walkRef}
+                fadeRef={fadeRef}
+                onReady={() => setWorldReady(true)}
+                onArrive={worldRooms ? undefined : (i) => onChoose(i)}
+                onSettle={worldRooms ? settle : undefined}
+                onPace={worldRooms ? setPace : undefined}
+                finale={worldRooms ? finale : null}
+                onFinale={worldRooms ? onFinale : undefined}
+                onLayout={setLayout}
+              />
+            </Suspense>
           </WorldBoundary>
         )}
         {liveOverlay ? worldOverlay : worldRooms ? null : stillOverlay}
