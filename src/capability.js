@@ -12,7 +12,6 @@
 //
 //   ?coarse=1 / ?coarse=0   force the touch/low-power mesh on or off
 //   ?thrift=1 / ?thrift=0   force the whole data-saver walk on or off
-//   ?stills=1 / ?stills=0   force the video off (or on) and NOTHING else
 //   ?dpr=<n>                pin the device-pixel ratio and silence the governor
 //   ?governor=0             leave the ratio wherever it started, and watch
 //
@@ -32,6 +31,12 @@ const flag = (name) => {
   return v !== '0' && v !== 'off' && v !== 'false';
 };
 
+// How many real point lights a gallery may have at once (buildWorld's light
+// pool). Each one is per-fragment work across the whole screen, and this scene
+// is fill-rate bound, so it is one of the few dials that buys frames without
+// costing resolution. `?wlights=3` to measure it.
+export const lightPoolSize = () => num('wlights') ?? (LIGHT_MESH ? 3 : 6);
+
 // A pointer that cannot hover. This is the honest test for "phone or tablet" —
 // far better than a user-agent sniff, and better than a width query, which a
 // narrow desktop window would trip. It is used for two unrelated things: the
@@ -43,16 +48,20 @@ export const COARSE = flag('coarse') ?? (
 );
 
 // The reader has asked their browser to spend less data ("Data Saver" in
-// Chrome/Android), or is on a connection the browser itself calls slow. A
-// default walk pulls ~590 MB of clips, and a clip is 9-25 MB EACH — on a
-// metered connection that is not an enhancement, it is a bill. Under thrift the
-// paintings still hang, still have their full depth relief, and can still be
-// walked into; they simply never wake into motion. The piece stays whole.
+// Chrome/Android), or is on a connection the browser itself calls slow.
+//
+// It used to carry the larger half of its own argument: a walk pulled ~590 MB
+// of clips at 9-25 MB each, which on a metered connection was not an
+// enhancement but a bill. The clips are gone and that half went with them — a
+// whole walk is now a few megabytes of WebP. What remains is the other half,
+// and it was always the more honest one: a browser that says "slow connection"
+// is usually also saying "modest machine", so thrift still buys the reduced
+// mesh below.
 //
 // navigator.connection is Chromium-only, so this is false on Safari and Firefox
-// unless asked for by hand. That is the right way round: guessing WRONG here
-// silently removes the video from a reader who could have had it, so the flag
-// only fires where the browser states the fact outright.
+// unless asked for by hand — which is the right way round, since the flag only
+// ever removes quality and should fire only where the browser states the fact
+// outright.
 export const THRIFT = flag('thrift') ?? (() => {
   if (typeof navigator === 'undefined') return false;
   const c = navigator.connection ?? navigator.mozConnection ?? navigator.webkitConnection;
@@ -71,21 +80,6 @@ export const THRIFT = flag('thrift') ?? (() => {
 // 1.4 M quads per frame, each fragment also doing relief + unsharp work. A
 // phone GPU does not have that to give.
 export const LIGHT_MESH = COARSE || THRIFT;
-
-// Whether the paintings may wake into their clips at all.
-//
-// Split out of THRIFT so the question "does the piece read better as stills?"
-// can actually be ASKED. ?thrift=1 answers a different question: it drops the
-// video AND halves the tessellation (via LIGHT_MESH above), so a walk under it
-// is both still and softer, and any judgement about the clips is confounded by
-// a mesh change made for an unrelated reason. ?stills=1 takes the video and
-// leaves the geometry at full quality, which is the only honest A/B.
-//
-// THRIFT still implies it — a reader on a metered connection gets no clips
-// however this is set — so the data-saver behaviour is unchanged. Passing
-// ?stills=0 does NOT put the clips back for such a reader; the thrift default
-// is about their bill, not about taste.
-export const STILLS_ONLY = THRIFT || (flag('stills') ?? false);
 
 // The device-pixel ceiling, for the same reason the cap exists at all: this
 // scene is fill-rate bound, so every extra pixel is paid for twice over in
@@ -109,7 +103,22 @@ export const STILLS_ONLY = THRIFT || (flag('stills') ?? false);
 // dwelling on a painting must not watch it change resolution, and the way to
 // guarantee that is to have nowhere to climb to.
 export const DPR_PIN = num('dpr');
-export const DPR_MAX = DPR_PIN ?? (THRIFT ? 1 : COARSE ? 1.25 : 1.5);
+// ...and never more samples than the screen itself can show. 1.5 on a panel
+// whose own ratio is 1 is SUPERSAMPLING: the nicest antialiasing there is, and
+// the first thing a fill-rate-bound scene has to give up. Measured on the
+// integrated GPU this is made on, walking out of the Vestibule, the frame
+// scales almost purely with pixel count — 57.9 ms at 1.5, 25.4 at 1, 18.6 at
+// 0.75, while no single pass in the composer is worth more than 13% — so a
+// ratio of 1.5 on a 1x screen was buying antialiasing at 2.25x the pixels and
+// paying for it in 17 fps.
+// That mattered most at the START of a walk, which is where a reader forms
+// their opinion: the governor waits 6 s of warm-up and then 2.5 s a window, so
+// it was fourteen seconds of juddering before the ratio came down on its own.
+// A dense screen is untouched — there a ratio of 1.5 is already below native
+// and is buying real resolution, not spare samples.
+const SCREEN_DPR = typeof window === 'undefined' ? 1 : (window.devicePixelRatio || 1);
+export const DPR_MAX = DPR_PIN
+  ?? Math.min(THRIFT ? 1 : COARSE ? 1.25 : 1.5, Math.max(1, SCREEN_DPR));
 
 // The rungs, coarsest last. Filtered to the ceiling at load, so a phone starting
 // at 1.25 simply has fewer places to fall to and never climbs past its cap.
@@ -117,16 +126,25 @@ export const DPR_MAX = DPR_PIN ?? (THRIFT ? 1 : COARSE ? 1.25 : 1.5);
 // It stops at 0.75 rather than going lower because below that the relief stops
 // reading as relief — the whole point of the slab stack is a depth you can see
 // into, and a quarter of the pixels is where its edges start to come apart. A
-// machine that cannot hold 0.75 is a machine for ?stills=1, which is a much
-// larger saving than any ratio and one the piece already knows how to be.
+// machine that cannot hold 0.75 wants ?thrift=1, which cuts the mesh as well
+// and is a far larger saving than any ratio.
+// ...and it stops at 1 on anything but a phone. The rungs below 1 draw FEWER
+// samples than the canvas has pixels, and the browser then stretches the result
+// back up by a fraction — at 0.75 on a 1.25 screen that is a 1.67x resample of
+// every thin bright thing in the world. A tile joint, a rail, the gilt on a
+// spine: undersampled, they do not soften, they crawl, and the reader reported
+// exactly that getting WORSE when the ratio came down. The frame is bought back
+// from per-fragment work instead, which costs no resolution at all — see the
+// table in Governor.jsx. A phone keeps the low rungs: its screen is dense
+// enough that a CSS pixel is several real ones.
 export const DPR_LADDER = [1.5, 1.25, 1, 0.85, 0.75]
-  .filter((d) => d <= DPR_MAX);
+  .filter((d) => d <= DPR_MAX && (COARSE || d >= 1));
 
 // A frame is late past this. Not 16.7 ms: this is a slow walk through still
 // paintings, not a shooter, and holding a steady 40 fps looks far better here
 // than lurching between 60 and 25. The governor only acts on the MEDIAN of a
-// window, so an occasional 80 ms frame — a plate decoding, a clip waking — is
-// not what it is measuring.
+// window, so an occasional 80 ms frame — a plate decoding, a gallery restocking
+// — is not what it is measuring.
 export const FRAME_BUDGET_MS = 24;
 
 // Whether it may act at all. ?governor=0 leaves the ratio where it started and

@@ -12,6 +12,7 @@ dist
 dist-ssr
 *.local
 .ux-review/
+.claude/settings.local.json
 
 # Editor directories and files
 .vscode/*
@@ -24,37 +25,26 @@ dist-ssr
 *.sln
 *.sw?
 
-# The clip batches, which are carried OUT OF BAND rather than in the repo — they
-# are ~1.5 GB across eight parallel copies of the same 40 clips (one per
-# super-resolution experiment, so ?sr=<key> can A/B them; see VIDEO_SR in
-# src/Tour.jsx). None of them has ever been tracked. Listed explicitly because
-# they are not obviously generated, so a `git add -A` would otherwise commit the
-# lot, and because /video-plain now holds all 39 remuxed fallback clips rather
-# than the two it used to.
-#
-# A deploy needs these present: `best` serves from video-latest2, video-latest,
-# video-x4 and video-fit, with video-plain as the fallback root. Copy them in
-# before building; the build drops the A/B-only roots and prunes the fallback
-# (see vite.config.js).
+# The video archive. The tour no longer plays any of it — the clips are gone
+# from the piece, nothing in src/ names a .mp4, and the build drops anything
+# matching video* on the way out (see vite.config.js). What is left here is
+# ~2.4 GB of source renders and super-resolution experiments, kept because
+# several clips survive nowhere else, and never tracked: a `git add -A` would
+# otherwise commit the lot.
+/public/video/
 /public/video-2x/
 /public/video-fit/
+/public/video-fit-1888/
 /public/video-latest/
 /public/video-latest2/
 /public/video-plain/
 /public/video-x4/
 /public/video-x4-48/
+/public/video-x4-full/
+/public/overture.mp4
+/public/clip.mp4
 
 # Raw art out of the generation pipeline: the full-size MJ candidates and their
 # working files. What the tour actually serves is the WebP derived from them and
 # committed under public/nodes/.
 source-assets/
-
-# /public/video is the same case as the roots above and was simply missed: the
-# untagged, no-faststart originals, which nothing serves (see the prune list in
-# vite.config.js). It had been tracked since the initial commit — 34 clips, 452
-# MB — so a clone paid half a gigabyte for files no code path opens. Untracked
-# 2026-08-20; still on disk, still ignored, still carried out of band like its
-# siblings. /public/video-fit-1888 joins them: it DOES ship (FIT_BATCH in
-# src/Tour.jsx), it is just a clip batch like the rest and belongs out of band.
-/public/video/
-/public/video-fit-1888/

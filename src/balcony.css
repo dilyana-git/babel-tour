@@ -1,0 +1,83 @@
+/* --accent is the chapter's, handed down from Tour exactly as it is to
+   .tour-root — the balcony used to wear one fixed gold while the corridor
+   re-graded itself with every gallery. The literal here is only the fallback
+   for a balcony rendered without a place. */
+.balcony { position: fixed; inset: 0; z-index: 100; background: #101519; color: #e3d8be; overflow: hidden; --accent: #c8ac72; }
+
+/* The crossing, in this chapter's fog. See the veil in Balcony.jsx. */
+.balcony-veil {
+  position: absolute; inset: 0; z-index: 60; pointer-events: none;
+  background: #101519; opacity: 1; transition: opacity 620ms ease;
+}
+.balcony-veil.is-open { opacity: 0; }
+.balcony-veil.is-out { opacity: 1; transition-duration: 360ms; }
+@media (prefers-reduced-motion: reduce) {
+  .balcony-veil { transition: none; }
+}
+.balcony-world { position: absolute; inset: 0; }
+.balcony-world canvas { touch-action: none; outline-offset: -4px; }
+/* The same frame the corridor puts on every scene (see .frame-vignette in
+   tour.css): an inset vignette between the render and the chrome. It is what
+   makes writing in the margins legible — the heading and the walk hints here
+   land on whatever the room happens to put behind them — and it is the reason
+   a gallery in this piece never reads as a rectangle of screen. The balcony
+   was the one view that went without it. */
+.balcony-world::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  box-shadow: inset 0 0 16vmin 2vmin rgba(8, 5, 2, 0.68);
+}
+.balcony-world canvas:focus-visible { outline: 1px solid #c8ac7255; }
+.balcony-heading { position: absolute; top: 2.5rem; left: 3rem; pointer-events: none; text-shadow: 0 2px 18px #000; }
+.balcony-eyebrow { color: var(--accent); font: 400 .62rem/1.6 var(--mono); letter-spacing: .2em; }
+.balcony-heading h1 { margin: .45rem 0 .3rem; font: 400 clamp(1.8rem, 3.5vw, 3.4rem)/1.1 var(--serif); }
+.balcony-heading p { margin: 0; color: #c0baac; font: italic 1.1rem var(--serif); }
+.balcony-compass { position: absolute; right: 3rem; top: 2.6rem; display: grid; justify-items: center; gap: .5rem; font: .55rem var(--mono); letter-spacing: .18em; color: var(--accent); pointer-events: none; text-align: center; max-width: 9rem; }
+.balcony-compass span { font: 2.1rem var(--serif); }
+.balcony-compass i { height: 1.5rem; width: 1px; background: #b59e6a88; }
+.balcony-controls { position: absolute; bottom: 0; left: 0; right: 0; padding: 1rem 3rem 1.8rem; background: linear-gradient(transparent, #080c10e6); pointer-events: none; }
+.balcony button { color: inherit; cursor: pointer; border: 0; border-radius: 0; background: none; font: .7rem/1.5 var(--mono); min-height: 44px; }
+.balcony button:hover { color: #ffe5a8; }
+.balcony button:disabled { cursor: default; opacity: .65; }
+.balcony-controls button { pointer-events: auto; }
+.balcony-controls[aria-hidden="true"], .balcony-heading[aria-hidden="true"] { visibility: hidden; }
+.balcony-footer { display: flex; align-items: center; justify-content: space-between; gap: 1rem; border-top: 1px solid #c5ac783d; padding-top: .7rem; }
+.balcony-footer p { display: flex; gap: 1.6rem; color: #b0b2ae; font: .6rem var(--mono); }
+.balcony kbd { display: inline-flex; align-items: center; justify-content: center; min-width: 1.3rem; height: 1.3rem; margin-right: .2rem; border: 1px solid #b5ac914d; border-radius: 2px; font: .6rem var(--mono); color: #dbd1ba; }
+.balcony-return { display: flex; align-items: center; gap: .65rem; }
+.balcony-context { min-height: 55px; display: flex; justify-content: center; align-items: center; margin-bottom: .8rem; }
+.balcony-context > span { font: italic 1rem var(--serif); color: #c6c2b8; text-align: center; }
+.balcony-context button { padding: .55rem 1.1rem; border: 1px solid #bda16a66; background: #161b1de8; }
+.balcony-context button > span { margin-left: 1.3rem; color: var(--accent); }
+.balcony-mouse span { margin-left: 1rem; }
+.balcony-reticle { position: absolute; top: 50%; left: 50%; width: 3px; height: 3px; margin: -1.5px; background: #eee0be; border-radius: 50%; pointer-events: none; }
+.balcony-note { position: absolute; right: 5vw; top: 50%; transform: translateY(-50%); width: min(22rem, calc(100vw - 6rem)); padding: 2.3rem; background: #171b1ef5; box-shadow: 0 20px 100px #0008; border: 1px solid #ad92604d; }
+.balcony-note h2 { font: 400 2.1rem/1.1 var(--serif); margin: 1rem 0; }
+.balcony-note p { font: 1.2rem/1.6 var(--serif); color: #c6c2b6; }
+.balcony-note-rule { display: block; width: 2rem; height: 1px; background: var(--accent); margin: 1.5rem 0 1rem; }
+.balcony-note button { display: flex; align-items: center; justify-content: space-between; width: 100%; text-align: left; }
+.balcony-touch, .balcony-touch-hint { display: none; }
+.balcony-failure { position: absolute; top: 42%; left: 15%; width: 70%; text-align: center; font: 1.3rem var(--serif); }
+.balcony-lock-error { margin: .4rem 0 0; font: .65rem var(--mono); text-align: right; color: #d5bd8a; }
+.air-act.is-explore { color: #e3cd9b; }
+@media (pointer: coarse) {
+  .balcony-touch { display: grid; grid-template-columns: repeat(3, 46px); grid-template-rows: repeat(2, 46px); gap: 5px; position: absolute; left: 1.5rem; bottom: 11rem; }
+  .balcony-touch button { border: 1px solid #bda16a66; background: #161b1dbb; font-size: 1.2rem; touch-action: none; user-select: none; }
+  .balcony-touch button:first-child { grid-column: 2; }
+  .balcony-touch button:nth-child(2) { grid-column: 1; }
+  .balcony-mouse, .balcony-footer p { display: none; }
+  .balcony-touch-hint { display: block; font: .55rem/1.5 var(--mono); color: #b9b6ac; }
+}
+@media (max-width: 700px) {
+  .balcony-heading { left: 1.3rem; top: 1.5rem; }
+  .balcony-heading p { max-width: 15rem; font-size: .95rem; }
+  .balcony-compass { right: 1.3rem; top: 1.5rem; }
+  .balcony-compass { font-size: .45rem; }
+  .balcony-controls { padding: .6rem 1.3rem max(1rem, env(safe-area-inset-bottom)); }
+  .balcony-footer { flex-wrap: wrap; gap: .1rem .7rem; }
+  .balcony-footer p { order: 3; width: 100%; justify-content: center; gap: .6rem; margin: .3rem 0; }
+  .balcony-context > span { max-width: 23rem; font-size: .95rem; }
+  .balcony-note { right: 1.2rem; padding: 1.5rem; width: calc(100vw - 5.4rem); }
+}

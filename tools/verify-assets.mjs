@@ -1,43 +1,43 @@
 #!/usr/bin/env node
-// ── Does every asset the tour asks for actually exist? ───────────────────────
+// ── Does every asset the tour asks for exist, and is every asset it HAS hung? ─
 //
-// This project's worst bug is a SILENT one, and it has bitten more than once.
-// The dev server answers a request for a missing /video/*.mp4 with index.html
-// at status 200. The <video> element is therefore handed a page of HTML, never
-// decodes it, and — this is the part that hurts — raises no error at all. The
-// gallery simply stays a still. Nothing in the console, nothing on screen, and
-// the only way to notice is to know what that painting was supposed to do.
-//
-// Tour.jsx guards against it with comments. There are several hundred words up
-// there explaining that /video-plain must hold every clip the tour references,
-// that a batch must list only files that are on disk, and that getting either
-// wrong turns an A/B comparison into a comparison against nothing. All of it is
-// true and none of it is CHECKED. This script is those comments, executable.
-//
-// Run it before a deploy, and after any change to the variant tables or any new
-// clip delivery:
+// Run before a deploy and after any change to the catalogue:
 //
 //     npm run verify:assets
+//
+// This began as a guard against a silent failure in the clip delivery: the dev
+// server answers a request for a missing .mp4 with index.html at status 200, so
+// a <video> was handed a page of HTML, never decoded it, and raised no error —
+// the gallery just stayed a still, with nothing in the console. The clips are
+// gone from the piece and those three checks went with them.
+//
+// What replaced them is the failure this project actually kept having instead,
+// which is the opposite shape and just as quiet: art that was generated,
+// depth-mapped, backdrop-baked, verified — and then never hung. Two finished
+// garden plates sat in public/nodes that way, and one of them was the only thing
+// standing between the Web of Time and a gallery that could not restock at all.
+// Nothing failed. Nothing was missing. The work was simply not in the piece, and
+// the only way to notice was to diff the folder against the catalogue by hand.
+//
+// So the orphan check is no longer a footnote about build weight. It is the
+// point of this script, and it now sorts orphans by whether they are READY —
+// see check 3.
 //
 // ── What it proves, and what it does not ────────────────────────────────────
 // It reads the source as TEXT — collecting string literals with a small scanner
 // that knows the difference between a path and a path mentioned in a comment —
-// rather than importing the tables. Tour.jsx cannot be imported by node: it is
-// JSX, and it pulls in react and three on the way. So this checks the invariants
-// that can be established from literals plus the filesystem, which are the ones
-// the silent failure actually turns on:
+// rather than importing the tables, which cannot be imported by node: they are
+// JSX and pull in react and three on the way. So it checks what can be
+// established from literals plus the filesystem:
 //
-//   • every plate the tour names is on disk
-//   • every clip the tour names is in the fallback root, so NO ?sr= key can
-//     drop into a hole
-//   • every clip a batch DECLARES is somewhere on disk, so a delivery that
-//     never landed cannot masquerade as a working experiment
+//   • every plate and depth map the tour names is on disk
+//   • every plate the tour hangs has a backdrop declared for it
+//   • every plate on disk is either hung, or accounted for as not-yet-ready
 //
-// What it cannot do is resolve a clip through the VIDEO_SR chain the way the app
-// does and confirm the exact file each key serves — that logic lives inside a
-// module this script cannot load. Making that exact would mean lifting the video
-// tables out of Tour.jsx into a plain module both could import, which is worth
-// doing and is the obvious next step, not a thing this script pretends to.
+// What it cannot tell you is whether a plate SHOULD hang — whether the art is
+// any good, whether its glowAt points at the right lamp. Those are judgements
+// for a person at a real screen. It can only tell you that the choice not to
+// hang something was made, rather than forgotten.
 
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { resolve, dirname, join } from 'node:path';
@@ -93,6 +93,33 @@ const srcFiles = readdirSync(join(ROOT, 'src'))
   .map((f) => join(ROOT, 'src', f));
 const all = srcFiles.flatMap((f) => literals(readFileSync(f, 'utf8')));
 
+// Which plates the catalogue actually HANGS, as distinct from which plates the
+// source mentions anywhere. The two are not the same and check 3 turns on the
+// difference: src/backdrops.js is keyed BY PLATE PATH and carries an entry for
+// every plate on disk, hung or not — so measuring "referenced" against the whole
+// of src/ made every orphan look referenced and the check silently reported
+// nothing, which is the exact failure it was written to end. Only the catalogue
+// decides what hangs.
+const hung = new Set(
+  literals(readFileSync(join(ROOT, 'src', 'catalogue.js'), 'utf8'))
+    .filter((s) => /^\/nodes\/.+\.webp$/.test(s))
+    .map((s) => s.split('/').pop()),
+);
+
+// …and which plates the BALCONY hangs, which is a different kind of hanging.
+// Its window (Balcony.jsx's LibraryView) is a plain colour card: no slab stack,
+// no depth map, no backdrop — a plate needs nothing there but itself. That is
+// why plates barred from the corridor can still hang in it. Without this the
+// script reported the balcony's plates twice and wrongly in both directions:
+// once as hanging with "no backdrop declared" (a backdrop would do nothing on a
+// surface that never dis-occludes) and once as unhung orphans still in the
+// pipeline, when they are in the piece and finished.
+const balcony = new Set(
+  literals(readFileSync(join(ROOT, 'src', 'Balcony.jsx'), 'utf8'))
+    .filter((s) => /^\/nodes\/.+\.webp$/.test(s))
+    .map((s) => s.split('/').pop()),
+);
+
 const problems = [];
 const notes = [];
 
@@ -106,127 +133,73 @@ for (const p of plates.sort()) {
   if (!existsSync(join(PUBLIC, p))) problems.push(`missing plate   ${p}`);
 }
 
-// ── 2. Referenced clips vs the fallback root ────────────────────────────────
-// VIDEO_ROOT is the floor under every ?sr= key: a key whose batches do not carry
-// some clip drops to it. So a clip that is referenced but absent from that root
-// is not merely un-upscaled, it is unservable under any key that does not
-// happen to carry it — the silent never-wakes failure, waiting for the reader
-// who loads with the wrong query string.
-// There are two different severities here, and collapsing them would make this
-// check useless — it would fail forever on a case the source has already thought
-// about, and a check that always fails is a check nobody runs.
-//
-//   NOT SERVABLE AT ALL — the clip is in no root anywhere. Whatever key the
-//   reader loads with, that gallery can never wake. This is the bug.
-//
-//   ONLY IN AN SR ROOT — it is missing from the fallback but some batch carries
-//   it, so it plays under any key that includes that batch (`best` does) and
-//   dies under one that does not. Tour.jsx documents exactly one of these:
-//   01-moonlit-labyrinth-var2-clip2, whose source no longer survives anywhere,
-//   so it exists only as its super-resolved copies. That is a known, reasoned
-//   fragility rather than a mistake, and it is reported as such — but it is
-//   still reported, because a SECOND one appearing would mean a clip lost its
-//   source without anyone noticing.
-const FALLBACK = '/video-plain';
-const clips = [...new Set(all.filter((s) => /^\/video\/.+\.mp4$/.test(s)))];
-const fallbackDir = join(PUBLIC, FALLBACK);
-const fragile = [];
-if (!existsSync(fallbackDir)) {
-  notes.push(`${FALLBACK} is not present — the clip batches are carried out of band`
-    + ' (see .gitignore), so clip checks were skipped. Copy them in before a deploy.');
-} else {
-  for (const c of clips.sort()) {
-    const file = c.slice('/video/'.length);
-    if (existsSync(join(fallbackDir, file))) continue;
-    // Deliberately deferred: `onDisk` is built in check 3 below, so ask the
-    // filesystem directly rather than reorder two checks for one lookup.
-    const elsewhere = readdirSync(PUBLIC, { withFileTypes: true })
-      .filter((d) => d.isDirectory() && d.name.startsWith('video'))
-      .filter((d) => existsSync(join(PUBLIC, d.name, file)))
-      .map((d) => d.name);
-    if (elsewhere.length) {
-      fragile.push(`${file} — absent from ${FALLBACK}, served only by ${elsewhere.join(', ')}`);
-    } else {
-      problems.push(`unservable clip ${file}  (referenced, present in NO video root)`);
-    }
-  }
-}
-if (fragile.length) {
-  notes.push(`${fragile.length} clip(s) have no fallback copy and will not play under`
-    + ' every ?sr= key:');
-  for (const f of fragile) notes.push(`    ${f}`);
-}
-
-// ── 3. Declared batch files vs the disk ─────────────────────────────────────
-// The bare '*.mp4' literals are the super-resolution batch manifests. Listing a
-// name a batch does not actually have is the exact mistake the header warns
-// about, and its symptom is again nothing at all. This does not attribute each
-// name to its own root — that needs the table structure — but a declared file
-// that exists in NO root at all cannot be a delivery that landed.
-const roots = existsSync(PUBLIC)
-  ? readdirSync(PUBLIC, { withFileTypes: true })
-    .filter((d) => d.isDirectory() && d.name.startsWith('video'))
-    .map((d) => d.name)
-  : [];
-const onDisk = new Set(roots.flatMap((r) => readdirSync(join(PUBLIC, r))));
-const declared = [...new Set(all.filter((s) => /^[\w-]+\.mp4$/.test(s)))];
-if (roots.length === 0) {
-  notes.push('no public/video* roots present — batch manifests were not checked.');
-} else {
-  for (const d of declared.sort()) {
-    if (!onDisk.has(d)) {
-      problems.push(`declared, absent ${d}  (listed in a batch, in none of: ${roots.join(', ')})`);
-    }
+// ── 2. Every hung plate has a backdrop ──────────────────────────────────────
+// A plate with no declared backdrop falls back to the runtime dilation smear
+// instead of the baked inpaint. It renders — this is not a crash — it just
+// renders worse than its neighbours, in a way that is easy to miss on a plate
+// you are not comparing against anything.
+const backdropDecls = new Set(all.filter((s) => /-backdrop\.webp$/.test(s)));
+for (const p of plates.sort()) {
+  if (/(-backdrop|-backdrop-depth|-depth|_depth|-depth-snapped)\.webp$/.test(p)) continue;
+  // The balcony's window has no backdrop to declare — see `balcony` above.
+  if (balcony.has(p.split('/').pop()) && !hung.has(p.split('/').pop())) continue;
+  const expected = p.replace(/\.webp$/, '-backdrop.webp');
+  if (!backdropDecls.has(expected)) {
+    notes.push(`${p.split('/').pop()} hangs with no backdrop declared`
+      + ' — it will fall back to the runtime dilation smear');
   }
 }
 
-// ── 3b. Undeclared strays in a chain root ───────────────────────────────────
-// The build prunes the clip roots by subtraction down the `best` chain: a copy
-// is deleted when a root ABOVE it carries the same name, because the chain would
-// never look that far down. That rule reads the folders, and it is only sound
-// while every clip in an SR root is one its batch actually declares. A stray —
-// a file copied into the wrong root, or left behind by a delivery that was
-// renamed — reads as covering the name, so the prune deletes the copy below it
-// while the chain, which goes by the manifests, walks straight past the stray
-// and fetches the one that is now gone. A 404 the dev server hides (it answers
-// a missing .mp4 with index.html at status 200) and production shows as a
-// gallery that never wakes.
+// ── 3. Art on disk that the catalogue never hangs ───────────────────────────
+// The check this script now exists for. An orphan is not automatically a
+// mistake — plates are deliberately kept after being pulled, and the catalogue
+// says why in each case — but the two kinds are worth telling apart, because
+// only one of them is ever a mistake:
 //
-// So: anything in a chain root that no batch names at all. The fallback root is
-// exempt — holding every clip regardless of what is declared is its whole job.
-const CHAIN_ROOTS = ['video-x4-full', 'video-latest2', 'video-latest',
-  'video-x4', 'video-fit'];
-const declaredSet = new Set(declared);
-for (const root of CHAIN_ROOTS) {
-  const abs = join(PUBLIC, root);
-  if (!existsSync(abs)) continue;
-  const strays = readdirSync(abs)
-    .filter((f) => f.endsWith('.mp4') && !declaredSet.has(f));
-  for (const f of strays) {
-    problems.push(`undeclared ${root}/${f}  (in a chain root, named by no batch`
-      + ' — the build prune would delete the copy beneath it)');
-  }
-}
-
-// ── 4. Orphan plates ────────────────────────────────────────────────────────
-// Not a failure — art is kept deliberately after being pulled from rotation, and
-// the tables say so. But everything in public/ is copied verbatim into the build
-// and deployed, so an unreferenced plate is weight a reader pays for and never
-// sees, and it is worth having the number in front of you.
+//   READY   — a colour plate with a depth map AND a baked backdrop beside it.
+//             Everything the slab stack needs. Somebody finished this and it is
+//             not in the piece. Either hang it, or write down in the catalogue
+//             why not.
+//   PARTIAL — missing its depth map or its backdrop. Still in the pipeline, and
+//             its absence from the catalogue explains itself.
+//
+// Plates the balcony hangs are neither: they are in the piece, they just are not
+// in a gallery, and they need no depth map to be there.
+//
+// Reported as notes, not failures: "should this hang?" is a judgement, and this
+// script does not get to make it. It only refuses to let it go unnoticed.
+const isDerived = (f) => /(-backdrop|-backdrop-depth|-depth|-depth-snapped)\.webp$/.test(f)
+  || /_depth\.webp$/.test(f) || /-depth-[ab]\.webp$/.test(f);
 for (const dir of ['nodes/descent', 'nodes/garden']) {
   const abs = join(PUBLIC, dir);
   if (!existsSync(abs)) continue;
-  const referenced = new Set(plates.map((p) => p.split('/').pop()));
-  const orphans = readdirSync(abs).filter((f) => !referenced.has(f));
-  if (orphans.length) {
-    notes.push(`${dir}: ${orphans.length} file(s) present but never referenced`
-      + ` — ${orphans.slice(0, 4).join(', ')}${orphans.length > 4 ? ', …' : ''}`);
+  const here = readdirSync(abs);
+  const present = new Set(here);
+  const ready = [];
+  const partial = [];
+  for (const f of here) {
+    if (isDerived(f) || hung.has(f) || balcony.has(f)) continue;
+    const stem = f.replace(/\.webp$/, '');
+    // Two spellings of the depth map are in use: the original batch wrote
+    // `impossible_1_depth.webp`, everything since writes `<stem>-depth.webp`.
+    const hasDepth = present.has(`${stem}-depth.webp`) || present.has(`${stem}_depth.webp`);
+    const hasBackdrop = present.has(`${stem}-backdrop.webp`)
+      && present.has(`${stem}-backdrop-depth.webp`);
+    (hasDepth && hasBackdrop ? ready : partial).push(f);
+  }
+  if (ready.length) {
+    notes.push(`${dir}: ${ready.length} FINISHED plate(s) never hung — ${ready.join(', ')}`);
+    notes.push('           depth map and baked backdrop both present, so these are'
+      + ' ready to hang as they stand');
+  }
+  if (partial.length) {
+    notes.push(`${dir}: ${partial.length} unhung plate(s) still incomplete`
+      + ` — ${partial.slice(0, 4).join(', ')}${partial.length > 4 ? ', …' : ''}`);
   }
 }
 
 // ── Report ──────────────────────────────────────────────────────────────────
-console.log(`checked ${plates.length} plate reference(s), ${clips.length} clip reference(s),`
-  + ` ${declared.length} batch declaration(s)`);
+console.log(`checked ${plates.length} plate reference(s)`);
 for (const n of notes) console.log(`  note:  ${n}`);
 if (problems.length) {
   console.error(`\n${problems.length} problem(s):`);
