@@ -17,7 +17,7 @@ const files = (dir) => {
 };
 
 if (!existsSync(join(dist, 'index.html'))) failures.push('dist/index.html is missing');
-for (const name of ['favicon.svg', 'og-card.jpg', 'overture-poster.jpg']) {
+for (const name of ['favicon.svg', 'og-card.jpg']) {
   if (!existsSync(join(dist, name))) failures.push(`dist/${name} is missing`);
 }
 

@@ -5,14 +5,13 @@
 // and src/world). The plate tour is set aside behind ?plates (main.jsx).
 import { useState } from 'react';
 import EntryMap from './EntryMap';
-import { canDraw } from './Failure';
+import { Failure, canDraw } from './Failure';
 import { LIBRARY_NODES } from './catalogue';
-import StaticTour from './StaticTour';
 
 const LIBRARY_MAX = LIBRARY_NODES.length - 1;
 
 export default function WorldTour() {
   const [drawable] = useState(canDraw);
-  if (!drawable) return <StaticTour reason="This device cannot draw the 3D Library. You can still read every room below." />;
+  if (!drawable) return <Failure kind="webgl" />;
   return <EntryMap worldRooms libraryMax={LIBRARY_MAX} resumeAt={null} shared={false} />;
 }

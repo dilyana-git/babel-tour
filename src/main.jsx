@@ -10,5 +10,5 @@ const Tour = lazy(() => import('./Tour'));
 const plates = new URLSearchParams(window.location.search).has('plates');
 
 ReactDOM.createRoot(document.getElementById('root')).render(
-  plates ? <Suspense fallback={<div className="boot-status" role="status">Preparing the Library…</div>}><Tour /></Suspense> : <WorldTour />,
+  plates ? <Suspense fallback={null}><Tour /></Suspense> : <WorldTour />,
 );

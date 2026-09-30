@@ -8,13 +8,11 @@
     "build": "vite build",
     "lint": "oxlint",
     "check:governor": "node tools/governor-check.mjs",
-    "check:plates": "node tools/plate-load-check.mjs",
     "check:walk": "node tools/walk-check.mjs",
     "check:walls": "node tools/wall-check.mjs",
     "review:ux": "node tools/ux-review-agent.mjs",
-    "review:world": "node tools/ux-review-agent.mjs --world",
     "verify:assets": "node tools/verify-assets.mjs",
-    "check:deploy": "npm run lint -- src && npm run verify:assets && npm run check:governor && npm run check:plates && npm run build && node tools/verify-dist.mjs",
+    "check:deploy": "npm run lint -- src && npm run verify:assets && npm run check:governor && npm run build && node tools/verify-dist.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

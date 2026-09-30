@@ -7,10 +7,9 @@
 // reduction on coarse-pointer devices all read from src/capability.js.
 import { useState, useEffect, useRef, useCallback, startTransition, lazy, Suspense, useMemo } from 'react';
 import * as THREE from 'three';
-import { useProgress, useTexture } from '@react-three/drei';
+import { useTexture } from '@react-three/drei';
 import DioramaScene, { BAY_ANGLE, TURN_BAYS } from './DioramaScene';
 import { platesOf } from './backdrops';
-import { decodePlates } from './plateLoad';
 import AmbientSound from './ambientSound';
 import { RITE_NAME } from './rites';
 import { Failure, SceneBoundary, canDraw } from './Failure';
@@ -163,6 +162,17 @@ const outOfSight = (descent, index, edge) => {
   const behind = descent - index;
   return behind > edge.behind || behind < -edge.ahead;
 };
+
+// Decode a scene's plates before hanging them, so the swap itself costs nothing.
+const decodePlates = (scene) => Promise.all(platesOf(scene).map(
+  (src) => new Promise((resolve) => {
+    const img = new Image();
+    img.onload = resolve;
+    img.onerror = resolve;
+    img.src = src;
+    if (img.decode) img.decode().then(resolve, resolve);
+  }),
+));
 
 const LIBRARY_MAX = LIBRARY_NODES.length - 1;
 const MAX = NODES.length - 1;
@@ -321,7 +331,6 @@ function releaseFocus(event) {
 }
 
 export default function Tour() {
-  const { active: loaderActive, progress: loaderProgress } = useProgress();
   const [exploring, setExploring] = useState(false);
   const exploringRef = useRef(false);
   const exploreButtonRef = useRef(null);
@@ -1001,7 +1010,6 @@ export default function Tour() {
   // At most one gallery re-draws at a time: two plate decodes at once is a
   // visible hitch, and there is never a reason to need both in the same frame.
   const restockingRef = useRef(false);
-  const restockRetryAtRef = useRef(new Map());
 
   const restock = useCallback((descent) => {
     if (PINNED || restockingRef.current) return;
@@ -1011,7 +1019,6 @@ export default function Tour() {
     const queue = [...spent].sort(
       (a, b) => Math.abs(descent - a) - Math.abs(descent - b));
     for (const i of queue) {
-      if (Date.now() < (restockRetryAtRef.current.get(i) ?? 0)) continue;
       // A chosen road stays chosen. Every other gallery re-hangs itself with a
       // different version of the same room once it is out of sight, which is
       // exactly the wrong thing to do to the one gallery the reader picked:
@@ -1029,15 +1036,8 @@ export default function Tour() {
       // Warm the loader's cache under the same key useTexture will ask for, so
       // the re-render finds the plates already decoded and never suspends.
       useTexture.preload(platesOf(next));
-      decodePlates(next).then((ready) => {
+      decodePlates(next).then(() => {
         restockingRef.current = false;
-        if (!ready) {
-          useTexture.clear(platesOf(next));
-          restockRetryAtRef.current.set(i, Date.now() + 10000);
-          spent.add(i);
-          return;
-        }
-        restockRetryAtRef.current.delete(i);
         // The reader may have turned around while it loaded. Never re-hang a
         // wall someone is looking at: put the gallery back in the queue and let
         // a later pass catch it out of sight again.
@@ -1196,10 +1196,7 @@ export default function Tour() {
       setDoorOpen(true);
     }
     const patience = new Promise((resolve) => { setTimeout(resolve, 15000); });
-    Promise.race([decodePlates(scenesRef.current[index]), patience]).then((ready) => {
-      if (ready === false) setFault('crash');
-      else enter();
-    });
+    Promise.race([decodePlates(scenesRef.current[index]), patience]).then(enter);
   }, [enter]);
 
   // One footfall from the walking gait (DescentRig calls this mid-stride):
@@ -2853,8 +2850,6 @@ export default function Tour() {
         NOT inert while the overture is up. */}
     {sealed && (
       <EntryMap
-        loaderActive={loaderActive}
-        loaderProgress={loaderProgress}
         leaving={veil === 'leaving'}
         scenes={scenes}
         libraryMax={LIBRARY_MAX}

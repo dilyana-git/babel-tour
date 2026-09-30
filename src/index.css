@@ -38,19 +38,6 @@ button {
   font-family: var(--mono);
 }
 
-.boot-status {
-  min-height: 100vh;
-  display: grid;
-  place-items: center;
-  padding: 1rem;
-  box-sizing: border-box;
-  color: var(--gold);
-  font: 400 .7rem/1.5 var(--mono);
-  letter-spacing: .2em;
-  text-align: center;
-  text-transform: uppercase;
-}
-
 :focus-visible {
   outline: 2px solid var(--gold);
   outline-offset: 3px;

@@ -21,19 +21,18 @@
 //               Tour.jsx stands the camera in the room and the map dissolves.
 //               Until the world draws, the overlay waits alone over the dark
 //               in its old 1440 × 900 frame.
-import { Component, lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { Component, useCallback, useEffect, useRef, useState } from 'react';
+import { useProgress } from '@react-three/drei';
 import { NODES } from './catalogue';
 import { canDraw } from './Failure';
 import { COARSE } from './capability';
-import { VANTAGES } from './world/vantages';
-import StaticTour from './StaticTour';
+import World from './world/World';
+import { VANTAGES } from './world/buildWorld';
 import RoomVoice from './RoomVoice';
 import { PASSAGES, STORY, VOICES } from './voices';
 import './map.css';
 
-const World = lazy(() => import('./world/World'));
-
-// If the live world throws, the readable route takes over.
+// If the live world throws, the still stays the map and nothing else changes.
 class WorldBoundary extends Component {
   constructor(props) {
     super(props);
@@ -43,7 +42,7 @@ class WorldBoundary extends Component {
     return { failed: true };
   }
   componentDidCatch(error) {
-    console.warn('[world] the live map could not be drawn; opening the reading route:', error);
+    console.warn('[world] the live map could not be drawn; keeping the still:', error);
     this.props.onError?.();
   }
   render() {
@@ -107,7 +106,8 @@ const HINT_IDLE_MS = 15000;
 const HEX = '7,1 13,4.5 13,11.5 7,15 1,11.5 1,4.5';
 const TALL_QUERY = '(max-aspect-ratio: 1/1)';
 
-export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared, onChoose, worldRooms = false, loaderActive = false, loaderProgress = 100 }) {
+export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared, onChoose, worldRooms = false }) {
+  const { active, progress } = useProgress();
   const [tall, setTall] = useState(
     () => typeof window !== 'undefined' && window.matchMedia(TALL_QUERY).matches,
   );
@@ -294,10 +294,7 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
       setOrigin(`${ox.toFixed(1)}% ${oy.toFixed(1)}%`);
     }
     if (worldRooms) {
-      if (!liveWorld) {
-        setPicked(i);
-        return;
-      }
+      if (!liveWorld) return;
       // On a phone the card sits below the map; the flight is up at the top.
       sectionRef.current?.scrollTo?.({ top: 0 });
       setOpening(i);
@@ -409,8 +406,8 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
       ? 'Assembling the Library…'
       : opening !== null
         ? `Opening ${NODES[opening].title}…`
-        : loaderActive && loaderProgress < 100
-          ? `${invitation} · assembling ${Math.min(99, Math.round(loaderProgress))}%`
+        : active && progress < 100
+          ? `${invitation} · assembling ${Math.min(99, Math.round(progress))}%`
           // back on the map from the heart of the maze, the walk drawn in light
           : ended ? 'Time forks perpetually toward innumerable futures' : invitation;
   // Between the Vertigo and the Door the way is not a walk.
@@ -632,8 +629,6 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
     </svg>
   );
 
-  if (worldRooms && worldFailed) return <StaticTour reason="The 3D Library could not be drawn. You can still read every room below." />;
-
   return (
     <section
       ref={sectionRef}
@@ -647,7 +642,7 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
       <div className="map-stage" ref={stageRef} {...(worldRooms && place !== null ? lookHandlers : {})}>
         {worldOn && !worldFailed && (worldRooms || scenes) && (
           <WorldBoundary onError={() => setWorldFailed(true)}>
-            <Suspense fallback={null}><World
+            <World
               rooms={worldRooms}
               scenes={scenes}
               reserveLeft={!tall}
@@ -664,10 +659,10 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
               finale={worldRooms ? finale : null}
               onFinale={worldRooms ? onFinale : undefined}
               onLayout={setLayout}
-            /></Suspense>
+            />
           </WorldBoundary>
         )}
-        {liveOverlay ? worldOverlay : stillOverlay}
+        {liveOverlay ? worldOverlay : worldRooms ? null : stillOverlay}
       </div>
       <div className="world-fade" ref={fadeRef} aria-hidden="true" />
 
@@ -719,10 +714,10 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
         <button
           type="button"
           className="map-enter"
-          disabled={opening !== null || (worldRooms && !liveWorld)}
+          disabled={opening !== null}
           onClick={() => choose(shown)}
         >
-          {opening !== null ? 'Opening…' : worldRooms && !liveWorld ? 'Preparing the Library…' : `Enter ${node.title}`}
+          {opening !== null ? 'Opening…' : `Enter ${node.title}`}
           <svg viewBox="0 0 16 10" aria-hidden="true"><path d="M1 5 H14 M10 1 L14 5 L10 9" /></svg>
         </button>
       </aside>

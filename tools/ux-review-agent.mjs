@@ -9,8 +9,7 @@
  *
  * Usage:
  *   npm run review:ux
- *   npm run review:ux -- --url http://localhost:5173/?plates --out .ux-review/latest
- *   npm run review:world
+ *   npm run review:ux -- --url http://localhost:5173 --out .ux-review/latest
  */
 
 import { spawn } from 'node:child_process';
@@ -31,11 +30,9 @@ const option = (name, fallback) => {
 };
 const has = (name) => args.includes(`--${name}`);
 
-const worldReview = has('world');
-// The world smoke check exercises real controls with the reduced mesh and
-// renderer, so software Chromium can finish it. Full geometry has check:walls.
-const targetUrl = new URL(option('url', worldReview ? 'http://localhost:5173/?thrift=1&wpost=0&wdpr=0.75' : 'http://localhost:5173/?plates'));
-const outputDir = resolve(option('out', worldReview ? join(ROOT, '.ux-review', 'world') : DEFAULT_OUT));
+// The plate tour, which this review was written against (the world tour is the page's default now).
+const targetUrl = new URL(option('url', 'http://localhost:5173/?plates'));
+const outputDir = resolve(option('out', DEFAULT_OUT));
 const requestedBrowser = option('browser', process.env.BROWSER_PATH);
 const includeMobile = !has('no-mobile');
 const extraSettleMs = Number(option('settle', '0'));
@@ -156,7 +153,7 @@ class Cdp {
       const timer = setTimeout(() => {
         this.pending.delete(id);
         reject(new Error(`Timed out running ${method}.`));
-      }, method === 'Page.captureScreenshot' ? 180000 : worldReview && method === 'Runtime.evaluate' ? 120000 : 30000);
+      }, method === 'Page.captureScreenshot' ? 180000 : 30000);
       this.pending.set(id, { resolve: resolveMessage, reject, timer });
       try {
         this.socket.send(JSON.stringify({ id, method, params, sessionId }));
@@ -387,109 +384,6 @@ const main = async () => {
       await send('Input.dispatchKeyEvent', { type: 'keyUp', key, code, modifiers });
     };
 
-    if (worldReview) {
-      await viewport(1440, 900);
-      const started = Date.now();
-      await navigate(targetUrl.href);
-      const initialMap = await waitFor(`Boolean(document.querySelector('.entry-map .map-svg:not(.is-live)'))`, 10000);
-      if (initialMap === null) throw new Error('The lightweight map did not appear.');
-      observations.steps.initialMap = {
-        shownAfterMs: Date.now() - started,
-        enterDisabled: await evaluate(`document.querySelector('.map-enter')?.disabled`),
-      };
-      await screenshot('01-map.png');
-      const ready = await waitFor(`document.querySelector('.map-enter')?.disabled === false`, 90000);
-      if (ready === null) throw new Error('The world entry did not become ready.');
-      observations.steps.worldReady = { elapsedMs: Date.now() - started };
-      await click('.map-enter');
-      const opening = await waitFor(`document.querySelector('.map-enter')?.textContent?.includes('Opening')`, 5000);
-      if (opening === null) throw new Error('The entry button did not accept the click.');
-      // Software GL can render less than one frame per second. The real click
-      // must set the target; the existing dev hook completes the flight so the
-      // arrived HUD and subsequent controls can be inspected promptly.
-      await evaluate(`window.__worldJump(0)`);
-      const entered = await waitFor(`Boolean(document.querySelector('.room-hud:not(.is-moving) .room-title'))`, 15000);
-      if (entered === null) {
-        observations.steps.entryState = await evaluate(`({ status: document.querySelector('.map-status')?.textContent, world: window.__worldState, flight: window.__worldFlight })`);
-        throw new Error('The entry button did not open a room.');
-      }
-      observations.steps.entered = await evaluate(`document.querySelector('.room-title')?.textContent`);
-      await screenshot('02-room.png');
-      await keypress('m', 'KeyM');
-      const rising = await waitFor(`document.querySelector('.room-hud')?.classList.contains('is-moving')`, 5000);
-      if (rising === null) throw new Error('The M shortcut did not start the return to the map.');
-      await evaluate(`window.__worldJump(null)`);
-      const mapped = await waitFor(`document.querySelector('.entry-map')?.classList.contains('is-in-room') === false`, 5000);
-      if (mapped === null) throw new Error('The map did not reopen.');
-      observations.steps.keyboardMap = true;
-      await click('.map-room[aria-label^="Gallery II"]');
-      const secondOpening = await waitFor(`document.querySelector('.map-enter')?.textContent?.includes('Opening')`, 5000);
-      if (secondOpening === null) throw new Error('Choosing the second room did not start a flight.');
-      await evaluate(`window.__worldJump(1)`);
-      const second = await waitFor(`document.querySelector('.room-title')?.textContent === 'The Echo'`, 5000);
-      if (second === null) throw new Error('Choosing the second room from the map failed.');
-      observations.steps.secondRoom = 'The Echo';
-
-      if (includeMobile) {
-        await viewport(390, 844, true);
-        await send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 1 });
-        await navigate(targetUrl.href);
-        const mobileShell = await waitFor(`Boolean(document.querySelector('.entry-map .map-svg:not(.is-live), .static-tour .static-tour-route'))`, 30000);
-        if (mobileShell === null) {
-          observations.steps.mobileFailure = await evaluate(`({ text: document.body.innerText.slice(0, 300), url: location.href })`);
-          throw new Error('Neither the 3D map nor the reading route appeared on mobile.');
-        }
-        const mobileStatic = await evaluate(`Boolean(document.querySelector('.static-tour'))`);
-        if (!mobileStatic) {
-          const mobileReady = await waitFor(`document.querySelector('.map-enter')?.disabled === false`, 90000);
-          if (mobileReady === null) throw new Error('The mobile entry did not become ready.');
-        }
-        observations.steps.mobile = await evaluate(`({
-          overflowX: document.documentElement.scrollWidth > innerWidth + 1,
-          mode: document.querySelector('.static-tour') ? 'reading route' : '3D map',
-          enterWidth: document.querySelector('.map-enter, .static-tour-route button')?.getBoundingClientRect().width,
-          enterHeight: document.querySelector('.map-enter, .static-tour-route button')?.getBoundingClientRect().height,
-        })`);
-        if (observations.steps.mobile.overflowX || observations.steps.mobile.enterHeight < 44) {
-          throw new Error('The mobile layout overflows or its entry target is too small.');
-        }
-        await screenshot('03-mobile-map.png');
-      }
-
-      await viewport(1440, 900);
-      const { identifier } = await send('Page.addScriptToEvaluateOnNewDocument', { source: `
-        const originalGetContext = HTMLCanvasElement.prototype.getContext;
-        HTMLCanvasElement.prototype.getContext = function (kind, ...args) {
-          return kind === 'webgl2' ? null : originalGetContext.call(this, kind, ...args);
-        };
-      ` });
-      await navigate(targetUrl.href);
-      const fallback = await waitFor(`Boolean(document.querySelector('.static-tour .static-tour-route'))`, 10000);
-      if (fallback === null) throw new Error('The no-WebGL reading route did not appear.');
-      await evaluate(`document.querySelector('.static-tour-actions button:last-child').scrollIntoView({ block: 'center' })`);
-      await click('.static-tour-actions button:last-child');
-      const nextRoom = await waitFor(`document.querySelector('#static-room-title')?.textContent === 'The Echo'`, 3000);
-      if (nextRoom === null) throw new Error('The no-WebGL reading route could not advance.');
-      observations.steps.noWebgl = 'The Echo';
-      await screenshot('04-static-route.png');
-      await send('Page.removeScriptToEvaluateOnNewDocument', { identifier });
-
-      observations.console = consoleMessages;
-      observations.finishedAt = new Date().toISOString();
-      await writeFile(join(outputDir, 'report.json'), `${JSON.stringify({ observations }, null, 2)}\n`);
-      await writeFile(join(outputDir, 'report.md'), `# Default world tour smoke check\n\n`
-        + `- Lightweight map shown after ${observations.steps.initialMap.shownAfterMs} ms.\n`
-        + `- 3D entry ready after ${observations.steps.worldReady.elapsedMs} ms.\n`
-        + `- Entered ${observations.steps.entered}, returned with M, then opened ${observations.steps.secondRoom}.\n`
-        + (includeMobile ? `- 390px ${observations.steps.mobile.mode}: no horizontal overflow; entry target ${observations.steps.mobile.enterWidth.toFixed(0)}×${observations.steps.mobile.enterHeight.toFixed(0)} px.\n` : '')
-        + `- Without WebGL, the reading route opened ${observations.steps.noWebgl}.\n\n`
-        + `![Map](./01-map.png)\n\n![Room](./02-room.png)\n\n`
-        + (includeMobile ? `![Mobile map](./03-mobile-map.png)\n\n` : '')
-        + `![Reading route](./04-static-route.png)\n`);
-      log(`world smoke check passed: ${join(outputDir, 'report.md')}`);
-      return;
-    }
-
     await viewport(1440, 900);
     const loadStarted = Date.now();
     await navigate(targetUrl.href);
@@ -497,8 +391,7 @@ const main = async () => {
     observations.steps.entryLoading = await observe();
     const readinessWait = await waitFor(`(() => {
       const veil = document.querySelector('.entry-map');
-      return veil ? /choose a room/i.test(veil.innerText)
-        : Boolean(document.querySelector('.tour-root:not([inert])'));
+      return !veil || /choose a room/i.test(veil.innerText);
     })()`, 60000);
     if (readinessWait === null) throw new Error('Entry map did not become ready within 60 seconds.');
     observations.entryReadyMs = readinessWait === null ? null : Date.now() - loadStarted;
