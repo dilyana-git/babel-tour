@@ -25,12 +25,8 @@ dist-ssr
 *.sln
 *.sw?
 
-# The video archive. The tour no longer plays any of it — the clips are gone
-# from the piece, nothing in src/ names a .mp4, and the build drops anything
-# matching video* on the way out (see vite.config.js). What is left here is
-# ~2.4 GB of source renders and super-resolution experiments, kept because
-# several clips survive nowhere else, and never tracked: a `git add -A` would
-# otherwise commit the lot.
+# Retired video paths. The archives have been removed; keep any regenerated
+# renders and upscale experiments out of future commits.
 /public/video/
 /public/video-2x/
 /public/video-fit/
@@ -44,7 +40,6 @@ dist-ssr
 /public/overture.mp4
 /public/clip.mp4
 
-# Raw art out of the generation pipeline: the full-size MJ candidates and their
-# working files. What the tour actually serves is the WebP derived from them and
-# committed under public/nodes/.
+# Keep any regenerated raw artwork out of future commits. Runtime WebP assets
+# live under public/nodes/.
 source-assets/

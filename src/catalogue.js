@@ -97,7 +97,7 @@ export const selectRandomVariant = (nodeMap, slug) => {
   };
 };
 
-// The 05-impossible-prison-staircases batch (see source-assets/staircases/):
+// The 05-impossible-prison-staircases batch:
 // cropped to 21:9 and installed as color .webp in public/nodes/descent/, but
 // none has a depth map yet (Depth Anything V2 pass is a manual, external
 // step — see the handoff note left in that folder). Flip this the moment the
@@ -110,7 +110,7 @@ const STAIRCASE_READY = true;
 // the [u, v] anchor of its light source (where the lamp glow hangs), its fog
 // mood, and its accent — so descending re-grades the whole world, not just
 // the picture. The library's four galleries come first; dwelling in the
-// deepest one opens a door onto the garden's four paths (see GARDEN.md).
+// deepest one opens a door onto the garden's four paths.
 //
 // Same shape as GARDEN_NODE_VARIANTS below: one Midjourney original per node
 // plus a couple of the newer staircase renders, each a colour plate and the
@@ -201,8 +201,7 @@ const LIBRARY_NODE_VARIANTS = {
           // read badly walked-in: its content is mostly large smooth vaulting, and
           // the still's unsharp mask taps at a fixed TEXTURE texel, so magnifying
           // the plate magnifies the halo into hard etching along every balustrade.
-          // var16's plate and depth map are both still on disk and verified —
-          // put it back if the sharpen is ever reworked to tap in screen space.
+          // The unused var16 assets were removed during archive cleanup.
           color: '/nodes/descent/05-impossible-prison-staircases-var9.webp',
           depth: '/nodes/descent/05-impossible-prison-staircases-var9-depth.webp',
           // Starting estimate from the plate's dominant warm source; the shrine
@@ -466,22 +465,7 @@ const GARDEN_NODE_VARIANTS = {
       // the only ones in the piece with no entry in BACKDROP_PLATES, so their
       // dis-occlusion gaps are filled by the runtime dilation smear instead of
       // an inpaint. Dropped deliberately, see the note in src/backdrops.js.
-      //
-      // The rest of the starry family stays on disk and stays unhung. Six more
-      // paintings sit beside these two — var0, var2, and a `-b` draft of each
-      // of the four — and they are NOT resolution tiers of one another, which
-      // is the thing to know before reaching for one: `-a` and `-b` are
-      // Midjourney siblings from a single prompt, different pictures, measuring
-      // 0.17-0.25 RMS apart where two sizes of one image would measure ~0.
-      // var0, var2 and every `-b` are the un-upscaled drafts at 1680x720; only
-      // var0-a and var2-a reach 3376x1440.
-      //
-      // So there is no rename that adds a variant here. Hanging one means
-      // choosing a painting, running it through the depth pass at full size,
-      // and giving it a glowAt by eye — these plates defeat the automatic pick
-      // (their star field and firefly-lit hedges each read brighter, over a
-      // lamp-sized area, than the lamp), which is why both values above are
-      // hand-set.
+      // Unused starry drafts and their depth maps were removed during cleanup.
     ],
     fog: '#0c1114',
     folio: {
