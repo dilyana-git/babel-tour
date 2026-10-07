@@ -13,12 +13,14 @@
 // chain links, balusters, dust): a book is only ever as deep as the shelf that
 // holds it, and its wall is in the batches already.
 import * as THREE from 'three';
+import { MeshBVH, acceleratedRaycast } from 'three-mesh-bvh';
 
 // A reader is 18 units tall, so 1 unit ≈ 9.4 cm: a shoulder wants ~4 units.
 export const SHOULDER = 4;
 
 const solid = (o) => {
   if (!o.isMesh || o.isInstancedMesh || !o.visible) return false;
+  if (['doorway', 'stars', 'sky'].includes(o.name)) return false;
   const m = o.material;
   if (!m || Array.isArray(m)) return false;
   if (m.blending === THREE.AdditiveBlending) return false;   // lit air, glows, stars
@@ -46,6 +48,33 @@ const fan = (() => {
 const ray = new THREE.Raycaster();
 const normal = new THREE.Vector3();
 const sphere = new THREE.Sphere();
+const geometries = new WeakMap();
+const meshes = new WeakMap();
+
+// Private probe proxies accelerate the exact same triangles without changing
+// rendered vertices, indices, mesh raycast methods, or the collision policy.
+const probeMesh = (object) => {
+  if (object.isSkinnedMesh || object.isBatchedMesh || object.geometry.morphAttributes.position?.length) return object;
+  const source = object.geometry;
+  let cached = geometries.get(source);
+  if (!cached || cached.positionVersion !== source.attributes.position.version || cached.indexVersion !== source.index?.version) {
+    const geometry = Object.create(source);
+    geometry.boundsTree = new MeshBVH(geometry, { indirect: true });
+    cached = { geometry, positionVersion: source.attributes.position.version, indexVersion: source.index?.version };
+    geometries.set(source, cached);
+  }
+  let mesh = meshes.get(object);
+  if (!mesh || mesh.geometry !== cached.geometry) {
+    mesh = new THREE.Mesh(cached.geometry, object.material);
+    mesh.raycast = acceleratedRaycast;
+    meshes.set(object, mesh);
+  }
+  mesh.matrixWorld.copy(object.matrixWorld);
+  mesh.material = object.material;
+  mesh.name = object.name;
+  mesh.layers.mask = object.layers.mask;
+  return mesh;
+};
 
 // Three tests a mesh's bounding sphere before its triangles but ignores
 // ray.far doing it, so a chunk half the Library away is still walked triangle
@@ -56,7 +85,7 @@ const nearby = (scene, eye, reach) => {
     if (!solid(o)) return;
     if (!o.geometry.boundingSphere) o.geometry.computeBoundingSphere();
     sphere.copy(o.geometry.boundingSphere).applyMatrix4(o.matrixWorld);
-    if (sphere.center.distanceTo(eye) - sphere.radius < reach) out.push(o);
+    if (sphere.center.distanceTo(eye) - sphere.radius < reach) out.push(probeMesh(o));
   });
   return out;
 };
@@ -67,6 +96,7 @@ export function probeRay(scene, from, dir, far = 400) {
   const v = new THREE.Vector3(...dir).normalize();
   ray.near = 0;
   ray.far = far;
+  ray.firstHitOnly = false;
   ray.set(eye, v);
   return ray.intersectObjects(nearby(scene, eye, far), false).map((hit) => ({
     d: +hit.distance.toFixed(3),
@@ -80,6 +110,7 @@ export function probeClearance(scene, eye, reach = 30) {
   const meshes = nearby(scene, eye, reach);
   ray.near = 0;
   ray.far = reach;
+  ray.firstHitOnly = true;
   let nearest = null;
   let inside = 0;
   const touching = new Map();

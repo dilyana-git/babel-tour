@@ -1,10 +1,13 @@
 /* --- The entry map -----------------------------------------------------------
-   See EntryMap.jsx. The live world fills the screen; the route, the hit areas
-   and the room names sit over it, projected through its camera; the key, the
-   room card and the title are set in the corners, after the game map sheet the
-   design came from. On a portrait screen the world is shown whole and the rest
-   stacks above and below it. Standing in a room (the world tour), all of that
-   gives way to the room's own card and the walk's controls.
+   See EntryMap.jsx. The live world fills the screen. Over it, projected
+   through its camera: the lantern (the walk's rooms left lit, the rest of the
+   honeycomb dimmed), the hit areas, a numeral over each room, and the room's
+   caption hung beside whichever room was last pointed at. The title is an
+   inscription top left, the key folded behind a button top right. (The still
+   overlay of the plates tour keeps the old route, labels and corner card.) On
+   a portrait screen the world is shown whole and the rest stacks above and
+   below it. Standing in a room (the world tour), all of that gives way to the
+   room's own card and the walk's controls.
 
    No animation here may touch a property a state rule also sets — an animation
    outranks every declaration (the plumb halo trap). The resting outline
@@ -31,7 +34,6 @@
   transform: scale(2.6);
 }
 
-.entry-map.is-leaving .map-key,
 .entry-map.is-leaving .map-card,
 .entry-map.is-leaving .map-title {
   opacity: 0;
@@ -53,21 +55,14 @@
   overflow: visible;
 }
 
-.map-frame {
-  position: absolute;
-  inset: 16px;
-  border: 1px solid rgba(236, 228, 210, 0.14);
-  pointer-events: none;
-}
-
 /* A dark corner under the title, so it reads over the galleries there. */
 .map-scrim {
   position: absolute;
-  right: 0;
-  bottom: 0;
-  width: min(640px, 60vw);
-  height: min(320px, 40vh);
-  background: radial-gradient(ellipse at 100% 100%, rgba(8, 6, 5, 0.85) 0%, rgba(8, 6, 5, 0.5) 45%, rgba(8, 6, 5, 0) 75%);
+  left: 0;
+  top: 0;
+  width: min(1180px, 74vw);
+  height: min(680px, 84vh);
+  background: radial-gradient(ellipse 100% 100% at 0% 0%, rgba(8, 6, 5, 0.86) 0%, rgba(8, 6, 5, 0.5) 45%, rgba(8, 6, 5, 0) 78%);
   pointer-events: none;
 }
 
@@ -241,139 +236,116 @@
   fill: var(--jade);
 }
 
-/* --- The key --- */
+/* --- The live overlay: the lantern and the numerals --- */
 
-.map-key {
-  position: absolute;
-  left: 2.5rem;
-  top: 3.25rem;
-  z-index: 2;
-  padding: 1.1rem 1.25rem 0.9rem;
-  border: 1.5px solid rgba(236, 228, 210, 0.72);
-  border-radius: 10px;
-  background: rgba(10, 8, 6, 0.74);
+/* Everything but the walk, dimmed (EntryMap's lanternFor cuts the walk out of
+   it). One flat layer, painted once per layout. */
+.map-dim {
   pointer-events: none;
 }
 
-.map-key-tab,
-.map-card-tab {
-  position: absolute;
-  left: 0.75rem;
-  top: -1.3rem;
-  padding: 0.32rem 0.75rem 0.25rem;
-  border-radius: 6px 6px 0 0;
-  background: var(--ink);
-  color: #15120d;
-  font: 600 0.66rem/1 var(--mono);
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
+.map-dim-veil {
+  fill: #050403;
+  opacity: 0.6;
 }
 
-.map-key ul {
-  display: grid;
-  gap: 0.62rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
+/* A numeral over each room's rim: the only writing on the map until a room is
+   pointed at. */
+.map-numerals {
+  pointer-events: none;
 }
 
-.map-key li {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  font: 400 0.66rem/1 var(--mono);
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: rgba(236, 228, 210, 0.9);
-}
-
-.map-key li svg {
-  flex: none;
-  width: 1.1rem;
-  height: 1.1rem;
-  overflow: visible;
-}
-
-.map-key .map-key-scale {
-  margin-top: 0.15rem;
-  padding-top: 0.62rem;
-  border-top: 1px solid rgba(236, 228, 210, 0.16);
-  font-size: 0.6rem;
-  letter-spacing: 0.14em;
-  color: #a89c82;
-}
-
-.map-key-lamp-halo { fill: rgba(255, 196, 110, 0.24); }
-.map-key-lamp { fill: #ffe2a6; }
-
-.map-key-walk {
-  fill: none;
-  stroke-width: 2;
-  stroke-linecap: round;
+.map-numeral {
+  font-family: var(--serif);
+  font-size: clamp(22px, 1.6vw, 30px);
+  font-weight: 600;
+  text-anchor: middle;
+  fill: var(--gold-lit);
+  paint-order: stroke;
+  stroke: rgba(6, 5, 4, 0.8);
+  stroke-width: 5px;
   stroke-linejoin: round;
+  transition: fill 300ms ease;
 }
 
-.map-key-walk.is-library { stroke: var(--gold); }
-.map-key-walk.is-garden { stroke: var(--jade); }
-
-.map-key-not-taken {
-  fill: none;
-  stroke: rgba(159, 196, 138, 0.8);
-  stroke-width: 2.4;
-  stroke-dasharray: 0.5 4;
-  stroke-linecap: round;
+.map-numeral.is-garden {
+  fill: var(--jade);
 }
 
-.map-key-hex {
-  fill: none;
-  stroke: #a89c82;
-  stroke-width: 1.3;
+.map-numeral.is-shown {
+  font-size: clamp(26px, 1.9vw, 36px);
+  fill: #f6dc94;
 }
 
-/* --- The room card --- */
+.map-numeral.is-garden.is-shown {
+  fill: #cfe8bd;
+}
+
+/* --- The room's caption ---
+   One place for every room: under the title (.map-head), whichever room it
+   describes — only its words change. No box: type on the dark, smaller than
+   the title and italic where the title is upright capitals. It carries its
+   own pool of shadow, a feathered dark plate (no backdrop blur: the world
+   under it redraws every frame), so it reads over whatever stone is under it. */
 
 .map-card {
   --card-accent: var(--gold-lit);
-  position: absolute;
-  left: 2.5rem;
-  top: 45%;
-  z-index: 2;
+  position: relative;
+  isolation: isolate;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  width: min(19rem, 30vw);
-  padding: 1.3rem 1.3rem 1.15rem;
-  border: 1.5px solid var(--card-accent);
-  border-radius: 10px;
-  background: rgba(10, 8, 6, 0.82);
-  transition: border-color 400ms ease;
+  align-items: flex-start;
+  width: min(23rem, 100%);
+  text-shadow: 0 0 12px rgba(6, 5, 4, 0.95), 0 0 3px rgba(6, 5, 4, 0.9);
+}
+
+.map-card::before {
+  content: '';
+  position: absolute;
+  inset: -0.5rem -0.9rem;
+  z-index: -1;
+  border-radius: 1.6rem;
+  background: rgba(8, 6, 5, 0.8);
+  box-shadow: 0 0 2.2rem 1.5rem rgba(8, 6, 5, 0.8);
+  pointer-events: none;
 }
 
 .map-card.is-garden {
   --card-accent: var(--jade);
 }
 
-.map-card-tab {
-  background: var(--card-accent);
-  transition: background 400ms ease;
+.map-card-kicker {
+  font: 500 0.66rem/1 var(--mono);
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--card-accent);
 }
 
 .map-card-title {
-  margin: 0;
-  font: italic 500 clamp(1.6rem, 2.3vw, 2.15rem) / 1.05 var(--serif);
+  margin: 0.6rem 0 0;
+  font: italic 500 clamp(1.7rem, 1.95vw, 2.3rem) / 1 var(--serif);
   color: var(--ink);
 }
 
 .map-card-sub {
-  margin: 0.1rem 0 0;
-  font: 700 clamp(1.5rem, 2vw, 1.9rem) / 1.1 var(--script);
-  color: rgba(236, 228, 210, 0.84);
+  margin: 0.05rem 0 0;
+  font: 700 clamp(1.45rem, 1.6vw, 1.85rem) / 1.1 var(--script);
+  color: rgba(236, 228, 210, 0.82);
+}
+
+.map-card-rule {
+  display: block;
+  width: 2.5rem;
+  height: 1px;
+  margin: 0.75rem 0 0.6rem;
+  background: var(--card-accent);
 }
 
 .map-card-summary {
-  margin: 0.65rem 0 0;
-  font: 400 0.72rem/1.7 var(--mono);
-  color: #b3a78c;
+  margin: 0;
+  font: 500 clamp(0.98rem, 0.9vw, 1.06rem) / 1.45 var(--serif);
+  color: rgba(236, 228, 210, 0.88);
   text-wrap: pretty;
 }
 
@@ -388,21 +360,28 @@
 .map-enter {
   display: inline-flex;
   align-items: center;
-  align-self: flex-start;
-  gap: 0.65rem;
+  gap: 0.75rem;
   box-sizing: border-box;
   min-height: 44px;
-  margin-top: 0.95rem;
-  padding: 0 1.15rem;
-  border: 1px solid var(--card-accent);
-  border-radius: 999px;
-  background: transparent;
+  margin-top: 0.35rem;
+  padding: 0;
+  border: 0;
+  background: none;
   color: var(--ink);
-  font: 400 0.66rem/1 var(--mono);
+  font: 500 0.68rem/1 var(--mono);
   letter-spacing: 0.2em;
   text-transform: uppercase;
+  text-decoration: underline;
+  text-decoration-color: var(--card-accent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.5rem;
   cursor: pointer;
-  transition: background 300ms ease, border-color 400ms ease;
+  transition: color 250ms ease;
+}
+
+.map-enter:focus-visible {
+  outline: 2px solid var(--card-accent);
+  outline-offset: 4px;
 }
 
 .map-enter svg {
@@ -416,7 +395,7 @@
 }
 
 .map-enter:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--card-accent) 20%, transparent);
+  color: var(--card-accent);
 }
 
 .map-enter:disabled {
@@ -424,36 +403,75 @@
   opacity: 0.7;
 }
 
-/* --- The title --- */
+/* --- The title ---
+   An inscription over a door: Roman capitals between two hairlines, the
+   author and the map's state on one line beneath. The largest type on the
+   sheet, and the only upright, capital voice in it. */
 
-.map-title {
+/* The column it heads, top left: the title, and under it the room's caption
+   (or, while the world is put together, the epigraph in the caption's cell). */
+.map-head {
   position: absolute;
-  right: 3rem;
-  bottom: 2.6rem;
+  left: 4rem;
+  top: 3.1rem;
   z-index: 2;
-  text-align: right;
+  display: grid;
+  grid-template-columns: minmax(0, max-content);
+  justify-items: start;
+  align-items: start;
+  row-gap: clamp(1.75rem, 5vh, 3rem);
+  max-width: calc(100vw - 16rem);
+  pointer-events: none;
 }
 
-.map-title-eyebrow {
-  margin-bottom: 0.75rem;
-  font: 400 0.62rem/1 var(--mono);
-  letter-spacing: 0.3em;
-  text-transform: uppercase;
-  color: #b3a78c;
+.map-head > .map-title {
+  grid-row: 1;
+}
+
+.map-head > .map-card,
+.map-head > .assembly-epigraph {
+  grid-row: 2;
+  grid-column: 1;
+}
+
+.map-head > .map-card {
+  pointer-events: auto;
+}
+
+.map-title {
+  text-shadow: 0 0 16px rgba(6, 5, 4, 0.95);
+}
+
+.map-title-rule {
+  display: block;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(236, 228, 210, 0.5), rgba(236, 228, 210, 0.05));
 }
 
 .map-title-name {
-  margin: 0 -0.34em 0 0;
-  font: 400 clamp(1rem, 1.55vw, 1.4rem) / 1 var(--mono);
-  letter-spacing: 0.34em;
+  margin: 1.1rem -0.2em 1rem 0;
+  font: 500 clamp(1.7rem, 2.45vw, 3rem) / 1 var(--serif);
+  letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: var(--ink);
+  color: #f1ead9;
+}
+
+.map-title-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.4rem 1.75rem;
+  margin-top: 0.85rem;
+}
+
+.map-title-eyebrow {
+  font: italic 500 1.25rem/1 var(--serif);
+  color: #b3a78c;
 }
 
 .map-status {
-  margin-top: 0.8rem;
   font: 400 0.66rem/1.4 var(--mono);
-  letter-spacing: 0.22em;
+  letter-spacing: 0.28em;
   text-transform: uppercase;
   color: var(--gold-lit);
   animation: entry-breathe 3200ms 1200ms ease-in-out infinite;
@@ -467,22 +485,47 @@
   overflow-y: auto;
 }
 
-.entry-map.is-tall .map-frame,
 .entry-map.is-tall .map-scrim {
   display: none;
 }
 
+/* the column comes apart: its pieces are the page's own, in order */
+.entry-map.is-tall .map-head {
+  display: contents;
+}
+
 .entry-map.is-tall .map-title {
-  position: static;
   order: 0;
   padding: 1.5rem 1rem 1rem;
   text-align: center;
 }
 
+.entry-map.is-tall .map-title-rule {
+  background: linear-gradient(90deg, rgba(236, 228, 210, 0), rgba(236, 228, 210, 0.45), rgba(236, 228, 210, 0));
+}
+
 .entry-map.is-tall .map-title-name {
-  margin: 0 -0.26em 0 0;
-  font-size: clamp(0.95rem, 4.2vw, 1.4rem);
-  letter-spacing: 0.26em;
+  margin: 0.8rem -0.14em 0.75rem 0;
+  font-size: clamp(1.1rem, 5.4vw, 1.7rem);
+  letter-spacing: 0.14em;
+}
+
+.entry-map.is-tall .map-title-line {
+  justify-content: center;
+  margin-top: 0.7rem;
+}
+
+.entry-map.is-tall .map-title-eyebrow {
+  font-size: 1.05rem;
+}
+
+.entry-map.is-tall .map-numeral {
+  font-size: 15px;
+  stroke-width: 3.5px;
+}
+
+.entry-map.is-tall .map-numeral.is-shown {
+  font-size: 18px;
 }
 
 .entry-map.is-tall .map-stage {
@@ -508,20 +551,13 @@
 }
 
 .entry-map.is-tall .map-card {
-  position: relative;
   order: 2;
-  top: auto;
-  left: auto;
   width: auto;
   margin: 2rem 1rem 1rem;
 }
 
-.entry-map.is-tall .map-key {
-  position: relative;
-  order: 3;
-  top: auto;
-  left: auto;
-  margin: 1.8rem 1rem 1.5rem;
+.entry-map.is-tall .map-card::before {
+  display: none;
 }
 
 @media (max-width: 520px) {
@@ -551,10 +587,8 @@
 }
 
 .entry-map.is-flying .map-svg,
-.entry-map.is-flying .map-key,
 .entry-map.is-flying .map-card,
 .entry-map.is-flying .map-title,
-.entry-map.is-flying .map-frame,
 .entry-map.is-flying .map-scrim {
   opacity: 0;
   pointer-events: none;
@@ -563,6 +597,128 @@
 
 .entry-map.is-flying.is-leaving .map-stage {
   transform: none;
+}
+
+/* --- The opening ---------------------------------------------------------------
+   Assembly.jsx: the Library drawn in ink over the stage while the world is put
+   together, and its first sentence found, in the caption's place — the
+   Vestibule's caption comes in where the sentence goes out. Once the ink has
+   let go of the stone, the overlay comes in over it (by filter: its opacity
+   belongs to the states). */
+
+.assembly-ink {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.assembly-ink canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.assembly-epigraph {
+  position: relative;
+  z-index: 2;
+  width: min(27rem, calc(100vw - 5rem));
+  pointer-events: none;
+  transition: opacity 600ms ease;
+  contain: layout style;
+}
+
+.entry-map.is-world .assembly-epigraph {
+  opacity: 0;
+}
+
+/* In the caption's voice and on its pool of shadow (.map-card), so that the
+   one hands over to the other in the same place. */
+.assembly-epigraph-in {
+  position: relative;
+  isolation: isolate;
+  text-shadow: 0 0 12px rgba(6, 5, 4, 0.95), 0 0 3px rgba(6, 5, 4, 0.9);
+  animation: assembly-in 1600ms 250ms ease backwards;
+}
+
+.assembly-epigraph-in::before {
+  content: '';
+  position: absolute;
+  inset: -0.5rem -0.9rem;
+  z-index: -1;
+  border-radius: 1.6rem;
+  background: rgba(8, 6, 5, 0.8);
+  box-shadow: 0 0 2.2rem 1.5rem rgba(8, 6, 5, 0.8);
+}
+
+@keyframes assembly-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+/* the shelfmark, set as the caption's kicker */
+.assembly-mark {
+  max-width: 100%;
+  overflow: hidden;
+  font: 500 0.66rem/1 var(--mono);
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--gold-lit);
+}
+
+.assembly-line {
+  margin: 0.2rem 0 0;
+  font: 400 0.8rem/1.8 var(--mono);
+  letter-spacing: 0.03em;
+  color: rgba(201, 162, 76, 0.42);
+}
+
+.assembly-word {
+  white-space: nowrap;
+}
+
+.assembly-ch.is-found {
+  color: var(--ink);
+}
+
+.assembly-ch.is-new {
+  color: #ffe2a6;
+}
+
+.assembly-note {
+  margin-top: 0.8rem;
+  padding-top: 0.62rem;
+  border-top: 1px solid rgba(236, 228, 210, 0.16);
+  font: 400 0.6rem/1 var(--mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #a89c82;
+}
+
+.assembly-note.is-found {
+  color: var(--gold-lit);
+}
+
+.entry-map.is-tall .assembly-epigraph {
+  position: absolute;
+  top: auto;
+  right: 1rem;
+  bottom: 1.5rem;
+  left: 1rem;
+  width: auto;
+}
+
+.entry-map.is-world-tour .map-svg.is-live {
+  animation: assembly-overlay-in 1000ms 900ms ease backwards;
+}
+
+@keyframes assembly-overlay-in {
+  from {
+    filter: opacity(0);
+  }
 }
 
 /* --- The world tour: standing in a room --- */
@@ -578,25 +734,20 @@
 }
 
 .entry-map.is-world-tour .map-svg,
-.entry-map.is-world-tour .map-key,
 .entry-map.is-world-tour .map-card,
 .entry-map.is-world-tour .map-title,
-.entry-map.is-world-tour .map-frame,
 .entry-map.is-world-tour .map-scrim {
   transition: opacity 900ms ease 150ms, border-color 400ms ease;
 }
 
-.entry-map.is-assembling .map-key,
 .entry-map.is-assembling .map-card {
   opacity: 0;
   pointer-events: none;
 }
 
 .entry-map.is-in-room .map-svg,
-.entry-map.is-in-room .map-key,
 .entry-map.is-in-room .map-card,
 .entry-map.is-in-room .map-title,
-.entry-map.is-in-room .map-frame,
 .entry-map.is-in-room .map-scrim {
   opacity: 0;
   pointer-events: none;

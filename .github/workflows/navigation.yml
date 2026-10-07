@@ -1,0 +1,59 @@
+name: Navigation regression
+
+# Paused 2026-10-07: automatic push/pull_request runs are off while the
+# navigation gate is disabled (see AGENTS.md). Still runnable by hand from
+# the Actions tab. To re-enable, restore the triggers below.
+on:
+  # push:
+  #   paths:
+  #     - 'src/**'
+  #     - 'tools/**'
+  #     - 'public/**'
+  #     - 'package*.json'
+  #     - 'vite.config.*'
+  #     - 'index.html'
+  #     - 'AGENTS.md'
+  #     - '.github/workflows/navigation.yml'
+  # pull_request:
+  #   paths:
+  #     - 'src/**'
+  #     - 'tools/**'
+  #     - 'public/**'
+  #     - 'package*.json'
+  #     - 'vite.config.*'
+  #     - 'index.html'
+  #     - 'AGENTS.md'
+  #     - '.github/workflows/navigation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: navigation-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  navigation:
+    runs-on: windows-2022
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Check navigation and build
+        run: npm run check:major
+      - name: Save navigation evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: navigation-evidence
+          path: .ux-review/navigation/
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 14

@@ -26,6 +26,8 @@ const exe = [process.env.BROWSER_PATH,
 ].filter(Boolean).find(existsSync);
 assert(exe, 'Chromium must be available');
 const port = 9336;
+const graphics = process.env.BABEL_BROWSER_GRAPHICS ?? 'software';
+assert(['software', 'hardware'].includes(graphics), 'BABEL_BROWSER_GRAPHICS must be software or hardware');
 const browser = spawn(exe, ['--headless=new', `--remote-debugging-port=${port}`,
   // No extensions. This profile is a throwaway, but Edge installs its own
   // policy-managed ones into it anyway, and their content scripts log to the
@@ -34,8 +36,9 @@ const browser = spawn(exe, ['--headless=new', `--remote-debugging-port=${port}`,
   // which says nothing whatsoever about the balcony. The assertion is about
   // THIS app's errors; it should not be able to see anyone else's.
   '--disable-extensions', '--disable-component-extensions-with-background-pages',
-  '--no-first-run', '--no-default-browser-check', '--enable-unsafe-swiftshader',
-  '--use-gl=angle', '--use-angle=swiftshader',
+  '--no-first-run', '--no-default-browser-check', '--use-gl=angle',
+  ...(graphics === 'software' ? ['--enable-unsafe-swiftshader', '--use-angle=swiftshader']
+    : [process.platform === 'win32' ? '--use-angle=d3d11' : '--use-angle=default']),
   `--user-data-dir=${resolve(tmpdir(), 'babel-balcony-check')}`, 'about:blank'],
 { stdio: 'ignore', windowsHide: true });
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -113,7 +116,8 @@ try {
   };
   await cmd('Runtime.enable'); await cmd('Page.enable');
   await cmd('Emulation.setDeviceMetricsOverride', { width: 1280, height: 800, deviceScaleFactor: 1, mobile: false });
-  await cmd('Page.navigate', { url: 'http://localhost:5173/?plates&dev=1' }); // the balcony belongs to the plate tour
+  const baseUrl = (process.env.BABEL_TEST_URL ?? 'http://localhost:5173').replace(/\/$/, '');
+  await cmd('Page.navigate', { url: `${baseUrl}/?plates&dev=1` }); // the balcony belongs to the plate tour
   await until('typeof window.__at === "function"', 'tour readiness');
   await ev('window.__at(0)');
   await until('document.querySelector(".air-act.is-explore") && !document.querySelector(".tour-root").inert', 'entry');
@@ -147,7 +151,9 @@ try {
   const mouseCaptured = await ev('!!document.pointerLockElement');
   if (mouseCaptured) {
     await key('Escape', 'rawKeyDown'); await key('Escape', 'keyUp');
-    await until('!document.pointerLockElement', 'Escape releases mouse look');
+    // The native lock property can clear before pointerlockchange is delivered
+    // to React. Wait for its control state too, before starting a new held key.
+    await until('!document.pointerLockElement && !document.querySelector(".balcony-mouse").disabled', 'Escape releases mouse look');
     assert.equal(await ev('!!window.__balcony'), true, 'releasing mouse keeps balcony open');
   }
   const nav = await ev('JSON.stringify(window.__nav())');

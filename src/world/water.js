@@ -71,8 +71,14 @@ export const WATER = {
   rough: 0.035,      // the water's own roughness where every wave is resolved
   roughGain: 5.5,    // how hard dropped wave detail is folded back in as roughness
   glint: 90,         // the lamp lobe's tightness — how tall a column it draws
-  glintGain: 9,   // and how bright
+  glintGain: 4.5,   // and how bright (9 until 2026-10-05, with the Pavilion's lamp counted twice)
   wash: 0.006,       // a second, wide lobe: the lamp's glow spread over the water
+  // ...and where it rolls off. A lantern hung low over the water lays its lobe
+  // across a wide patch at many times white, and the tone curve flattened that
+  // into a cream plate with a hard rim (the Fork's stone lantern, 2026-10-05).
+  // Rolled off like film — x / (1 + x / knee) — a glint is still the brightest
+  // thing on the pond, and a near lamp's patch keeps the falloff inside it.
+  knee: 0.8,
   moon: 0.8,         // the moon path
   sky: 1.0,          // the reflected night, where the mirror has nothing
   // The mirror is lifted above the 1.0 that Fresnel alone would give it. Some
@@ -148,6 +154,7 @@ export function makeWater({ mirror = true } = {}) {
     uLampColor: { value: Array.from({ length: MAX_LAMPS }, () => new THREE.Vector3()) },
     uLampCount: { value: 0 },
     uGlint: { value: new THREE.Vector3(WATER.glint, WATER.glintGain, WATER.wash) },
+    uKnee: { value: WATER.knee },
     uMoonDir: { value: new THREE.Vector3(0.62, 0.3, -0.72).normalize() },
     uMoonColor: { value: new THREE.Color('#9fc4e8') },
     uMoon: { value: WATER.moon },
@@ -177,6 +184,7 @@ export function makeWater({ mirror = true } = {}) {
     uniform vec3 uLampColor[${MAX_LAMPS}];
     uniform int uLampCount;
     uniform vec3 uGlint;
+    uniform float uKnee;
     uniform vec3 uMoonDir;
     uniform vec3 uMoonColor;
     uniform float uMoon;
@@ -310,13 +318,22 @@ export function makeWater({ mirror = true } = {}) {
           // it is that rise, not the amount, that reads as water.
           float wF = (0.02 + 0.98 * pow(1.0 - clamp(dot(wN, wV), 0.0, 1.0), 5.0)) * mix(0.25, 1.0, wDepth);
           vec3 wLit = vec3(0.0);
+          // The lobe widens by whatever ripple the waves could not draw here
+          // (wLost, the slope variance handed to the roughness) and dims as it
+          // widens: the same light spread over more water. A fixed lobe on calm
+          // water near the bank laid one even wedge of light a fifth of the
+          // frame wide; this one stays a column where the ripple is drawn and
+          // goes to a soft glow where it is not. (The gain is the lobe's at 90,
+          // so ?glint stays a tightness and not also a brightness.)
+          float wNe = 1.0 / (1.0 / uGlint.x + 4.0 * wLost);
+          float wGe = uGlint.y * wNe / 90.0;
           for (int i = 0; i < ${MAX_LAMPS}; i++) {
             if (i >= uLampCount) break;
             vec3 toL = uLampPos[i] - vWPos;
             float d2 = dot(toL, toL);
             float s = max(dot(wR, toL * inversesqrt(d2)), 0.0);
             float fall = 1.0 / (1.0 + d2 * 0.00045);
-            wLit += uLampColor[i] * fall * (pow(s, uGlint.x) * uGlint.y + pow(s, 6.0) * uGlint.z);
+            wLit += uLampColor[i] * fall * (pow(s, wNe) * wGe + pow(s, 6.0) * uGlint.z);
           }
           // The moon is a long way off: a direction, not a place.
           float wMs = max(dot(wR, uMoonDir), 0.0);
@@ -338,7 +355,9 @@ export function makeWater({ mirror = true } = {}) {
             wMir = uMirror * inside.x * inside.y;
             wSky = mix(wSky, texture2D(uMirrorMap, clamp(ruv, 0.001, 0.999)).rgb, wMir);
           }
-          totalEmissiveRadiance += (wLit + wSky * mix(uSky, 1.0, wMir)) * wF;`)
+          vec3 wGlint = wLit * wF;
+          wGlint /= 1.0 + max(max(wGlint.r, wGlint.g), wGlint.b) / uKnee;
+          totalEmissiveRadiance += wGlint + wSky * mix(uSky, 1.0, wMir) * wF;`)
         // ── DEV: what this surface is actually made of ───────────────────
         // window.__water({ debug: n }). Half a dozen terms land on one pixel of
         // water and several of them are warm and broad, so "it looks wrong" is
@@ -515,6 +534,7 @@ export function makeWater({ mirror = true } = {}) {
     shared.uRough.value = WATER.rough;
     shared.uRoughGain.value = WATER.roughGain;
     shared.uGlint.value.set(WATER.glint, WATER.glintGain, WATER.wash);
+    shared.uKnee.value = WATER.knee;
     shared.uMoon.value = WATER.moon;
     shared.uSky.value = WATER.sky;
     shared.uEnv.value = WATER.env;
@@ -526,5 +546,7 @@ export function makeWater({ mirror = true } = {}) {
 
   const dispose = () => { target?.dispose(); };
 
-  return { material, surface, reflect, addLamp, setViewport, tick, redial, dispose, count: () => lamps.length };
+  // (DEV: where the lamps it was handed are, for __water's report)
+  const list = () => lamps.map((l) => [+l.p.x.toFixed(1), +l.p.y.toFixed(1), +l.p.z.toFixed(1), +l.power.toFixed(2)]);
+  return { material, surface, reflect, addLamp, setViewport, tick, redial, dispose, count: () => lamps.length, list };
 }

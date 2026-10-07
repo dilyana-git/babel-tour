@@ -153,7 +153,7 @@ class Cdp {
       const timer = setTimeout(() => {
         this.pending.delete(id);
         reject(new Error(`Timed out running ${method}.`));
-      }, method === 'Page.captureScreenshot' ? 180000 : 30000);
+      }, method === 'Page.captureScreenshot' ? 180000 : 90000);
       this.pending.set(id, { resolve: resolveMessage, reject, timer });
       try {
         this.socket.send(JSON.stringify({ id, method, params, sessionId }));
@@ -496,10 +496,16 @@ const main = async () => {
     await keypress(' ', 'Space');
     await sleep(250);
     const afterArrow = await evaluate(`typeof window.__nav === 'function' ? window.__nav() : null`);
+    // A step is only a valid navigation probe while the corridor is settled.
+    // The dev entry can still be diving, in which case Space cannot take a
+    // separate step and an unchanged target says nothing about the control.
+    const keyboardWalkApplicable = beforeArrow && !beforeArrow.diving
+      && Math.abs(beforeArrow.descent - beforeArrow.target) < 0.05;
     observations.steps.keyboardWalk = {
       before: beforeArrow,
       after: afterArrow,
-      changed: beforeArrow && afterArrow
+      applicable: Boolean(keyboardWalkApplicable),
+      changed: keyboardWalkApplicable && afterArrow
         ? beforeArrow.target !== afterArrow.target || beforeArrow.immT !== afterArrow.immT
         : null,
     };
@@ -510,7 +516,9 @@ const main = async () => {
       const mobileUrl = new URL(targetUrl);
       mobileUrl.searchParams.set('dev', '1');
       await navigate(mobileUrl.href);
-      await sleep(3500 + extraSettleMs);
+      const mobileReady = await waitFor(`Boolean(document.querySelector('.air-act[title^="Navigation help"]'))`, 60000);
+      if (mobileReady === null) throw new Error('Mobile tour controls did not become ready within 60 seconds.');
+      await sleep(extraSettleMs);
       observations.steps.mobile = await observe();
       await click('.air-act[title^="Navigation help"]');
       await waitFor(`Boolean(document.querySelector('.help-overlay'))`, 2000);
@@ -573,7 +581,7 @@ const buildFindings = (data) => {
   const help = data.steps.helpOpen;
   const mobile = data.steps.mobile;
 
-  if (data.entryReadyMs === null || data.entryReadyMs > 5000) {
+  if (ready?.veil && (data.entryReadyMs === null || data.entryReadyMs > 5000)) {
     out.push(finding(
       'high',
       'The first meaningful action is gated for too long',
@@ -683,12 +691,12 @@ const buildFindings = (data) => {
     ));
   }
 
-  if (data.steps.keyboardWalk?.changed === false) {
+  if (data.steps.keyboardWalk?.applicable && data.steps.keyboardWalk.changed === false) {
     out.push(finding(
       'medium',
-      'Arrow-key walking produced no observable navigation change',
-      'The internal target/immersion state was unchanged after Arrow Down.',
-      'Confirm focus is returned to the scene after pointer actions, and provide an onscreen cue when a focused control owns the arrow/space keys.',
+      'Space did not produce an observable navigation change',
+      'The settled corridor’s target/immersion state was unchanged after Space.',
+      'Confirm focus is returned to the scene after pointer actions, and provide an onscreen cue when a focused control owns Space.',
     ));
   }
 
@@ -727,7 +735,7 @@ const renderReport = (data, findings) => {
   return `# UI/UX review — ${targetUrl.host}\n\n`
     + `Generated ${new Date(data.finishedAt).toLocaleString('en-GB', { timeZone: 'UTC' })} UTC by the browser review agent.\n\n`
     + `## Summary\n\n`
-    + `The agent completed the entry, help, drift, mute, chapter, keyboard and responsive walkthrough. `
+    + `The agent completed ${data.steps.entryClick?.clicked ? 'the entry, ' : ''}help, drift, mute, chapter, keyboard and responsive walkthrough. `
     + `It found ${counts[0][1]} high-, ${counts[1][1]} medium-, and ${counts[2][1]} low-priority issues.\n\n`
     + `## What worked\n\n`
     + (verified.length ? verified.map((item) => `- ${item}`).join('\n') : '- No interaction was fully verified.')

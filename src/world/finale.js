@@ -26,7 +26,7 @@
 // a function of that time, so any moment of it can be held and looked at.
 import * as THREE from 'three';
 import { makeRng } from './textures';
-import { readerGeometry, ROBES } from './readers';
+import { readerGeometry, ROBES, clothShader } from './readers';
 
 const clamp01 = (x) => Math.min(1, Math.max(0, x));
 const smooth = (a, b, x) => { const t = clamp01((x - a) / (b - a)); return t * t * (3 - 2 * t); };
@@ -412,32 +412,19 @@ const integrate = (rate, end, dt = 0.02) => {
 // than into it: each is cut out of nothing by a noise that closes from the
 // ground up, a hot gold rim running along the cut, and once whole they are
 // dark robes lit by the heart and, at the hem, by the floor they stand on.
-// Walking, the robe moves with the legs under it: the hem kicked forward at
-// every step and swung a little side to side, and the knee of the leg that is
-// stepping pushing the cloth out in front of it.
+// Walking, the robe moves with the legs under it and the feet step under the
+// hem, as every reader's do (readers.js, clothShader).
 const otherShader = (u) => (sh) => {
-  Object.assign(sh.uniforms, u);
+  clothShader(sh, u);
   sh.vertexShader = sh.vertexShader
     .replace('#include <common>', `#include <common>
-      uniform float uStride;
-      uniform float uMove;
-      attribute float aDark;
-      varying float vDark;
       varying vec3 vOther;`)
     .replace('#include <begin_vertex>', `#include <begin_vertex>
-      vOther = position;
-      vDark = aDark;
-      float oLow = clamp(1.0 - position.y / 11.0, 0.0, 1.0);
-      float oSide = position.x >= 0.0 ? 1.0 : -1.0;
-      float oKnee = (position.y - 5.0) / 2.2;
-      transformed.z += uMove * (abs(sin(uStride)) * oLow * oLow * 0.45
-        + max(0.0, sin(uStride) * oSide) * exp(-oKnee * oKnee) * 0.35 * smoothstep(-0.5, 1.5, position.z));
-      transformed.x += uMove * sin(uStride) * oLow * oLow * 0.14;`);
+      vOther = position;`);
   sh.fragmentShader = sh.fragmentShader
     .replace('#include <common>', `#include <common>
       uniform float uReveal;
       uniform float uFloor;
-      varying float vDark;
       varying vec3 vOther;
       float oHash(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
       float oNoise(vec3 x) {
@@ -458,13 +445,12 @@ const otherShader = (u) => (sh) => {
       // (as the cloth's own colour gives it back: added flat, it turned the
       // dark robes to pale ghosts from the knee down)
       totalEmissiveRadiance += vec3(1.0, 0.7, 0.34) * oRim * 3.0
-        + vColor.rgb * vec3(1.0, 0.8, 0.55) * uFloor * pow(1.0 - oUp, 2.0) * 2.4;`)
-    // the hollows no light reaches (readers.js, aDark)
-    .replace('#include <opaque_fragment>', `outgoingLight *= 1.0 - 0.97 * vDark;
-      #include <opaque_fragment>`);
+        + vColor.rgb * vec3(1.0, 0.8, 0.55) * uFloor * pow(1.0 - oUp, 2.0) * 2.4;`);
 };
 
-const STRIDE = 11;
+// (A step was 11 — a metre — when the robe had no feet under it; with them,
+// a foot out that far stood clear of the hem.)
+const STRIDE = 8;
 
 export function buildFinale({
   root, keep, light = false,
@@ -687,10 +673,11 @@ export function buildFinale({
   })();
   const shadowGeo = keep(new THREE.PlaneGeometry(8, 7).rotateX(-Math.PI / 2));
   const makeOther = (points, when, name, i, book = false) => {
-    const u = { uReveal: { value: 0 }, uFloor: { value: 0 }, uStride: { value: 0 }, uMove: { value: 0 } };
-    // Wool, matt: the shade of the folds is in the vertices. (A cloth sheen
-    // was tried and is not per-vertex: it lit the black inside of the hood as
-    // a pale bald head and turned every robe to pale suede.)
+    const u = { uReveal: { value: 0 }, uFloor: { value: 0 }, uStride: { value: 0 }, uMove: { value: 0 }, uReach: { value: STRIDE / 2 } };
+    // Wool, matt: the shade of the folds is in the vertices, the nap and the
+    // fuzz in clothShader. (MeshPhysical's own sheen was tried and is not
+    // per-vertex: it lit the black inside of the hood as a pale bald head and
+    // turned every robe to pale suede.)
     // Both sides: the hood's cloth is seen from inside through its opening,
     // and one-sided, whichever way its sheet was wound, part of it went.
     const mat = keep(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.96, metalness: 0, side: THREE.DoubleSide }));

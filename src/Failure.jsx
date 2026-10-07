@@ -89,19 +89,24 @@ export function Failure({ kind, onRetry }) {
 // could only offer WebGL 1 would not fail here — it would fail later, as
 // compile errors on every surface, which is the same black rectangle by a
 // longer road.
+//
+// Asked once a page: the answer does not change, and every ask made and threw
+// away a context (the map, the world tour and the plate tour each asked).
+let drawable = null;
 export function canDraw() {
   if (typeof document === 'undefined') return true;
+  if (drawable !== null) return drawable;
   try {
     const probe = document.createElement('canvas');
     const gl = probe.getContext('webgl2');
-    if (!gl) return false;
+    drawable = !!gl;
     // Give it straight back. Under software rendering (the headless captures)
     // this is a real context and does need releasing.
-    gl.getExtension('WEBGL_lose_context')?.loseContext();
-    return true;
+    gl?.getExtension('WEBGL_lose_context')?.loseContext();
   } catch {
-    return false;
+    drawable = false;
   }
+  return drawable;
 }
 
 // One boundary around the scene tree. React unmounts everything up to the

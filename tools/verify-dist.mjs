@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Verify the folder that will actually be uploaded, after Vite's video filter.
+// Verify the folder that will actually be uploaded, including the no-video rule.
 import { existsSync, readdirSync, statSync, readFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 
@@ -30,7 +30,7 @@ for (const path of files(join(pub, 'nodes'))) {
 for (const name of builtNames) {
   if (name.split('/').some((part) => part.startsWith('video'))
       || /\.(mp4|webm|mov|m4v)$/i.test(name)) {
-    failures.push(`archived video shipped: dist/${name}`);
+    failures.push(`unexpected video shipped: dist/${name}`);
   }
 }
 

@@ -19,8 +19,11 @@ export const makeRng = (seed) => () => {
   return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
 };
 
+// In a worker there is no document, and the same painting goes onto an
+// OffscreenCanvas (paint.worker.js — the heavy surfaces are painted off the
+// main thread while the world is built).
 const canvas = (w, h = w) => {
-  const c = document.createElement('canvas');
+  const c = typeof document === 'undefined' ? new OffscreenCanvas(w, h) : document.createElement('canvas');
   c.width = w;
   c.height = h;
   return [c, c.getContext('2d', { willReadFrequently: true })];
@@ -120,14 +123,38 @@ export function ashlar({ size = 1024, seed = 7, courses = 8, blocks = 4, tone = 
   hg.fillRect(0, 0, size, size);
   rg.fillStyle = grey(250);
   rg.fillRect(0, 0, size, size);
+  // The lime the joints were pointed with, still there in places: paler than
+  // the grime of the rest of the joint, and only ever seen in it (the blocks
+  // are laid over this).
+  for (let k = 0; k < 2600; k++) {
+    c.fillStyle = `rgba(${tone[0] * 1.05},${tone[1] * 1.0},${tone[2] * 0.92},${0.18 + rnd() * 0.3})`;
+    c.fillRect(rnd() * size, rnd() * size, 2 + rnd() * 12, 2 + rnd() * 8);
+  }
   const bw = size / blocks;
   const rhythm = RHYTHM.slice(0, courses);
   while (rhythm.length < courses) rhythm.push(RHYTHM[rhythm.length % RHYTHM.length]);
   const sum = rhythm.reduce((a, b) => a + b, 0);
-  const block = (x, y, w, h, [v, wear, tilt], strokes) => {
-    const l = v * 16;
-    c.fillStyle = `rgb(${tone[0] + l + 4},${tone[1] + l},${tone[2] + l - 3})`;
+  // One block, as a mason dresses it: a smooth margin drafted round the face
+  // and the field inside it worked with a broad chisel in close parallel
+  // strokes at one angle. Faint in the colour and clear in the height, so the
+  // tooling is seen only where a lamp rakes the wall, which is where it is
+  // seen on a real one. (These were short dashes scattered over the face,
+  // and at any distance a wall of them read as rivets or as Morse.)
+  const block = (x, y, w, h, look) => {
+    const { v, wear, tilt, warm, mottle, angle, chips } = look;
+    const l = v * 18;
+    c.fillStyle = `rgb(${tone[0] + l + 4 + warm * 7},${tone[1] + l + warm * 2},${tone[2] + l - 3 - warm * 6})`;
     c.fillRect(x, y, w, h);
+    for (const g of [c, hg]) { g.save(); g.beginPath(); g.rect(x, y, w, h); g.clip(); }
+    // the stone's own clouding: no block is one tone through
+    for (const [mx, my, mr, ma, light] of mottle) {
+      const px = x + mx * w, py = y + my * h, r = mr * Math.max(w, h);
+      const b = c.createRadialGradient(px, py, 0, px, py, r);
+      b.addColorStop(0, light ? `rgba(232,220,198,${ma})` : `rgba(26,19,12,${ma * 1.4})`);
+      b.addColorStop(1, 'rgba(0,0,0,0)');
+      c.fillStyle = b;
+      c.fillRect(px - r, py - r, r * 2, r * 2);
+    }
     const wash = c.createLinearGradient(0, y, 0, y + h);
     wash.addColorStop(0, 'rgba(236,224,200,0.1)');
     wash.addColorStop(0.45, 'rgba(0,0,0,0)');
@@ -139,14 +166,52 @@ export function ashlar({ size = 1024, seed = 7, courses = 8, blocks = 4, tone = 
       hg.fillStyle = grey(70 + s * 22 + wear * 10);
       hg.fillRect(x + s, y + s, w - s * 2, h - s * 2);
     }
+    // the field, tooled: parallel strokes across it inside the drafted margin
+    const m = Math.max(5, Math.min(w, h) * 0.1);
+    hg.save();
+    hg.beginPath();
+    hg.rect(x + m, y + m, w - m * 2, h - m * 2);
+    hg.clip();
+    // Short strokes, each the width of the chisel's edge, at random places
+    // and lengths but all at the block's one angle, and a stipple between:
+    // full-length lines at an even pitch drew a pinstripe that the distance
+    // turned to moire across every big face.
+    for (let k = 0, n = Math.round((w * h) / 150); k < n; k++) {
+      const sx = x + m + rnd() * (w - m * 2), sy = y + m + rnd() * (h - m * 2), L = 6 + rnd() * 30;
+      const a2 = (rnd() - 0.5) * 0.12, cx2 = Math.cos(angle + a2), sx2 = Math.sin(angle + a2);
+      hg.strokeStyle = `rgba(0,0,0,${0.06 + rnd() * 0.08})`;
+      hg.lineWidth = 1 + rnd() * 1.2;
+      hg.beginPath();
+      hg.moveTo(sx, sy);
+      hg.lineTo(sx + cx2 * L, sy + sx2 * L);
+      hg.stroke();
+    }
+    for (let k = 0, n = Math.round((w * h) / 70); k < n; k++) {
+      hg.fillStyle = rnd() < 0.5 ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)';
+      hg.fillRect(x + m + rnd() * (w - m * 2), y + m + rnd() * (h - m * 2), 1 + rnd(), 1 + rnd());
+    }
+    hg.restore();
+    // the margin a shade paler than the field: it was rubbed smooth
+    c.strokeStyle = 'rgba(236,226,206,0.05)';
+    c.lineWidth = m;
+    c.strokeRect(x + m / 2, y + m / 2, w - m, h - m);
+    for (const g of [c, hg]) g.restore();
     rg.fillStyle = grey(200 - wear * 60);
     rg.fillRect(x + 4, y + 4, w - 8, h - 8);
-    // tooling: short parallel strokes across the face
-    for (const [fx, fy, tl, lighter] of strokes) {
-      c.fillStyle = lighter ? 'rgba(236,226,206,0.06)' : 'rgba(18,13,8,0.08)';
-      c.fillRect(x + fx * w, y + fy * h, tl, 1);
-      hg.fillStyle = lighter ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.12)';
-      hg.fillRect(x + fx * w, y + fy * h, tl, 1);
+    // the arrises knocked: a few chips out of the edge, each a little hollow
+    // in shadow
+    for (const [side, along, s] of chips) {
+      const cx = side < 2 ? x + along * w : side === 2 ? x : x + w;
+      const cy = side < 2 ? (side === 0 ? y : y + h) : y + along * h;
+      const ins = side === 0 ? [0, 1] : side === 1 ? [0, -1] : side === 2 ? [1, 0] : [-1, 0];
+      const pts = [[cx - ins[1] * s, cy - ins[0] * s], [cx + ins[0] * s * 0.7 + ins[1] * s * 0.3, cy + ins[1] * s * 0.7 + ins[0] * s * 0.3], [cx + ins[1] * s, cy + ins[0] * s]];
+      for (const [g, style] of [[c, 'rgba(24,17,11,0.4)'], [hg, grey(52)]]) {
+        g.fillStyle = style;
+        g.beginPath();
+        pts.forEach(([px, py], i) => (i ? g.lineTo(px, py) : g.moveTo(px, py)));
+        g.closePath();
+        g.fill();
+      }
     }
   };
   let y0 = 0;
@@ -160,12 +225,17 @@ export function ashlar({ size = 1024, seed = 7, courses = 8, blocks = 4, tone = 
     lens[lens.length - 1] += size - run;
     let x = rnd() * size;
     for (const w of lens) {
-      const look = [rnd() * 2 - 1, rnd(), rnd()];
-      const strokes = Array.from({ length: Math.round((70 * w) / bw) }, () => [rnd(), rnd(), 3 + rnd() * 14, rnd() < 0.5]);
+      const look = {
+        v: rnd() * 2 - 1, wear: rnd(), tilt: rnd(), warm: rnd() * 2 - 1,
+        mottle: Array.from({ length: 3 + Math.floor(rnd() * 4) }, () => [rnd(), rnd(), 0.2 + rnd() * 0.45, 0.04 + rnd() * 0.07, rnd() < 0.45]),
+        // most blocks dressed across at a slant, some upright, a few level
+        angle: (rnd() < 0.6 ? 1.15 : rnd() < 0.5 ? Math.PI / 2 : 0.08) + (rnd() - 0.5) * 0.25,
+        chips: Array.from({ length: Math.floor(rnd() * rnd() * 5) }, () => [Math.floor(rnd() * 4), 0.08 + rnd() * 0.84, 3 + rnd() * 7]),
+      };
       // a block over the right-hand edge comes back in at the left
       for (const dx of [0, -size]) {
         if (x + dx + w <= 0 || x + dx >= size) continue;
-        block(x + dx + joint, y0 + joint, w - joint * 2, bh - joint * 2, look, strokes);
+        block(x + dx + joint, y0 + joint, w - joint * 2, bh - joint * 2, look);
       }
       x += w;
     }
@@ -178,6 +248,19 @@ export function ashlar({ size = 1024, seed = 7, courses = 8, blocks = 4, tone = 
     const a = rnd() * 0.05;
     c.fillStyle = rnd() < 0.5 ? `rgba(230,218,196,${a})` : `rgba(16,12,8,${a})`;
     c.fillRect(rnd() * size, rnd() * size, 1 + rnd() * 3, 1 + rnd() * 2);
+  }
+  // Streaks down the face: soot and damp carried down from a joint or a ledge
+  // over the years, darker where they start, gone a block or two below. (The
+  // canvas wraps top to bottom, so each is drawn again a canvas higher.)
+  for (let k = 0; k < 46; k++) {
+    const x = rnd() * size, y = rnd() * size, len = 60 + rnd() * 320, wd = 3 + rnd() * 14, a = 0.04 + rnd() * 0.07, pale = rnd() < 0.25;
+    for (const dy of [0, -size]) {
+      const g = c.createLinearGradient(0, y + dy, 0, y + dy + len);
+      g.addColorStop(0, pale ? `rgba(226,216,196,${a * 0.7})` : `rgba(18,12,7,${a})`);
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      c.fillStyle = g;
+      c.fillRect(x - wd / 2, y + dy, wd, len);
+    }
   }
   soil(c, rnd, size, 26);
   return {
@@ -221,9 +304,19 @@ export function flagstones({ size = 1024, seed = 19, rows = 4, cols = 3 } = {}) 
         hg.fillStyle = grey(60 + s * 20);
         hg.fillRect(x + s, y + s, w - s * 2, h - s * 2);
       }
-      const gloss = rg.createRadialGradient(x + w / 2, y + h / 2, 0, x + w / 2, y + h / 2, Math.max(w, h) * 0.6);
-      gloss.addColorStop(0, grey(96 - polish * 30));
-      gloss.addColorStop(1, grey(190));
+      // The sheen of a walked slab: broad, faint and off its middle. It was a
+      // tight gloss (roughness 0.26-0.38) dead in the middle of every slab, and
+      // under a lamp each one took its own hot spot — a floor of polka dots,
+      // which no stone does. Off-centre by a hash, not by `rnd`, so the veins
+      // and pits drawn after it stay where they were.
+      // (keyed on the slab, not the column, so a slab cut by the tile's edge
+      // matches itself across it)
+      const kk = (k + cols) % cols;
+      const hx = Math.abs(Math.sin(r * 127.1 + kk * 311.7) * 43758.5453) % 1, hy = Math.abs(Math.sin(r * 269.5 + kk * 183.3) * 43758.5453) % 1;
+      const gx = x + w * (0.25 + 0.5 * hx), gy = y + h * (0.25 + 0.5 * hy);
+      const gloss = rg.createRadialGradient(gx, gy, 0, gx, gy, Math.max(w, h) * 0.9);
+      gloss.addColorStop(0, grey(158 - polish * 22));
+      gloss.addColorStop(1, grey(205));
       rg.fillStyle = gloss;
       rg.fillRect(x + 6, y + 6, w - 12, h - 12);
       if (rnd() < 0.55) {
@@ -242,6 +335,300 @@ export function flagstones({ size = 1024, seed = 19, rows = 4, cols = 3 } = {}) 
   return {
     map: toTexture(col),
     normalMap: toTexture(normalsFrom(hei, 2.4), { srgb: false }),
+    roughnessMap: toTexture(rou, { srgb: false }),
+  };
+}
+
+// ── Pavement ──────────────────────────────────────────────────────────────────
+// 2026-10-06 the reader asked for a floor that looks more natural. `flagstones`
+// above lays twelve slabs of one size in a brick bond, each one flat colour
+// with a pale middle and a dark rim (a pillow), framed in a machined bevel and
+// set in black joints all of one width: a bathroom's tiles. This lays the floor
+// as a mason would: courses of uneven depth, slabs of random length in each,
+// cut by hand so that no edge is quite straight and no joint quite one width,
+// pointed with lime the dirt has got into. Each slab is its own piece of stone —
+// its own shade, its bed running its own way, shell in some, a vein or a crack
+// in a few — worn round at the arris, broken at a corner here and there, dished
+// a little by the feet, and none of them lying quite flat, so that a lamp's
+// sheen breaks from slab to slab as it does on an old floor.
+//
+// Painted per pixel into float fields: a slab's tilt is a slope finer than one
+// grey step of an 8-bit height canvas, so the normal map is taken from the
+// floats directly (`normalsFromField`).
+//
+// The roughness map carries two more things in its spare channels, for the
+// floor's shader (`paveShade` in buildWorld): red is which slab a pixel belongs
+// to (one of sixteen) and blue says whether that slab began a canvas to the
+// left (0), here (128) or to the right (255) — a slab runs on over the canvas's
+// edge and comes back in at the other — so the shader can tell every slab of
+// every repeat of the tile from every other, and shade each its own way.
+
+// Courses of uneven depth (summing to the canvas, so it tiles down) and, in
+// each, slabs of random length closing on themselves round the canvas (so it
+// tiles across), started where its joints fall farthest from those of the
+// courses either side: a cross joint carried through two courses is a crack
+// waiting to happen, and no mason lays one. Shared by the painter and by the
+// Door's moss (buildWorld), which grows in these joints.
+const PAVE_RHYTHM = [1.16, 0.84, 1.04, 0.92, 1.1];
+export function pavingLayout({ size = 1024, seed = 19, courses = 4 } = {}) {
+  const rnd = makeRng(seed * 31 + 7);
+  const rhythm = Array.from({ length: courses }, (_, r) => PAVE_RHYTHM[r % PAVE_RHYTHM.length]);
+  const sum = rhythm.reduce((a, b) => a + b, 0);
+  const rows = [];
+  const near = (a, b) => { const d = Math.abs(a - b) % size; return Math.min(d, size - d); };
+  let y = 0;
+  for (let r = 0; r < courses; r++) {
+    const h = (rhythm[r] / sum) * size;
+    // a slab from one to two of the course's depths long, now and then a short
+    // make-up piece; scaled together to close the course
+    const count = Math.max(2, Math.round(size / (h * 1.4)));
+    const lens = Array.from({ length: count }, () => h * (rnd() < 0.14 ? 0.6 + rnd() * 0.3 : 1 + rnd() * 0.85));
+    const k = size / lens.reduce((a, b) => a + b, 0);
+    for (let s = 0; s < count; s++) lens[s] *= k;
+    const joints = [0];
+    for (const L of lens) joints.push(joints[joints.length - 1] + L);
+    const beside = [rows[r - 1], r === courses - 1 && r > 0 ? rows[0] : null].filter(Boolean);
+    let x0 = 0, best = -1;
+    for (let t = 0; t < 48; t++) {
+      const at = rnd() * size;
+      let gap = Infinity;
+      for (const J of joints) for (const o of beside) for (const J2 of o.joints) gap = Math.min(gap, near(at + J, o.x0 + J2));
+      if (gap > best) { best = gap; x0 = at; }
+    }
+    rows.push({ y, h, x0, lens, joints });
+    y += h;
+  }
+  return rows;
+}
+
+// A tangent-space normal map from a height field in pixels (a slope of 1 is
+// 45°), wrapping as normalsFrom does.
+const normalsFromField = (hf, w, h) => {
+  const [out, g] = canvas(w, h);
+  const img = g.createImageData(w, h), d = img.data;
+  for (let y = 0; y < h; y++) {
+    const up = ((y - 1 + h) % h) * w, row = y * w, down = ((y + 1) % h) * w;
+    for (let x = 0; x < w; x++) {
+      const nx = (hf[row + ((x - 1 + w) % w)] - hf[row + ((x + 1) % w)]) * 0.5;
+      const ny = (hf[down + x] - hf[up + x]) * 0.5;
+      const len = Math.sqrt(nx * nx + ny * ny + 1), i = (row + x) * 4;
+      d[i] = (nx / len * 0.5 + 0.5) * 255;
+      d[i + 1] = (ny / len * 0.5 + 0.5) * 255;
+      d[i + 2] = (1 / len * 0.5 + 0.5) * 255;
+      d[i + 3] = 255;
+    }
+  }
+  g.putImageData(img, 0, 0);
+  return out;
+};
+
+export function paving({ size = 1024, seed = 19, courses = 4, tone = [119, 109, 95] } = {}) {
+  const rnd = makeRng(seed);
+  const rows = pavingLayout({ size, seed, courses });
+  const n = size * size;
+  // over the canvas (all wrap)
+  const wobble = wrapNoise(rnd, 24, 24, 2);   // the hand-cut line of an edge
+  const chip = wrapNoise(rnd, 80, 80, 2);     // where an arris has been knocked
+  const stain = wrapNoise(rnd, 3, 3, 2);      // wax, damp and soot over the floor
+  const grit = wrapNoise(rnd, 300, 300, 1);   // the stone's grain, a few pixels across
+  const width = wrapNoise(rnd, 40, 40, 1);    // how wide a joint was left
+  const lime = wrapNoise(rnd, 60, 60, 2);     // the pointing, where it is still there
+  // sampled by a slab at its own offset in its own coordinates, so every slab
+  // is a different piece of the same stone (the lattice wraps, so a slab that
+  // runs over the canvas's edge is one piece across it)
+  const cloud = wrapNoise(rnd, 5, 5, 3);
+  const tint = wrapNoise(rnd, 4, 4, 1);
+  const bed = wrapNoise(rnd, 2, 16, 2);
+
+  let next = 0;
+  for (const row of rows) {
+    row.slabs = row.lens.map((len) => {
+      const odd = rnd();
+      return {
+        index: next, id: next++ % 16, len,
+        v: rnd() * 2 - 1, warm: rnd() * 2 - 1,
+        // now and then a slab from another bed: greyer and darker, or paler
+        odd: odd < 0.07 ? -1 : odd > 0.93 ? 1 : 0,
+        // how it lies: a centimetre or so out of level across its length
+        tx: (rnd() - 0.5) * 0.028, ty: (rnd() - 0.5) * 0.028,
+        R: 3.5 + rnd() * 6,                       // how round the feet have worn its arris
+        gloss: rnd(),
+        ox: rnd(), oy: rnd(), bedA: rnd() * Math.PI, bedK: 0.3 + rnd() * 0.7,
+        // its corners: most worn round, one in five broken off
+        corner: [0, 1, 2, 3].map(() => (rnd() < 0.2 ? 9 + rnd() * 16 : 2.5 + rnd() * 4)),
+        shell: rnd() < 0.4, vein: rnd() < 0.3, crack: rnd() < 0.14,
+      };
+    });
+    // each joint's hand-cut line, down the canvas (the first course's top edge
+    // is the canvas's own, and stays straight, so no course runs over it)
+    for (const slab of row.slabs) { slab.ca = Math.cos(slab.bedA); slab.sa = Math.sin(slab.bedA); }
+    row.wobX = row.joints.slice(0, -1).map((J) => Float32Array.from({ length: size }, (_, j) => 1.5 * wobble(((row.x0 + J) / size + 0.37) % 1, j / size)));
+  }
+  const wobY = rows.map((row, r) => Float32Array.from({ length: size }, (_, i) => (r === 0 ? 0 : 1.5 * wobble(i / size, r / courses))));
+  const rowAt = Int8Array.from({ length: size }, (_, j) => { let r = 0; while (r + 1 < courses && rows[r + 1].y <= j) r++; return r; });
+
+  const cf = new Float32Array(n * 3), hf = new Float32Array(n), rf = new Float32Array(n), D = new Float32Array(n);
+  const idOf = new Uint8Array(n), home = new Int8Array(n), slabAt = new Int16Array(n);
+  const [jr, jg, jb] = [62, 55, 47];          // the dirt in a joint
+  const [lr, lg, lb] = [128, 120, 104];       // the lime it was pointed with
+  for (let j = 0; j < size; j++) {
+    for (let i = 0; i < size; i++) {
+      const k = j * size + i, u = i / size, v = j / size;
+      // the course (its edges wander, so a pixel near one may be the next's)
+      let r = rowAt[j];
+      if (j < rows[r].y + wobY[r][i]) r -= 1;
+      else if (r + 1 < courses && j >= rows[r + 1].y + wobY[r + 1][i]) r += 1;
+      const row = rows[r], J = row.joints, m = row.lens.length;
+      const top = row.y + wobY[r][i], bot = r + 1 < courses ? rows[r + 1].y + wobY[r + 1][i] : size;
+      const dt = j - top, db = bot - j;
+      // the slab, counted along the course from its first joint
+      let xr = (((i - row.x0) % size) + size) % size, s = 0;
+      while (s + 1 < m && J[s + 1] <= xr) s++;
+      const W = row.wobX;
+      if (xr < J[s] + W[s][j]) { s -= 1; if (s < 0) { s = m - 1; xr += size; } }
+      else if (xr >= J[s + 1] + W[(s + 1) % m][j]) { s += 1; if (s === m) { s = 0; xr -= size; } }
+      const dl = xr - J[s] - W[s][j], dr = J[s + 1] + W[(s + 1) % m][j] - xr;
+      const slab = row.slabs[s];
+      // how far in from the joint: half the joint off every edge, corners
+      // rounded (or broken), the arris knocked about
+      // (none of which reaches more than 30 pixels in)
+      let d = Math.min(dl, dr, dt, db);
+      if (d < 30) {
+        const hw = 0.9 + 0.55 * (1 + width(u, v));
+        const ax = Math.min(dl, dr) - hw, ay = Math.min(dt, db) - hw;
+        const rc = slab.corner[(dt < db ? 0 : 2) + (dl < dr ? 0 : 1)];
+        d = ax < rc && ay < rc ? rc - Math.sqrt((rc - ax) * (rc - ax) + (rc - ay) * (rc - ay)) : Math.min(ax, ay);
+        if (d < 8) d -= 5 * Math.max(0, chip(u, v) - 0.35) * (1 - Math.max(0, d) / 8);
+      }
+      D[k] = d;
+      idOf[k] = slab.id;
+      slabAt[k] = slab.index;
+      home[k] = Math.floor((row.x0 + xr) / size) - Math.floor((row.x0 + (J[s] + J[s + 1]) / 2) / size);
+
+      // ── the stone
+      const lx = xr - J[s], ly = j - row.y;
+      const su = slab.ox + lx / size, sv = slab.oy + ly / size;
+      const bd = bed(slab.ox + (lx * slab.ca - ly * slab.sa) / size, slab.oy + (lx * slab.sa + ly * slab.ca) / size);
+      const cl = cloud(su, sv), gr = grit(u, v), st = stain(u, v);
+      let L = 1 + 0.075 * slab.v + 0.07 * cl + 0.035 * slab.bedK * bd + 0.03 * gr;
+      const tn = tint(su * 2, sv * 2);
+      let warm = 0.035 * slab.warm + 0.025 * tn;
+      if (slab.odd < 0) { L *= 0.8; warm -= 0.035; } else if (slab.odd > 0) { L *= 1.1; warm += 0.012; }
+      // the floor's own soiling, and the dirt worked into the arris along
+      // every joint (not a dark rim round a pale middle: a line of it)
+      L *= 1 - 0.09 * Math.max(0, st) + 0.035 * Math.max(0, -st - 0.4);
+      L *= 1 - 0.16 * Math.exp(-Math.max(0, d) / 3) * (0.75 + 0.25 * gr);
+      let cr = tone[0] * L * (1 + warm), cg = tone[1] * L, cb = tone[2] * L * (1 - 1.5 * warm);
+      // relief, in pixels: lying out of true, dished, grained; the arris worn round
+      // (dished where the stone's own clouding says: the soft beds wear first)
+      let hgt = slab.tx * (lx - slab.len / 2) + slab.ty * (ly - row.h / 2) + 0.9 * cl + 0.1 * gr;
+      if (d < slab.R) hgt -= 0.34 * slab.R * (1 - Math.max(0, d) / slab.R) ** 2;
+      let rough = 0.71 - 0.07 * (slab.gloss - 0.5) - 0.04 * tn + 0.04 * gr + 0.04 * Math.max(0, st);
+      // ── the joint: dirt, the lime showing through it in places, sunk below both slabs
+      if (d < 0.8) {
+        const t = smooth(-1.4, 0.8, d), lm = smooth(0.15, 0.6, lime(u, v)) * 0.55;
+        const g2 = 0.9 + 0.1 * gr;
+        cr += ((jr + (lr - jr) * lm) * g2 - cr) * (1 - t);
+        cg += ((jg + (lg - jg) * lm) * g2 - cg) * (1 - t);
+        cb += ((jb + (lb - jb) * lm) * g2 - cb) * (1 - t);
+        const hJ = -3.4 + 0.5 * lm + 0.25 * gr;
+        hgt += (hJ - hgt) * (1 - smooth(-1.6, 0, d));
+        rough += (0.94 - rough) * (1 - t);
+      }
+      cf[k * 3] = cr; cf[k * 3 + 1] = cg; cf[k * 3 + 2] = cb;
+      hf[k] = hgt;
+      rf[k] = rough;
+    }
+  }
+
+  // Marks in the stone, each kept to its own slab and off its arris.
+  const onSlab = (k, sl, inset = 2) => slabAt[k] === sl && D[k] > inset;
+  const canvasAt = (row, s, lx, ly) => {
+    const i = Math.floor((((row.x0 + row.joints[s] + lx) % size) + size) % size), j = Math.floor(row.y + ly);
+    return j >= 0 && j < size ? j * size + i : -1;
+  };
+  const toward = (k, [r, g, b], a) => { cf[k * 3] += (r - cf[k * 3]) * a; cf[k * 3 + 1] += (g - cf[k * 3 + 1]) * a; cf[k * 3 + 2] += (b - cf[k * 3 + 2]) * a; };
+  rows.forEach((row) => row.slabs.forEach((slab, s) => {
+    const sl = slab.index, W = slab.len, Hh = row.h;
+    // shell: little pale crescents and specks, the thing that says limestone
+    // and not cement (packed in a band in some slabs, as a bed lays them)
+    if (slab.shell) {
+      const band = rnd() < 0.5;
+      for (let q = 0, count = Math.round((W * Hh) / (band ? 700 : 1100)); q < count; q++) {
+        const lx = rnd() * W, ly = band ? Hh * (0.3 + rnd() * 0.25) + (rnd() - 0.5) * Hh * 0.3 : rnd() * Hh;
+        const rad = 0.8 + rnd() * 2.4, a0 = rnd() * 6.283, span = 1.4 + rnd() * 2.6, a = 0.18 + rnd() * 0.22;
+        for (let dy = -3; dy <= 3; dy++) {
+          for (let dx = -3; dx <= 3; dx++) {
+            const k = canvasAt(row, s, lx + dx, ly + dy);
+            if (k < 0 || !onSlab(k, sl)) continue;
+            const dd = Math.hypot(dx, dy), ang = (((Math.atan2(dy, dx) - a0) % 6.283) + 6.283) % 6.283;
+            const e = Math.max(0, 1 - Math.abs(dd - rad) / 0.75) * (ang < span ? 1 : 0) + (rad < 1.3 && dd < 1 ? 0.6 : 0);
+            if (e > 0) { toward(k, [190, 181, 162], a * Math.min(1, e)); hf[k] += 0.12 * e; }
+          }
+        }
+      }
+    }
+    // a calcite vein: a pale thread wandering across the slab
+    if (slab.vein) {
+      let x = rnd() * W, y = 0, dir = Math.PI / 2 + (rnd() - 0.5) * 1.2;
+      const a = 0.1 + rnd() * 0.12, wid = 0.6 + rnd() * 0.9;
+      for (let step = 0; step < 3000 && y < Hh && x > -4 && x < W + 4; step++) {
+        dir += (rnd() - 0.5) * 0.35 + (Math.PI / 2 - dir) * 0.02;
+        x += Math.cos(dir) * 0.6; y += Math.sin(dir) * 0.6;
+        for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+          const k = canvasAt(row, s, x + dx, y + dy);
+          if (k < 0 || !onSlab(k, sl, 1)) continue;
+          const e = Math.max(0, 1 - Math.hypot(dx, dy) / (wid + 0.5));
+          if (e > 0) { toward(k, [196, 188, 170], a * e * 0.35); rf[k] -= 0.03 * e * 0.35; }
+        }
+      }
+    }
+    // a crack in from an edge, jagged, a hair's breadth and dark, lower on one side
+    if (slab.crack) {
+      const fromTop = rnd() < 0.5;
+      let x = W * (0.2 + rnd() * 0.6), y = fromTop ? 0 : Hh, dir = (fromTop ? 1 : -1) * Math.PI / 2 + (rnd() - 0.5) * 0.9;
+      const len = Hh * (0.35 + rnd() * 0.75), aim = dir;
+      for (let t = 0; t < len; t += 0.5) {
+        dir += (rnd() - 0.5) * 0.4 + (aim - dir) * 0.04;
+        x += Math.cos(dir) * 0.5; y += Math.sin(dir) * 0.5;
+        const taper = 1 - (t / len) ** 2;
+        for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+          const k = canvasAt(row, s, x + dx, y + dy);
+          if (k < 0 || slabAt[k] !== sl || D[k] < -0.5) continue;
+          const e = Math.max(0, 1 - Math.hypot(dx, dy) / (0.6 + 0.6 * taper)) * taper;
+          if (e > 0) { toward(k, [52, 45, 37], 0.45 * e); hf[k] -= 1.1 * e; rf[k] += 0.15 * e; }
+        }
+      }
+    }
+  }));
+  // Pits: specks darker, lower and rougher at once.
+  for (let q = 0, count = Math.round(n / 420); q < count; q++) {
+    const i0 = Math.floor(rnd() * size), j0 = Math.floor(rnd() * size), s2 = rnd() < 0.8 ? 1 : 2, a = 0.1 + rnd() * 0.25;
+    for (let dy = 0; dy < s2; dy++) for (let dx = 0; dx < s2; dx++) {
+      const k = ((j0 + dy) % size) * size + ((i0 + dx) % size);
+      if (D[k] < 1) continue;
+      toward(k, [40, 34, 28], a);
+      hf[k] -= 0.7 * a * 2;
+      rf[k] += 0.2 * a;
+    }
+  }
+
+  const [col, c] = canvas(size);
+  const [rou, rg] = canvas(size);
+  const C = c.createImageData(size, size), Rr = rg.createImageData(size, size);
+  for (let k = 0; k < n; k++) {
+    const o = k * 4;
+    C.data[o] = cf[k * 3]; C.data[o + 1] = cf[k * 3 + 1]; C.data[o + 2] = cf[k * 3 + 2]; C.data[o + 3] = 255;
+    Rr.data[o] = idOf[k] * 16 + 8;
+    Rr.data[o + 1] = Math.max(0, Math.min(1, rf[k])) * 255;
+    Rr.data[o + 2] = (home[k] + 1) * 127.5;
+    Rr.data[o + 3] = 255;
+  }
+  c.putImageData(C, 0, 0);
+  rg.putImageData(Rr, 0, 0);
+  return {
+    map: toTexture(col),
+    normalMap: toTexture(normalsFromField(hf, size, size), { srgb: false }),
     roughnessMap: toTexture(rou, { srgb: false }),
   };
 }
@@ -289,6 +676,202 @@ export function walnut({ size = 512, seed = 5, tone = WALNUT } = {}) {
   return {
     map: toTexture(col),
     normalMap: toTexture(normalsFrom(hei, 1.2), { srgb: false }),
+    roughnessMap: toTexture(rou, { srgb: false }),
+  };
+}
+
+// ── Timber ────────────────────────────────────────────────────────────────────
+// 2026-10-05 the reader asked for better wood. `walnut` above draws one sine
+// band per row of the canvas with its own random strength, which at any
+// distance is a barcode of straight lines — brushed metal, not a board — and
+// it does not wrap top to bottom. This paints a board as a board is: a log
+// sawn through. The growth rings are the contours of the distance from the
+// pith, so where the saw ran near the heart they close into the arches of a
+// flat-sawn face and towards the edge they straighten into stripes; the rings
+// are of uneven width, year to year, which is the figure the eye still finds
+// when a single ring is too fine to see; and there are pores, mineral streaks,
+// a knot or two, and — out of doors — checks and raised grain.
+//
+// The grain runs along u (the canvas's width), which is twice its height, and
+// everything is drawn from noise on a lattice that wraps, so it tiles both ways.
+
+// Value noise on an `nx` × `ny` lattice over the whole canvas; x and y in 0..1.
+const lattice = (rnd, nx, ny) => ({ nx, ny, a: Float32Array.from({ length: nx * ny }, () => rnd() * 2 - 1) });
+const latticeAt = ({ nx, ny, a }, x, y) => {
+  const fx = x * nx, fy = y * ny, ix = Math.floor(fx), iy = Math.floor(fy);
+  let tx = fx - ix, ty = fy - iy;
+  tx = tx * tx * tx * (tx * (tx * 6 - 15) + 10);
+  ty = ty * ty * ty * (ty * (ty * 6 - 15) + 10);
+  // (wrapped with two remainders, not six: this is the hottest line of the
+  // timber and the pavement both, and the answer is the same)
+  let x0 = ix % nx, y0 = iy % ny;
+  if (x0 < 0) x0 += nx;
+  if (y0 < 0) y0 += ny;
+  const x1 = x0 + 1 === nx ? 0 : x0 + 1, r0 = y0 * nx, r1 = (y0 + 1 === ny ? 0 : y0 + 1) * nx;
+  const top = a[r0 + x0] + (a[r0 + x1] - a[r0 + x0]) * tx, bot = a[r1 + x0] + (a[r1 + x1] - a[r1 + x0]) * tx;
+  return top + (bot - top) * ty;
+};
+// octaves of it, each lattice twice as fine, summed to about -1..1
+const wrapNoise = (rnd, nx, ny, octaves = 3) => {
+  const ls = Array.from({ length: octaves }, (_, k) => lattice(rnd, nx << k, ny << k));
+  return (x, y) => {
+    let s = 0, amp = 1, norm = 0;
+    for (let o = 0; o < ls.length; o++) { s += latticeAt(ls[o], x, y) * amp; norm += amp; amp *= 0.5; }
+    return (s / norm) * 1.6;
+  };
+};
+const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+
+// The woods, as sRGB triples: earlywood (the pale part of a ring), latewood
+// (the dark), the streaks the minerals leave, and the colour a pore is.
+// `finish`: varnished and rubbed (the Library's cases) or out in the weather
+// (the garden's posts and boards). Their mean colours are the old `walnut`
+// and `CEDAR`'s, so a room keeps the key it was graded to.
+// `rings`: how much of the colour the rings carry. Walnut's are soft — its
+// figure is streaks of tone and its pores — and a softwood's are bold.
+export const WALNUT_WOOD = { early: [66, 44, 29], late: [35, 22, 14], streak: [31, 25, 20], pore: [15, 9, 5], rings: 0.55, finish: 'varnish' };
+export const CEDAR_WOOD = { early: [150, 121, 90], late: [92, 68, 47], streak: [104, 94, 82], pore: [40, 30, 22], rings: 0.8, finish: 'weather' };
+
+export function timber({ w = 1024, h = 512, seed = 5, tone = WALNUT_WOOD, ring = 7, knots = 1, strength = 2.2 } = {}) {
+  const rnd = makeRng(seed);
+  const weather = tone.finish === 'weather';
+  const n = w * h;
+  // the fields the board is drawn from (all wrap)
+  const warpBig = wrapNoise(rnd, 1, 3, 3);       // the grain's long sway across the board
+  const warpFine = wrapNoise(rnd, 2, 24, 2);     // and its small wander, long along u
+  const depth = wrapNoise(rnd, 2, 1, 2);         // how deep under the bark the saw ran, along u
+  const contrast = wrapNoise(rnd, 2, 12, 2);     // how strongly a ring shows
+  const streaks = wrapNoise(rnd, 1, 20, 3);      // tone in long streaks along the grain
+  const mineral = wrapNoise(rnd, 1, 36, 2);      // walnut's dark mineral streaks,
+  const broken = wrapNoise(rnd, 6, 4, 2);        // which come and go along the board
+  const grime = wrapNoise(rnd, 2, 2, 3);         // hands, soot and sun over the whole face
+  const fibre = wrapNoise(rnd, 16, 256, 1);      // the fibre itself, a pixel or two across
+  const p1 = rnd() * 6.283, p2 = rnd() * 6.283, p3 = rnd() * 6.283, pd = rnd();
+  // The cut's depth changes slowly along the board, against the rings' fast
+  // change across it, and that ratio is the arches' length: a flat-sawn arch
+  // is five or ten times longer than it is wide. (At 0.38 of the height they
+  // came out round, a contour map of hills.) And it changes by only a few
+  // rings, so the eye where the saw came nearest the heart nests a few loops,
+  // not a target of seventeen.
+  const D0 = h * (0.2 + rnd() * 0.05), D1 = h * 0.07;
+  // A knot: where a branch left the trunk. The rings bulge round it, long
+  // along the grain, and its own end grain shows dark in the middle.
+  const knotList = Array.from({ length: knots }, () => ({ x: rnd() * w, y: rnd() * h, r: (weather ? 7 : 4) + rnd() * (weather ? 9 : 5) }));
+  const wrapD = (d, span) => d - span * Math.round(d / span);
+  const S = h / Math.PI;
+  const phase = new Float32Array(n), cm = new Float32Array(n), knotCore = new Float32Array(n);
+  const cut = Float32Array.from({ length: w }, (_, i) => D0 + D1 * (0.5 + 0.5 * Math.sin(6.2832 * (i / w + pd))) + h * 0.035 * depth(i / w, 0));
+  for (let j = 0; j < h; j++) {
+    const y = j / h;
+    for (let i = 0; i < w; i++) {
+      const x = i / w, k = j * w + i;
+      // across the board, wandering; then the distance from the pith (one
+      // per canvas height, so sin² wraps) and the depth of the cut
+      const yy = j + warpBig(x, y) * 22 + warpFine(x, y) * 2.5;
+      const s = S * Math.sin((Math.PI * yy) / h);
+      const d = cut[i];
+      let R = Math.sqrt(d * d + s * s);
+      let core = 0;
+      for (const kn of knotList) {
+        const dx = wrapD(i - kn.x, w) / (kn.r * 3.2), dy = wrapD(j - kn.y, h) / kn.r;
+        const e = dx * dx * 0.35 + dy * dy;
+        R += kn.r * 2.2 * Math.exp(-e * 0.5);
+        core = Math.max(core, Math.exp(-((dx * 3.2) ** 2 + dy * dy) * 0.9));
+      }
+      // years of uneven growth: rings bunched in some, open in others (kept
+      // under 1/ring in slope, so the rings never run backwards)
+      phase[k] = R / ring + 0.9 * Math.sin(R / 23 + p1) + 0.45 * Math.sin(R / 9.7 + p2) + 0.25 * Math.sin(R / 61 + p3);
+      cm[k] = (0.62 + 0.38 * Math.max(-1, Math.min(1, contrast(x, y)))) * (tone.rings ?? 1);
+      knotCore[k] = core;
+    }
+  }
+  const [col, c] = canvas(w, h);
+  const [hei, hg] = canvas(w, h);
+  const [rou, rg] = canvas(w, h);
+  const C = c.createImageData(w, h), H = hg.createImageData(w, h), Rr = rg.createImageData(w, h);
+  const hf = new Float32Array(n), rf = new Float32Array(n), cf = new Float32Array(n * 3);
+  const { early, late, streak, pore } = tone;
+  for (let j = 0; j < h; j++) {
+    const y = j / h;
+    for (let i = 0; i < w; i++) {
+      const x = i / w, k = j * w + i;
+      // How far apart the rings are here, in pixels: where they crowd under
+      // two, a ring is finer than the canvas can draw and only its mean is
+      // painted (the mips would do it anyway, as moiré on the way).
+      const gx = phase[j * w + ((i + 1) % w)] - phase[j * w + ((i - 1 + w) % w)];
+      const gy = phase[((j + 1) % h) * w + i] - phase[((j - 1 + h) % h) * w + i];
+      const spacing = 2 / Math.max(1e-4, Math.hypot(gx, gy));
+      const f = phase[k] - Math.floor(phase[k]);
+      // the year's ring: pale earlywood darkening slowly into latewood, then
+      // the sharp step into the next spring
+      const lwRaw = weather ? smooth(0.45, 0.9, f) * (1 - smooth(0.93, 1, f)) : smooth(0.55, 0.92, f) * (1 - smooth(0.95, 1, f));
+      const lw = 0.3 + (lwRaw - 0.3) * smooth(1.6, 3.2, spacing);
+      const ring_ = lw * cm[k], fb = fibre(x, y);
+      let r = early[0] + (late[0] - early[0]) * ring_, g = early[1] + (late[1] - early[1]) * ring_, b = early[2] + (late[2] - early[2]) * ring_;
+      // long streaks of tone, and the fibre
+      const t = 1 + (weather ? 0.12 : 0.2) * streaks(x, y) + 0.05 * fb;
+      r *= t; g *= t; b *= t;
+      // mineral streaks (walnut: long, thin, grey-dark) / weathered silver
+      // (cedar, most in the soft earlywood)
+      const m = weather ? 0.22 + 0.25 * (1 - lw) : 0.45 * smooth(0.55, 0.9, mineral(x, y)) * smooth(-0.1, 0.5, broken(x, y));
+      r += (streak[0] - r) * m; g += (streak[1] - g) * m; b += (streak[2] - b) * m;
+      const kc = knotCore[k];
+      if (kc > 0.01) { const a = smooth(0.15, 0.7, kc) * 0.85; r += (pore[0] - r) * a; g += (pore[1] - g) * a; b += (pore[2] - b) * a; }
+      const gr = grime(x, y);
+      const soilK = 1 - 0.1 * Math.max(0, gr);
+      cf[k * 3] = r * soilK; cf[k * 3 + 1] = g * soilK; cf[k * 3 + 2] = b * soilK;
+      // relief: under varnish level, but for the pores; weathered, the soft
+      // earlywood has gone and the latewood stands proud, and a knot proudest
+      hf[k] = weather ? 0.5 + 0.2 * lw * cm[k] + 0.05 * fb + 0.12 * smooth(0.2, 0.8, kc) : 0.5 + 0.01 * lw + 0.02 * fb;
+      // A rubbed varnish has one sheen over the rings — dulled by grime, the
+      // pores and a little by the open earlywood. (With the latewood glossier
+      // by 0.06, a lamp over a wide shelf lit the rings of a cathedral as
+      // bright lines and drew a target on it.) Weathered wood has no sheen.
+      rf[k] = weather ? 0.84 - 0.08 * lw + 0.05 * fb : 0.4 + 0.015 * (1 - lw) + 0.1 * Math.max(0, gr) - 0.06 * Math.max(0, -gr);
+    }
+  }
+  // Pores, cut along the grain: walnut's are scattered and fine. Cedar has
+  // none to speak of; it has checks — the splits the sun opens along a post.
+  const along = (k0, len, fn) => { const j = Math.floor(k0 / w), i0 = k0 % w; for (let q = 0; q < len; q++) fn(j * w + ((i0 + q) % w), q / len); };
+  if (!weather) {
+    // (faint: the canvas's pixel is wider than a pore, and at full strength
+    // a case seen from a step away was ruled with dashes)
+    for (let q = 0, count = Math.round(n / 70); q < count; q++) {
+      const a = 0.16 + rnd() * 0.3;
+      along(Math.floor(rnd() * n), 2 + Math.floor(rnd() * 7), (k, u) => {
+        const e = a * Math.sin(Math.PI * (0.15 + 0.7 * u));
+        for (let ch = 0; ch < 3; ch++) cf[k * 3 + ch] += (pore[ch] - cf[k * 3 + ch]) * e;
+        hf[k] -= 0.07 * e;
+        rf[k] += 0.25 * e;
+      });
+    }
+  } else {
+    for (let q = 0; q < 26; q++) {
+      const len = 40 + Math.floor(rnd() * 260), a = 0.5 + rnd() * 0.4;
+      let jj = rnd() * h;
+      const i0 = Math.floor(rnd() * w), drift = (rnd() - 0.5) * 0.04;
+      for (let p = 0; p < len; p++) {
+        jj += drift + (rnd() - 0.5) * 0.15;
+        const k = (((Math.floor(jj) % h) + h) % h) * w + ((i0 + p) % w);
+        const e = a * Math.sin(Math.PI * (p / len)) ** 0.5;
+        for (let ch = 0; ch < 3; ch++) cf[k * 3 + ch] += (pore[ch] - cf[k * 3 + ch]) * e;
+        hf[k] -= 0.3 * e;
+        rf[k] += 0.1 * e;
+      }
+    }
+  }
+  for (let k = 0; k < n; k++) {
+    const o = k * 4;
+    C.data[o] = cf[k * 3]; C.data[o + 1] = cf[k * 3 + 1]; C.data[o + 2] = cf[k * 3 + 2]; C.data[o + 3] = 255;
+    H.data[o] = H.data[o + 1] = H.data[o + 2] = Math.max(0, Math.min(255, hf[k] * 255)); H.data[o + 3] = 255;
+    Rr.data[o] = Rr.data[o + 1] = Rr.data[o + 2] = Math.max(0, Math.min(255, rf[k] * 255)); Rr.data[o + 3] = 255;
+  }
+  c.putImageData(C, 0, 0);
+  hg.putImageData(H, 0, 0);
+  rg.putImageData(Rr, 0, 0);
+  return {
+    map: toTexture(col),
+    normalMap: toTexture(normalsFrom(hei, strength), { srgb: false }),
     roughnessMap: toTexture(rou, { srgb: false }),
   };
 }
@@ -445,7 +1028,599 @@ export function spineAtlas({ cellW = 64, cellH = 256, seed = 23 } = {}) {
   return {
     detail: toTexture(det, { anisotropy: 4 }),
     mask: toTexture(msk, { srgb: false, anisotropy: 4 }),
+    hide: bindingHide(),
   };
+}
+
+// ── Lettered spines ───────────────────────────────────────────────────────────
+// The atlas above lettered nothing: a label was a pale box with three grey
+// bars on it, and a gilt one three gold bars in a frame, so up close a shelf
+// read as a wall of placeholders. Now the atlas paints only the leather and
+// its tooling, and the books are lettered in the shader (makeBookMaterial),
+// in units of each book's own spine, from a second atlas of titles: so a
+// label is the size a binder would cut it whatever the book's size, and no
+// letter is stretched with the spine it is on.
+//
+// Where each spine of the atlas keeps its title: the compartments between
+// its raised bands, as fractions of the spine down from its head. The atlas
+// is painted from the same layout, and makeBookMaterial reads it as it
+// compiles — before the paint arrives — so it has its own stream and costs
+// nothing to make twice.
+//   title   the compartment the title is in (the second, as on a calf
+//           binding: the first, at the head, is the binder's ornament)
+//   vol     the compartment a volume number goes in, under it
+//   style   how it is lettered (TITLE_STYLE)
+export const TITLE_STYLE = { none: 0, paper: 1, morocco: 2, gilt: 3, blind: 4, vellum: 5, cloth: 6 };
+// a band and its fillets, in fractions of a spine (the 64 × 256 atlas drew a
+// band ±4 px and its fillets 7 px off it)
+const BAND_HALF = 4 / 256, FILLET_AT = 7.5 / 256;
+export function spineLayout({ seed = 31 } = {}) {
+  const rnd = makeRng(seed);
+  const S = TITLE_STYLE;
+  const cells = [];
+  for (let row = 0; row < SPINE_ROWS; row++) {
+    for (let col = 0; col < SPINE_COLS; col++) {
+      const kind = row === 0 ? 'rich' : row === 1 ? 'label' : row === 2 ? 'plain' : col < 8 ? 'cloth' : 'vellum';
+      // cloth: a title blocked in gold at the head, VOL. under it
+      if (kind === 'cloth') { cells.push({ kind, bands: [], style: S.cloth, title: [0.075, 0.27], vol: [0.29, 0.36], bandGilt: false }); continue; }
+      // vellum: written by hand up the spine, the volume across it below
+      if (kind === 'vellum') { cells.push({ kind, bands: [], style: S.vellum, title: [0.12, 0.62], vol: [0.66, 0.74], bandGilt: false }); continue; }
+      const n = 4 + (rnd() < 0.5 ? 1 : 0);
+      const bands = Array.from({ length: n }, (_, i) => 0.1 + (0.8 * (i + 0.5)) / n);
+      const inner = (i) => [bands[i] + FILLET_AT + 0.008, bands[i + 1] - FILLET_AT - 0.008];
+      const r = rnd();
+      const style = kind === 'rich' ? (r < 0.7 ? S.morocco : S.gilt)
+        : kind === 'label' ? (r < 0.55 ? S.paper : S.morocco)
+          : (r < 0.65 ? S.blind : S.paper);
+      cells.push({ kind, bands, style, title: inner(0), vol: inner(1), bandGilt: kind === 'rich' || (kind === 'label' && rnd() < 0.5) });
+    }
+  }
+  return cells;
+}
+
+// The spine atlas for lettered books: SPINE_COLS × SPINE_ROWS cells at twice
+// the old resolution (128 × 512 — up close a spine is half a metre of leather,
+// and 64 texels across it were a blur), all in ONE map, linear:
+//   R  gilt    the tooling in gold: fillets, rolls on the bands, fleurons
+//   G  detail  the leather's grey (sRGB-coded; the shader decodes it), which
+//              the old atlas kept in a map of its own
+//   B  height  the raised bands (110 is the ground, as before)
+// The round of the spine is no longer painted: the shader bends the normal
+// across it, so the lamps light the crown and the joints fall away as the
+// reader moves. What is painted is the dark in the joints.
+export function spineAtlas2({ cellW = 128, cellH = 512, seed = 23 } = {}) {
+  const rnd = makeRng(seed);
+  const layout = spineLayout();
+  const W = cellW * SPINE_COLS, H = cellH * SPINE_ROWS, k = cellW / 64;
+  const [, d] = canvas(W, H);
+  const [, g] = canvas(W, H);
+  const [, h] = canvas(W, H);
+  d.fillStyle = grey(150); d.fillRect(0, 0, W, H);
+  g.fillStyle = '#000'; g.fillRect(0, 0, W, H);
+  h.fillStyle = grey(110); h.fillRect(0, 0, W, H);
+  const GOLD = '#fff';
+  layout.forEach((cell, i) => {
+    const x0 = (i % SPINE_COLS) * cellW, y0 = Math.floor(i / SPINE_COLS) * cellH;
+    const Y = (t) => y0 + (0.01 + 0.98 * t) * cellH;     // down the spine from its head
+    const { kind } = cell;
+    const smooth = kind === 'cloth' || kind === 'vellum';
+    d.save();
+    d.beginPath(); d.rect(x0, y0, cellW, cellH); d.clip();
+    g.save();
+    g.beginPath(); g.rect(x0, y0, cellW, cellH); g.clip();
+    const base = kind === 'vellum' ? 152 + rnd() * 22 : kind === 'cloth' ? 146 + rnd() * 28 : 130 + rnd() * 70;
+    const edge = smooth ? 0.82 : 0.66;
+    const round = d.createLinearGradient(x0, 0, x0 + cellW, 0);
+    round.addColorStop(0, grey(base * edge));
+    round.addColorStop(0.1, grey(base * 0.96));
+    round.addColorStop(0.5, grey(base));
+    round.addColorStop(0.9, grey(base * 0.96));
+    round.addColorStop(1, grey(base * (edge - 0.03)));
+    d.fillStyle = round;
+    d.fillRect(x0, y0, cellW, cellH);
+    if (kind === 'cloth') {
+      // a fine weave instead of grain, and the cloth's own ribbed grain
+      for (let x = 0; x < cellW; x += 2) { d.fillStyle = `rgba(0,0,0,${0.03 + rnd() * 0.03})`; d.fillRect(x0 + x, y0, 1, cellH); }
+      for (let y = 0; y < cellH; y += 2) { d.fillStyle = `rgba(255,255,255,${0.02 + rnd() * 0.03})`; d.fillRect(x0, y0 + y, cellW, 1); }
+    } else {
+      // (as many specks as the old atlas had, each twice the size; the finest
+      // grain is noise laid over the whole atlas below, which is far cheaper
+      // than four times the specks)
+      for (let n = 0, count = kind === 'vellum' ? 160 : 420; n < count; n++) {
+        const a = rnd() * (kind === 'vellum' ? 0.06 : 0.12);
+        d.fillStyle = rnd() < 0.5 ? `rgba(255,255,255,${a})` : `rgba(0,0,0,${a})`;
+        d.fillRect(x0 + rnd() * cellW, y0 + rnd() * cellH, (1 + rnd() * 2) * k, (1 + rnd() * 2) * k);
+      }
+    }
+    if (!smooth) {
+      // Old calf cracks ACROSS the spine, where it flexed every time the book
+      // was opened: fine dark breaks with a pale lip, thickest toward the head
+      // and the tail, where hands pull a book from the shelf.
+      for (let n = 0, count = 14 + Math.floor(rnd() * 26); n < count; n++) {
+        const t = rnd() < 0.6 ? (rnd() < 0.5 ? rnd() * 0.18 : 1 - rnd() * 0.18) : rnd();
+        let x = x0 + 4 * k + rnd() * (cellW - 8 * k), y = Y(t);
+        const len = (5 + rnd() ** 2 * 26) * k, dark = 0.22 + rnd() * 0.25;
+        d.lineCap = 'round';
+        for (const [style, dy, lw] of [[`rgba(255,238,215,${dark * 0.35})`, 1, 0.9], [`rgba(0,0,0,${dark})`, 0, 0.8]]) {
+          d.strokeStyle = style;
+          d.lineWidth = lw;
+          d.beginPath();
+          let xx = x, yy = y + dy;
+          d.moveTo(xx, yy);
+          for (let s = 0; s < 5; s++) { xx += len / 5; yy += (rnd() - 0.5) * 2.2; d.lineTo(xx, yy); }
+          d.stroke();
+        }
+        x += len;
+      }
+    }
+    // head and tail caps, worn paler
+    for (const [yy, hh] of [[y0, 9 * k], [y0 + cellH - 9 * k, 9 * k]]) {
+      d.fillStyle = `rgba(0,0,0,${smooth ? 0.18 : 0.35})`;
+      d.fillRect(x0, yy, cellW, hh);
+      d.fillStyle = 'rgba(255,240,220,0.12)';
+      d.fillRect(x0, yy + (yy === y0 ? hh - 2 * k : 0), cellW, 2 * k);
+    }
+    // scuffs along the joints
+    for (let n = 0; n < 20; n++) {
+      d.fillStyle = `rgba(255,236,210,${0.06 + rnd() * 0.1})`;
+      const side = rnd() < 0.5 ? x0 + k + rnd() * 6 * k : x0 + cellW - 7 * k + rnd() * 6 * k;
+      d.fillRect(side, y0 + rnd() * cellH, (2 + rnd() * 3) * k, (3 + rnd() * 16) * k);
+    }
+    // Tooling: gold into R, and under it the impression the hot tool left in
+    // the leather — darker, so where the gold has rubbed away the tooling
+    // still shows, as it does on an old binding.
+    const tool = (path) => {
+      d.fillStyle = 'rgba(0,0,0,0.28)'; d.strokeStyle = 'rgba(0,0,0,0.2)'; d.lineWidth = 1.4 * k;
+      path(d); d.fill(); d.stroke();
+      g.fillStyle = GOLD;
+      path(g); g.fill();
+    };
+    const bar = (x, y, w, hh) => tool((c) => { c.beginPath(); c.rect(x, y, w, hh); });
+    const dot = (x, y, r) => tool((c) => { c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); });
+    const blind = (x, y, w, hh, a = 0.3) => { d.fillStyle = `rgba(0,0,0,${a})`; d.fillRect(x, y, w, hh); };
+    const cx = x0 + cellW / 2;
+    // a fleuron: one of a few tools, as a binder owned a few
+    const fleuron = (cy, r, design) => {
+      if (design === 0) {
+        // four petals and a ring of points
+        for (let q = 0; q < 4; q++) {
+          const a = (q * Math.PI) / 2;
+          tool((c) => { c.beginPath(); c.ellipse(cx + Math.cos(a) * r * 0.48, cy + Math.sin(a) * r * 0.48, r * 0.36, r * 0.13, a, 0, Math.PI * 2); });
+          dot(cx + Math.cos(a + Math.PI / 4) * r * 0.62, cy + Math.sin(a + Math.PI / 4) * r * 0.62, r * 0.07);
+        }
+        dot(cx, cy, r * 0.13);
+      } else if (design === 1) {
+        // a lozenge, open, with a point inside and one off each tip
+        tool((c) => {
+          c.beginPath();
+          c.moveTo(cx, cy - r * 0.75); c.lineTo(cx + r * 0.5, cy); c.lineTo(cx, cy + r * 0.75); c.lineTo(cx - r * 0.5, cy); c.closePath();
+          c.moveTo(cx, cy - r * 0.5); c.lineTo(cx - r * 0.3, cy); c.lineTo(cx, cy + r * 0.5); c.lineTo(cx + r * 0.3, cy); c.closePath();
+        });
+        dot(cx, cy, r * 0.1);
+        for (const [dx, dy] of [[0, -0.95], [0, 0.95], [-0.7, 0], [0.7, 0]]) dot(cx + dx * r, cy + dy * r, r * 0.07);
+      } else {
+        // a star of eight rays round a boss
+        tool((c) => {
+          c.beginPath();
+          for (let q = 0; q < 16; q++) {
+            const a = (q * Math.PI) / 8, rr = q % 2 ? r * 0.22 : r * (q % 4 ? 0.55 : 0.8);
+            c.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr);
+          }
+          c.closePath();
+        });
+        d.fillStyle = 'rgba(0,0,0,0.3)';
+        d.beginPath(); d.arc(cx, cy, r * 0.12, 0, Math.PI * 2); d.fill();
+      }
+    };
+    if (kind === 'cloth') {
+      // the publisher's rules at head and tail, blocked in gold
+      for (const t of [0.04, 0.052, 0.948, 0.96]) bar(x0 + 5 * k, Y(t), cellW - 10 * k, 1.4 * k);
+      bar(x0 + 18 * k, Y(0.385), cellW - 36 * k, 1.2 * k);
+    }
+    if (kind === 'vellum') {
+      // a shelf-mark in ink near the tail, and the sewing thongs laced through
+      d.fillStyle = 'rgba(52,32,14,0.5)';
+      d.fillRect(cx - 6 * k, Y(0.86), 12 * k, 3 * k);
+      d.fillRect(cx - 3 * k, Y(0.885), 6 * k, 2.4 * k);
+      for (const t of [0.2, 0.4, 0.6, 0.8]) {
+        for (const x of [x0, x0 + cellW - 6 * k]) {
+          d.fillStyle = 'rgba(70,50,30,0.16)';
+          d.fillRect(x, Y(t) - 2 * k, 6 * k, 4 * k);
+        }
+      }
+    }
+    if (!smooth) {
+      const bandGilt = cell.bandGilt, rich = kind === 'rich';
+      for (const t of cell.bands) {
+        const by = Y(t), bh = BAND_HALF * cellH, fy = FILLET_AT * cellH;
+        const ridge = d.createLinearGradient(0, by - bh * 1.25, 0, by + bh * 1.25);
+        ridge.addColorStop(0, 'rgba(255,245,225,0.28)');
+        ridge.addColorStop(0.5, 'rgba(255,245,225,0.08)');
+        ridge.addColorStop(1, 'rgba(0,0,0,0.45)');
+        d.fillStyle = ridge;
+        d.fillRect(x0, by - bh * 1.25, cellW, bh * 2.5);
+        h.fillStyle = 'rgb(220,220,220)';
+        h.fillRect(x0, by - bh, cellW, bh * 2);
+        h.fillStyle = 'rgb(255,255,255)';
+        h.fillRect(x0, by - bh / 2, cellW, bh);
+        if (bandGilt) {
+          bar(x0 + 3 * k, by - fy, cellW - 6 * k, 1.5 * k);
+          bar(x0 + 3 * k, by + fy - 1.5 * k, cellW - 6 * k, 1.5 * k);
+          if (rich) {
+            // a second fillet outside each, and a rope roll run over the band
+            // (slanted strokes, as the wheel of the tool leaves them)
+            bar(x0 + 3 * k, by - fy - 3 * k, cellW - 6 * k, 0.9 * k);
+            bar(x0 + 3 * k, by + fy + 2.1 * k, cellW - 6 * k, 0.9 * k);
+            const rh = bh * 0.55;
+            for (let x = x0 + 6 * k; x < x0 + cellW - 7 * k; x += 3.4 * k) {
+              tool((c) => {
+                c.beginPath();
+                c.moveTo(x, by + rh); c.lineTo(x + 1.3 * k, by + rh);
+                c.lineTo(x + 1.3 * k + rh * 0.9, by - rh); c.lineTo(x + rh * 0.9, by - rh);
+                c.closePath();
+              });
+            }
+          }
+        } else if (kind === 'plain') {
+          blind(x0 + 3 * k, by - fy, cellW - 6 * k, 1.2 * k);
+          blind(x0 + 3 * k, by + fy - 1.2 * k, cellW - 6 * k, 1.2 * k);
+        }
+      }
+      if (rich) {
+        // rolls at the head and the tail
+        for (const t of [0.035, 0.965]) {
+          bar(x0 + 4 * k, Y(t) - 0.6 * k, cellW - 8 * k, 1.2 * k);
+          for (let x = x0 + 7 * k; x < x0 + cellW - 7 * k; x += 6 * k) dot(x, Y(t) + (t < 0.5 ? 3.2 : -3.2) * k, 1 * k);
+        }
+      }
+      // The compartments: the title's left bare (the shader letters it), an
+      // ornament in the rest — on a rich binding a fleuron with a point in each
+      // corner, on a gilt-banded one a small single tool, on the rest nothing.
+      if (rich || bandGilt) {
+        const design = Math.floor(rnd() * 3), corners = rich && rnd() < 0.6;
+        const edges = [0.035, ...cell.bands, 0.965];
+        for (let c = 0; c < edges.length - 1; c++) {
+          // (and none under a number tooled straight onto the leather: the
+          // shader can take the gold off an ornament, not its impression)
+          if (c === 1 || (c === 2 && cell.style === TITLE_STYLE.gilt)) continue;
+          const a = Y(edges[c]) + (c ? FILLET_AT * cellH + 2 * k : 4 * k), b = Y(edges[c + 1]) - FILLET_AT * cellH - 2 * k;
+          if (b - a < 10 * k) continue;
+          const cy = (a + b) / 2, r = Math.min(cellW * 0.3, (b - a) * 0.36);
+          if (rich) fleuron(cy, r, design);
+          else dot(cx, cy, Math.min(2.4 * k, r * 0.25));
+          if (corners) for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) dot(cx + sx * (cellW / 2 - 12 * k), cy + sy * ((b - a) / 2 - 6 * k), 1.3 * k);
+        }
+      }
+    }
+    d.restore();
+    g.restore();
+  });
+  const D = d.getImageData(0, 0, W, H).data, G = g.getImageData(0, 0, W, H).data, Hh = h.getImageData(0, 0, W, H).data;
+  const [out, o] = canvas(W, H);
+  const img = o.createImageData(W, H);
+  for (let i = 0; i < W * H; i++) {
+    // (a hash, not the stream: four million draws from it took a third of a second)
+    let n = Math.imul(i, 0x9e3779b1);
+    n = Math.imul(n ^ (n >>> 15), 0x85ebca77);
+    const v = D[i * 4] + (((n ^ (n >>> 13)) >>> 24) - 128) * 0.055;
+    img.data[i * 4] = G[i * 4];
+    img.data[i * 4 + 1] = v < 0 ? 0 : v > 255 ? 255 : v;
+    img.data[i * 4 + 2] = Hh[i * 4];
+    img.data[i * 4 + 3] = 255;
+  }
+  o.putImageData(img, 0, 0);
+  return { mask: toTexture(out, { srgb: false, anisotropy: 8 }), hide: bindingHide() };
+}
+
+// The titles: three pages of TITLE_COLS × TITLE_ROWS cells, one page to each
+// of R, G and B, a title lettered in white on black in each cell, filling it
+// as a binder fills a label (the shader fits the cell, not the letters, to
+// the label, so the letters keep their shape on any book). The first
+// NUMERALS slots are the volume numbers I to XVI.
+//
+// The Library's books are, as Borges says, almost all gibberish: so are most
+// of their titles, set from his twenty-two letters with the comma, the full
+// stop and the space, and set lower case (his books have no capitals) in an
+// italic. The rest are the books the story names — Combed Thunder, The
+// Plaster Cramp, Axaxaxas mlö, the catalogue of catalogues, the true story of
+// your death — and the books of the man who wrote it, in English and in
+// Spanish (the walk descends in one and climbs in the other), and the Latin
+// of an old library's shelf.
+export const TITLE_COLS = 8, TITLE_ROWS = 16, TITLE_PAGES = 3, NUMERALS = 16;
+export const TITLE_ASPECT = 2;
+export const TITLE_COUNT = TITLE_PAGES * TITLE_COLS * TITLE_ROWS - NUMERALS;
+const TITLES = [
+  // the story's own
+  'COMBED THUNDER', 'THE PLASTER CRAMP', 'AXAXAXAS MLÖ', 'TRUENO PEINADO', 'EL CALAMBRE DE YESO',
+  'M C V', 'DHCMRLCHTDJ', 'VINDICATIONS', 'VINDICACIONES', 'THE CATALOGUE OF CATALOGUES', 'CATÁLOGO DE CATÁLOGOS',
+  'A FALSE CATALOGUE', 'THE FAITHFUL CATALOGUE', 'ON THE FALLACY OF THE TRUE CATALOGUE', 'THE GOSPEL OF BASILIDES',
+  'COMMENTARY ON THE COMMENTARY', 'THE TRUE STORY OF YOUR DEATH', 'THE LOST BOOKS OF TACITUS', 'BEDE ON THE SAXONS',
+  'AUTOBIOGRAPHIES OF THE ARCHANGELS', 'A HISTORY OF THE FUTURE', 'O TIME THY PYRAMIDS', 'OH TIEMPO TUS PIRÁMIDES',
+  'THE MAN OF THE BOOK', 'EL HOMBRE DEL LIBRO', 'THE CRIMSON HEXAGON', 'EL HEXÁGONO CARMESÍ', 'THE TOTAL BOOK',
+  'EL LIBRO TOTAL', 'THE CYCLIC BOOK', 'INTERPOLATIONS', 'A GRAMMAR OF GUARANÍ', 'THE ELEGANT HOPE',
+  'UNLIMITED AND CYCLICAL', 'ILIMITADA Y PERIÓDICA', 'FOUR HUNDRED AND TEN PAGES', 'THE TWENTY-FIVE SYMBOLS',
+  'ON THE HEXAGON', 'OF SPIRAL STAIRS', 'THE INQUISITORS', 'THE PURIFIERS', 'THE INFINITE LIBRARY',
+  'LA BIBLIOTECA TOTAL', 'TRANSLATIONS OF EVERY BOOK', 'THE IMPERFECT LIBRARIAN',
+  // the man who wrote it
+  'THE GARDEN OF FORKING PATHS', 'EL JARDÍN DE SENDEROS QUE SE BIFURCAN', 'TLÖN, UQBAR, ORBIS TERTIUS',
+  'A FIRST ENCYCLOPAEDIA OF TLÖN', 'THE BOOK OF SAND', 'EL LIBRO DE ARENA', 'THE ALEPH', 'EL ALEPH', 'THE ZAHIR',
+  'PIERRE MENARD', 'THE APPROACH TO AL-MUTASIM', 'LABYRINTHS', 'LABERINTOS', 'THE SECRET MIRACLE', 'EL MILAGRO SECRETO',
+  'THE WRITING OF THE GOD', 'THE IMMORTAL', 'EL INMORTAL', 'DEATH AND THE COMPASS', 'LA MUERTE Y LA BRÚJULA',
+  'THE HOUSE OF ASTERION', 'LA CASA DE ASTERIÓN', 'HERBERT QUAIN', 'THE LOTTERY IN BABYLON', 'FUNES',
+  'THE CIRCULAR RUINS', 'LAS RUINAS CIRCULARES', 'A NEW REFUTATION OF TIME', 'THE BOOK OF IMAGINARY BEINGS',
+  'A UNIVERSAL HISTORY OF INFAMY', 'HISTORIA DE LA ETERNIDAD', 'FICCIONES', 'EL HACEDOR', 'DREAMTIGERS',
+  'OTRAS INQUISICIONES', 'EL OTRO, EL MISMO', 'ELOGIO DE LA SOMBRA', 'EL ORO DE LOS TIGRES', 'DISCUSIÓN',
+  'DEL RIGOR EN LA CIENCIA', 'TS’UI PÊN', 'THE ANGLO-AMERICAN CYCLOPAEDIA',
+  // the galleries of this walk
+  'THE VESTIBULE', 'THE ECHO', 'THE SILENCE', 'THE VERTIGO', 'THE DOOR', 'THE WEB OF TIME', 'EL ECO', 'EL SILENCIO',
+  'EL VÉRTIGO', 'LA PUERTA', 'ESPEJOS', 'MIRRORS', 'ESCALERAS', 'THE LAMPS', 'LAS LÁMPARAS',
+  // an old library's Latin
+  'DE INFINITO', 'DE HEXAGONIS', 'BIBLIOTHECA UNIVERSALIS', 'SPECULUM MUNDI', 'OPERA OMNIA', 'ARS MAGNA',
+  'DE ARTE COMBINATORIA', 'THEATRUM MUNDI', 'SUMMA', 'INDEX LIBRORUM', 'DE LABYRINTHO', 'DE NATURA RERUM',
+  'MUNDUS SUBTERRANEUS', 'ETYMOLOGIAE', 'ORBIS PICTUS', 'DE SILENTIO', 'DE TEMPORE', 'ANNALES', 'CHRONICON',
+  'SERMONES', 'EPISTOLAE', 'COMMENTARII', 'HISTORIA NATURALIS', 'DE SPECULIS', 'ARS MEMORIAE', 'LIBER LIBRORUM',
+  'CODEX HEXAGONALIS', 'DE ORDINE', 'DE LUCE', 'FRAGMENTA', 'MISCELLANEA',
+  // and its English and Spanish
+  'SERMONS', 'ESSAYS', 'LETTERS', 'POEMS', 'ANNALS', 'MEMOIRS', 'DIALOGUES', 'TRAVELS', 'LEXICON', 'CONCORDANCE',
+  'GLOSSES', 'TABLES OF THE STARS', 'A DICTIONARY OF THE LOST TONGUE', 'TRATADO DE LA ESFERA', 'MEMORIAS', 'CARTAS',
+  'POESÍAS', 'CRÓNICAS', 'ON LAMPS AND THEIR OIL', 'OF THE AIR SHAFTS',
+];
+// Borges's twenty-two letters (he does not say which; these are twenty-two)
+const LETTERS = 'abcdeghilmnopqrstuvxyz', VOWELS = 'aeiou';
+const gibberish = (rnd) => {
+  const pick = (s) => s[Math.floor(rnd() * s.length)];
+  const word = () => {
+    const mode = rnd();
+    let w = '';
+    if (mode < 0.45) {
+      // a run of letters, any letters
+      for (let n = 0, len = 2 + Math.floor(rnd() ** 1.5 * 10); n < len; n++) w += pick(LETTERS);
+    } else if (mode < 0.85) {
+      // something you could almost say
+      for (let n = 0, len = 1 + Math.floor(rnd() * 4); n < len; n++) w += (rnd() < 0.7 ? pick(LETTERS) : '') + pick(VOWELS) + (rnd() < 0.4 ? pick(LETTERS) : '');
+    } else {
+      // a few letters said over and over
+      const s = pick(LETTERS) + pick(VOWELS);
+      w = s.repeat(2 + Math.floor(rnd() * 3));
+    }
+    return w;
+  };
+  const words = Array.from({ length: 1 + Math.floor(rnd() ** 1.4 * 3) }, word);
+  let text = words.join(' ');
+  if (rnd() < 0.2) text = text.replace(' ', ', ');
+  if (rnd() < 0.15) text += '.';
+  return { text, lower: true };
+};
+export function titleList({ seed = 37 } = {}) {
+  const rnd = makeRng(seed);
+  const out = TITLES.slice(0, TITLE_COUNT).map((text) => ({ text, lower: false }));
+  while (out.length < TITLE_COUNT) {
+    const g = gibberish(rnd);
+    // a third of the gibberish lettered in capitals all the same: a binder
+    // letters what he is given
+    out.push(rnd() < 0.35 ? { text: g.text.toUpperCase(), lower: false } : g);
+  }
+  return out;
+}
+const ROMAN = (n) => [[10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I']].reduce((s, [v, r]) => { while (n >= v) { s += r; n -= v; } return s; }, '');
+export function spineTitles({ cellW = 256, cellH = 128 } = {}) {
+  const W = cellW * TITLE_COLS, H = cellH * TITLE_ROWS, per = TITLE_COLS * TITLE_ROWS;
+  const titles = titleList();
+  const pages = Array.from({ length: TITLE_PAGES }, () => canvas(W, H)[1]);
+  const FACE = 'Georgia, "Book Antiqua", "Palatino Linotype", "Times New Roman", serif';
+  for (const c of pages) {
+    c.fillStyle = '#000'; c.fillRect(0, 0, W, H);
+    c.fillStyle = '#fff'; c.textAlign = 'center'; c.textBaseline = 'alphabetic';
+  }
+  for (let slot = 0; slot < TITLE_PAGES * per; slot++) {
+    const c = pages[Math.floor(slot / per)], cell = slot % per;
+    const x0 = (cell % TITLE_COLS) * cellW, y0 = Math.floor(cell / TITLE_COLS) * cellH;
+    const numeral = slot < NUMERALS;
+    const { text, lower } = numeral ? { text: ROMAN(slot + 1), lower: false } : titles[slot - NUMERALS];
+    const font = (px) => (lower ? `italic 500 ${px}px ${FACE}` : `600 ${px}px ${FACE}`);
+    const track = lower ? 0.01 : numeral ? 0.04 : 0.09;
+    const padX = cellW * (numeral ? 0.18 : 0.05), padY = cellH * (numeral ? 0.14 : 0.08);
+    // measured at 100 px: each line's width and how far it reaches above and
+    // below its baseline
+    c.font = font(100);
+    c.letterSpacing = `${track * 100}px`;
+    const measure = (s) => {
+      const m = c.measureText(s);
+      return { w: m.width - track * 100, up: m.actualBoundingBoxAscent, down: m.actualBoundingBoxDescent };
+    };
+    // Every way of breaking it into one to three lines (a long word may be
+    // split with a hyphen, as binders split them), and the one that lets the
+    // letters be largest. A title of one word stays one line if it can.
+    const words = text.split(' ');
+    const ways = [];
+    const n = words.length;
+    for (let a = 1; a <= n; a++) {
+      for (let b = a; b <= n; b++) {
+        const lines = [words.slice(0, a), words.slice(a, b), words.slice(b)].filter((l) => l.length).map((l) => l.join(' '));
+        if (lines.length <= 3 && !ways.some((w) => w.join('|') === lines.join('|'))) ways.push(lines);
+      }
+    }
+    if (n === 1 && text.length >= 8) {
+      const mid = Math.floor(text.length / 2);
+      for (const cut of [mid - 1, mid, mid + 1]) ways.push([`${text.slice(0, cut)}-`, text.slice(cut)]);
+    }
+    let best = null;
+    for (const lines of ways) {
+      const ms = lines.map(measure);
+      const lead = lower ? 1.12 : 1.02;
+      const up = ms[0].up, down = ms[ms.length - 1].down;
+      const blockH = up + down + (lines.length - 1) * 100 * (lower ? 0.98 : 0.86) * lead;
+      // (and no larger than a binder would letter it: a title of two letters
+      // filled its label edge to edge, and from across the room it shouted)
+      const most = cellH * (numeral ? 0.72 : lower ? 0.6 : 0.48);
+      const size = Math.min((cellW - 2 * padX) / Math.max(...ms.map((m) => m.w)) * 100, (cellH - 2 * padY) / blockH * 100, most);
+      // (a hyphen costs a little: only worth it for letters a good deal larger)
+      const score = size * (lines.some((l) => l.endsWith('-')) ? 0.85 : 1) * (1 - 0.03 * (lines.length - 1));
+      if (!best || score > best.score) best = { lines, ms, size, up, blockH, lead, score };
+    }
+    const scale = best.size / 100;
+    c.font = font(best.size);
+    c.letterSpacing = `${track * best.size}px`;
+    let y = y0 + (cellH - best.blockH * scale) / 2 + best.up * scale;
+    best.lines.forEach((line) => {
+      // (letterSpacing trails the last letter too: shift back by half of it)
+      c.fillText(line, x0 + cellW / 2 + (track * best.size) / 2, y);
+      y += 100 * (lower ? 0.98 : 0.86) * best.lead * scale;
+    });
+  }
+  const P = pages.map((c) => c.getImageData(0, 0, W, H).data);
+  const [out, o] = canvas(W, H);
+  const img = o.createImageData(W, H);
+  for (let i = 0; i < W * H; i++) {
+    for (let p = 0; p < 3; p++) img.data[i * 4 + p] = P[p] ? P[p][i * 4] : 0;
+    img.data[i * 4 + 3] = 255;
+  }
+  o.putImageData(img, 0, 0);
+  return { map: toTexture(out, { srgb: false, anisotropy: 8 }) };
+}
+
+// The hide every binding is cut from, laid over a book at its own size (one
+// tile is HIDE_TILE units across) and at its own place in the tile, so no two
+// boards are the same piece of leather. The spine atlas drew grain as a few
+// hundred faint specks, and the mipmaps averaged them to nothing: past arm's
+// length every binding was one smooth tone, and a cover — which had no
+// texture at all — was a flat panel of paint. Three channels, all linear:
+//   R  tone    the mottle of the skin and of handling, the binder's sprinkle,
+//              pale scuffs, dark creases (128 is the leather as it is)
+//   G  height  the pebble of the grain, its pores, the creases and scuffs as
+//              grooves
+//   B  marble  stone marbling for the paper sides of a half binding: drops
+//              of colour floated one inside another, each with a dark rim
+export const HIDE_TILE = 24, HIDE_SIZE = 512;
+export function bindingHide({ size = HIDE_SIZE, seed = 29 } = {}) {
+  const rnd = makeRng(seed);
+  const S = size;
+  // every mark drawn wherever it crosses an edge too, so the tile repeats
+  const wrapped = (x, y, r, draw) => {
+    for (const dx of [-S, 0, S]) for (const dy of [-S, 0, S]) {
+      if (x + dx + r > 0 && x + dx - r < S && y + dy + r > 0 && y + dy - r < S) draw(x + dx, y + dy);
+    }
+  };
+  const [, t] = canvas(S);
+  const [, h] = canvas(S);
+  const [, m] = canvas(S);
+  t.fillStyle = grey(128); t.fillRect(0, 0, S, S);
+  h.fillStyle = grey(128); h.fillRect(0, 0, S, S);
+  m.fillStyle = grey(150); m.fillRect(0, 0, S, S);
+
+  // the mottle: a skin is never one tone, and hands and damp leave theirs
+  for (let k = 0; k < 90; k++) {
+    const x = rnd() * S, y = rnd() * S, r = 12 + rnd() ** 2 * 110;
+    const dark = rnd() < 0.62, a = dark ? 0.08 + rnd() * 0.16 : 0.05 + rnd() * 0.1, c = dark ? '0,0,0' : '255,255,255';
+    wrapped(x, y, r, (px, py) => {
+      const g = t.createRadialGradient(px, py, 0, px, py, r);
+      g.addColorStop(0, `rgba(${c},${a})`);
+      g.addColorStop(1, `rgba(${c},0)`);
+      t.fillStyle = g;
+      t.fillRect(px - r, py - r, r * 2, r * 2);
+    });
+  }
+  // sprinkled calf: the binder's spatter of dark, in a few drifts. (Spattered
+  // everywhere and dark, it survived the mipmaps as speckle, and a wall of
+  // books seen from across a room read as granite.)
+  for (let k = 0; k < 9; k++) {
+    const cx = rnd() * S, cy = rnd() * S, spread = 14 + rnd() * 40;
+    for (let n = 0, count = 20 + Math.floor(rnd() * 50); n < count; n++) {
+      const x = cx + (rnd() + rnd() + rnd() - 1.5) * spread, y = cy + (rnd() + rnd() + rnd() - 1.5) * spread;
+      const r = 0.6 + rnd() ** 3 * 1.4, a = 0.08 + rnd() * 0.16;
+      wrapped(((x % S) + S) % S, ((y % S) + S) % S, r, (px, py) => {
+        t.fillStyle = `rgba(0,0,0,${a})`;
+        t.beginPath(); t.arc(px, py, r, 0, Math.PI * 2); t.fill();
+      });
+    }
+  }
+  // Flaking: old calf loses its grain layer in patches, and what is left is
+  // paler, matt and sunk — sharp-edged, unlike a stain. These are what read as
+  // a worn binding from across a room, where the grain itself is long gone
+  // into the mipmaps.
+  for (let k = 0; k < 70; k++) {
+    const x = rnd() * S, y = rnd() * S, r = 3 + rnd() ** 2 * 16, n = 7 + Math.floor(rnd() * 6), a = 0.22 + rnd() * 0.22;
+    const pts = Array.from({ length: n }, (_, i) => {
+      const th = (i / n) * Math.PI * 2 + rnd() * 0.4, rr = r * (0.55 + rnd() * 0.45);
+      return [Math.cos(th) * rr, Math.sin(th) * rr * (0.5 + rnd() * 0.5)];
+    });
+    wrapped(x, y, r, (px, py) => {
+      for (const [g, style] of [[t, `rgba(255,236,214,${a})`], [h, 'rgba(0,0,0,0.3)']]) {
+        g.fillStyle = style;
+        g.beginPath();
+        pts.forEach(([dx, dy], i) => (i ? g.lineTo(px + dx, py + dy) : g.moveTo(px + dx, py + dy)));
+        g.closePath();
+        g.fill();
+      }
+    });
+  }
+  // the pebble of the grain, and its pores
+  for (let k = 0; k < 14000; k++) {
+    const x = rnd() * S, y = rnd() * S, r = 1 + rnd() * 1.4;
+    h.fillStyle = `rgba(255,255,255,${0.08 + rnd() * 0.14})`;
+    h.beginPath(); h.arc(x, y, r, 0, Math.PI * 2); h.fill();
+  }
+  for (let k = 0; k < 6000; k++) {
+    h.fillStyle = `rgba(0,0,0,${0.2 + rnd() * 0.2})`;
+    h.fillRect(rnd() * S, rnd() * S, 0.6 + rnd() * 0.6, 0.6 + rnd() * 0.6);
+  }
+  // creases (dark, sunk) and scuffs (pale where the grain is broken, and sunk)
+  const stroke = (pts, width, tone, height) => {
+    const r = Math.max(...pts.map(([x, y]) => Math.hypot(x - pts[0][0], y - pts[0][1]))) + width;
+    wrapped(pts[0][0], pts[0][1], r, (px, py) => {
+      for (const [g, style] of [[t, tone], [h, height]]) {
+        g.strokeStyle = style;
+        g.lineWidth = width;
+        g.lineCap = 'round';
+        g.beginPath();
+        pts.forEach(([x, y], i) => (i ? g.lineTo(x - pts[0][0] + px, y - pts[0][1] + py) : g.moveTo(px, py)));
+        g.stroke();
+      }
+    });
+  };
+  for (let k = 0; k < 50; k++) {
+    let x = rnd() * S, y = rnd() * S, ang = rnd() * Math.PI * 2;
+    const pts = [[x, y]];
+    for (let n = 0, segs = 4 + Math.floor(rnd() * 5); n < segs; n++) {
+      ang += (rnd() - 0.5) * 1.0;
+      const step = 6 + rnd() * 8;
+      x += Math.cos(ang) * step; y += Math.sin(ang) * step;
+      pts.push([x, y]);
+    }
+    stroke(pts, 0.8 + rnd() * 0.4, `rgba(0,0,0,${0.07 + rnd() * 0.07})`, 'rgba(0,0,0,0.35)');
+  }
+  for (let k = 0; k < 120; k++) {
+    const x = rnd() * S, y = rnd() * S, len = 3 + rnd() ** 2 * 26, ang = rnd() * Math.PI * 2;
+    stroke([[x, y], [x + Math.cos(ang) * len, y + Math.sin(ang) * len]], 0.8 + rnd() * 0.8,
+      `rgba(255,255,255,${0.05 + rnd() * 0.1})`, 'rgba(0,0,0,0.22)');
+  }
+  // stone marbling: each drop floated on the size pushes the last aside, so
+  // what the paper takes up is drops inside drops, each with a dark rim. At
+  // the size of a few millimetres on a board, as a marbler's are: drawn a
+  // hand across, they lay over a cover as polka dots.
+  const LEVELS = [70, 120, 150, 175, 210];
+  for (let k = 0; k < 5200; k++) {
+    const x = rnd() * S, y = rnd() * S, r = 1.4 + rnd() ** 1.8 * 7.5, v = LEVELS[Math.floor(rnd() * LEVELS.length)];
+    wrapped(x, y, r + 1, (px, py) => {
+      m.fillStyle = grey(v);
+      m.strokeStyle = 'rgba(25,25,25,0.7)';
+      m.lineWidth = 0.7;
+      m.beginPath(); m.arc(px, py, r, 0, Math.PI * 2); m.fill(); m.stroke();
+    });
+  }
+
+  const T = t.getImageData(0, 0, S, S).data, H = h.getImageData(0, 0, S, S).data, M = m.getImageData(0, 0, S, S).data;
+  const [out, o] = canvas(S);
+  const img = o.createImageData(S, S);
+  const clamp = (v) => (v < 0 ? 0 : v > 255 ? 255 : v);
+  for (let i = 0; i < S * S; i++) {
+    img.data[i * 4] = clamp(T[i * 4] + (rnd() - 0.5) * 4);
+    img.data[i * 4 + 1] = clamp(H[i * 4] + (rnd() - 0.5) * 10);
+    img.data[i * 4 + 2] = clamp(M[i * 4] + (rnd() - 0.5) * 8);
+    img.data[i * 4 + 3] = 255;
+  }
+  o.putImageData(img, 0, 0);
+  return toTexture(out, { srgb: false, anisotropy: 4 });
 }
 
 // ── The dressing of a bookcase ────────────────────────────────────────────────
@@ -520,8 +1695,9 @@ export function bayPlates({ cellW = 160, cellH = 96 } = {}) {
 // IV"): one letter to a cell, on nothing, so each is laid as its own quad and
 // a whole wall of them costs one texture. `glyphs[ch]` gives the cell and the
 // advance, in cap heights; a quad `cellW` × `cellH` caps, centred on the
-// letter, has the cap in its middle.
-export function giltLetters({ chars = 'ACDEGHILMNOVWX·', cols = 4, cellW = 160, cellH = 128, px = 112 } = {}) {
+// letter, has the cap in its middle. (Most of the alphabet: the Echo's rose
+// carries a whole sentence round its rim.)
+export function giltLetters({ chars = 'ABCDEFGHIKLMNOPRSTUVWXY·', cols = 6, cellW = 160, cellH = 128, px = 112 } = {}) {
   const rows = Math.ceil(chars.length / cols);
   const [col, c] = canvas(cols * cellW, rows * cellH);
   c.font = `600 ${px}px Georgia, "Times New Roman", serif`;
@@ -573,6 +1749,102 @@ export function shelfEdge({ w = 128, h = 64 } = {}) {
   for (let x = 4; x < w; x += 10) c.fillRect(x, 8, 5, 2);
   c.globalCompositeOperation = 'source-over';
   return toTexture(col, { anisotropy: 4 });
+}
+
+// ── Books at a distance ───────────────────────────────────────────────────────
+// The far galleries' shelves are only ever seen from over the walls (the map,
+// the rise at the end of the walk), and at their real size a book there is a
+// pixel or two across: their spines are painted, a strip of them per size of
+// book, and each shelf shows a stretch of its strip (buildWorld's shelfWall)
+// instead of a box for every one of them. `rows`: each size's heights, widths
+// and the room over it on its shelf, in units; `unit` pixels to a unit, along
+// the shelf and up it; `variants` strips of each size; `length` units along.
+// The strips are stacked with a dark margin between, so a coarse mip of one
+// does not bleed into the next.
+const BOOK_ROW_PAD = 4;
+export function bookRowsLayout({ rows, unit = 12, variants = 2, length = 128 }) {
+  let y = 0;
+  const at = [];
+  for (const r of rows) {
+    for (let v = 0; v < variants; v++) {
+      const h = Math.round(r.clear * unit);
+      at.push({ y: y + BOOK_ROW_PAD, h });
+      y += h + 2 * BOOK_ROW_PAD;
+    }
+  }
+  return { at, w: Math.round(length * unit), h: y };
+}
+export function bookRows({ rows, unit = 12, variants = 2, length = 128, palette, seed = 53 } = {}) {
+  const rnd = makeRng(seed);
+  const { at, w: W, h: H } = bookRowsLayout({ rows, unit, variants, length });
+  const [col, c] = canvas(W, H);
+  c.fillStyle = '#0a0705';
+  c.fillRect(0, 0, W, H);
+  const total = palette.reduce((n, p) => n + p.share, 0);
+  const pickBinding = () => { let r = rnd() * total; for (const p of palette) { r -= p.share; if (r <= 0) return p; } return palette[0]; };
+  const within = ([lo, hi]) => lo + (hi - lo) * rnd();
+  const shade = (hex, k) => {
+    const n = parseInt(hex.slice(1), 16);
+    const f = (v) => Math.min(255, Math.round(v * k));
+    return `rgb(${f(n >> 16)},${f((n >> 8) & 255)},${f(n & 255)})`;
+  };
+  rows.forEach((r, t) => {
+    for (let v = 0; v < variants; v++) {
+      const { y: top, h } = at[t * variants + v], base = top + h;
+      // the dark of the shelf over the books, darkest under the board above
+      const dark = c.createLinearGradient(0, top, 0, base);
+      dark.addColorStop(0, '#050302');
+      dark.addColorStop(1, '#1b130c');
+      c.fillStyle = dark;
+      c.fillRect(0, top, W, h);
+      // in runs, as the near shelves are (buildWorld's newRun)
+      let x = rnd() * 3, run = 0, B = null, kind = 'plain', hex = '#6f4c31', bh = 0, bw = 0;
+      for (;;) {
+        if (run <= 0) {
+          if (rnd() < 0.03) { x += within([0.4, 1]) * unit; continue; }
+          B = pickBinding();
+          const q = rnd();
+          kind = B.kind ?? (q < (t < 2 ? 0.14 : 0.25) ? 'rich' : q < (t < 2 ? 0.38 : 0.7) ? 'label' : 'plain');
+          hex = B.cols[Math.floor(rnd() * B.cols.length)];
+          bh = within(r.h) * unit;
+          bw = within(r.w) * unit * (kind === 'vellum' ? 0.85 : 1);
+          run = rnd() < 0.22 ? 1 : 2 + Math.floor(rnd() * rnd() * 8);
+        }
+        const w = Math.max(2, Math.round(bw * (0.97 + rnd() * 0.06))), hh = Math.round(bh * (0.99 + rnd() * 0.02));
+        // (a gap where the strip comes round to its start again)
+        if (x + w > W - 2) break;
+        const y0 = base - hh;
+        c.fillStyle = shade(hex, 0.86 + rnd() * 0.28);
+        c.fillRect(x, y0, w, hh);
+        // round: the joints in shadow, the crown catching the light
+        if (w >= 4) {
+          c.fillStyle = 'rgba(0,0,0,0.38)';
+          c.fillRect(x, y0, 1, hh);
+          c.fillRect(x + w - 1, y0, 1, hh);
+          c.fillStyle = 'rgba(255,226,180,0.08)';
+          c.fillRect(x + Math.round(w * 0.3), y0, Math.max(1, Math.round(w * 0.35)), hh);
+        }
+        if (kind !== 'vellum' && kind !== 'cloth') {
+          // raised bands, gilt on the rich bindings
+          c.fillStyle = kind === 'rich' ? 'rgba(201,160,90,0.85)' : 'rgba(0,0,0,0.3)';
+          for (const f of [0.08, 0.27, 0.42, 0.57, 0.72, 0.92]) c.fillRect(x, Math.round(y0 + hh * f), w, 1);
+        }
+        if (kind === 'label') {
+          c.fillStyle = 'rgba(158,138,104,0.9)';
+          c.fillRect(x + Math.max(1, Math.round(w * 0.15)), Math.round(y0 + hh * 0.29), Math.max(1, Math.round(w * 0.7)), Math.max(2, Math.round(hh * 0.1)));
+        } else if (kind === 'cloth') {
+          c.fillStyle = 'rgba(201,160,90,0.6)';
+          c.fillRect(x, Math.round(y0 + hh * 0.06), w, Math.max(1, Math.round(hh * 0.05)));
+        }
+        // the shadow along the head, and a hair of dark between books
+        c.fillStyle = 'rgba(0,0,0,0.45)';
+        c.fillRect(x, y0, w, 1);
+        x += w + (rnd() < 0.3 ? 1 : 0);
+        run--;
+      }
+    }
+  });
+  return { map: toTexture(col, { anisotropy: 4 }) };
 }
 
 // ── The garden ────────────────────────────────────────────────────────────────
@@ -1106,7 +2378,10 @@ export function glow(size = 128, hollow = 0) {
 // to paint is what a dressed face really carries: a slow mottle through the
 // bed, shell in it, the fine drag of the claw and a second drag across it,
 // soot and wash, and a grain the lamp rakes across in the normal map.
-export function limestone({ size = 1024, seed = 61, tone = [164, 157, 144] } = {}) {
+// `honed`: a finished face, not a dressed one — no claw marks, the shell and
+// grain fainter, the bed run along the stone's length, as a column's is (it
+// is cut with the bed upright).
+export function limestone({ size = 1024, seed = 61, tone = [164, 157, 144], honed = false } = {}) {
   const rnd = makeRng(seed);
   const [col, c] = canvas(size);
   const [hei, hg] = canvas(size);
@@ -1159,7 +2434,7 @@ export function limestone({ size = 1024, seed = 61, tone = [164, 157, 144] } = {
   // The claw's drag, in short parallel sets at the mason's angle, and a second
   // pass across it: faint in the colour, clear in the normal map, so it only
   // shows where a lamp grazes the face.
-  for (let set = 0; set < 170; set++) {
+  for (let set = 0; set < (honed ? 0 : 170); set++) {
     const x = rnd() * size, y = rnd() * size, a = (rnd() < 0.5 ? 0.35 : -0.5) + (rnd() - 0.5) * 0.3;
     const L = 20 + rnd() * 60, teeth = 4 + Math.floor(rnd() * 5), gap = 2.2 + rnd() * 1.4;
     for (let t = 0; t < teeth; t++) {

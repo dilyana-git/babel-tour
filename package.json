@@ -5,12 +5,27 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:checked": "node tools/navigation-watch.mjs --dev",
     "build": "vite build",
     "lint": "oxlint",
     "check:governor": "node tools/governor-check.mjs",
     "check:walk": "node tools/walk-check.mjs",
+    "check:selenium": "node tools/selenium/run.mjs",
     "check:walls": "node tools/wall-check.mjs",
+    "check:navigation": "node --test tools/navigation-check.mjs tools/navigation-properties-check.mjs tools/navigation-runner-check.mjs tools/navigation-observations-check.mjs tools/finale-lifecycle-check.mjs tools/probe-check.mjs tools/input-activation-check.mjs tools/spiral-check.mjs",
+    "check:navigation:browser": "node tools/navigation-browser-check.mjs",
+    "check:navigation:smoke": "node tools/navigation-browser-check.mjs --suite=smoke",
+    "check:navigation:contracts": "node tools/navigation-browser-check.mjs --suite=contracts",
+    "check:navigation:all": "npm run check:navigation && npm run check:navigation:browser -- --suite=all",
+    "check:navigation:watch": "node tools/navigation-watch.mjs",
+    "check:navigation:watch:fast": "node tools/navigation-watch.mjs --tier=fast",
+    "dev:checked:fast": "node tools/navigation-watch.mjs --dev --tier=fast",
+    "check:fast": "npm run lint -- src tools && npm run check:governor && npm run check:navigation",
+    "check:legacy": "node tools/legacy-browser-check.mjs",
+    "check:project": "npm run check:major && npm run check:legacy",
+    "check:major": "npm run lint -- src && npm run check:governor && npm run check:navigation:all && npm run build",
     "review:ux": "node tools/ux-review-agent.mjs",
+    "review:world-ux": "node tools/ux-world-audit.mjs",
     "verify:assets": "node tools/verify-assets.mjs",
     "check:deploy": "npm run lint -- src && npm run verify:assets && npm run check:governor && npm run build && node tools/verify-dist.mjs",
     "preview": "vite preview"
@@ -21,13 +36,15 @@
     "@react-three/postprocessing": "^3.0.4",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
-    "three": "^0.185.1"
+    "three": "^0.185.1",
+    "three-mesh-bvh": "^0.8.3"
   },
   "devDependencies": {
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.3",
     "oxlint": "^1.71.0",
+    "selenium-webdriver": "^4.49.0",
     "vite": "^8.1.1"
   }
 }
