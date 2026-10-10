@@ -104,21 +104,39 @@ export function makePaperMaterial({ lattice = false, flame = [0, -0.25, 0], gain
 // A candle flame: a teardrop (flameGeometry), hottest low in the middle where
 // the eye looks into it, orange to its tip, and soft at its edges — added to
 // the frame, never painted over it.
-export function makeFlameMaterial() {
+// `alive` (doorProps.js, 4): it leans and draws up a little as the air moves,
+// each flame in its own time (`uTime`), and burns a little brighter and lower
+// with it. Slowly: a flame that changed faster than a breath read as blinking.
+export function makeFlameMaterial({ alive = false } = {}) {
   return new THREE.ShaderMaterial({
-    vertexShader: LOCAL_VS,
+    uniforms: { uTime: { value: 0 } },
+    vertexShader: alive ? LOCAL_VS
+      .replace('varying vec3 vL;', `varying vec3 vL;
+  varying float vBreath;
+  uniform float uTime;`)
+      .replace('vec4 local = vec4(position, 1.0);', `vec4 local = vec4(position, 1.0);
+    float ph = 0.0;
+    #ifdef USE_INSTANCING
+      ph = dot(instanceMatrix[3].xyz, vec3(1.7, 3.1, 2.3));
+    #endif
+    float up = smoothstep(-0.5, 1.0, position.y);
+    local.x += up * up * (0.2 * sin(uTime * 2.3 + ph) + 0.11 * sin(uTime * 3.7 + ph * 1.3));
+    local.z += up * up * 0.14 * sin(uTime * 2.9 + ph * 0.6);
+    local.y += max(0.0, position.y + 0.3) * 0.09 * sin(uTime * 1.9 + ph * 0.7);
+    vBreath = 1.0 + 0.07 * sin(uTime * 1.3 + ph) + 0.04 * sin(uTime * 2.9 + ph * 2.1);`) : LOCAL_VS,
     fragmentShader: /* glsl */ `
       varying vec3 vN;
       varying vec3 vV;
       varying vec3 vC;
       varying vec3 vL;
+      ${alive ? 'varying float vBreath;' : 'const float vBreath = 1.0;'}
       void main() {
         ${THROUGH}
         float y = vL.y;
         float core = (1.0 - smoothstep(-0.6, 0.35, y)) * smoothstep(-1.0, -0.72, y);
         vec3 col = mix(vec3(1.0, 0.42, 0.1), vec3(1.0, 0.9, 0.7), pow(through, 2.0) * (0.3 + 0.7 * core));
         float a = pow(through, 1.4) * (1.0 - 0.75 * smoothstep(0.25, 1.0, y)) * smoothstep(-1.0, -0.82, y);
-        gl_FragColor = vec4(vC * col * a, 1.0);
+        gl_FragColor = vec4(vC * col * a * vBreath, 1.0);
       }
     `,
     transparent: true,

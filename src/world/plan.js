@@ -6,13 +6,21 @@
 // page has, long before the world's own chunk has arrived, and the ink only
 // turns into the stone if both are looking through the same lens.
 import * as THREE from 'three';
+import { mapOld } from './mapFix';
 
 export const TILT_ELEVATION = 52 * (Math.PI / 180);
 export const TILT_FOV = 30;
+// Turned a little off due north (the eye to the east of south), so that the
+// walk, which climbs north-east from the Vestibule, runs flatter across the
+// screen — from the bottom left into the centre right — and the garden it ends
+// in is given the right third of the frame instead of its top corner
+// (2026-10-09, board 2 · 4).
+export const TILT_YAW = mapOld(4) ? 0 : 9 * (Math.PI / 180);
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
 
 export const placeTilted = (cam, d, target) => {
-  cam.position.set(target.x, target.y + Math.sin(TILT_ELEVATION) * d, target.z + Math.cos(TILT_ELEVATION) * d);
+  const flat = Math.cos(TILT_ELEVATION) * d;
+  cam.position.set(target.x + Math.sin(TILT_YAW) * flat, target.y + Math.sin(TILT_ELEVATION) * d, target.z + Math.cos(TILT_YAW) * flat);
   cam.up.copy(WORLD_UP);
   cam.lookAt(target);
   cam.updateMatrixWorld();
@@ -43,12 +51,38 @@ export const restPose = (aspect, points, reserveLeft) => {
     }
     return true;
   };
-  let lo = 300, hi = 60000;
-  for (let k = 0; k < 40; k++) {
-    const mid = (lo + hi) / 2;
-    if (fits(mid)) hi = mid; else lo = mid;
+  const fit = () => {
+    let lo = 300, hi = 60000;
+    for (let k = 0; k < 40; k++) {
+      const mid = (lo + hi) / 2;
+      if (fits(mid)) hi = mid; else lo = mid;
+    }
+    placeTilted(cam, hi, target);
+    return hi;
+  };
+  // Aimed at the middle of the points in the world, the frame came to rest
+  // against its left and bottom bounds only (the Vestibule's corner), with the
+  // garden well short of the right: so the aim is panned until the points sit
+  // centred between the left and right bounds on the screen, and on the
+  // bottom one — as low as they go, out from under the title and the caption
+  // in the top left (centred up and down, the Vestibule and the Echo went in
+  // under the caption at 1280 × 720) — and fitted again.
+  let distance = fit();
+  const right = new THREE.Vector3(), up = new THREE.Vector3();
+  for (let k = 0; k < (mapOld(4) ? 0 : 4); k++) {
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    for (const [x, y, z] of points) {
+      v.set(x, y, z).project(cam);
+      x0 = Math.min(x0, v.x); x1 = Math.max(x1, v.x); y0 = Math.min(y0, v.y); y1 = Math.max(y1, v.y);
+    }
+    const halfH = distance * Math.tan((TILT_FOV * Math.PI) / 360), halfW = halfH * aspect;
+    right.setFromMatrixColumn(cam.matrixWorld, 0);
+    up.setFromMatrixColumn(cam.matrixWorld, 1);
+    target.addScaledVector(right, ((x0 + x1 - left - BOUNDS.right) / 2) * halfW)
+      .addScaledVector(up, (y0 - BOUNDS.bottom) * halfH);
+    distance = fit();
   }
-  placeTilted(cam, hi, target);
+  const hi = distance;
   return { position: cam.position.clone(), quaternion: cam.quaternion.clone(), distance: hi, camera: cam, shift, target };
 };
 

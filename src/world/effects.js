@@ -862,6 +862,57 @@ export function makeFoliagePrepass(map, wind, kinds = 1) {
   return material;
 }
 
+// The same sprays for a wood that is only ever a backdrop (the cedars behind
+// the maze: webProps.js, 2). There the belt is the upper half of the frame,
+// every pixel of it leaf, and lit as the garden's trees are it cost a third of
+// the frame — the moon and its shadow, six lamps and the sky, run for a wall
+// of trees two hundred units off in the dark. Lit here once per corner of a
+// card instead, by the same three things the others take their light from
+// (`light`: the moon's colour and the way to it, the sky's and the ground's,
+// and the scene's own fill — the caller keeps them at the world's) and
+// shaded the same way: turned out from its clump, darker inside it, darker on
+// its far side. No shadow falls on it and it writes its own depth, so it is
+// drawn once.
+export function makeBackdropFoliage(map, wind, kinds, light) {
+  const material = new THREE.MeshBasicMaterial({ map, alphaTest: 0.42, side: THREE.DoubleSide });
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.uWind = wind;
+    Object.assign(shader.uniforms, light);
+    shader.vertexShader = foliageVertex(kinds, true)(shader)
+      .replace('#include <common>', `#include <common>
+        uniform vec3 uBackMoon;
+        uniform vec3 uBackMoonDir;
+        uniform vec3 uBackSky;
+        uniform vec3 uBackGround;
+        uniform vec3 uBackFill;
+        varying vec3 vBackLit;`)
+      .replace('#include <project_vertex>', `#include <project_vertex>
+        vBackLit = vec3(1.0);
+        #ifdef USE_INSTANCING
+          {
+            vec3 cardW = (modelMatrix * instanceMatrix * vec4(position, 1.0)).xyz;
+            vec3 outward = cardW - aCrown.xyz;
+            float reach = length(outward);
+            outward = reach > 1e-3 ? outward / reach : vec3(0.0, 1.0, 0.0);
+            vec3 flatN = normalize(mat3(modelMatrix) * mat3(instanceMatrix) * normal);
+            flatN *= sign(dot(flatN, outward) + 1e-4);
+            vec3 n = normalize(mix(flatN, outward, 0.78));
+            vec3 lit = uBackMoon * max(dot(n, uBackMoonDir), 0.0) + mix(uBackGround, uBackSky, 0.5 + 0.5 * n.y) + uBackFill;
+            float deep = aCrown.w > 0.0 ? clamp(reach / aCrown.w, 0.0, 1.0) : 1.0;
+            vec3 toEye = normalize(cameraPosition - cardW);
+            vBackLit = lit * 0.3183 * mix(0.42, 1.0, smoothstep(0.1, 0.95, deep)) * mix(0.5, 1.0, smoothstep(-0.5, 0.35, dot(n, toEye)));
+          }
+        #endif`);
+    shader.fragmentShader = foliageAlpha(shader)
+      .replace('#include <common>', `#include <common>
+        varying vec3 vBackLit;`)
+      .replace('#include <color_fragment>', `#include <color_fragment>
+        diffuseColor.rgb *= vBackLit;`);
+  };
+  material.customProgramCacheKey = () => `babel-foliage-back-${kinds}`;
+  return material;
+}
+
 // The same sprays, as the moon's shadow map sees them: cut by the same column
 // of the atlas, so a crown's shadow on the grass has the holes its leaves have.
 // (The map and the alpha test are handed over by three at render time.)
@@ -878,7 +929,17 @@ export function makeFoliageDepthMaterial(kinds) {
 // growing up from a branch.) `aKind` picks the column of `map` a card shows
 // (see textures.js, `hanging`); a card is PlaneGeometry(1, 1) moved down so its
 // top edge is on the anchor.
-export function makeHangingMaterial(map, wind, kinds) {
+//
+// `keepCoverage` (pavilionFix.js, 4): a willow's card (kinds 4 and 5) keeps its
+// coverage down the mip chain. Averaged into smaller mips a strand's alpha
+// falls under the alpha test and the strand breaks into dashes that come and
+// go as it sways; its alpha is raised a little for every level the texture
+// has shrunk by (0.15), so it stays a strand as it goes small.
+// `weep` (pavilionProps.js, 6): a willow's strand darkens to its tip (`tip`,
+// beside its top), gives back less of its own colour (`glow` of what the rest
+// do, and none of it at the tip — lit all the way down, the curtain was
+// bright strings on the night), and moves `sway` times as far in the wind.
+export function makeHangingMaterial(map, wind, kinds, { keepCoverage = false, weep = null } = {}) {
   const material = new THREE.MeshStandardMaterial({
     map, alphaTest: 0.38, side: THREE.DoubleSide, roughness: 0.82,
     // Seen against the moonlit garden from a lamplit room, a strand lit only
@@ -890,9 +951,14 @@ export function makeHangingMaterial(map, wind, kinds) {
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `#include <common>
         uniform float uWind;
-        attribute float aKind;`)
+        attribute float aKind;
+        varying float vHangKind;
+        varying float vHangDown;`)
       .replace('#include <uv_vertex>', `#include <uv_vertex>
+        vHangKind = 0.0;
+        vHangDown = clamp(-position.y, 0.0, 1.0);
         #ifdef USE_INSTANCING
+          vHangKind = aKind;
           vMapUv.x = (vMapUv.x + aKind) / ${kinds.toFixed(1)};
           vEmissiveMapUv.x = (vEmissiveMapUv.x + aKind) / ${kinds.toFixed(1)};
         #endif`)
@@ -902,11 +968,33 @@ export function makeHangingMaterial(map, wind, kinds) {
           float hang = clamp(-position.y, 0.0, 1.0);
           float sway = sin(uWind * 0.9 + anchor.x * 0.07 + anchor.z * 0.05) * 0.22
             + sin(uWind * 2.3 + anchor.z * 0.19 + anchor.y * 0.13) * 0.07;
+          ${weep ? `sway *= mix(1.0, ${weep.sway.toFixed(2)}, step(3.5, aKind));` : ''}
           transformed.x += sway * hang * hang;
           transformed.z += sway * 0.8 * hang * hang;
         #endif`);
+    if (keepCoverage || weep) {
+      shader.fragmentShader = shader.fragmentShader.replace('#include <common>', `#include <common>
+        varying float vHangKind;
+        varying float vHangDown;`);
+    }
+    if (weep) {
+      shader.fragmentShader = shader.fragmentShader
+        .replace('#include <color_fragment>', `#include <color_fragment>
+          if (vHangKind > 3.5) diffuseColor.rgb *= mix(1.0, ${weep.tip.toFixed(3)}, smoothstep(0.1, 0.95, vHangDown));`)
+        .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+          if (vHangKind > 3.5) totalEmissiveRadiance *= ${weep.glow.toFixed(3)} * (1.0 - vHangDown);`);
+    }
+    if (keepCoverage) {
+      const size = map.image ? [map.image.width, map.image.height] : [128 * kinds, 512];
+      shader.fragmentShader = shader.fragmentShader
+        .replace('#include <map_fragment>', `#include <map_fragment>
+          if (vHangKind > 3.5) {
+            vec2 texels = max(abs(dFdx(vMapUv)), abs(dFdy(vMapUv))) * vec2(${size[0].toFixed(1)}, ${size[1].toFixed(1)});
+            diffuseColor.a *= 1.0 + max(0.0, log2(max(texels.x, texels.y))) * 0.15;
+          }`);
+    }
   };
-  material.customProgramCacheKey = () => 'babel-hanging';
+  material.customProgramCacheKey = () => `babel-hanging${keepCoverage ? '-cover' : ''}${weep ? `-weep-${weep.tip}-${weep.glow}` : ''}`;
   return material;
 }
 
@@ -1086,6 +1174,7 @@ const sparkVertex = /* glsl */ `
   uniform float uRise;
   uniform float uPulse;
   uniform float uRate;
+  uniform float uBlink;
   attribute vec3 aColor;
   attribute float aPhase;
   attribute float aSize;
@@ -1098,6 +1187,14 @@ const sparkVertex = /* glsl */ `
     // with a full swing they strobed; the mix with 1.0 (uPulse) is how much of
     // the mote's brightness is allowed to swing at all.
     float pulse = mix(1.0, 0.45 + 0.55 * max(0.0, sin(uTime * 0.95 + aPhase * 3.0)), uPulse);
+    // Or a firefly's flash (uBlink, webFix.js 5): each on a beat of its own,
+    // 2.4 to 6.4 s, at its own moment in it — a quick rise, a fade over most
+    // of a second, and between flashes only an ember. Glowing steadily they read
+    // as dust on the lens; flashing out of step they read as things alive.
+    float period = 2.4 + fract(aPhase * 0.618) * 4.0;
+    float since = fract(uTime / period + fract(aPhase * 0.377)) * period;
+    float flash = smoothstep(0.0, 0.12, since) * (1.0 - smoothstep(0.12, 0.9, since));
+    pulse = mix(pulse, 0.1 + 1.5 * flash, uBlink);
     vColor = aColor * pulse;
     gl_PointSize = clamp(aSize * uScale / max(1.0, -mv.z), 1.0, 64.0);
     gl_Position = projectionMatrix * mv;
@@ -1114,7 +1211,7 @@ const sparkFragment = /* glsl */ `
   }
 `;
 
-export function makeSparkles(items, { drift = 6, rise = 0.5, pulse = 0, rate = 1, sizeOf = (it) => it.s[0] * 2 } = {}) {
+export function makeSparkles(items, { drift = 6, rise = 0.5, pulse = 0, rate = 1, blink = 0, sizeOf = (it) => it.s[0] * 2 } = {}) {
   const n = items.length;
   const position = new Float32Array(n * 3), color = new Float32Array(n * 3), phase = new Float32Array(n), size = new Float32Array(n);
   const c = new THREE.Color();
@@ -1135,7 +1232,7 @@ export function makeSparkles(items, { drift = 6, rise = 0.5, pulse = 0, rate = 1
   const material = new THREE.ShaderMaterial({
     uniforms: {
       uTime: { value: 0 }, uScale: { value: 500 }, uDrift: { value: drift },
-      uRise: { value: rise }, uPulse: { value: pulse }, uRate: { value: rate },
+      uRise: { value: rise }, uPulse: { value: pulse }, uRate: { value: rate }, uBlink: { value: blink },
     },
     vertexShader: sparkVertex,
     fragmentShader: sparkFragment,

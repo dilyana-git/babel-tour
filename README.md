@@ -7,10 +7,14 @@ built in three.js (`src/world/`), tilted to show its bookshelf walls — and
 choosing a room flies down into it. From there the reader stays in the world:
 **W** walks the way — the walk the piece itself makes, through every room and
 hallway, over the Echo's crossing, across the zigzag bridge and through the
-maze — and the reader only has to hold it. **A/D**, the **arrow keys** or a
-**drag** turn the head without changing the course while W stays held. To
-choose another course, release **W**, look in the direction you want to walk,
-and press **W** again. Rejoining the path heading along it resumes following
+maze — and the reader only has to hold it. While on it, the stone worn smooth
+along the way catches a little warm light a few strides ahead, and lets it go
+when you leave the way (`?wway=0` turns that off). **A/D**, the **arrow keys**
+or a **drag** turn the head while W stays held, and a glance leaves the course
+alone. Keep looking more than 35° off the course, the head settled, for about
+0.6 s, and the course turns to where you are looking (`?wgaze=0` turns that
+off). Releasing **W**, looking, and pressing **W** again also chooses a new
+course at once. Rejoining the path heading along it resumes following
 in that direction; crossing it sideways leaves you walking independently.
 In the Pavilion, keep **W** held to walk around the table and across the north
 bridge. The guided walk returns through the other side of the room before

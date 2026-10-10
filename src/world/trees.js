@@ -122,10 +122,14 @@ export class Wood {
 // Returns the wood (added to `wood`), the sprays and, for a willow, the whips:
 //   sprays  { p, s, rot, kind, shade, crown: [x, y, z, r] }
 //   whips   { p, len, wide, yaw, kind, shade }
-export function growTree(species, rng, wood, { H, S, lean = null, detail = true }) {
+// `weeping` (a willow's, pavilionProps.js 6): a stream of its own to dress the
+// willow from, as a weeping one — see the end of this.
+// `spire` (a cedar's, webProps.js 2): dressed as a spire — see the cedar.
+export function growTree(species, rng, wood, { H, S, lean = null, detail = true, skirt = 0, weeping = null, spire = null }) {
   const R = (a, b) => a + (b - a) * rng();
   const tint = new THREE.Color(BARK[species]);
   const sprays = [], whips = [];
+  let willow = null;
 
   // A limb from `from` along `dir`: `n` segments over `len`, radius r0 to r1,
   // `steer(d, t, i)` turning it at every node.
@@ -311,6 +315,7 @@ export function growTree(species, rng, wood, { H, S, lean = null, detail = true 
     tube(trunk, { flare: 0.55 });
     const c = end(trunk).p;
     const eave = H * R(0.52, 0.6), Rd = S;
+    willow = { c, eave, Rd };
     // the dome over the trunk's head: a point on it `f` of the way out
     const dome = (a, f) => V(c.x + Math.cos(a) * f * Rd, eave + (H - eave) * Math.sqrt(Math.max(0, 1 - f * f)), c.z + Math.sin(a) * f * Rd);
     const limbs = 5 + Math.floor(rng() * 2), turn = rng() * 6.28;
@@ -351,6 +356,51 @@ export function growTree(species, rng, wood, { H, S, lean = null, detail = true 
     const trunk = grow(V(), UP, H, r0, 0.3, 9, (d) => wobble(d, 0.04));
     tube(trunk, { flare: 0.5 });
     let y = H * R(0.2, 0.3), turn = rng() * 6.28;
+    // `skirt`: branched nearly to the ground, as a cedar grown for a screen
+    // is (webFix.js, 2) — its draw spent all the same
+    if (skirt) y = H * skirt;
+    // A spire (webProps.js, 2). Grown as below, a whorl every six to nine
+    // units whatever its reach, the upper half of a cedar was a bare stem with
+    // a tuft on it now and then: a telegraph pole. A whorl is set as far from
+    // the last as its own leaf reaches, so the leaf of one runs into the next
+    // from the grass to the leader; the lowest hang, the highest lift; and
+    // the reach falls away evenly, widest a little way up, so the whole is a
+    // cone with a ragged edge.
+    if (spire) {
+      y = H * Math.max(0.03, skirt * 0.6);
+      let whorl = 0;
+      while (y < H * 0.985) {
+        const t = y / H, on = at(trunk, t);
+        const reach = S * Math.pow(1 - t, spire.taper) * Math.min(1, 0.72 + (0.28 * t) / spire.belly) * R(0.82, 1.12) + 0.8;
+        const per = reach > 5 ? 3 : 2;
+        turn += R(0.6, 1.4);
+        // hanging at the foot, level at two thirds, lifting under the leader
+        const pitch = -0.5 + 0.85 * t;
+        const crown = [on.p.x, on.p.y - 2, on.p.z, reach + 5];
+        for (let k = 0; k < per; k++) {
+          const br = grow(on.p, heading(turn + (k / per) * 6.28 + R(-0.3, 0.3), pitch + R(-0.15, 0.15)), reach, Math.max(0.1, on.r * 0.3), 0.05, 2, (d, tt, i) => { if (i === 1) d.y += 0.3; wobble(d, 0.15); });
+          // (limbs only where a limb is seen: the long ones, on a tree that
+          // is ever stood under)
+          if (detail && reach > 9) tube(br);
+          const tip = end(br), mid = at(br, 0.5);
+          // (under the leader, where the reach is a spray's own width, the
+          // sprays stand taller than they are wide and hide the stem)
+          const w = Math.max(5.4, reach * spire.leaf), tall = reach < 5 ? 1.3 : 1;
+          sprays.push({ p: [mid.p.x, mid.p.y + R(-0.8, 1), mid.p.z], s: [w, w * R(0.78, 0.98) * tall, w], rot: [R(-0.35, 0.35), rng() * 6.28, R(-0.35, 0.35)], kind: LEAF.cedar, crown });
+          if (reach > 12 && k === 0 && detail) sprays.push({ p: [tip.p.x, tip.p.y + R(-1, 0.6), tip.p.z], s: [w * 0.62, w * 0.55, w * 0.62], rot: [R(-0.3, 0.3), rng() * 6.28, R(-0.3, 0.3)], kind: LEAF.cedar, crown });
+        }
+        // and leaf in close round the stem at every third whorl, so the stem
+        // is not a line drawn up the middle of the cone
+        if ((whorl++) % 3 === 0 && t > 0.25) {
+          const w = Math.max(4.2, reach * 0.85);
+          sprays.push({ p: [on.p.x, on.p.y + 0.6, on.p.z], s: [w, w * 1.15, w], rot: [R(-0.2, 0.2), rng() * 6.28, R(-0.2, 0.2)], kind: LEAF.cedar, crown });
+        }
+        y += Math.min(spire.step[1], Math.max(spire.step[0], reach * spire.close)) * R(0.85, 1.15) * (detail ? 1 : 1.4);
+      }
+      // the leader: three sprays, each narrower than the one under it
+      const top = end(trunk).p;
+      for (let k = 0; k < 3; k++) sprays.push({ p: [top.x, top.y - 3.6 + k * 2.4, top.z], s: [4.6 - k * 0.9, 6.6 - k * 0.8, 4.6 - k * 0.9], rot: [0, rng() * 6.28, 0], kind: LEAF.cedar, crown: [top.x, top.y - 6, top.z, 9] });
+    } else {
     while (y < H * 0.95) {
       const t = y / H, on = at(trunk, t);
       const reach = S * Math.pow(1 - t, 0.85) * R(0.8, 1.1) + 2.5;
@@ -377,6 +427,7 @@ export function growTree(species, rng, wood, { H, S, lean = null, detail = true 
     }
     const tip = end(trunk).p;
     for (let k = 0; k < 2; k++) sprays.push({ p: [tip.x, tip.y - k * 3, tip.z], s: [6 - k, 7, 6 - k], rot: [0, rng() * 6.28, 0], kind: LEAF.cedar, crown: [tip.x, tip.y - 6, tip.z, 9] });
+    }
   }
 
   // Shade: a crown is dark low down and in, where the rest of it stands
@@ -391,5 +442,73 @@ export function growTree(species, rng, wood, { H, S, lean = null, detail = true 
     }
   }
   for (const w of whips) w.shade = 0.8 + 0.25 * rng();
-  return { sprays, whips };
+
+  // A weeping willow (pavilionProps.js, 6). Dressed as above it was an
+  // umbrella pine: fifteen tufts lying level on the top of a dome, the limbs
+  // bare under them, and whips let down from under the tufts as separate
+  // bright strings. A willow is one round head of leaf that droops — fullest
+  // at its shoulders, falling away below them — and its curtain comes out of
+  // that head, not from under it. So: the leaf laid over the whole dome and
+  // each spray tipped outward with the dome's own slope (a spray lying level
+  // is a plate); a ring more of it hung below the shoulder; and the whips
+  // begun inside the leaf, broader, each a little off plumb. All of it from
+  // `weeping`, this willow's own stream, and after everything above has
+  // drawn what it always drew — the wood is the same wood, and the trees
+  // grown after this one are the trees they were. (`was`: the sprays it had,
+  // handed back too. Whoever stands the tree up draws a tint for each spray
+  // from the trees' stream, and must draw for those and not for these.)
+  let was = null;
+  if (weeping && willow) {
+    const { c, eave, Rd } = willow;
+    const W = (a, b) => a + (b - a) * weeping();
+    was = sprays.slice();
+    sprays.length = 0;
+    whips.length = 0;
+    const dome = (a, f, sink = 0) => V(c.x + Math.cos(a) * f * Rd, eave + (H - eave) * Math.sqrt(Math.max(0, 1 - f * f)) - sink, c.z + Math.sin(a) * f * Rd);
+    const crown = [c.x, eave - 6, c.z, Rd + 8];
+    const tilt = new THREE.Quaternion(), yaw = new THREE.Quaternion(), euler = new THREE.Euler();
+    const size = Math.min(1.2, H / 60);
+    const tuft = (a, f, sink, droop, w, tall) => {
+      const q = dome(a, Math.min(1, f), sink);
+      if (f > 1) { q.x += Math.cos(a) * (f - 1) * Rd; q.z += Math.sin(a) * (f - 1) * Rd; }
+      tilt.setFromAxisAngle(V(-Math.sin(a), 0, Math.cos(a)), -droop);
+      euler.setFromQuaternion(tilt.multiply(yaw.setFromAxisAngle(UP, weeping() * 6.28)));
+      sprays.push({ p: [q.x, q.y - 2.5, q.z], s: [w * size, w * tall * size, w * size], rot: [euler.x, euler.y, euler.z], kind: LEAF.willow, crown });
+    };
+    const turn = weeping() * 6.28;
+    // Over the top and down to the shoulder: small sprays, close-set, laid
+    // out on a sunflower's spiral so that none of the dome is bare. (Small:
+    // at the size a broad tree's sprays are, each leaf of these was a hand
+    // across and the willow a mango.)
+    const cap = detail ? 28 : 17;
+    for (let k = 0; k < cap; k++) {
+      const f = Math.sqrt((k + 0.5) / cap) * 0.98;
+      tuft(turn + k * 2.39996 + W(-0.2, 0.2), f, 0, f * f * 0.95, W(10.5, 14), 1);
+    }
+    // and below the shoulder, drooping
+    const skirts = detail ? 13 : 8;
+    for (let k = 0; k < skirts; k++) tuft(turn + ((k + 0.5) / skirts) * 6.28 + W(-0.2, 0.2), W(0.95, 1.05), H * W(0.05, 0.14), W(0.9, 1.2), W(10, 13), 1.3);
+    // What a willow is made of is what hangs. `fall`: a strand from the dome
+    // at `f`, begun in the leaf, `reach` long at the most and never nearer
+    // the grass than `bottom`.
+    const fall = (f, bottom, reach = Infinity) => {
+      const q = dome(weeping() * 6.28, f), y0 = q.y + W(-1, 2.5);
+      const len = Math.min(reach, y0 - bottom);
+      if (len > 5) {
+        whips.push({
+          p: [q.x, y0, q.z], len, wide: W(3.0, 4.6), yaw: weeping() * Math.PI, kind: 4 + Math.floor(weeping() * 2),
+          tilt: [W(-0.05, 0.05), W(-0.05, 0.05)], shade: W(0.72, 1),
+        });
+      }
+    };
+    // short ones all over the head, so the head itself is hung leaf
+    for (let k = 0; k < (detail ? 64 : 36); k++) fall(Math.sqrt(W(0.02, 0.8)), 0, W(11, 20));
+    // the curtain, longest round the rim
+    for (let k = 0; k < (detail ? 64 : 38); k++) fall(W(0.86, 1.02), W(3, 10));
+    for (let k = 0; k < (detail ? 28 : 16); k++) fall(W(0.55, 0.86), W(8, 20));
+    let lo = Infinity, hi = -Infinity;
+    for (const sp of sprays) { lo = Math.min(lo, sp.p[1]); hi = Math.max(hi, sp.p[1]); }
+    for (const sp of sprays) sp.shade = 0.5 + 0.42 * ((sp.p[1] - lo) / Math.max(1, hi - lo)) + 0.12 * Math.min(1, Math.hypot(sp.p[0] - c.x, sp.p[2] - c.z) / Rd);
+  }
+  return { sprays, whips, was };
 }

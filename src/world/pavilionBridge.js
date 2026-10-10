@@ -52,3 +52,15 @@ export function pavilionInterior(from, to, eyeHeight = 15) {
   }
   return [from, ...arc, to];
 }
+
+// In by a bay, once round the table and out by the same bay: the whole room
+// seen, and no about-turn on its threshold. The same radius as the walk
+// through (19.5 clears the table, cushion, columns and seats).
+export function pavilionRound(from, eyeHeight = 15) {
+  const start = Math.atan2(from[2] - PAVILION[1], from[0] - PAVILION[0]);
+  const arc = [];
+  for (let angle = start + Math.PI / 12; angle < start + Math.PI * 2 - Math.PI / 12; angle += Math.PI / 36) {
+    arc.push([PAVILION[0] + Math.cos(angle) * 19.5, 12.1 + eyeHeight, PAVILION[1] + Math.sin(angle) * 19.5]);
+  }
+  return [from, ...arc, from];
+}

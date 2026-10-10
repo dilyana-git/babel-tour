@@ -471,8 +471,11 @@ export function rockVariants(n, { seed = 6151, detail = 12, moss = 0.6 } = {}) {
 //   near(p)        how near the nearest way's gravel comes to p (its edge)
 // Returns the bank's arcs (geometries), its stones (geometries, in the world)
 // and its pebbles (instances: p, rot, s, color, v).
-export function pondShore({ edge, waterY, world, seed = 5813, light = false }) {
+export function pondShore({ edge, waterY, world, seed = 5813, light = false, bankVary = false, kerbVary = false }) {
   const rnd = makeRng(seed);
+  // (`kerbVary`'s choices from a stream of their own: forkFix.js, 4)
+  const kv = makeRng(seed + 77), KV = (lo, hi) => lo + (hi - lo) * kv();
+  let kerbLeft = 2 + Math.floor(kv() * 3);
   const R = (lo, hi) => lo + (hi - lo) * rnd();
   const { floorAt, gravelAt, under, clear, near } = world;
   // the rim: each chord in six, so the bank's own edge lies on the water's
@@ -574,7 +577,17 @@ export function pondShore({ edge, waterY, world, seed = 5813, light = false }) {
   const pos = new Float32Array(M * NC * 3), uvs = new Float32Array(M * NC * 2), shs = new Float32Array(M * NC * 3);
   const outer = new Uint8Array(M * NC);
   for (let i = 0; i < M; i++) {
-    const q = prof[i], cols = COLS(q), [w1, fall] = bankW[kinds[i]], bw = w1 * (0.75 + 0.5 * ring(sAt[i], 1.5, 12));
+    const q = prof[i], [w1, fall0] = bankW[kinds[i]], cols = COLS(q);
+    let bw = w1 * (0.75 + 0.5 * ring(sAt[i], 1.5, 12)), fall = fall0;
+    // `bankVary` (forkFix.js, 7): the pebbles' reach up the bank slowly half
+    // to half again as wide as its kind's, and here and there none at all —
+    // grass or the dark wet earth down to the water — so it is not one even
+    // pale band round the pond
+    if (bankVary) {
+      const wide = smoothstep(0.28, 0.72, ring(sAt[i], 9, 31)), gone = smoothstep(0.34, 0.5, ring(sAt[i], 20, 32));
+      bw *= (0.3 + 1.3 * wide) * gone;
+      fall *= 0.45 + 0.55 * gone;
+    }
     cols.forEach((x, c) => {
       const [wx, wz] = placeOf(i, x), k = i * NC + c;
       pos.set([wx, bankY(i, x, wx, wz), wz], k * 3);
@@ -712,12 +725,28 @@ export function pondShore({ edge, waterY, world, seed = 5813, light = false }) {
       // (river boulders, worn round: cut square they stood along the way like
       // a row of dark bricks)
       const big = rnd() < 0.22, low = !big && rnd() < 0.3;
-      const L = R(2.6, 6) * (big ? 1.5 : 1), D = R(2.4, 4) * (big ? 1.25 : 1), show = (low ? R(0.6, 1.1) : R(0.9, 1.9)) * (big ? 1.4 : 1);
+      let L = R(2.6, 6) * (big ? 1.5 : 1), D = R(2.4, 4) * (big ? 1.25 : 1), show = (low ? R(0.6, 1.1) : R(0.9, 1.9)) * (big ? 1.4 : 1);
+      // `kerbVary`: not one of a size every pace like beads on a string — a
+      // few to three times the size of the rest, small ones between, some
+      // sunk to half their height, and a gap now and then after a few
+      if (kerbVary) {
+        const k = kv() < 0.25 ? KV(1.4, 1.9) : kv() < 0.45 ? KV(0.45, 0.65) : KV(0.8, 1.1);
+        L *= k;
+        D *= Math.sqrt(k);
+        show *= (kv() < 0.3 ? 0.45 : 1) * Math.sqrt(k);
+      }
       if (tryStone(i, R(-0.5, 1), { L, D, show, round: R(0.55, 0.9), cuts: 1 + Math.floor(rnd() * 2), moss: R(0.3, 0.7), yaw: R(-0.35, 0.35), keep: 0.55 })) {
         // and a small one wedged into the joint, now and then
         if (rnd() < 0.45) tryStone(step(i, L / 2 + R(0.2, 0.8)), R(-1.2, 0.4), { L: R(1.2, 2.2), D: R(1, 1.8), show: R(0.4, 0.9), round: R(0.3, 0.7), cuts: 2, moss: R(0.2, 0.6), yaw: R(-1, 1), keep: 0.4 });
         for (let n = 0; n < 2; n++) pebble(step(i, L / 2 + R(-0.4, 0.6)), R(-0.6, 1.5), R(0.25, 0.55));
         s += L + R(-0.2, 1.4);
+        if (kerbVary && --kerbLeft <= 0) {
+          // the gap: the gravel's edge with only a pebble or two in it
+          const gap = KV(3, 10);
+          for (let n = 0, m = Math.floor(gap / 3); n < m; n++) pebble(step(i, KV(0, gap)), KV(-0.6, 1.2), KV(0.25, 0.6));
+          s += gap;
+          kerbLeft = 2 + Math.floor(kv() * 3);
+        }
       } else s += 1;
     } else if (kind === 'beach') {
       // (in the round at the water, where they break its edge; up the beach

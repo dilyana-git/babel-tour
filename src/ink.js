@@ -115,8 +115,13 @@ const RIMMED = TRACE;
 const PIT_RIMMED = 0.9;
 // Where the opening's camera starts: low behind the Vestibule, looking down
 // the walk toward the Vertigo (a yaw of -50° puts it on the Vestibule's side
-// of the walk), nearer and wider than the map's.
-const START = { yaw: -50, elevation: 38, near: 0.3, fov: 38 };
+// of the walk), nearer and wider than the map's. Its lens starts shifted down
+// and toward the title (in NDC, and gone by the time the camera rests): looking
+// down the walk put the Vestibule in the frame's middle and the Echo over the
+// top edge, so the first frame was lopsided, all its drawing up against the
+// top right and the first room after the Vestibule cut off (board 2 · L2;
+// `rest.lensed`, false with ?wmapfix=old:L2 — world/mapFix.js).
+const START = { yaw: -50, elevation: 38, near: 0.3, fov: 38, lensX: -0.12, lensY: 0.2 };
 // After the world is ready, whatever is left is drawn this much faster.
 const RUSH = 4;
 // The drawing's pace, and its pace while the world draws its first frames
@@ -423,14 +428,14 @@ export function startInk(canvas, { reducedMotion = false, devPace = 0 } = {}, em
   // it is restPose's camera exactly: 52° up, looking at the frame's middle, the
   // lens shifted by `shift` of the width (2 × shift in NDC).
   const eye = [0, 0, 0], fwd = [0, 0, 0], side = [0, 0, 0], up = [0, 0, 0];
-  let focal = 1, lens = 0;
+  let focal = 1, lens = 0, lensY = 0;
   // c: 0 is the opening's own look down the walk, 1 the map at rest
   const place = (c, t) => {
     const r = input.rest;
     const e = still ? 1 : smoother(c);
     const et = still ? 1 : smoother(Math.min(1, c * 1.18));
     const wander = (1 - e) ** 2;
-    const yaw = lerp(START.yaw, 0, e) * DEG
+    const yaw = lerp(START.yaw * DEG, r.yaw ?? 0, e)
       + (still ? 0 : (2.4 * Math.sin(t * 0.23) * wander + 9 * lean.x * (1 - e)) * DEG);
     const el = lerp(START.elevation * DEG, r.elevation, e)
       + (still ? 0 : (1.6 * Math.sin(t * 0.17 + 1) * wander - 6 * lean.y * (1 - e)) * DEG);
@@ -448,7 +453,9 @@ export function startInk(canvas, { reducedMotion = false, devPace = 0 } = {}, em
     up[1] = side[2] * fwd[0] - side[0] * fwd[2];
     up[2] = side[0] * fwd[1] - side[1] * fwd[0];
     focal = 1 / Math.tan((lerp(START.fov, r.fov, e) * DEG) / 2);
-    lens = 2 * r.shift * e;
+    const lensed = r.lensed ? 1 - e : 0;
+    lens = 2 * r.shift * e + START.lensX * lensed;
+    lensY = START.lensY * lensed;
   };
   // world → screen pixels (device), with the pixels a unit spans there; false if behind
   const out = [0, 0, 0];
@@ -459,7 +466,7 @@ export function startInk(canvas, { reducedMotion = false, devPace = 0 } = {}, em
     const xv = dx * side[0] + dy * side[1] + dz * side[2];
     const yv = dx * up[0] + dy * up[1] + dz * up[2];
     out[0] = ((xv * focal * H) / (zf * W) + lens + 1) * 0.5 * W;
-    out[1] = (1 - (yv * focal) / zf) * 0.5 * H;
+    out[1] = (1 - (yv * focal) / zf + lensY) * 0.5 * H;
     out[2] = (focal * 0.5 * H) / zf;
     return true;
   };

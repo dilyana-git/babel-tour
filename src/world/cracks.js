@@ -50,9 +50,13 @@ export const crackSize = ({ a0, a1, b0, b1, ppu }) => ({ w: Math.round((a1 - a0)
 // `rest`: what lies on the floor (rubble.js) — [along, into, half length, half
 // width, turn, how dark, round] — for the shade at its foot and the grit round it.
 // The pavement is the floor's: `tile` units to its canvas of `paveSize` pixels.
+// `taper` (doorFix.js, 5): a crack starts wide and thins all the way out to
+// its end, wider where the floor was hit harder, and branches and flakes
+// more; and here and there a piece of a slab has sunk and tipped further.
+// `dust`: the pale veil round each block, [how pale, how far out].
 export function crackFields({
   origin, along, into, a0, a1, b0, b1, ppu = 16,
-  breach = [-9, 12, 1.5, 6], blocks = [], rest = [],
+  breach = [-9, 12, 1.5, 6], blocks = [], rest = [], taper = false, dust = [0.17, 2.3],
   tile = 32, paveSize = 1024, paveSeed = 19, courses = 4, seed = 4242,
 }) {
   const { w: W, h: H } = crackSize({ a0, a1, b0, b1, ppu });
@@ -145,7 +149,7 @@ export function crackFields({
     let slab = paveKey;
     const path = { pts: [], gen };
     // the gape, opening and closing as it goes (value noise along its length)
-    const knots = Array.from({ length: Math.ceil(len / 0.9) + 2 }, () => 0.45 + rnd() * 1.1);
+    const knots = Array.from({ length: Math.ceil(len / 0.9) + 2 }, () => (taper ? 0.35 + rnd() * 1.3 : 0.45 + rnd() * 1.1));
     const gape = (t) => { const f = t / 0.9, i = Math.floor(f), u = f - i, sm = u * u * (3 - 2 * u); return knots[i] + (knots[i + 1] - knots[i]) * sm; };
     while (s < len) {
       if (seg <= 0) {
@@ -180,7 +184,11 @@ export function crackFields({
       }
       const t = s / len;
       const k = blow(a, b);
-      const hw = 0.5 * w * gape(s) * Math.min(1, ((1 - t) / 0.3) ** 0.8) * (0.7 + 0.3 * k);
+      // (tapered: half again as wide where it starts, and narrowing from there
+      // all the way to nothing; it was one width until its last third)
+      const hw = taper
+        ? 0.5 * w * gape(s) * 1.55 * (1 - t) ** 0.95 * (0.5 + 0.8 * k)
+        : 0.5 * w * gape(s) * Math.min(1, ((1 - t) / 0.3) ** 0.8) * (0.7 + 0.3 * k);
       // Run into another crack and it ends there: the stone is already broken
       // (cracks meet in a T, and never cross).
       const ci = Math.floor((a - a0) * ppu), cj = Math.floor((b - b0) * ppu), met = who[cj * W + ci];
@@ -189,7 +197,7 @@ export function crackFields({
       if (ended) break;
       path.pts.push(a, b, hw, segDir);
       // a branch, narrower, running off at an angle and not as far
-      if (gen < 2 && t < 0.8 && rnd() < [0.07, 0.035][gen] * step) {
+      if (gen < 2 && t < 0.8 && rnd() < (taper ? [0.11, 0.06] : [0.07, 0.035])[gen] * step) {
         queue.push({ a, b, dir: base + (rnd() < 0.5 ? -1 : 1) * R(0.35, 0.95), len: Math.min(len - s, R(3, 14)) * R(0.4, 1), w: w * R(0.45, 0.7), gen: gen + 1, parent: id });
       }
     }
@@ -234,10 +242,11 @@ export function crackFields({
       since = 0;
       const [a, b, hw, dir] = pts.slice(p, p + 4);
       const k = blow(a, b);
-      next = -Math.log(1 - rnd()) * (gen ? 2.2 : 1.1) / (0.35 + k);
+      next = -Math.log(1 - rnd()) * (gen ? 2.2 : 1.1) / (0.35 + k) / (taper ? 1.5 : 1);
       if (hw * ppu < 0.25) continue;
       const side = rnd() < 0.5 ? -1 : 1, ta = Math.cos(dir), tb = Math.sin(dir), na = -tb * side, nb = ta * side;
-      const la = R(0.14, 0.6) * (0.6 + 0.6 * k), lp = R(0.07, 0.28) * (0.6 + 0.6 * k), depth = R(0.012, 0.035);
+      const big = taper ? 1 + 0.9 * k : 1;
+      const la = R(0.14, 0.6) * (0.6 + 0.6 * k) * big, lp = R(0.07, 0.28) * (0.6 + 0.6 * k) * big, depth = R(0.012, 0.035);
       const ca = a + na * hw, cb = b + nb * hw;
       const h1 = R(0.1, 0.3), p1 = rnd() * 6.28, h2 = R(0.05, 0.15), p2 = rnd() * 6.28;
       const reach = Math.max(la, lp) * 1.4 * ppu;
@@ -290,10 +299,16 @@ export function crackFields({
     if (p.edge) return [0, 0, 0];
     const a = a0 + (p.ci + 0.5) / ppu, b = b0 + (p.cj + 0.5) / ppu, k = blow(a, b);
     const main = largest.get(p.key) === id, crumb = p.n < 40;
-    const sink = k * R(0.3, 1) * 0.12 * (main ? 0.12 : crumb ? 1.4 : 1);
+    let sink = k * R(0.3, 1) * 0.12 * (main ? 0.12 : crumb ? 1.4 : 1);
     // tipped, but never so far that its high side stands proud of the floor
     const radius = Math.sqrt(p.n / Math.PI) / ppu * 1.5 + 0.2;
-    const tilt = Math.min(k * R(0.004, 0.03) * (main ? 0.3 : 1), (sink * 1.15) / radius), th = rnd() * Math.PI * 2;
+    let tilt = Math.min(k * R(0.004, 0.03) * (main ? 0.3 : 1), (sink * 1.15) / radius), th = rnd() * Math.PI * 2;
+    // (and now and then a good piece of a slab, near where it was struck,
+    // gone down three or four centimetres and tipped into the gap)
+    if (taper && !main && p.n > 1500 && k > 0.2 && rnd() < 0.4) {
+      sink = R(0.25, 0.45) * (0.6 + 0.4 * k);
+      tilt = Math.min(R(0.025, 0.05), (sink * 1.15) / radius);
+    }
     return [-sink, tilt * Math.cos(th), tilt * Math.sin(th), a, b];
   });
   const base = new Float32Array(N);
@@ -362,7 +377,7 @@ export function crackFields({
         const q = j * W + i, o = away(a0 + (i + 0.5) / ppu, b0 + (j + 0.5) / ppu, st);
         const s = depth * Math.exp(-o / fall);
         shade[q] = 1 - (1 - shade[q]) * (1 - s);
-        if (!round) veil[q] = Math.max(veil[q], 0.17 * Math.exp(-o / 2.3));
+        if (!round) veil[q] = Math.max(veil[q], dust[0] * Math.exp(-o / dust[1]));
       }
     }
     // its grit: round a block, a thousand grains; round a stone, a few

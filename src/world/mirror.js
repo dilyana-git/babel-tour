@@ -23,6 +23,7 @@
 // off keeps the last thing it showed. `GLASS.budget` is how many may be drawn
 // in one frame (?wglass=0: none — every glass holds its first image).
 import * as THREE from 'three';
+import { vestOld } from './vestFix';
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 export const GLASS = {
@@ -375,6 +376,7 @@ const fragmentShader = /* glsl */ `
   uniform vec4 uGlass;   // half width, side, head radius, height
   uniform vec2 uTexel;
   uniform float uSeed;
+  uniform float uAged;   // 1: the silvering of 2026-10-08 (vestFix.js, point 4)
   varying vec2 vLocal;
 
   float mHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
@@ -410,7 +412,7 @@ const fragmentShader = /* glsl */ `
     vec2 uv = vec2((hw - p.x) / (2.0 * hw), p.y / H);
     uv += vec2(-out2.x / (2.0 * hw), out2.y / H) * bev * 0.7 + wob;
     vec2 lo = uTexel, hi = 1.0 - uTexel;
-    vec2 o = uTexel * 0.6;
+    vec2 o = uTexel * (uAged > 0.5 ? 0.35 : 0.6);
     vec3 refl = 0.25 * (
       texture2D(uMap, clamp(uv + vec2(o.x, o.y), lo, hi)).rgb + texture2D(uMap, clamp(uv + vec2(-o.x, o.y), lo, hi)).rgb +
       texture2D(uMap, clamp(uv + vec2(o.x, -o.y), lo, hi)).rgb + texture2D(uMap, clamp(uv - o, lo, hi)).rgb);
@@ -426,12 +428,31 @@ const fragmentShader = /* glsl */ `
     float spots = smoothstep(0.66, 0.78, fox) * (0.15 + 0.85 * edge) * 0.55;
     float loss = clamp(rot * 0.65 + spots, 0.0, 1.0);
     float silver = mix(0.86, 0.2, loss) * (0.94 + 0.06 * cloud);
-    vec3 col = refl * mix(vec3(0.95, 0.9, 0.82), vec3(0.8, 0.66, 0.5), spots) * silver;
+    vec3 tint = mix(vec3(0.95, 0.9, 0.82), vec3(0.8, 0.66, 0.5), spots);
+    if (uAged > 0.5) {
+      // Old silver: darker all through and warmer, and going brown from the
+      // frame in, so the glass gives back the room — dimmer than the room is
+      // — and never shines on its own. A bright pale plate read as a frosted
+      // panel lit from behind: the lamp over the stand, and its halo, filled
+      // all of it. The highlights are held down too (old silver loses the top
+      // of the light first), so the lamp in it is a lamp and not a glow.
+      // (the loss kept to a band round the frame: the middle of the glass
+      // holds its silver, and shows the room plainly)
+      float rim = 1.0 - smoothstep(0.0, 4.0, d);
+      rot = smoothstep(0.62, 0.86, cloud * 0.5 + rim * 0.7);
+      spots = smoothstep(0.62, 0.76, fox) * (0.05 + 0.95 * rim) * 0.7 + 0.25 * rim * rim;
+      loss = clamp(rot * 0.7 + spots, 0.0, 1.0);
+      silver = mix(0.84, 0.16, loss) * (0.95 + 0.05 * cloud);
+      tint = mix(vec3(0.94, 0.84, 0.68), vec3(0.62, 0.45, 0.28), clamp(spots, 0.0, 1.0));
+      float peak = max(refl.r, max(refl.g, refl.b));
+      refl /= 1.0 + 0.2 * peak;
+    }
+    vec3 col = refl * tint * silver;
     // where it has gone, the dark of the backing
     col += vec3(0.010, 0.0085, 0.0065) * loss;
     // the bevel's inner arris catches what light there is
     float ridge = exp(-pow((d - 0.85) / 0.1, 2.0));
-    col *= 1.0 + 0.3 * ridge + 0.15 * bev;
+    col *= 1.0 + (uAged > 0.5 ? 0.18 : 0.3) * ridge + (uAged > 0.5 ? 0.06 : 0.15) * bev;
     if (uHas < 0.5) col = vec3(0.018, 0.016, 0.013) * (0.6 + 0.4 * cloud);
     gl_FragColor = vec4(col, 1.0);
     #include <tonemapping_fragment>
@@ -467,6 +488,7 @@ export function makeMirrors({ root, keep, light = false }) {
         uGlass: { value: new THREE.Vector4(hw, side, hw, H) },
         uTexel: { value: new THREE.Vector2(1 / 16, 1 / 16) },
         uSeed: { value: mirrors.length * 7.31 + 2.2 },
+        uAged: { value: vestOld(4) ? 0 : 1 },
       },
       vertexShader,
       fragmentShader,

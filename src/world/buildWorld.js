@@ -20,13 +20,13 @@
 import * as THREE from 'three';
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { buildVestibuleBridge } from './vestibuleBridge';
-import { PAVILION, PAVILION_BRIDGE, PAVILION_NORTH_BRIDGE, PAVILION_BRIDGE_HALF_WIDTH, pavilionCrossing, pavilionInterior } from './pavilionBridge';
+import { PAVILION, PAVILION_BRIDGE, PAVILION_NORTH_BRIDGE, PAVILION_BRIDGE_HALF_WIDTH, pavilionCrossing, pavilionInterior, pavilionRound } from './pavilionBridge';
 import { pierLantern, lanternPaneGeometry } from './sconce';
 import { LAMPS, POOL_SHADOW, stairSconce, makePaperMaterial, makeFlameMaterial, flameGeometry, waxGlowGeometry, waxGlowMaterial, shadeLit, floorPools, bakeFloorPools, floorPoolPatch, makePoolShadowBake } from './lampPass';
 import { CEDAR, CEDAR_WOOD, pavingLayout, bookRowsLayout, foliageAtlas, FOLIAGE_KINDS, glow as glowTexture, makeRng, SPINE_KINDS, TITLE_COUNT, friezeBand, bayPlates, PLATE_CELLS, giltLetters, shelfEdge, purbeck, hanging, HANGING_KINDS } from './textures';
 import { paintNow } from './paint';
 import { glintLights, GLINT_N } from './effects';
-import { makeBookMaterial, makeShaftMaterial, shaftVolume, makeSparkles, makeGlowMaterial, makeLampGlobeMaterial, makeFoliageMaterial, makeFoliageDepthMaterial, makeFoliagePrepass, makeHangingMaterial, crossedCards, spineAt, titleAt, BOOKS_TITLED, BOOKS_GIANT, GRAZE } from './effects';
+import { makeBookMaterial, makeShaftMaterial, shaftVolume, makeSparkles, makeGlowMaterial, makeLampGlobeMaterial, makeFoliageMaterial, makeFoliageDepthMaterial, makeFoliagePrepass, makeBackdropFoliage, makeHangingMaterial, crossedCards, spineAt, titleAt, BOOKS_TITLED, BOOKS_GIANT, GRAZE } from './effects';
 import { growTree, Wood } from './trees';
 import { growHedge, rectUnionLoops, stripLoop } from './hedges';
 import { buildPortal, PORTAL } from './portal';
@@ -36,18 +36,35 @@ import { buildFinale } from './finale';
 import { makeDoorway } from './doorway';
 import { makeMirrors } from './mirror';
 import { buildWalkers, readerMaterial } from './walkers';
+import { vestOld } from './vestFix';
+import { echoOld, ECHO_STAND_R, moonBeamPatch, drumUvGlsl } from './echoFix';
+import { vertigoOld, STAND_TURN, STAND_PITCH, WELL, shelfLip, LIP_COLOR, MISSING, bookHash } from './vertigoFix';
+import { silenceOld, LAMP_AT, BOUNCE, deadGlassPatch, CROWN_BACK, ARCH_LIFT, ROBE, SHEEN } from './silenceFix';
+import { forkOld, STAND as FORK_STAND, WAYMARK, RAKE, rakeOffset, rakeScuffs, edgeStones, BANK_VARY } from './forkFix';
+import { pavOld, STAND as PAV_STAND, standOn, bracketSet, BRACKET, lotusBud, WILLOW_BROAD } from './pavilionFix';
+import { propsOld, FORK_STONE, BLOSSOM_NIGHT, FINIALS, HEDGE_SHEEN, LAWN, ROOF_KIND } from './forkProps';
+import { pavPropsOld, CAIHUA, DARK_GILT, WILLOW, qin, qinCloth, wornBar, wornPost } from './pavilionProps';
+import { lawnBlades, bladeLit } from './lawn';
+import { ROOF_TIERS, roofProfile, roofTop, tiledRoof, roofTiles, ROOF_SURFACE } from './pavilionRoof';
+import { webOld, SCREEN, GATE as WEB_GATE, screenPlaces, openGate, FLIES, WALLS, pedestalGeometry, pedestalLetters } from './webFix';
+import { auditOld, FILLET, FILLET_BRASS, deadOpal } from './auditFix';
+import { webPropsOld, BELT, SPIRE, closeBelt, graduatedRing } from './webProps';
+import { mapOld, PIT_FADE, RIM_WARM } from './mapFix';
+import { doorPropsOld, STAND as DOOR_STAND, SPILL as DOOR_SPILL, SIDE_LAMP as DOOR_SIDE_LAMP, LADDER_U as DOOR_LADDER_U, CANDLES as DOOR_CANDLES, candleWax, splayedBook, tentBook } from './doorProps';
+import { doorOld, FALLEN as DOOR_FALLEN_HEAPS, DUST as DOOR_DUST, SHAFT_K, LANTERN_HALO, CRACKS as DOOR_CRACK_STYLE, LAMP_Y as DOOR_LAMP_Y, revealShade } from './doorFix';
 import { readerGeometry, ROBES } from './readers';
 import { VANTAGES } from './vantages';
 import { hexAislePoint, roundAislePoint, pathToPoint, makeWalkCurve } from './walkPath';
 import { lightPoolSize } from '../capability';
-import { SPIRAL, spiralAt, makeEndlessSpiral } from './spiral';
+import { SPIRAL, spiralAt, makeEndlessSpiral, GAPS, BRINK_OLD, bookAt } from './spiral';
 import { VRAIL_OLD, VLAND_OLD, buildVertigoRail, endlessRail } from './vertigoRail';
 // (imported for what it does to three.js's lighting before anything compiles)
 import { softGain } from './lightModel';
 import { uvGrain, ringGrain, WOOD_OLD, WALNUT_TILE, CEDAR_TILE } from './woodGrain';
 import { CRACK_SLOPE, crackSize } from './cracks';
 import { rubbleLayout, fallenBlock, fragment, RUBBLE_TILE } from './rubble';
-import { rockVariants, pondShore, bridgeFoot, guardStones, shoreRockLit, bankLit } from './shore';
+import { rockVariants, gardenRock, pondShore, bridgeFoot, guardStones, shoreRockLit, bankLit } from './shore';
+import { ivyLeafGeometry, ivyLeafTexture, leafletGeometry, backPaler, stoneCaster, growIvy, hangIvy, twineWisteria, compoundLeaf } from './ivy';
 
 export const FRAME = [1440, 900];
 // The palette (see World.jsx): the stone was a warm greige that stayed brown
@@ -73,6 +90,11 @@ const RUBBLE_OLD = typeof window !== 'undefined' && new URLSearchParams(window.l
 // bank, the set stones and the granite pier and step of shore.js.
 const SHORE_OLD = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('wshore') === 'old';
 const stoneTint = (was, now) => (OLD_PALETTE ? was : now);
+// ?wivy=old: the Door's ivy as it was before 2026-10-09 — cards of painted
+// green blots on the arch's garden face and the passage walls — and the
+// pergola's vines as one plain tube of timber, not the grown ivy and twined,
+// barked, leaved wisteria of ivy.js.
+const IVY_OLD = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('wivy') === 'old';
 // ?wglare=old: the lamps and the moon's shaft as they were before 2026-09-26 —
 // halos sized in the room, and light columns that stay whole with the eye
 // inside them (the milky Echo crossing), to compare against.
@@ -177,7 +199,11 @@ const BOOK_ROWS = {
 // (dir 150) from its middle, which is assembleWorld's GATE, worked out again
 // here from the honeycomb's numbers because the painting begins before the
 // world is built (assembleWorld checks that the two agree).
-const DOOR_FALLEN = [[-42, 31, 11, 5.4, 7], [-24, 38, 8, 4.4, 6], [40, 38, 10, 5, 7.5], [47, 50, 7, 4, 5.5], [-50, 46, 6, 3.4, 5], [25, 46, 6.5, 3.6, 5]];
+// (since 2026-10-09 in two heaps under the breach, wedged and bedded in the
+// floor: doorFix.js, 2; ?wdoorfix=old:2 for the six spread over the floor)
+const DOOR_FALLEN = doorOld(2)
+  ? [[-42, 31, 11, 5.4, 7], [-24, 38, 8, 4.4, 6], [40, 38, 10, 5, 7.5], [47, 50, 7, 4, 5.5], [-50, 46, 6, 3.4, 5], [25, 46, 6.5, 3.6, 5]]
+  : DOOR_FALLEN_HEAPS;
 const DOOR_CRACKS = (() => {
   const A = (100 * Math.sqrt(3)) / 2, D = 2 * A + 50, E0 = [D * Math.cos(30 * deg), D * Math.sin(30 * deg)];
   const door = [232 + 4 * E0[0], 785 + 4 * E0[1] - 4 * D];
@@ -194,8 +220,19 @@ const DOOR_CRACKS = (() => {
     // and where the blocks and the stones lie (rubble.js), for the shade at
     // their feet and the grit round them
     rest: RUBBLE_OLD ? [] : rubbleLayout(DOOR_FALLEN, frame).rest,
+    // (doorFix.js: 5, cracks that taper all the way out; 2, more dust round
+    // what fell)
+    ...(DOOR_CRACK_STYLE.taper ? { taper: true } : {}),
+    ...(doorOld(2) ? {} : { dust: DOOR_DUST }),
   };
 })();
+// The Door's portal in the world (portal.js's frame: x along the wall, z into
+// the room, from the middle of the opening), for its stone's shader
+// (doorFix.js, 3). assembleWorld sets the portal there.
+const PORTAL_FRAME = {
+  origin: [DOOR_CRACKS.origin[0] + DOOR_CRACKS.along[0] * 1.5, DOOR_CRACKS.origin[1] + DOOR_CRACKS.along[1] * 1.5],
+  x: DOOR_CRACKS.along, z: DOOR_CRACKS.into,
+};
 
 // The surfaces painted off the main thread (paint.js, paintJobs.js), named
 // here so the painting can begin before the world is built: each is a painter
@@ -205,7 +242,12 @@ export const PAINTED = {
   // the floor: a mason's pavement (`paving`, 2026-10-06) or the tiles it replaced
   flag: FLOOR_OLD ? ['flagstones'] : ['paving'],
   ...(CRACK_OLD ? {} : { cracks: ['floorCracks', DOOR_CRACKS] }),
-  wall: ['ashlar'],
+  // Twelve courses to the tile, not eight: a course about 30 cm, a block
+  // about 70 cm long, each a little further from the next in tone. At eight
+  // they were a torso high, and over an arch every block looked the same;
+  // at sixteen (22 cm) the wall read as small brick, not dressed stone
+  // (the review of 2026-10-08, point 5; ?wvest=old:5 lays the old).
+  wall: vestOld(5) ? ['ashlar'] : ['ashlar', { courses: 12, blocks: 5, spread: 24 }],
   // the caps' pale stone; the Door's dressed faces are the same stone, laid smaller
   pale: ['ashlar', { seed: 9, courses: 4, blocks: 2, tone: [158, 150, 136], strength: 2 }],
   // The wood: boards sawn from the log, grain along u (`timber`, 2026-10-05),
@@ -214,7 +256,8 @@ export const PAINTED = {
   timber: WOOD_OLD ? ['walnut', { seed: 23, tone: CEDAR }] : ['timber', { seed: 23, tone: CEDAR_WOOD, ring: 9, knots: 2 }],
   // the bindings, lettered (spineAtlas2 and its titles) unless ?wbook says
   // to see them as they were (see effects.js)
-  spines: [BOOKS_TITLED ? 'spineAtlas2' : 'spineAtlas'],
+  // (with the tooling varied down each back: vertigoFix.js, 2)
+  spines: BOOKS_TITLED ? ['spineAtlas2', { tooling: !vertigoOld(2) }] : ['spineAtlas'],
   ...(BOOKS_TITLED ? { titles: ['spineTitles'] } : {}),
   // the far galleries' books, in painted rows (see shelfWall)
   bookRows: ['bookRows', BOOK_ROWS],
@@ -321,7 +364,7 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
     }
   }), [1 / 46, 1 / 46]);
 
-  const gravelTex = tex(paint(512, 512, (g, s) => {
+  const gravelOldTex = tex(paint(512, 512, (g, s) => {
     g.fillStyle = '#6f685c';
     g.fillRect(0, 0, s, s);
     for (let k = 0; k < 8000 * detail; k++) {
@@ -330,6 +373,51 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
       g.beginPath(); g.ellipse(rr(0, s), rr(0, s), rr(0.8, 3.2), rr(0.6, 2.4), rr(0, 3), 0, Math.PI * 2); g.fill();
     }
     speckle(g, s, s, 8000, true, 0.35);
+  }), [1 / 16, 1 / 16]);
+  // (forkProps.js, 8: that was white speckle on grey — a grain a pixel or two
+  // across, forty shades apart from the next. Pebbles now: each a few
+  // millimetres to a centimetre and a half, rounded, lit a little on one side,
+  // a dozen shades apart, a little warm; and the bed they lie on shows dark
+  // only between them. Painted from its own stream — the old one is still
+  // painted above, for the draws it took from the world's.)
+  const GRAVEL_COLOR = propsOld(8) ? '#6f6c66' : '#7b7367';
+  const gravelTex = propsOld(8) ? gravelOldTex : tex(paint(1024, 1024, (g, s) => {
+    const r = makeRng(8808), R = (a, b) => a + (b - a) * r();
+    g.fillStyle = '#6c6458';
+    g.fillRect(0, 0, s, s);
+    const grain = (x, y, rx, ry, rot, l, warm) => {
+      const c = [150 + l + warm, 140 + l, 121 + l - warm];
+      // (and again across the tile's edge, where it lies over one)
+      const xs = x < 8 ? [0, s] : x > s - 8 ? [0, -s] : [0], ys = y < 8 ? [0, s] : y > s - 8 ? [0, -s] : [0];
+      for (const ox of xs) for (const oy of ys) {
+        g.save();
+        g.translate(x + ox, y + oy);
+        g.rotate(rot);
+        g.scale(1, ry / rx);
+        const grd = g.createRadialGradient(-rx * 0.3, -rx * 0.3, rx * 0.1, 0, 0, rx);
+        grd.addColorStop(0, rgb(c[0] + 9, c[1] + 9, c[2] + 8));
+        grd.addColorStop(0.7, rgb(c[0], c[1], c[2]));
+        grd.addColorStop(1, rgb(c[0] - 16, c[1] - 16, c[2] - 15, 0.85));
+        g.fillStyle = grd;
+        g.beginPath(); g.arc(0, 0, rx, 0, Math.PI * 2); g.fill();
+        g.restore();
+      }
+    };
+    // a bed of small ones, then the pebbles over it
+    for (let k = 0; k < 16000 * detail; k++) grain(R(0, s), R(0, s), R(1.6, 3), R(1.3, 2.6), R(0, 3.14), R(-16, 6), R(-3, 5));
+    for (let k = 0; k < 9000 * detail; k++) grain(R(0, s), R(0, s), R(3, 6.5), R(2.4, 5), R(0, 3.14), R(-11, 13), R(-3, 6));
+    // and the slow change of tone a raked bed has across a pace
+    for (let k = 0; k < 60; k++) {
+      const x = R(0, s), y = R(0, s), rad = R(60, 170), dark = r() < 0.5;
+      for (const ox of [-s, 0, s]) for (const oy of [-s, 0, s]) {
+        if (x + ox + rad < 0 || x + ox - rad > s || y + oy + rad < 0 || y + oy - rad > s) continue;
+        const grd = g.createRadialGradient(x + ox, y + oy, 0, x + ox, y + oy, rad);
+        grd.addColorStop(0, dark ? 'rgba(40,34,26,0.07)' : 'rgba(214,200,176,0.06)');
+        grd.addColorStop(1, dark ? 'rgba(40,34,26,0)' : 'rgba(214,200,176,0)');
+        g.fillStyle = grd;
+        g.fillRect(x + ox - rad, y + oy - rad, rad * 2, rad * 2);
+      }
+    }
   }), [1 / 16, 1 / 16]);
 
   // Stars, for the shafts, the pools and the dark under everything.
@@ -513,7 +601,7 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
   // stone with its bed running up it. Everything it goes on carries its uv in
   // world units (colLathe, or projected), so a unit of texture is 9 of stone.
   const columnSet = scaled(painter.take('column'), 1 / 9);
-  const hangTex = keep(hanging());
+  const hangTex = keep(hanging({ broadWillow: WILLOW_BROAD }));
   const glowTex = keep(glowTexture());
   const lampHaloTex = keep(glowTexture(256, 0.11));
   const water = makeWater({ mirror: !light });
@@ -649,41 +737,116 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
   // By room (`bounceRooms`, filled once the honeycomb is laid out): strongest
   // in the Vestibule, least in the Silence.
   const bounceRooms = { value: [new THREE.Vector3(0, 0, 0)] };
-  const stoneShade = (mat, { weather = false } = {}) => {
+  // And over the map, the coping round each of those rooms warmed from inside,
+  // most at its inner edge (mapFix.js, 8): `mapWarm` is how much of the map
+  // is showing — 1 over it, 0 among the walls (setVeil).
+  const RIM = !mapOld(8);
+  const mapWarm = { value: 1 };
+  // `drum` (the Echo's walls, echoFix.js point 6): the maps laid by the
+  // fragment's own place on the wall, in courses that grow lower as it rises,
+  // rather than by the projected uv — { tile, rep }: the tile's size in world
+  // units and the maps' repeat.
+  // `lift`: how much more of that bounce this stone takes, and `side` how much
+  // of it a face standing upright takes too — it sees half the floor that a
+  // soffit does (the Silence's arches over its well: silenceFix.js, 4)
+  // `night`: the falloff into the night round the maze alone, without the
+  // weathering by height (the copings on the walls, webFix.js 2).
+  const stoneShade = (mat, { weather = false, night = false, drum = null, lift = 1, side = 0 } = {}) => {
     mat.onBeforeCompile = (sh) => {
       sh.uniforms.uBounceRooms = bounceRooms;
+      if (RIM) sh.uniforms.uMapWarm = mapWarm;
+      sh.uniforms.uStoneLift = { value: lift };
+      sh.uniforms.uStoneSide = { value: side };
       sh.vertexShader = sh.vertexShader
         .replace('#include <common>', `#include <common>
           varying vec3 vStoneW;
-          varying float vStoneDown;`)
+          varying float vStoneDown;
+          varying float vStoneSide;
+          ${night ? 'varying vec3 vStoneAt;' : ''}
+          ${drum ? 'varying vec3 vStoneN;' : ''}`)
         .replace('#include <begin_vertex>', `#include <begin_vertex>
-          vStoneW = (modelMatrix * vec4(transformed, 1.0)).xyz;`)
+          vStoneW = (modelMatrix * vec4(transformed, 1.0)).xyz;
+          ${night ? `
+          // (where it stands, for the night: a post is an instance, and its
+          // own vertices are a unit box at the origin — the balusters on the
+          // wall tops stayed white over the cedars: webProps.js, 1)
+          vec4 stoneAt = vec4(transformed, 1.0);
+          #ifdef USE_INSTANCING
+            stoneAt = instanceMatrix * stoneAt;
+          #endif
+          vStoneAt = (modelMatrix * stoneAt).xyz;` : ''}`)
         .replace('#include <beginnormal_vertex>', `#include <beginnormal_vertex>
-          vStoneDown = max(0.0, -normalize(mat3(modelMatrix) * objectNormal).y);`);
+          vStoneDown = max(0.0, -normalize(mat3(modelMatrix) * objectNormal).y);
+          vStoneSide = 1.0 - abs(normalize(mat3(modelMatrix) * objectNormal).y);
+          ${drum ? 'vStoneN = mat3(modelMatrix) * objectNormal;' : ''}`);
+      if (drum) {
+        // (every map read in main() reads this uv instead of the vertex's)
+        sh.fragmentShader = sh.fragmentShader.replace('void main() {', `varying vec3 vStoneN;
+          ${drumUvGlsl(drum.tile.toFixed(2), drum.rep.toFixed(6))}
+          vec2 drumUv;
+          #define vMapUv drumUv
+          #define vNormalMapUv drumUv
+          #define vRoughnessMapUv drumUv
+          void main() {
+            drumUv = drumUvOf(vStoneW, normalize(vStoneN));`);
+      }
       sh.fragmentShader = sh.fragmentShader
         .replace('#include <common>', `#include <common>
           uniform vec3 uBounceRooms[${bounceRooms.value.length}];
+          ${RIM ? 'uniform float uMapWarm;' : ''}
+          uniform float uStoneLift;
+          uniform float uStoneSide;
           varying vec3 vStoneW;
-          varying float vStoneDown;`)
+          varying float vStoneDown;
+          varying float vStoneSide;
+          ${night ? 'varying vec3 vStoneAt;' : ''}`)
         .replace('#include <color_fragment>', `#include <color_fragment>
-          ${weather ? `diffuseColor.rgb *= mix(0.66, 1.0, smoothstep(6.0, 17.0, vStoneW.y))
-            * (1.0 - 0.3 * smoothstep(88.0, 124.0, vStoneW.y))
+          ${weather || night ? `
+            ${night ? 'vec3 stoneP = vStoneAt;' : 'vec3 stoneP = vStoneW;'}
             // the honeycomb's walls standing round the maze, let fall into
             // the night: from the court at its heart they were blank brick
             // filling the sky behind the hedges, and the walk ended against a
             // warehouse. (The heart at 1315, 423; the Door's own cell, at
             // 1005, 339, kept as it was — its walls are a room from inside.)
-            * (1.0 - 0.88 * smoothstep(290.0, 160.0, distance(vStoneW.xz, vec2(1315.0, 423.0)))
-              * smoothstep(100.0, 118.0, distance(vStoneW.xz, vec2(1005.2, 338.6))));` : ''}`)
+            float stoneNight = (1.0 - 0.88 * smoothstep(290.0, 160.0, distance(stoneP.xz, vec2(1315.0, 423.0)))
+              * smoothstep(100.0, 118.0, distance(stoneP.xz, vec2(1005.2, 338.6))))
+            // and behind the maze, out past that reach, the stone the cedars
+            // stand in front of (webFix.js, 2): what shows between their
+            // spires is dark, not brick
+              * (1.0 - ${WALLS.k.toFixed(3)} * smoothstep(${WALLS.z[0].toFixed(1)}, ${WALLS.z[1].toFixed(1)}, stoneP.z)
+              * smoothstep(${WALLS.x[0].toFixed(1)}, ${WALLS.x[1].toFixed(1)}, stoneP.x));
+            diffuseColor.rgb *= ${weather ? `mix(0.66, 1.0, smoothstep(6.0, 17.0, vStoneW.y))
+            * (1.0 - 0.3 * smoothstep(88.0, 124.0, vStoneW.y))
+            *` : ''} stoneNight;` : ''}`)
+        // (and its gloss with it, webFix.js 2: let fall in its colour alone,
+        // the stone kept the sky in its sheen — blank brick, painted black,
+        // was still brick in the moonlit sky's reflection)
+        .replace('#include <aomap_fragment>', `#include <aomap_fragment>
+          ${(weather || night) && WALLS.spec ? `reflectedLight.directSpecular *= stoneNight;
+          reflectedLight.indirectSpecular *= stoneNight;` : ''}`)
         .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
           float bounce = 0.0;
           for (int i = 0; i < ${bounceRooms.value.length}; i++) {
             bounce = max(bounce, uBounceRooms[i].z * smoothstep(130.0, 80.0, distance(vStoneW.xz, uBounceRooms[i].xy)));
           }
-          totalEmissiveRadiance += diffuseColor.rgb * vec3(1.0, 0.72, 0.46) * 0.2 * bounce * vStoneDown
-            * smoothstep(60.0, 20.0, vStoneW.y);`);
+          totalEmissiveRadiance += diffuseColor.rgb * vec3(1.0, 0.72, 0.46) * 0.2 * bounce * uStoneLift * (vStoneDown + uStoneSide * 0.5 * vStoneSide)
+            * smoothstep(60.0, 20.0, vStoneW.y);
+          ${RIM ? `
+          // the rims of the walk's rooms, over the map: by the flat (hexagon)
+          // distance from the room's middle, warm from its inner wall out
+          // across the coping, and only up at the wall tops
+          if (uMapWarm > 0.0) {
+            float rim = 0.0;
+            for (int i = 0; i < ${bounceRooms.value.length}; i++) {
+              vec2 d = vStoneW.xz - uBounceRooms[i].xy;
+              float hex = max(abs(d.y), max(abs(dot(d, vec2(0.8660254, 0.5))), abs(dot(d, vec2(-0.8660254, 0.5)))));
+              rim = max(rim, smoothstep(${RIM_WARM.outer.toFixed(1)}, ${RIM_WARM.inner.toFixed(1)}, hex));
+            }
+            totalEmissiveRadiance += diffuseColor.rgb * vec3(${RIM_WARM.color.map((x) => x.toFixed(2)).join(', ')})
+              * ${RIM_WARM.k.toFixed(3)} * rim * uMapWarm * smoothstep(${(MASS_H - 14).toFixed(1)}, ${(MASS_H - 2).toFixed(1)}, vStoneW.y);
+          }` : ''}`);
     };
-    mat.customProgramCacheKey = () => `babel-stone-${weather ? 'w' : 'b'}-${bounceRooms.value.length}`;
+    mat.customProgramCacheKey = () => `babel-stone-${weather ? 'w' : night ? 'n' : 'b'}${(weather || night) && WALLS.spec ? 's' : ''}${drum ? '-drum' : ''}-${bounceRooms.value.length}${RIM ? '-rim' : ''}`;
     return mat;
   };
   // Less of the sky in a surface's gloss, `k` of it, and `direct` of the
@@ -696,6 +859,76 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
         reflectedLight.directSpecular *= ${direct.toFixed(2)};`);
     };
     mat.customProgramCacheKey = () => `babel-skydull-${k.toFixed(2)}-${direct.toFixed(2)}`;
+    return mat;
+  };
+  // The rails' lacquer, worn (pavilionProps.js, 10). What a member carries in
+  // its vertices' colour is not a colour: red is how clean the lacquer is
+  // there, green how far it is rubbed through to the wood (`wornBar`). Both
+  // are broken up by the place they are at — in patches a pace across, and
+  // along the timber's own grain — so that a rail is rubbed through in
+  // lengths and not in a stripe; and the lacquer between is never one red.
+  // Where it is whole it is a little glossier than it was, a soft sheen;
+  // where it is grimed or gone, matte.
+  const wornLacquer = (mat) => {
+    const wood = new THREE.Color('#654a33');
+    mat.onBeforeCompile = (sh) => {
+      sh.vertexShader = sh.vertexShader
+        .replace('#include <common>', `#include <common>
+          varying vec3 vWornAt;`)
+        .replace('#include <begin_vertex>', `#include <begin_vertex>
+          vWornAt = position;`);
+      sh.fragmentShader = sh.fragmentShader
+        .replace('#include <common>', `#include <common>
+          varying vec3 vWornAt;
+          float wornRub = 0.0;
+          float wornClean = 1.0;
+          float wornHash(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+          float wornNoise(vec3 x) {
+            vec3 i = floor(x), f = fract(x);
+            f = f * f * (3.0 - 2.0 * f);
+            return mix(mix(mix(wornHash(i), wornHash(i + vec3(1.0, 0.0, 0.0)), f.x), mix(wornHash(i + vec3(0.0, 1.0, 0.0)), wornHash(i + vec3(1.0, 1.0, 0.0)), f.x), f.y),
+              mix(mix(wornHash(i + vec3(0.0, 0.0, 1.0)), wornHash(i + vec3(1.0, 0.0, 1.0)), f.x), mix(wornHash(i + vec3(0.0, 1.0, 1.0)), wornHash(i + vec3(1.0, 1.0, 1.0)), f.x), f.y), f.z);
+          }`)
+        .replace('#include <color_fragment>', `
+          {
+            float wornPatch = wornNoise(vWornAt * 0.55) * 0.65 + wornNoise(vWornAt * 2.3) * 0.35;
+            float wornGrain = 0.5;
+            #ifdef USE_ROUGHNESSMAP
+              wornGrain = texture2D(roughnessMap, vRoughnessMapUv).g;
+            #endif
+            wornClean = mix(1.0, vColor.r, 0.55 + 0.45 * wornPatch);
+            wornRub = smoothstep(0.5, 0.82, vColor.g + (wornPatch - 0.5) * 0.4 + (wornGrain - 0.5) * 0.3);
+            diffuseColor.rgb *= mix(0.88, 1.06, wornPatch);
+            // (round what is rubbed through, the lacquer thinned to its dark ground)
+            diffuseColor.rgb *= 1.0 - 0.45 * wornRub * (1.0 - wornRub) * 4.0;
+            diffuseColor.rgb = mix(diffuseColor.rgb, vec3(${wood.r.toFixed(4)}, ${wood.g.toFixed(4)}, ${wood.b.toFixed(4)}) * (0.75 + 0.5 * wornGrain), wornRub);
+            diffuseColor.rgb *= wornClean;
+          }`)
+        .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+          roughnessFactor = mix(roughnessFactor * 0.72, 0.92, wornRub);
+          roughnessFactor = mix(roughnessFactor, 0.95, (1.0 - wornClean) * 0.9);`);
+    };
+    mat.customProgramCacheKey = () => 'babel-worn-lacquer';
+    return mat;
+  };
+  // The moon on a hedge's shoulder and top, from across the garden only
+  // (forkProps.js, 6). Close to, a pale band along every top was the first
+  // thing wrong with the maze, and there is none; far off, the hedge that
+  // closes the garden was a stripe of black with nothing to say where its
+  // top was. Laid on what the skyDull above left.
+  const hedgeMoon = (mat) => {
+    if (propsOld(6) || HEDGE_SHEEN.k <= 0) return mat;
+    const inner = mat.onBeforeCompile, key = mat.customProgramCacheKey;
+    mat.onBeforeCompile = (sh, renderer) => {
+      inner(sh, renderer);
+      sh.fragmentShader = sh.fragmentShader.replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+        {
+          vec3 hedgeN = inverseTransformDirection(normal, viewMatrix);
+          float hedgeFar = smoothstep(${HEDGE_SHEEN.near.toFixed(1)}, ${HEDGE_SHEEN.far.toFixed(1)}, length(vViewPosition));
+          totalEmissiveRadiance += diffuseColor.rgb * vec3(0.6, 0.74, 0.92) * ${HEDGE_SHEEN.k.toFixed(3)} * hedgeFar * smoothstep(0.2, 0.8, hedgeN.y);
+        }`);
+    };
+    mat.customProgramCacheKey = () => `${key()}-moon-${HEDGE_SHEEN.k}`;
     return mat;
   };
   // The pavement, every slab its own. The painted tile is three metres of
@@ -791,6 +1024,55 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
   };
   // The lamps' pools read by the floor, not laid over it (lampPass.js)
   const lpPool = (mat) => (LAMPS.pool ? floorPoolPatch(mat) : mat);
+  // The way, shown rather than explained: while the reader is on the piece's
+  // own way (World.jsx, `follow`), the stone worn smooth along it catches a
+  // little warm light a few strides ahead of them, and lets it go when they
+  // leave the way. Only the worn strips take it (M.wornFloor, M.wornStep), and
+  // they lie only along the way. World sets where the feet are, which way the
+  // way runs on from them, and how much (`setWay`). ?wway=0: never.
+  const WAY_SHOWN = typeof window === 'undefined' || new URLSearchParams(window.location.search).get('wway') !== '0';
+  // how much light it catches at the full of it (?wwaygain= to try another)
+  const WAY_GAIN = (typeof window !== 'undefined' && Number(new URLSearchParams(window.location.search).get('wwaygain'))) || 0.9;
+  const wayU = { uWay: { value: new THREE.Vector4(0, 0, 0, -1) }, uWayY: { value: 0 }, uWayOn: { value: 0 } };
+  const wayLit = (mat, key) => {
+    if (!WAY_SHOWN) return mat;
+    mat.onBeforeCompile = (sh) => {
+      Object.assign(sh.uniforms, wayU);
+      sh.vertexShader = sh.vertexShader
+        .replace('#include <common>', `#include <common>
+          varying vec3 vWayW;`)
+        .replace('#include <begin_vertex>', `#include <begin_vertex>
+          vWayW = (modelMatrix * vec4(transformed, 1.0)).xyz;`);
+      sh.fragmentShader = sh.fragmentShader
+        .replace('#include <common>', `#include <common>
+          uniform vec4 uWay;
+          uniform float uWayY, uWayOn;
+          varying vec3 vWayW;`)
+        .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+          {
+            // from about two strides ahead (where the floor comes into view at
+            // eye level) to about seven, fading either side of the way and where
+            // the stone is well above or below the feet (another floor)
+            vec2 wd = vWayW.xz - uWay.xy;
+            float wAlong = dot(wd, uWay.zw);
+            float wAcross = abs(wd.x * uWay.w - wd.y * uWay.z);
+            float wRise = abs(vWayW.y - uWayY) - 0.6 * max(wAlong, 0.0);
+            float wayGlow = uWayOn * smoothstep(8.0, 18.0, wAlong) * (1.0 - smoothstep(38.0, 66.0, wAlong))
+              * (1.0 - smoothstep(7.0, 13.0, wAcross)) * (1.0 - smoothstep(6.0, 12.0, wRise));
+            totalEmissiveRadiance += diffuseColor.rgb * vec3(1.0, 0.76, 0.46) * ${WAY_GAIN.toFixed(3)} * wayGlow;
+          }`);
+    };
+    mat.customProgramCacheKey = () => `babel-way-${key}`;
+    return mat;
+  };
+  // where the feet are (x, y, z), the way on from them (dx, dz, level), how much
+  const setWay = (amount, x = 0, y = 0, z = 0, dx = 0, dz = -1) => {
+    wayU.uWayOn.value = amount;
+    if (amount > 0) {
+      wayU.uWay.value.set(x, z, dx, dz);
+      wayU.uWayY.value = y;
+    }
+  };
   // What came down in the Door (rubble.js). Its grain is laid on from the
   // world's three axes at once, blended by which way a face looks: a rock is
   // turned every way, and projected along one axis per face its grain tore
@@ -889,10 +1171,33 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
         .replace('#include <color_fragment>', `#include <color_fragment>
           vec3 flameN = normalize(vFlameN);
           float stoneLum = dot(diffuseColor.rgb, vec3(0.333));
+          ${propsOld(4) ? `
           diffuseColor.rgb *= mix(0.6, 1.0, smoothstep(5.2, 9.5, vFlameW.y)) * (0.8 + 0.4 * flameNoise(vFlameW * 0.42));
           float moss = smoothstep(0.4, 0.95, flameN.y)
             * smoothstep(0.42, 0.72, flameNoise(vFlameW * 0.8) * 0.65 + flameNoise(vFlameW * 2.9) * 0.35);
-          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.062, 0.064, 0.026) * (0.7 + 2.0 * stoneLum), moss * 0.7);`)
+          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.062, 0.064, 0.026) * (0.7 + 2.0 * stoneLum), moss * 0.7);` : `
+          // (forkProps.js, 4: it was porcelain — one pale tone, clean to the
+          // ground. Granite that has stood out of doors: its grain, salt and
+          // pepper; slow blotches of tone; the foot dark with damp, unevenly,
+          // as high as the rain splashes; soot and wet under every ledge and
+          // run down the faces below it in streaks; grey-green lichen in
+          // patches where it has light; and moss on what faces the sky.)
+          float gSlow = flameNoise(vFlameW * 0.42), gMid = flameNoise(vFlameW * 1.7 + 3.1), gFine = flameNoise(vFlameW * 11.0);
+          float gPep = flameNoise(vFlameW * 23.0 + 7.7);
+          diffuseColor.rgb *= (0.72 + 0.36 * gSlow) * (0.9 + 0.2 * gMid) * (0.84 + 0.3 * gFine) * (1.0 - 0.3 * smoothstep(0.66, 0.9, gPep));
+          float damp = 1.0 - smoothstep(6.0 + 2.2 * gMid, 8.4 + 3.4 * gMid, vFlameW.y);
+          diffuseColor.rgb *= mix(1.0, 0.46, damp);
+          float under = smoothstep(0.1, 0.7, -flameN.y);
+          float streak = smoothstep(0.5, 0.82, flameNoise(vec3(vFlameW.x * 2.6, vFlameW.y * 0.22, vFlameW.z * 2.6) + 1.3))
+            * (1.0 - abs(flameN.y));
+          diffuseColor.rgb *= (1.0 - 0.45 * under) * (1.0 - 0.34 * streak);
+          float lichen = smoothstep(0.6, 0.76, flameNoise(vFlameW * 1.15 + 9.4) * 0.7 + flameNoise(vFlameW * 4.3) * 0.3)
+            * smoothstep(-0.25, 0.3, flameN.y) * (1.0 - damp);
+          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.2, 0.21, 0.16) * (0.75 + 0.5 * gFine), lichen * 0.55);
+          float moss = smoothstep(0.3, 0.9, flameN.y)
+            * smoothstep(0.36, 0.62, flameNoise(vFlameW * 0.8) * 0.6 + flameNoise(vFlameW * 2.9) * 0.4);
+          moss = max(moss, damp * smoothstep(0.55, 0.8, flameNoise(vFlameW * 1.9 + 5.0)) * smoothstep(-0.2, 0.5, flameN.y) * 0.8);
+          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.05, 0.062, 0.022) * (0.75 + 0.6 * gFine), moss * 0.82);`}`)
         .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
           vec3 toFlame = vFlame.xyz - vFlameW;
           float flameD2 = max(dot(toFlame, toFlame), 0.01);
@@ -902,20 +1207,25 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
           totalEmissiveRadiance += diffuseColor.rgb * uFlameColor * vFlame.w * flameNdl
             * mix(0.35, 1.0, flameAim * flameAim * flameAim) / (1.0 + 0.16 * flameD2);`);
     };
-    mat.customProgramCacheKey = () => 'babel-flame-stone';
+    mat.customProgramCacheKey = () => `babel-flame-stone${propsOld(4) ? '' : '-granite'}`;
     return mat;
   };
   const sprite = (map) => Std({ map, alphaTest: 0.32, roughness: 0.9, side: THREE.DoubleSide });
   const M = {
     floor: lpPool(paveShade(Std({ map: flag.map, normalMap: flag.normalMap, roughnessMap: flag.roughnessMap, color: stoneTint('#8d7f6e', '#8a857b'), roughness: 1, side: THREE.DoubleSide }))),
     mass: stoneShade(Std({ map: wall.map, normalMap: wall.normalMap, roughnessMap: wall.roughnessMap, color: stoneTint('#b6a897', '#ada89e'), roughness: 1, side: THREE.DoubleSide }), { weather: true }),
-    cap: stoneShade(Std({ map: pale.map, normalMap: pale.normalMap, roughnessMap: pale.roughnessMap, color: stoneTint('#b3a894', '#b0aa9d'), roughness: 1, side: THREE.DoubleSide })),
+    // the Echo's: the same stone, coursed lower as it rises (echoFix.js, 6)
+    drum: stoneShade(Std({ map: wall.map, normalMap: wall.normalMap, roughnessMap: wall.roughnessMap, color: stoneTint('#b6a897', '#ada89e'), roughness: 1, side: THREE.DoubleSide }), { weather: true, drum: { tile: 1 / wall.map.repeat.x, rep: wall.map.repeat.x } }),
+    cap: stoneShade(Std({ map: pale.map, normalMap: pale.normalMap, roughnessMap: pale.roughnessMap, color: stoneTint('#b3a894', '#b0aa9d'), roughness: 1, side: THREE.DoubleSide }), { night: WALLS.spec }),
     // the same stone in the Silence's flights, where the lamp over the landing
     // reached in under it (no lamp casts a shadow) and drew a lit line along
     // every voussoir and string: a striped ziggurat in the quietest room
-    capShade: stoneShade(Std({ map: pale.map, normalMap: pale.normalMap, roughnessMap: pale.roughnessMap, color: stoneTint('#5e584d', '#5b5850'), roughness: 1, side: THREE.DoubleSide })),
+    // (its undersides lifted by the floor's bounce: silenceFix.js, 4)
+    capShade: stoneShade(Std({ map: pale.map, normalMap: pale.normalMap, roughnessMap: pale.roughnessMap, color: stoneTint('#5e584d', '#5b5850'), roughness: 1, side: THREE.DoubleSide }), silenceOld(4) ? {} : ARCH_LIFT),
     shelf: Std({ map: wood.map, normalMap: wood.normalMap, roughnessMap: wood.roughnessMap, roughness: 1 }),
     shelfBack: Std({ map: wood.map, color: '#7a6754', roughness: 1 }),
+    // the Vertigo's shelves' moulded fronts, a darker walnut (vertigoFix.js, 3)
+    shelfLip: Std({ map: wood.map, normalMap: wood.normalMap, roughnessMap: wood.roughnessMap, color: LIP_COLOR, roughness: 0.92 }),
     books: keep(makeBookMaterial(spines, titles?.map)),
     bookRows: Std({ map: bookRowsSet.map, roughness: 0.85 }),
     // the same paint on a gallery's top two tiers: washed by its lamp-rail as
@@ -973,10 +1283,18 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
     // stone in world units, so its joints are the stone's joints.
     // (Roughness 0.34 and 0.36 until 2026-10-05: a tread worn that glossy
     // took the lamp over it as a hot spot the size of a footprint.)
-    wornFloor: Std({ map: flag.map, color: '#a8a295', roughness: 0.56, transparent: true, depthWrite: false, alphaMap: wornTex, polygonOffset: true, polygonOffsetFactor: -2 }),
-    wornStep: Std({ map: again(flag.map, 1 / 22), color: '#c6c0b2', roughness: 0.58, transparent: true, depthWrite: false, alphaMap: wornTex, polygonOffset: true, polygonOffsetFactor: -2 }),
+    // (and catches the light a few strides on where the reader walks the way: `wayLit`)
+    wornFloor: wayLit(Std({ map: flag.map, color: '#a8a295', roughness: 0.56, transparent: true, depthWrite: false, alphaMap: wornTex, polygonOffset: true, polygonOffsetFactor: -2 }), 'floor'),
+    wornStep: wayLit(Std({ map: again(flag.map, 1 / 22), color: '#c6c0b2', roughness: 0.58, transparent: true, depthWrite: false, alphaMap: wornTex, polygonOffset: true, polygonOffsetFactor: -2 }), 'step'),
     // a stair's risers, in the shadow of the lip over them; the joints of a parapet
     riserShade: keep(new THREE.MeshBasicMaterial({ color: '#000000', transparent: true, opacity: 0.4, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 })),
+    // The Echo's stair read by its values (echoFix.js, 2): the lip the palest
+    // stone on it, the riser only a shade under the tread — at 0.4 every
+    // riser was a black slot and the flight a stack of separate slabs.
+    // (in the balustrades' jointless limestone: the caps' ashlar put a mortar
+    // joint through the middle of every lip, a dark slot down the flight)
+    nosing: stoneShade(Std({ map: again(carveSet.map, 1 / 13), normalMap: again(carveSet.normalMap, 1 / 13), roughnessMap: again(carveSet.roughnessMap, 1 / 13), color: '#d6cfc0', roughness: 1, side: THREE.DoubleSide })),
+    riserSoft: keep(new THREE.MeshBasicMaterial({ color: '#000000', transparent: true, opacity: 0.2, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 })),
     joint: Std({ color: '#2a241e', roughness: 1 }),
     deadShards: Std({ color: '#3d3833', roughness: 0.22, metalness: 0, envMapIntensity: 0.8, side: THREE.DoubleSide }),
     dustFan: Std({ map: dustFanTex, color: '#bdb3a2', roughness: 1, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }),
@@ -1008,10 +1326,12 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
     bank: shoreBankSet && bankLit(Std({
       map: shoreBankSet.map, normalMap: shoreBankSet.normalMap, normalScale: new THREE.Vector2(1, 1),
       color: '#c4baa8', roughness: 1,
-    }), { grass: grassTex, gravel: gravelTex, grassColor: '#5e6d63', gravelColor: '#6f6c66', grassRepeat: 1 / 46, gravelRepeat: 1 / 16 }),
+    }), { grass: grassTex, gravel: gravelTex, grassColor: '#5e6d63', gravelColor: GRAVEL_COLOR, grassRepeat: 1 / 46, gravelRepeat: 1 / 16 }),
     bronze: Std({ color: '#7d5d38', roughness: 0.46, metalness: 0.8, side: THREE.DoubleSide }),
     bronzeDim: Std({ color: '#4e3d2b', roughness: 0.7, metalness: 0.3, side: THREE.DoubleSide }),
     inlay: Std({ color: '#9c7c3c', roughness: 0.4, metalness: 0.7, side: THREE.DoubleSide }),
+    // (the fillet round each floor, in its own duller brass: auditFix.js, 1)
+    fillet: Std({ ...FILLET_BRASS, side: THREE.DoubleSide }),
     mirror: Std({ color: '#767c82', roughness: 0.34, metalness: 0.95, envMapIntensity: 2.4 }),
     liner: Std({ color: '#2a2219', roughness: 1, side: THREE.DoubleSide }),
     stars: keep(new THREE.MeshBasicMaterial({ map: starTex, color: '#ffffff', toneMapped: false, side: THREE.DoubleSide })),
@@ -1022,11 +1342,14 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
     // table panels, candle flames and the wax under them)
     lpPaper: keep(makePaperMaterial()),
     lpPanel: keep(Object.assign(makePaperMaterial({ lattice: true, flame: [0, -0.15, 0], gain: 0.62, near: 0.4 }), { side: THREE.DoubleSide })),
-    lpFlame: keep(makeFlameMaterial()),
+    lpFlame: keep(makeFlameMaterial({ alive: !doorPropsOld(4) })),
+    // (the Door's candles: wax, its tone in its vertices, the flame showing a little through it — doorProps.js, 4)
+    wax: Std({ vertexColors: true, roughness: 0.42, emissive: '#3b2412', emissiveIntensity: 0.3 }),
     lpWax: keep(waxGlowMaterial()),
     // A globe that has gone out: the same opal glass with nothing behind it —
     // dull, dark and opaque, catching only a highlight of the lamp still lit.
-    deadGlass: Std({ color: '#5c544a', roughness: LAMPS.glint ? 0.07 : 0.3, metalness: 0, envMapIntensity: 0.7 }),
+    // (smoked and dulled: silenceFix.js, 3)
+    deadGlass: deadOpal(deadGlassPatch(Std({ color: '#5c544a', roughness: LAMPS.glint ? 0.07 : 0.3, metalness: 0, envMapIntensity: 0.7 }))),
     foliage: keep(makeFoliageMaterial(leaves, wind, FOLIAGE_KINDS, { prepassed: true })),
     foliagePre: keep(makeFoliagePrepass(leaves, wind, FOLIAGE_KINDS)),
     // the dead leaf a hedge stands in: its own leaf, browned, laid flat
@@ -1044,7 +1367,7 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
     glass: Std({ color: '#ffe2b8', transparent: true, opacity: 0.3, roughness: 0.04, metalness: 0, envMapIntensity: 2.2, depthWrite: false }),
     iron: Std({ color: '#2a2520', roughness: 0.6, metalness: 0.6 }),
     grass: Std({ map: grassTex, color: '#5e6d63', roughness: 1, side: THREE.DoubleSide }),
-    gravel: Std({ map: gravelTex, color: '#6f6c66', roughness: 1, side: THREE.DoubleSide }),
+    gravel: Std({ map: gravelTex, color: GRAVEL_COLOR, roughness: 1, side: THREE.DoubleSide }),
     mazeFloor: Std({ map: gravelTex, color: '#635f57', roughness: 1, side: THREE.DoubleSide }),
     wood: Std({ map: timber.map, normalMap: timber.normalMap, roughnessMap: timber.roughnessMap, color: '#9d7d5e', roughness: 0.85 }),
     plank: WOOD_OLD ? Std({ map: again(timber.map, 1 / 16), normalMap: again(timber.normalMap, 1 / 16), color: '#b59872', roughness: 0.85 })
@@ -1068,16 +1391,37 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
     // maze's heart lamp every leaf-dome in the texture caught its own warm
     // highlight, and the face went mustard and leopard-spotted behind sprigs
     // that stayed green.
-    hedge: skyDull(Std({
+    hedge: hedgeMoon(skyDull(Std({
       name: 'hedge',
       map: hedge.map, normalMap: hedge.normalMap, normalScale: new THREE.Vector2(0.8, 0.8), roughnessMap: hedge.roughnessMap,
       color: '#d6dccb', roughness: 1, vertexColors: true,
-    }), 0.1, HEDGE_DIAL === 'gloss' ? 1 : 0.2),
+    }), 0.1, HEDGE_DIAL === 'gloss' ? 1 : 0.2)),
     gardenStone: Std({ map: again(pale.map, 0.35), normalMap: again(pale.normalMap, 0.35), color: '#a39a8b', roughness: 0.95, vertexColors: true }),
     rakeDark: keep(new THREE.MeshBasicMaterial({ color: '#000000', transparent: true, opacity: 0.3, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3 })),
     // (unlit, like the furrow: one shader for both, and each new one costs the
     // world a fraction of a second more to compile before it can be shown)
-    rakeLit: keep(new THREE.MeshBasicMaterial({ color: '#9a9284', transparent: true, opacity: 0.13, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3 })),
+    rakeLit: keep(new THREE.MeshBasicMaterial({ color: '#9a9284', transparent: true, opacity: forkOld(2) ? 0.13 : RAKE.lit, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3 })),
+    // the Fork's furrows, fainter than the court's rings (forkFix.js, 2: the
+    // same program, another opacity)
+    forkRakeDark: keep(new THREE.MeshBasicMaterial({ color: '#000000', transparent: true, opacity: forkOld(2) ? 0.3 : RAKE.dark, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3 })),
+    // the Fork's waymark, a post of weathered timber (forkFix.js, 3)
+    forkPost: Std({ map: timber.map, normalMap: timber.normalMap, roughnessMap: timber.roughnessMap, color: WAYMARK.color, roughness: 0.9 }),
+    // the caps shod on the Pavilion's bracket arms, dark bronze (pavilionFix.js, 2)
+    pavBronze: Std({ color: '#5c4630', roughness: 0.5, metalness: 0.65 }),
+    // the armillary's pedestal, turned from one stone: the garden stone's
+    // tint on the lanterns' jointless carving (webFix.js, 7 — the ashlar's
+    // mortar ran in joints down the lettered shaft)
+    pedestalStone: stoneShade(Std({ map: again(carveSet.map, 1 / 11), normalMap: again(carveSet.normalMap, 1 / 11), roughnessMap: again(carveSet.roughnessMap, 1 / 11), color: '#b9ae9f', roughness: 1 })),
+    // the Pavilion's own (pavilionProps.js): the dark gilt of its columns'
+    // collars (13); the green and the chalk line painted on its bracket arms
+    // (3); the cloth under the qin (4) — none with a map, so all of them the
+    // ridge's compiled program; and its rails' lacquer, worn (10)
+    pavGilt: Std({ ...DARK_GILT }),
+    pavGreen: Std({ color: CAIHUA.green, roughness: 0.82 }),
+    pavChalk: Std({ color: CAIHUA.chalk, roughness: 0.88 }),
+    brocade: Std({ color: '#39452e', roughness: 0.93 }),
+    lacquerWorn: wornLacquer(WOOD_OLD ? Std({ color: '#5a2620', roughness: 0.45, vertexColors: true })
+      : Std({ map: whiteTex, normalMap: timber.normalMap, normalScale: new THREE.Vector2(0.22, 0.22), roughnessMap: timber.roughnessMap, color: '#5a2620', roughness: 0.55, vertexColors: true })),
     blackLacquer: Std({ color: '#17110d', roughness: 0.32 }),
     silk: Std({ color: '#e2d6bc', roughness: 0.6 }),
     // The guqin player's cushion: cloth, not lacquer. In the lacquer it took
@@ -1087,21 +1431,32 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
     cushion: Std({ color: '#4e231c', roughness: 0.92 }),
     newWood: Std({ map: timber.map, normalMap: timber.normalMap, roughnessMap: timber.roughnessMap, color: '#e3d2ae', roughness: 0.8 }),
     stone: stoneShade(Std({ map: again(pale.map, 1 / 26), normalMap: again(pale.normalMap, 1 / 26), roughnessMap: again(pale.roughnessMap, 1 / 26), color: '#b9ae9f', roughness: 1 })),
+    // the same stone in the balustrades on the wall tops, let fall into the
+    // night round the maze with the walls and copings under them (webProps.js,
+    // 1: over the cedars it was a pale lit strip, the one thing of the Library
+    // left in the court's sky)
+    wallTop: stoneShade(Std({ map: again(pale.map, 1 / 26), normalMap: again(pale.normalMap, 1 / 26), roughnessMap: again(pale.roughnessMap, 1 / 26), color: '#b9ae9f', roughness: 1 }), { night: !webPropsOld(1) }),
     frame: Std({ color: '#7a5a30', roughness: 0.4, metalness: 0.6 }),
     // water gilding on the pier glasses' carving (mirror.js), burnished and old
     gilt: Std({ color: '#c2994c', roughness: 0.34, metalness: 0.9 }),
     giltDeep: Std({ color: '#6f5128', roughness: 0.62, metalness: 0.75 }),
     // The garden's stone lanterns: cut stone with no joints in it (a lantern
     // is carved from five blocks, not laid in courses), lit from inside.
-    lanternStone: flameLit(Std({ map: again(carveSet.map, 1 / 11), normalMap: again(carveSet.normalMap, 1 / 11), roughnessMap: again(carveSet.roughnessMap, 1 / 11), color: '#b3ada2', roughness: 1 })),
+    lanternStone: flameLit(Std({ map: again(carveSet.map, 1 / 11), normalMap: again(carveSet.normalMap, 1 / 11), roughnessMap: again(carveSet.roughnessMap, 1 / 11), color: propsOld(4) ? '#b3ada2' : '#8d8a85', roughness: 1 })),
     // the paper of their windows, coloured by the flame behind it (litPaper)
     lanternPaper: keep(new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide, fog: false })),
     paperDead: Std({ color: '#6f685c', roughness: 0.95, side: THREE.DoubleSide }),
     leather: Std({ color: '#4a2519', roughness: 0.62 }),
     tuft: Std({ color: '#4c5c33', roughness: 1, emissive: '#1f2b18', emissiveIntensity: 0.5 }),
+    // the lawn's blades in a lantern's light (lawn.js; forkProps.js, 10)
+    lawnBlade: bladeLit(Std({ vertexColors: true, roughness: 1, side: THREE.DoubleSide })),
     petal: Std({ color: '#cdbfe0', roughness: 0.8, side: THREE.DoubleSide, emissive: '#3a3348', emissiveIntensity: 0.45 }),
     wisteria: sprite(wisteriaTex),
     ivy: sprite(ivyTex),
+    // the Door's grown ivy, a leaf at a time (ivy.js): glossy, its veins pale,
+    // its underside paler and duller; and the wisteria's leaflets
+    ivyLeaf: backPaler(Std({ map: keep(ivyLeafTexture(7)), roughness: 0.42, side: THREE.DoubleSide }), 'babel-ivy-leaf'),
+    vineLeaf: backPaler(Std({ color: '#ffffff', roughness: 0.6, side: THREE.DoubleSide }), 'babel-vine-leaf'),
     carve: stoneShade(Std({ map: carveSet.map, normalMap: carveSet.normalMap, roughnessMap: carveSet.roughnessMap, color: stoneTint('#b3a894', '#b4aea1'), roughness: 1, side: THREE.DoubleSide })),
     // the same, in the Silence's shaded stone (capShade's tone): its stone
     // balustrade, which goes on from the flights' dark stone (one program
@@ -1110,7 +1465,7 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
     dressed: stoneShade(Std({ map: dressedSet.map, normalMap: dressedSet.normalMap, roughnessMap: dressedSet.roughnessMap, color: stoneTint('#b3a894', '#aca699'), roughness: 1, side: THREE.DoubleSide }), { weather: true }),
     marble: Std({ map: marbleSet.map, roughness: 0.24, metalness: 0, envMapIntensity: 1.3 }),
     column: stoneShade(Std({ map: columnSet.map, normalMap: columnSet.normalMap, roughnessMap: columnSet.roughnessMap, color: stoneTint('#b3a894', '#bab3a6'), roughness: 1 })),
-    hang: keep(makeHangingMaterial(hangTex, wind, HANGING_KINDS)),
+    hang: keep(makeHangingMaterial(hangTex, wind, HANGING_KINDS, { keepCoverage: WILLOW_BROAD, weep: pavPropsOld(6) ? null : WILLOW })),
     // the lilies of the pond (pond.js): four kinds of leaf in one atlas, and the flowers
     lily: keep(lilyPads.material),
     flower: keep(makeFlowerMaterial()),
@@ -1350,7 +1705,7 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
   // drawn ahead of everything (see makeFoliagePrepass).
   // `group`: what an item is drawn with instead of its patch of ground (each
   // group a mesh of its own, culled on its own); `name` names the meshes.
-  const instances = (geo, mat, items, { cast = true, receive = true, chunked = false, attrs = null, depth = null, prepass = null, group: groupOf = null, name = '' } = {}) => {
+  const instances = (geo, mat, items, { cast = true, receive = true, chunked = false, attrs = null, depth = null, prepass = null, group: groupOf = null, name = '', to = root } = {}) => {
     if (!items.length) return null;
     keep(geo);
     const groups = new Map();
@@ -1383,7 +1738,7 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
       inst.userData.group = groupOf ? groupOf(group[0]) : undefined;
       if (depth) inst.customDepthMaterial = depth;
       inst.computeBoundingSphere();
-      root.add(inst);
+      to.add(inst);
       if (prepass) {
         const pre = new THREE.InstancedMesh(g, prepass, group.length);
         pre.instanceMatrix = inst.instanceMatrix;
@@ -1391,7 +1746,7 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
         pre.receiveShadow = false;
         pre.renderOrder = -1;
         pre.computeBoundingSphere();
-        root.add(pre);
+        to.add(pre);
       }
       first ??= inst;
     }
@@ -1854,7 +2209,10 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
   //                where the other flight's deck arrives and a reader can
   //                step across. Both of those are measured, not chosen; the
   //                notes are where they are decided.
-  const flightDress = (c, ang, f, halfW, { gap = null, ends = [true, true], stone = LB.cap, worn = true, keyThrough = true, cross = null, gapNewels = true, plane = false, face = stone } = {}) => {
+  // (`nosing`, `riser`: where the lips and the risers' shade go, when not
+  // `stone` and LB.riserShade; `string`: a wall string up the inside of both
+  // flanks — the Echo's, echoFix.js point 2)
+  const flightDress = (c, ang, f, halfW, { gap = null, ends = [true, true], stone = LB.cap, worn = true, keyThrough = true, cross = null, gapNewels = true, plane = false, face = stone, nosing = stone, riser = LB.riserShade, string = false } = {}) => {
     const { run, span, spring, steps, from, to } = f.dims;
     const { u0, u1, soffit, pitch, stepTop, stepAt, crown } = f;
     const ax = dir(ang), px = dir(ang + 90);
@@ -2054,11 +2412,38 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
       const level = cross && Array.from({ length: 9 }, (_, i) => crossTop(spot(e + d * 0.5, ((i - 4) / 4) * (TREAD_W / 2))))
         .some((y) => Math.abs(y - Math.max(hi, lo)) < 0.01);
       const h = Math.max(hi, lo) - (level ? 0.06 : 0);
-      stone.add(profileGeo([
-        [e, h], [e + d * 0.95, h], [e + d * 0.95, h - 0.5], [e + d * 0.3, h - 1.2], [e, h - 1.2],
-      ], TREAD_W, c, ang));
+      // (with a string, the Echo's: the lip's front arris taken off at 45°,
+      // a face turned up to the lamps over the stair, so the lip is drawn as
+      // the palest line on each step — its front faces away from them)
+      nosing.add(profileGeo(string
+        ? [[e, h], [e + d * 0.6, h], [e + d * 0.95, h - 0.35], [e + d * 0.95, h - 0.6], [e + d * 0.3, h - 1.2], [e, h - 1.2]]
+        : [[e, h], [e + d * 0.95, h], [e + d * 0.95, h - 0.5], [e + d * 0.3, h - 1.2], [e, h - 1.2]], TREAD_W, c, ang));
       if (floor > -1e8 && h - 1.2 > floor + 0.2) {
-        LB.riserShade.add(profileGeo([[e + d * 0.03, floor], [e + d * 0.06, floor], [e + d * 0.06, h - 1.2], [e + d * 0.03, h - 1.2]], TREAD_W, c, ang));
+        riser.add(profileGeo([[e + d * 0.03, floor], [e + d * 0.06, floor], [e + d * 0.06, h - 1.2], [e + d * 0.03, h - 1.2]], TREAD_W, c, ang));
+      }
+    }
+    // ── the wall string ──
+    // A raking band up the inside of each flank, from under the treads to a
+    // little over the nosings, that every step dies into. Without it each
+    // tread ended against the parapet on its own, its lip and the shade under
+    // it a dark notch at both ends: a flight of separate slabs. (Cut as the
+    // flank is, so it never stands across the other flight's treads or the
+    // way off at the crossing.)
+    if (string) {
+      const LIFT = stepTop(Math.min(to - 1, from + 1)) - stepTop(from) || 2.4;
+      const IN = halfW - 0.8, D = 0.3;
+      for (const side of [-1, 1]) {
+        // One plain band, a hair proud of the flank. (With a fillet along its
+        // top it was a second bright line beside the coping, and from the
+        // stand the flank read as three rails running down to the floor;
+        // ?wechofix=old:2 is without any string.)
+        const parts = [[-LIFT - 1.1, 0.6, D]];
+        for (const [lo, hi, depth] of parts) {
+          const lim = roof(side * (IN - depth), side * IN, gapOf(side));
+          for (const pts of cutTo(rake(hi), rake(lo), lim)) {
+            face.add(profileGeo(pts, depth + 0.1, spot(0, side * (IN - (depth - 0.1) / 2)), ang));
+          }
+        }
       }
     }
     // (`worn` may be a test of the tread, k: a tread with something laid in
@@ -2383,16 +2768,16 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
     // the bridges' stone balustrades: carved stone, never a stair (their uv
     // is their own: along each moulding, round each baluster)
     balustrade: new Batch(M.carve), balustradeShade: new Batch(M.carveShade),
-    shelf: new Batch(M.shelf, G), shelfBack: new Batch(M.shelfBack, { cast: false, ...G }),
-    bronze: new Batch(M.bronze), bronzeDim: new Batch(M.bronzeDim), inlay: new Batch(M.inlay, { cast: false }),
+    shelf: new Batch(M.shelf, G), shelfLip: new Batch(M.shelfLip), shelfBack: new Batch(M.shelfBack, { cast: false, ...G }),
+    bronze: new Batch(M.bronze), bronzeDim: new Batch(M.bronzeDim), inlay: new Batch(M.inlay, { cast: false }), fillet: new Batch(M.fillet, { cast: false }),
     liner: new Batch(M.liner, { cast: false }), stars: new Batch(M.stars, { cast: false, receive: false }),
     step: new Batch(M.step, P), mirror: new Batch(M.mirror, { cast: false }), stone: new Batch(M.stone, P),
-    frame: new Batch(M.frame), gilt: new Batch(M.gilt, { cast: false }), giltDeep: new Batch(M.giltDeep, { cast: false }), iron: new Batch(M.iron, { cast: false }), rail: new Batch(M.stone, P),
+    frame: new Batch(M.frame), gilt: new Batch(M.gilt, { cast: false }), giltDeep: new Batch(M.giltDeep, { cast: false }), iron: new Batch(M.iron, { cast: false }), rail: new Batch(M.wallTop, P),
     shafts: new Batch(shaftMaterial, { cast: false, receive: false }),
     frieze: new Batch(M.frieze, P), plate: new Batch(M.plate), letters: new Batch(M.letters, { cast: false }), scallop: new Batch(M.scallop, { cast: false }),
     railGlow: new Batch(M.railGlow, { cast: false, receive: false }), floorBand: new Batch(M.floorBand, { cast: false, ...P }),
     bronzeWorn: new Batch(M.bronzeWorn), oak: new Batch(M.oak, G), shade: new Batch(M.shade, { cast: false }),
-    shadeDead: new Batch(M.shadeDead), paper: new Batch(M.paper), leather: new Batch(M.leather), tuft: new Batch(M.tuft, { cast: false }),
+    shadeDead: new Batch(M.shadeDead), paper: new Batch(M.paper), wax: new Batch(M.wax), leather: new Batch(M.leather), tuft: new Batch(M.tuft, { cast: false }),
     shelfWorn: new Batch(M.shelfWorn, { cast: false, ...G }), dust: new Batch(M.dust, { cast: false }),
     contact: new Batch(M.contact, { cast: false, receive: false }), riserShade: new Batch(M.riserShade, { cast: false, receive: false }), joint: new Batch(M.joint, { cast: false }), deadShards: new Batch(M.deadShards, { cast: false }),
     wornFloor: new Batch(M.wornFloor, { cast: false }), wornStep: new Batch(M.wornStep, { cast: false }),
@@ -2404,6 +2789,10 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
     // three-quarters of a unit)
     rubble: new Batch(M.rubble, { cast: false, ...P }),
     carve: new Batch(M.carve), dressed: new Batch(M.dressed, P), marble: new Batch(M.marble),
+    // the Door's portal, in the same stones, its reveals and soffits darkened
+    // in the shader (doorFix.js, 3)
+    portalCarve: new Batch(doorOld(3) ? M.carve : keep(revealShade(stoneShade(M.carve.clone()), PORTAL_FRAME, PORTAL, 'carve'))),
+    portalDressed: new Batch(doorOld(3) ? M.dressed : keep(revealShade(stoneShade(M.dressed.clone(), { weather: true }), PORTAL_FRAME, PORTAL, 'dressed')), P),
     // The Echo's flights' flanks, in the stone the flights themselves are cut
     // from (their steps and the arch under them): one stone, its joints
     // running every way, so no single course runs level across both flights.
@@ -2411,10 +2800,16 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
     // one. (It was the carving's limestone, jointless, and on a face this big
     // its soft mottle read as glossed plaster, 2026-10-07.)
     flank: new Batch(M.step, P),
+    // (the Echo's: echoFix.js, 2 and 6)
+    nosing: new Batch(M.nosing, P), riserSoft: new Batch(M.riserSoft, { cast: false, receive: false }), drum: new Batch(M.drum, P),
     column: new Batch(M.column), columnBox: new Batch(M.column, P),
     bookRows: new Batch(M.bookRows, { cast: false }), bookRowsLit: new Batch(M.bookRowsLit, { cast: false }),
   };
   const fallenLeaves = [], doorIvy = [], doorRubble = [], petals = [], hangs = [];
+  // the Door's ivy and the pergola's wisteria leaves, and both their wood (ivy.js)
+  const ivyLeaves = [], vineLeaves = [], ivyWood = new Wood(7);
+  const IVY_GREEN = ['#26401f', '#2d4a24', '#34522a', '#2a4422', '#3a5a2c', '#22381c', '#304d26'];
+  const IVY_YOUNG = ['#5a7a34', '#66863a', '#4f6e2e'];
   const posts = [], links = [], balusters = [];
   // (`shelved`: the books standing on the galleries' shelves, at their real
   // size — drawn a wall to a mesh, and not felt by the walking body, which
@@ -2437,6 +2832,8 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
   // Declared up here because the Library uses it too (the Echo's sconces), not
   // only the garden's lanterns.
   const glows = [];
+  // (the Door's candelabra's lights, which breathe with their flames: doorProps.js, 4)
+  const candleLights = [];
   // Lights the pond may see that are not glows: a flame behind paper is drawn
   // as the paper (see the stone lanterns), but the water still wants a lamp.
   const waterLamps = [];
@@ -3132,6 +3529,49 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
     if (pool) decal(poolAt, poolSize, poolSize, '#ffb060', pool * POOL_DIAL, poolY, 0.1, [p[0], y, p[1], G]);
   };
 
+  // ── Light from far down the Vestibule's well ─────────────────────────────
+  // From the stand, under the bridge, the well was a flat black slab beside
+  // it: nothing said it went down. Now its walls are lit from somewhere far
+  // below, warmly and faintly — none at the lip, more the further down the
+  // eye goes — so the dark under the bridge reads as depth (review
+  // 2026-10-08, point 7; ?wvest=old:7). A sheet of lit air laid just inside
+  // the liner, as the light columns are: no lamp, nothing to cost.
+  const wellGlowMat = keep(new THREE.ShaderMaterial({
+    uniforms: { uColor: { value: new THREE.Color('#ff9d58') }, uStrength: { value: 0.24 } },
+    vertexShader: /* glsl */ `
+      varying float vY;
+      void main() {
+        vec4 w = modelMatrix * vec4(position, 1.0);
+        vY = w.y;
+        gl_Position = projectionMatrix * viewMatrix * w;
+      }`,
+    fragmentShader: /* glsl */ `
+      uniform vec3 uColor;
+      uniform float uStrength;
+      varying float vY;
+      void main() {
+        // nothing at the lip, and more the further down: from the stand the
+        // eye only reaches the top thirty or forty units of it, under the bridge
+        float t = clamp((3.0 - vY) / 110.0, 0.0, 1.0);
+        gl_FragColor = vec4(uColor * uStrength * pow(t, 0.7), 1.0);
+      }`,
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false,
+  }));
+  const wellGlow = (c, shaft) => {
+    const ring = hexPts(c, shaft - 0.25), pos = [];
+    const TOP = 3, BOT = -228;
+    for (let k = 0; k < ring.length; k++) {
+      const [ax0, az0] = ring[k], [bx0, bz0] = ring[(k + 1) % ring.length];
+      pos.push(ax0, TOP, az0, bx0, TOP, bz0, bx0, BOT, bz0, ax0, TOP, az0, bx0, BOT, bz0, ax0, BOT, az0);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    const m = new THREE.Mesh(keep(g), wellGlowMat);
+    m.name = 'well-glow';
+    m.renderOrder = 2;
+    root.add(m);
+  };
+
   const mounts = [];
   const hangPainting = (index, [x, z], y, normal, width) => {
     if (!paintings) return;
@@ -3168,6 +3608,38 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
   // `cut`: how much shorter the hallway is at its -n and +n ends, where the
   // room there (the Echo) stands further out into its walls.
   const archivoltGeo = keep(new THREE.TorusGeometry(ARCH_R + 1.6, 1.6, 8, 28, Math.PI));
+  // The ring as it would be built: thirteen voussoirs, each cut to the
+  // arch's centre, the keystone longer and standing out further,
+  // set a little proud of the wall on a bed of mortar that shows in their
+  // joints. (It was a smooth round moulding with a box for a keystone; with
+  // the wall's blocks a torso high every face of every arch looked the same —
+  // review 2026-10-08, point 5; ?wvest=old:5 puts the moulding back.) Built in
+  // the arch's own frame, x across, y up, z out of the face: `z0`..`z1`.
+  const VOUSSOIRS = 13, V_DEEP = 3.4, V_JOINT = 0.012;
+  const ringBlock = (a0, a1, ri, ro, z0, z1) => {
+    const at = (a, r) => [Math.cos(a) * r, ARCH_SPRING + Math.sin(a) * r];
+    const sh = new THREE.Shape();
+    const p = [at(a0, ri), at(a1, ri), at(a1, ro), at(a0, ro)];
+    sh.moveTo(...p[0]);
+    p.slice(1).forEach((q) => sh.lineTo(...q));
+    sh.closePath();
+    const g = new THREE.ExtrudeGeometry(sh, { depth: z1 - z0, bevelEnabled: false, curveSegments: 1 });
+    return g.translate(0, 0, z0);
+  };
+  const voussoirsGeo = (zFace) => {
+    const stones = [], beds = [];
+    for (let k = 0; k < VOUSSOIRS; k++) {
+      const key = k === (VOUSSOIRS - 1) / 2;
+      const a0 = (Math.PI * k) / VOUSSOIRS, a1 = (Math.PI * (k + 1)) / VOUSSOIRS;
+      // the stone, a hair under the soffit (never in its plane) and clear of its neighbours
+      stones.push(ringBlock(a0 + V_JOINT, a1 - V_JOINT, ARCH_R - 0.06, ARCH_R + (key ? V_DEEP + 1.3 : V_DEEP), zFace - 0.05, zFace + (key ? 0.95 : 0.6)));
+      // and the mortar behind it, set back from its face, filling its joints
+      // (a piece to each stone: cut by the quarter, its straight edges were
+      // two dark beams across the opening)
+      beds.push(ringBlock(a0, a1, ARCH_R - 0.03, ARCH_R + V_DEEP - 0.1, zFace - 0.05, zFace + 0.42));
+    }
+    return { stone: mergeGeometries(stones, false), mortar: mergeGeometries(beds, false), parts: [...stones, ...beds] };
+  };
   const arch = (mid0, n, uvAt = null, cut = [0, 0]) => {
     const turn = Math.atan2(n[0], n[1]);
     const len = GAP - cut[0] - cut[1], mid = add(mid0, n, (cut[0] - cut[1]) / 2);
@@ -3179,8 +3651,18 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
     const across = [n[1], -n[0]];
     for (const side of [-1, 1]) {
       const face = add(mid, n, side * (len / 2 + 0.7));
-      LB.cap.add(archivoltGeo.clone().rotateY(turn).translate(face[0], ARCH_SPRING, face[1]), uvAt);
-      LB.cap.add(new THREE.BoxGeometry(4.2, 6, 3.4).rotateY(turn).translate(face[0], ARCH_SPRING + ARCH_R + 2.4, face[1]), uvAt);
+      if (vestOld(5)) {
+        LB.cap.add(archivoltGeo.clone().rotateY(turn).translate(face[0], ARCH_SPRING, face[1]), uvAt);
+        LB.cap.add(new THREE.BoxGeometry(4.2, 6, 3.4).rotateY(turn).translate(face[0], ARCH_SPRING + ARCH_R + 2.4, face[1]), uvAt);
+      } else {
+        // (on the -n face the ring is built facing +z and turned round to it)
+        const { stone, mortar, parts } = voussoirsGeo(len / 2 + 0.1);
+        for (const [batch, g] of [[LB.cap, stone], [LB.joint, mortar]]) {
+          if (side < 0) g.rotateY(Math.PI);
+          batch.add(g.rotateY(turn).translate(mid[0], 0, mid[1]), uvAt);
+        }
+        parts.forEach((g) => g.dispose());
+      }
       for (const s of [-1, 1]) {
         const j = add(face, across, s * (HALL / 2 + 1.6));
         LB.cap.add(new THREE.BoxGeometry(3.2, ARCH_SPRING - 6, 1.8).rotateY(turn).translate(j[0], 6 + (ARCH_SPRING - 6) / 2, j[1]), uvAt);
@@ -3248,7 +3730,8 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
     const rim = rimAt(c), wider = rim - R;
     if (lit) {
       LB.floorBand.add(slabGeo(hexPts(c, 83.8 + wider), [hexPts(c, 72.4 + wider)], 0.1, 6));
-      LB.inlay.add(slabGeo(hexPts(c, 72.9 + wider), [hexPts(c, 72.1 + wider)], 0.16, 6));
+      if (auditOld(1)) LB.inlay.add(slabGeo(hexPts(c, 72.9 + wider), [hexPts(c, 72.1 + wider)], 0.16, 6));
+      else LB.fillet.add(slabGeo(hexPts(c, FILLET.outer + wider), [hexPts(c, FILLET.inner + wider)], FILLET.proud, 6));
       if (shaft) LB.cap.add(slabGeo(hexPts(c, shaft + 13), [hexPts(c, shaft + 2.6)], 0.08, 6));
     }
     // (the way in's two walls, stone for stone the far hallway's: WAY_IN)
@@ -3257,7 +3740,8 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
       const mid = piece.reduce((m, q) => [m[0] + q[0] / piece.length, m[1] + q[1] / piece.length], [0, 0]);
       const bearing = (Math.atan2(mid[1] - c[1], mid[0] - c[0]) / deg + 360) % 360;
       const uvAt = wayInSide !== null && Math.abs(((bearing - wayInSide + 540) % 360) - 180) < 30 ? WAY_IN.by : null;
-      LB.mass.add(slabGeo(piece, [], MASS_H, 0), uvAt);
+      // (the Echo's walls coursed as a drum: echoFix.js, 6)
+      (room === 1 && !echoOld(6) ? LB.drum : LB.mass).add(slabGeo(piece, [], MASS_H, 0), uvAt);
       LB.cap.add(slabGeo(piece, [], CAP, MASS_H), uvAt);
     }
     if (hallway(cell, 5)) {
@@ -3330,6 +3814,22 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
             deep.forEach((g) => LB.giltDeep.add(g));
           }
         }
+        // Books over the Echo's ways out (echoFix.js, 7). The room is named
+        // for repetition, and through the upper arcade every bay showed
+        // shelves but these two, which were bare ashlar from the arch to the
+        // cornice. The top tier runs right across over the arch (its apex is
+        // at 76, the tier begins at 94); the two below it stand on the piers
+        // either side, over the pier glasses (whose heads are under 50), from
+        // the corner to a few units clear of the arch's voussoirs. Drawing
+        // nothing from the world's stream (`stream: 0`): the books are the
+        // walls' own.
+        if (room === 1 && lit && !echoOld(7)) {
+          const clear = ARCH_R + 4;
+          shelfWall(e.i0, e.i1, inward, { from: TIERS - 1, to: TIERS - 1, ...dress, stream: 0 });
+          // (shelfWall keeps 12 clear at each end of what it is given)
+          shelfWall(e.i0, add(e.mi, e.t, -clear + 12), inward, { from: 2, to: TIERS - 2, ...dress, stream: 0 });
+          shelfWall(add(e.mi, e.t, clear - 12), e.i1, inward, { from: 2, to: TIERS - 2, ...dress, stream: 0 });
+        }
         continue;
       }
       // (a wider room's longer walls still draw the world's stream for a
@@ -3346,6 +3846,7 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
       // parapet's foot, in the floor's own plane)
       LB.liner.add(slabGeo(hexPts(c, shaft + 2.5), [hexPts(c, shaft)], 236, -230));
       LB.stars.add(slabGeo(hexPts(c, shaft + 2), [], 1, -232));
+      if (lit && room === 0 && !vestOld(7)) wellGlow(c, shaft);
       if (lit && room === 0 && BRIDGE_LEVEL) {
         // (the Vestibule's well rail is laid with its bridge, as one run
         // round each half of the well: vestibuleBridge.js)
@@ -3441,7 +3942,7 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
     const V = cellC(0, 0), S = cellC(2, -2), Dr = cellC(4, -4);
     gallery(V, 1); gallery(V, 4); ladder(V, 3, 20); readingCorner(V, 4, -16);
     gallery(S, 0); gallery(S, 3); ladder(S, 4, -20); readingCorner(S, 3, 12, { lit: false });
-    gallery(Dr, 1); gallery(Dr, 4); ladder(Dr, 0, 16); readingCorner(Dr, 3, -10);
+    gallery(Dr, 1); gallery(Dr, 4); ladder(Dr, 0, doorPropsOld(9) ? 16 : DOOR_LADDER_U); readingCorner(Dr, 3, -10);
   }
 
   let vault = null;   // the library over the Vestibule, raised by the reader's gaze in tick
@@ -3527,8 +4028,13 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
     // heads, so the bridge is an island of light and the gallery falls away.
     // (their pools laid on the floor, as the reading corner's is: at the
     // default 6.6 they drew a pale sock round the foot of every leg in the room)
-    lamp(add(c, ax, -64), { y: 42, light: 9000, priority: 8, strength: 1.3, pool: 0.42, poolSize: 150, poolY: 6.15 });
-    lamp(add(c, ax, 64), { y: 42, light: 9000, priority: 5, strength: 1.3, pool: 0.42, poolSize: 150, poolY: 6.15 });
+    // (their halos turned down as the lamps by the other stands are: at the
+    // full 111 units across, the near one's laid a pale band down the whole
+    // bay of shelves behind it, from the top of the frame to the rail, which
+    // read as a smear on the lens — review 2026-10-08, point 6)
+    const BRIDGE_HAZE = vestOld(6) ? 1 : 0.45;
+    lamp(add(c, ax, -64), { y: 42, light: 9000, priority: 8, strength: 1.3, pool: 0.42, poolSize: 150, poolY: 6.15, haze: BRIDGE_HAZE });
+    lamp(add(c, ax, 64), { y: 42, light: 9000, priority: 5, strength: 1.3, pool: 0.42, poolSize: 150, poolY: 6.15, haze: BRIDGE_HAZE });
     // The deck walked smooth down its middle: the file has been crossing it
     // for a very long time.
     if (!BRIDGE_LEVEL) LB.wornStep.add(wornRibbon([add(c, ax, -54), add(c, ax, 54)], 7, 12.03));
@@ -4007,10 +4513,13 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
       // (The keystones stop under the deck, as the Silence's do under its
       // terrace: standing up through the crown they crossed as a raised X of
       // stone under the rose, and the rose had to float over them.)
+      // (the lips paler, the risers' shade lighter and a string up both
+      // flanks: echoFix.js, 2)
+      const VALUES = echoOld(2) ? {} : { nosing: LB.nosing, riser: LB.riserSoft, string: true };
       flightDress(c, ang, f, 7.9, CROSS_OLD
-        ? { gap: [-15, 15], worn: ROSE_OLD || notCrown, keyThrough: ROSE_OLD, plane: ECHO_ONE_FACE, face: ECHO_ONE_FACE ? LB.flank : LB.cap }
+        ? { gap: [-15, 15], worn: ROSE_OLD || notCrown, keyThrough: ROSE_OLD, plane: ECHO_ONE_FACE, face: ECHO_ONE_FACE ? LB.flank : LB.cap, ...VALUES }
         // (the other flight is cut on the same profile as this one)
-        : { cross: { c, ang: 60 - ang, f, half: 7.5 }, gapNewels: ang === 0, worn: ROSE_OLD || notCrown, keyThrough: ROSE_OLD, plane: ECHO_ONE_FACE, face: ECHO_ONE_FACE ? LB.flank : LB.cap });
+        : { cross: { c, ang: 60 - ang, f, half: 7.5 }, gapNewels: ang === 0, worn: ROSE_OLD || notCrown, keyThrough: ROSE_OLD, plane: ECHO_ONE_FACE, face: ECHO_ONE_FACE ? LB.flank : LB.cap, ...VALUES });
     }
     // ── The crossing ─────────────────────────────────────────────────────
     // The one piece of floor in this room a reader is ever brought to a stop
@@ -4131,7 +4640,8 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
       const beam = new THREE.Mesh(
         keep(shaftVolume(new THREE.CylinderGeometry(21, 35, 190, 30, 1, true),
           mid.clone().addScaledVector(up, -95).toArray(), 35, mid.clone().addScaledVector(up, 95).toArray(), 21)),
-        keep(makeShaftMaterial('#c3cfd8', 0.09)),
+        // (begun over the lower arcade and warmed at its edge: echoFix.js, 4)
+        keep(moonBeamPatch(makeShaftMaterial('#c3cfd8', 0.09))),
       );
       beam.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), up);
       beam.position.copy(mid);
@@ -4182,12 +4692,19 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
           // a stronger cool cast on warm stone reads as a filter, the teal
           // grade that was turned down.
           uColor: { value: new THREE.Color().setRGB(0.84, 0.92, 1.0) },
-          uK: { value: qNum('wmoonk', 0.8) },
+          // Since the column was begun over the lower arcade (echoFix.js, 4)
+          // the light is what it lays on the stair, and the stair has to be
+          // the brightest thing in the room: stronger where it falls, and a
+          // fainter spill of it carried on down the flight to the floor,
+          // which the stand looks up (the lower treads lay outside the
+          // column's section, and from the floor the moon lit nothing seen).
+          uK: { value: qNum('wmoonk', echoOld(4) ? 0.8 : 1.3) },
           uSoft: { value: qNum('wmoonsoft', 6) },
+          uSpill: { value: qNum('wmoonspill', echoOld(4) ? 0 : 0.8) },
         },
         vertexShader: `varying vec3 vW;
           void main() { vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,
-        fragmentShader: `uniform vec2 uC; uniform vec2 uD; uniform vec3 uColor; uniform float uK; uniform float uSoft; varying vec3 vW;
+        fragmentShader: `uniform vec2 uC; uniform vec2 uD; uniform vec3 uColor; uniform float uK; uniform float uSoft; uniform float uSpill; varying vec3 vW;
           void main() {
             float t = (vW.y - 30.0) / ${Math.cos(tilt).toFixed(5)};
             vec2 ctr = uC + uD * (t * ${Math.sin(tilt).toFixed(5)});
@@ -4195,6 +4712,7 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
             float d = distance(vW.xz, ctr);
             float m = 1.0 - smoothstep(r - uSoft, r + 0.5 * uSoft, d);
             m *= 0.8 + 0.2 * clamp(1.0 - d / r, 0.0, 1.0);
+            m = max(m, uSpill * (1.0 - smoothstep(0.7 * r, 3.2 * r, d)));
             gl_FragColor = vec4(uColor * (m * uK), 1.0);
           }`,
         // out = src·dst + dst, and the target's alpha left as it was
@@ -4210,7 +4728,7 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
           if (ang === 60 && Math.abs(u) < 9) continue;   // the crown both flights share, lit once
           const q = add(c, dir(ang), u);
           const off = (y - 30) * Math.tan(tilt), ctr = add(c, dir(52), off), r = 32 - (8 * ((y - 30) / Math.cos(tilt))) / 95;
-          if (dist(q, ctr) > r + 9) continue;
+          if (dist(q, ctr) > (echoOld(4) ? r + 9 : 3.2 * r + 9)) continue;
           if (!ROSE_OLD && y >= CROWN_Y) continue;   // (the crown: below)
           treads.push(flatQuad(q, ang, f.dims.run, 14.6, y + 0.05));
         }
@@ -4234,6 +4752,9 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
       }
       const land = new THREE.Mesh(keep(mergeGeometries(treads)), moonLand);
       treads.forEach((g) => g.dispose());
+      // (named, so the walking body takes it for light on the stone and not a
+      // floor of its own: body.js AIR)
+      land.name = 'moonLand';
       land.renderOrder = 2;
       root.add(land);
     }
@@ -4352,6 +4873,7 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
     // of entablature, as in a Florentine loggia — for the arch to spring from,
     // so the arches can stand on columns no thicker than a column should be.
     // (`ped`: a pedestal first, for a storey standing on a cornice.)
+    const KEY_OLD = echoOld(3);
     const arcade = ({ foot, ped = 0, top, rad, rise, band, wall }) => {
       const plinthH = rad * 0.55, baseH = rad * 0.75, capH = rad * 1.15, impH = rad * 1.3;
       const y0 = foot + ped, shaftY = y0 + plinthH + baseH, capY = top - impH - capH;
@@ -4394,7 +4916,7 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
           const th = Math.PI * (1 - n / 24);
           arc.push([Math.cos(th) * span, top + Math.sin(th) * rise]);
         }
-        LB.mass.add(profileGeo(
+        (echoOld(6) ? LB.mass : LB.drum).add(profileGeo(
           [[-HALF, top], [-span, top], ...arc, [span, top], [HALF, top], [HALF, top + rise + band], [-HALF, top + rise + band]],
           wall, mid, turn,
         ));
@@ -4406,7 +4928,32 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
           ring2.scale(1, (rise + t) / (span + t), 1);
           LB.cap.add(placed(ring2.rotateY(-turn * deg), q, top));
           // and a keystone at the crown
-          LB.cap.add(placed(new THREE.BoxGeometry(rad * 0.95, rad * 1.9, t * 2.2), q, top + rise + rad * 0.45, -turn * deg));
+          if (KEY_OLD) LB.cap.add(placed(new THREE.BoxGeometry(rad * 0.95, rad * 1.9, t * 2.2), q, top + rise + rad * 0.45, -turn * deg));
+        }
+        // A carved keystone (echoFix.js, 3): a wedge through the archivolt
+        // that runs on up the spandrel as a console under the cornice, with a
+        // sunk panel down its face and a cap moulding where it meets the
+        // dentils. The short block with a bronze roundel standing on it read
+        // from the floor as a ring hung over every arch, a door's knocker.
+        if (!KEY_OLD) {
+          const capH = rad * 0.35, y0 = top + rise - rad * 0.35, y1 = top + rise + band - 1.45 - capH;
+          const wb = rad * 0.42, wt = rad * 0.66, D = t * 1.9 + 0.15;
+          const wedge = (w0, w1, a, b) => [[-w0, a], [w0, a], [w1, b], [-w1, b]];
+          const at = (z) => y0 + (y1 - y0) * z, wAt = (z) => wb + (wt - wb) * z;
+          for (const face of [-1, 1]) {
+            const off = (d) => add(mid, dir(turn + 90), face * (wall / 2 - 0.15 + d / 2));
+            LB.cap.add(profileGeo(wedge(wb, wt, y0, y1), D, off(D), turn));
+            // the panel, sunk: a raised margin each side of it, the field between
+            for (const s of [-1, 1]) {
+              LB.cap.add(profileGeo([[s * wAt(0.16) * 0.58, at(0.16)], [s * wAt(0.16) * 0.9, at(0.16)], [s * wAt(0.84) * 0.9, at(0.84)], [s * wAt(0.84) * 0.58, at(0.84)]], D + 0.3, off(D + 0.3), turn));
+            }
+            LB.cap.add(profileGeo([[-wAt(0.16) * 0.9, at(0.1)], [wAt(0.16) * 0.9, at(0.1)], [wAt(0.16) * 0.9, at(0.16)], [-wAt(0.16) * 0.9, at(0.16)]], D + 0.3, off(D + 0.3), turn));
+            LB.cap.add(profileGeo([[-wAt(0.84) * 0.9, at(0.84)], [wAt(0.84) * 0.9, at(0.84)], [wAt(0.84) * 0.9, at(0.9)], [-wAt(0.84) * 0.9, at(0.9)]], D + 0.3, off(D + 0.3), turn));
+            // the cap: a fillet, and a wider abacus over it
+            LB.cap.add(placed(new THREE.BoxGeometry(wt * 2 + rad * 0.12, capH * 0.4, D + 0.25), off(D + 0.25), y1 + capH * 0.2, -turn * deg));
+            LB.cap.add(placed(new THREE.BoxGeometry(wt * 2 + rad * 0.34, capH * 0.6, D + 0.5), off(D + 0.5), y1 + capH * 0.7, -turn * deg));
+          }
+          continue;
         }
         // a roundel over every crown, bronze in a pale surround
         for (const face of [-1, 1]) {
@@ -4509,8 +5056,8 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
     lamp(add(c, dir(30), 45), { strength: 0.85, pool: 0.26, haze: 0.45 });
   }
   yield 'The Silence';
-  // III — the Silence: "at the deepest reach the stairways still their crossing,
-  // and a single lamp keeps the dark honest". So the Echo's crossing is here
+  // III — the Silence: "where the stairways stop crossing,
+  // a single lamp keeps the dark honest". So the Echo's crossing is here
   // too — and stilled: two flights climb out over the well and, instead of
   // crossing, come to rest on one landing in the middle of it, under the one
   // lamp; five of the six lamps have gone out, and the one that has not is the
@@ -4591,10 +5138,17 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
       band(LF - 1.05, LF + 1.15, TOP + 1.6, 0.85);   // its coping
       band(LF - 0.5, LF + 0.82, TOP - 2.45, 1.2);    // the string
       band(LF - 0.5, LF + 1.15, TOP - 1.25, 0.8);    // its corona
-      // a fillet under the slab — in the flights' darker stone on the terrace,
-      // whose wider arc turns the ends of its underside to the floor: in the
-      // pale stone they were two lit lenses under the landing
-      band(LF - 0.5, LF + 0.6, TOP - 4.3, 0.9, TERRACE ? LB.capShade : LB.cap);
+      // a fillet under the slab — on the round landing only. The terrace's
+      // wider arc turns the ends of its underside to the floor, and from the
+      // stand they were two pale lenses hung under it, in the pale stone or
+      // the dark (or the slab's own, paler still); without it the slab ends
+      // in its string.
+      if (!TERRACE) band(LF - 0.5, LF + 0.6, TOP - 4.3, 0.9, LB.cap);
+      // Under the string, a skin of the flights' stone over the slab's own
+      // edge: bare, the paving's flag texture ran down its face and its lower
+      // arris printed from the floor as a bright chipped crack along the whole
+      // underside of the terrace.
+      if (TERRACE) band(LF - 0.3, LF + 0.03, TOP - 3.4, 0.95, LB.capShade);
       const railY = TOP + 9, base = TOP + 2.45;
       // the flights' stone balustrade, carried round from newel to newel
       if (!RAIL_OLD) {
@@ -4629,15 +5183,30 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
     // (its pool on the landing, where it falls: the floor under it is a well
     // — and on the terrace's middle, not on the lamp's: a pool laid round the
     // lamp itself ran off the back of the landing and hung over the treads)
-    if (TERRACE) lamp(add(c, dir(258), 9), { y: 54, light: 7000, priority: 6, color: '#ffc98e', strength: 0.95, pool: 0.3, poolSize: 20, poolAt: add(c, dir(90), 4), poolY: flightProfile({ from: 9 }).pitch(0) + 0.06, beam: false });
+    // Its globe is the hallway lamps' size, not the galleries' (r 9 is a
+    // globe nearly ten units across, made to hang sixty up in a room's air):
+    // over a terrace, a head or two above the reader, that size read as a
+    // second moon.
+    // (hung a body-width clear of the reader's head as the stand sees it:
+    // silenceFix.js, 1)
+    const LAMP = silenceOld(1) ? [258, 9, 54] : LAMP_AT;
+    if (TERRACE) lamp(add(c, dir(LAMP[0]), LAMP[1]), { y: LAMP[2], r: 5.5, light: 7000, priority: 6, color: '#ffc98e', strength: 0.95, pool: 0.3, poolSize: 20, poolAt: add(c, dir(90), 4), poolY: flightProfile({ from: 9 }).pitch(0) + 0.06, beam: false });
     else lamp(add(c, dir(270), 9), { y: 50, light: 7000, priority: 6, color: '#ffc98e', strength: 0.95, pool: 0.3, poolSize: 24, poolY: flightProfile({ from: 9 }).pitch(0) + 0.06, beam: false });
     // (the one toward the Echo is hung off its doorway, at 168: on 150 it
     // hung in the arch itself, the middle of the view from the terrace)
-    for (const a of [15, 75, TERRACE ? 168 : 150, 210, 330]) lamp(add(c, dir(a), rr(52, 64)), { out: true, r: rr(7.5, 9) });
+    // (the one at 122 hung at 210, in the stand's frame, and goes higher than
+    // the rest so that from the terrace the near wall's dead globes are not a
+    // row: silenceFix.js, 3)
+    const OUT_FRAME = !silenceOld(3);
+    for (const a of [15, 75, TERRACE ? 168 : 150, OUT_FRAME ? 122 : 210, 330]) lamp(add(c, dir(a), rr(52, 64)), { out: true, r: rr(7.5, 9), ...(a === 122 ? { y: 82 } : {}) });
     // More that have gone out, at other heights, so the dark globes are a
     // room's worth and not a row — and one that fell: its chain still hangs
     // where it was, and the glass lies broken on the floor under it.
-    for (const [a, rad, y, r] of [[45, 30, 74, 8], [110, 44, 58, 7], [185, 30, 82, 8.5], [265, 60, 70, 7.5]]) {
+    // (the one at 235 hung at 265 until the terrace: from the stand it was
+    // straight behind the lit globe and just under it, so through the
+    // balusters the two read as one lamp twice the height)
+    // (and the one at 40 at 235, over the stand's left: silenceFix.js, 3)
+    for (const [a, rad, y, r] of [[45, 30, 74, 8], [110, 44, 58, 7], [185, 30, 82, 8.5], OUT_FRAME ? [40, 62, 56, 7.5] : [TERRACE ? 235 : 265, 60, 70, 7.5]]) {
       lamp(add(c, dir(a), rad), { out: true, y, r });
     }
     {
@@ -4689,11 +5258,28 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
       // little to one side, so from the floor the lamp burns beside the head
       // instead of behind it (straight behind, the reader was a black cut-out
       // with a halo), and the rest of the rail is free to stand at.
-      const seat = TERRACE ? add(c, dir(64), 11.5) : c;
+      // (Drawn back three units from where it was first put, at dir(64)·11.5:
+      // there, the feet and the hem of the robe ran on through the kerb and
+      // stood out of the terrace's face, a shoe and a dark patch in the stone.)
+      const seat = TERRACE ? add(add(c, dir(64), 11.5), dir(253), 3) : c;
       const set = (g) => g.rotateY(ry).translate(seat[0], top, seat[1]);
       // (in the darkest wool there is: a few units under the room's one lamp,
       // the dyes the walkers wear came up pale grey from behind)
-      const seated = new THREE.Mesh(keep(set(readerGeometry({ seed: 2262, color: '#18120f', seated: true }))), readerMaterial(keep).mat);
+      const seatedLook = readerMaterial(keep);
+      const seated = new THREE.Mesh(keep(set(readerGeometry({ seed: 2262, color: silenceOld(2) ? '#18120f' : ROBE, seated: true }))), seatedLook.mat);
+      // (its geometry is laid in the world, so the book is put there with it)
+      const bk = seated.geometry.userData.book;
+      if (bk) {
+        const b = new THREE.Vector3(...bk).applyAxisAngle(new THREE.Vector3(0, 1, 0), ry).add(new THREE.Vector3(seat[0], top, seat[1]));
+        seatedLook.u.uBook.value.set(b.x, b.y, b.z, 1);
+      }
+      // the lamp's pool on the stone at the reader's feet, thrown back up
+      // onto the robe's front, the hands and the face (silenceFix.js, 2)
+      if (!silenceOld(2)) {
+        const g = add(seat, dir(face), BOUNCE.ahead);
+        seatedLook.u.uGlow.value.set(g[0], top + BOUNCE.rise, g[1], BOUNCE.k);
+        seatedLook.u.uSheen.value = SHEEN;
+      }
       seated.name = 'silence-reader';
       root.add(seated);
       const stool = [new THREE.BoxGeometry(4.3, 0.5, 3.5).translate(0, 4.2, 1.0)];
@@ -4724,7 +5310,13 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
   yield 'The Vertigo';
   // IV — the Vertigo: a round pit, a stair winding down a funnel of books to one light.
   const PIT = cellC(3, -3);
+  // (the well's light is graded round this, patched in before the build: vertigoFix.js, 4)
+  if (import.meta.env?.DEV && Math.hypot(PIT[0] - WELL.c[0], PIT[1] - WELL.c[1]) > 0.01) console.error('vertigoFix: WELL.c is not the pit', PIT, WELL.c);
   let pitCore = null;
+  // (the stair's own stone, darkened with depth over the map: mapFix.js, 7)
+  let pitCarved = null;
+  // (the rest of the light at the bottom, moved down with the disc: see `sink`)
+  let pitSink = null, pitHeld = null;
   let stairAt = null, spiral = null;
   let drift = null;   // the loose pages falling down the well, moved by tick
   {
@@ -4776,6 +5368,16 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
         ring.push(add(c, dir(a), rWall + 3.5));
       }
       ring.forEach((p, s) => { if (p && ring[s + 1]) railRun(p, ring[s + 1]); });
+      // a blind back behind the posts, so the sky is over the rail and not
+      // between its posts (silenceFix.js, 5)
+      if (!silenceOld(5)) {
+        ring.forEach((p, s) => {
+          const q = ring[s + 1];
+          if (!p || !q) return;
+          const out = (r) => add(c, dir(Math.atan2(r[1] - c[1], r[0] - c[0]) / deg), rWall + 3.5 + CROWN_BACK.out);
+          LB.rail.add(boxGeo(out(p), out(q), RAIL_H, CROWN_BACK.t, MASS_H + CAP));
+        });
+      }
     }
     LB.floor.add(slabGeo(hexPts(c, RC), [circlePts(c, rMouth, 80)], 6, 0));
     // the bronze rim, open where the stair begins its way down (?wvrail=old:
@@ -4837,6 +5439,15 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
         const w = R.w * (1 + (vr() - 0.5) * 0.06), hh = Math.min(clear - 0.3, R.h * (1 + (vr() - 0.5) * 0.025));
         if (a + w / rf / deg > to) break;
         const book = { wall, color: R.color, k: R.k * (0.96 + vr() * 0.08), spine: R.spine, title: R.title + (R.n > 1 ? 1000 * (R.n - run + 1) : 0) };
+        // now and then one gone from its set as well, and the next leaning
+        // into its room (vertigoFix.js, 2: by where it stood, so the stream
+        // draws as it did)
+        if (!vertigoOld(2) && !lean && bookHash(a, sy) < MISSING) {
+          a += (w + 0.006 + vr() * 0.035) / rf / deg;
+          lean = w * 0.9;
+          run--;
+          continue;
+        }
         // (pivoted on its foot at the edge of the gap, its head on the book across it)
         const th = lean ? Math.min(0.36, Math.asin(Math.min(0.9, lean / hh))) : 0;
         const am = a + ((w / 2) * Math.cos(th) - (hh / 2) * Math.sin(th)) / rf / deg, p = add(c, dir(am), rf + R.set + R.d / 2);
@@ -4890,6 +5501,7 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
     for (let tier = 0; tier < TIERS; tier++) {
       const y = TIER_BASE + tier * TIER_H;
       LB.shelf.add(ringGrain(slabGeo(caseRing, [], 2.4, y - 2.4), c[0], c[1]));
+      if (!vertigoOld(3)) LB.shelfLip.add(shelfLip(c, rFace, y, y - 2.4, 150 + jambA, 510 - jambA));
       for (let s = 0; s < 170; s++) {
         const a = (360 * s) / 170, off = Math.abs(((a - 150 + 540) % 360) - 180);
         if (off < 12) continue;
@@ -4908,6 +5520,7 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
       shelvesOf(tier, y).forEach(({ y: sy, clear }, j) => {
         for (const [a0, a1] of roomBays(tier)) {
           if (j > 0) LB.shelf.add(ringGrain(slabGeo(arcSlab(rFace, rFace + 4.6, a0, a1), [], BOARD, sy - BOARD), c[0], c[1]));
+          if (j > 0 && !vertigoOld(3)) LB.shelfLip.add(shelfLip(c, rFace, sy, sy - BOARD, a0, a1));
           if (tier < 3) {
             shelveRing(tier, sy, clear, rFace, a0, a1, wall);
             paintedRing(lodFor(wall, 3), tier, sy, clear, rFace, a0, a1);
@@ -4920,7 +5533,8 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
     // whole way with shelves set back into its stone. The stair winds down the
     // face of them on a carved carriage bracketed into the wall, its open side
     // railed in bronze — but for the one place, a few steps down, where the rail
-    // has given way and the fall begins. Lamps hang in the well at every depth,
+    // has given way and the fall begins (and, since 2026-10-08, the same place
+    // on every turn below it: spiral.js GAPS). Lamps hang in the well at every depth,
     // so that looking down there is something to measure the drop by, and loose
     // pages turn slowly all the way down it. (A smooth brown cone with a disc of
     // light at the bottom had nothing in it to say how far down the light was.)
@@ -4933,7 +5547,11 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
     const RECESS = 12;
     // Keep the risers walkable on every device. Reducing this to 120 made
     // sideways foot support drop farther than a tread on the curved flight.
-    const GAP = [0.047, 0.078];   // where the rail is gone (the Vertigo's stand is at 0.06)
+    // where the rail is gone (spiral.js): a stretch of every turn, at the same
+    // bearing (the Vertigo's stand is in the first, at 0.06) — and between
+    // them, where it still stands
+    const RAILED = [...GAPS.map((g, k) => [k ? GAPS[k - 1][1] : 0, g[0]]), [GAPS.at(-1)[1], 1]];
+    const inGap = (t) => GAPS.some(([t0, t1]) => t >= t0 && t <= t1);
     const coneR = (y) => rMouth + (NECK - rMouth) * ((6 - y) / DEPTH);   // the face of the shelves at a height
     const treadW = () => SPIRAL.width;
     const bearing = (t) => 170 + t * TURNS * 360;
@@ -4985,6 +5603,7 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
     for (let k = 0; (k + 1) * TIER_H < 6 + DROP; k++) {
       const y = 6 - (k + 1) * TIER_H, face = coneR(y), n = light ? 40 : 80;
       LB.shelf.add(ringGrain(slabGeo(circlePts(c, face + RECESS + 0.5, n), [circlePts(c, face - 0.6, n)], 2.4, y - 2.4), c[0], c[1]));
+      if (!vertigoOld(3)) LB.shelfLip.add(shelfLip(c, face - 0.6, y, y - 2.4, 0, 360, 360 / n));
       const rs = face + 5.3;
       for (let u = rr(0, 3); u < 2 * Math.PI * rs - 3;) {
         const w = rr(2.3, 4.4), a = (u + w / 2) / rs / deg;
@@ -5018,6 +5637,7 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
       shelvesOf(T, y).forEach(({ y: sy, clear }, j) => {
         const rf = coneR(sy);
         if (j > 0) LB.shelf.add(ringGrain(slabGeo(circlePts(c, rf + BACK + 0.5, n2), [circlePts(c, rf - 0.6, n2)], BOARD, sy - BOARD), c[0], c[1]));
+        if (j > 0 && !vertigoOld(3)) LB.shelfLip.add(shelfLip(c, rf - 0.6, sy, sy - BOARD, 0, 360, 360 / n2));
         const half = 1.45 / rf / deg;
         const deep = Math.min(1, Math.max(0, (6 - sy) / 260)), glow = Math.min(1, Math.max(0, (-250 - sy) / 180)), v = 1.05 - 0.6 * deep;
         const tint = [0.78, 0.54, 0.3].map((lit) => v + (lit - v) * 0.38 * glow * glow);
@@ -5201,7 +5821,7 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
         level, corners: VLAND_OLD ? [] : [n, n + 1], toHead: !VLAND_OLD, floor: 6, head: add(c, dir(170), railR),
         helix: {
           at: (t) => add(c, dir(bearing(t)), inner(t) - 0.9), tread: (t) => yAt(t) + 1.5, base: (t) => yAt(t) + 2.2,
-          runs: [[0, GAP[0]], [GAP[1], 1]], samples: STEPS * 3,
+          runs: RAILED, samples: STEPS * 3,
         },
         newBatch: (mat) => new Batch(mat), M, instances, mouldGeo,
       });
@@ -5216,23 +5836,44 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
       const rail = (t) => Array.from({ length: 6 }, (_, k) => [inner(t) - 0.9 + Math.cos((k * Math.PI) / 3) * 0.6, yAt(t) + 12 + Math.sin((k * Math.PI) / 3) * 0.6]);
       // The fall and the return use this opening. Keep both the solid rail
       // and its posts out of the gap, with the end knobs below marking it.
-      for (const [t0, t1] of [[0, GAP[0]], [GAP[1], 1]]) LB.bronze.add(sweep(rail, t0, t1));
+      for (const [t0, t1] of RAILED) LB.bronze.add(sweep(rail, t0, t1));
       const railAt = (t, lift, inset = 0) => { const p = add(c, dir(bearing(t)), inner(t) - 0.9 - inset); return [p[0], yAt(t) + lift, p[1]]; };
       for (let s = 1, samples = STEPS * 4, since = 4.5; s <= samples; s++) {
         const t = s / samples, dt = 1 / samples;
         since += Math.hypot((2 * Math.PI * inner(t) * TURNS) * dt, DROP * dt);
         if (since < 4.5) continue;
         since = 0;
-        if (t >= GAP[0] && t <= GAP[1]) continue;
+        if (inGap(t)) continue;
         balusters.push({ p: railAt(t, 2.2), s: [0.6, 1.55, 0.6] });
       }
       // Where it gave way the rail just stops, a knob on each end. (A rail torn
       // down into the gap, a baluster knocked askew and the sockets of the lost
       // ones, a stride from the reader's eye, stood in the frame like a bronze
       // bone and a row of black holes.)
-      for (const t of GAP) {
+      for (const t of GAPS.flat()) {
         const p = railAt(t, 12);
         LB.bronze.add(new THREE.SphereGeometry(0.95, 12, 8).translate(p[0], p[1], p[2]));
+      }
+    }
+
+    // An open book left lying where the rail has gone (spiral.js `bookAt`):
+    // a folio, open at the same page on every turn, a few treads into the gap
+    // on the open side of the tread — someone set it down here — so that a
+    // reader who walks on down knows the place again each time they come
+    // round to it. Lying across the tread, which is wider than it is long.
+    // (Not on the world's stream: nothing here is drawn.)
+    const openBook = (x, y, z, yaw) => {
+      const parts = [[new THREE.BoxGeometry(6, 0.14, 4.2).translate(0, 0.07, 0), 'leather']];
+      for (const side of [-1, 1]) {
+        parts.push([new THREE.BoxGeometry(2.8, 0.34, 3.95).translate(side * 1.45, 0.17, 0).rotateZ(-side * 0.06).translate(0, 0.14, 0), 'paper']);
+      }
+      return parts.map(([g, k]) => [g.rotateY(yaw).translate(x, y, z), k]);
+    };
+    const BOOK_IN = 4.2;   // its middle, in from the open edge
+    if (!BRINK_OLD) {
+      for (const [t0] of GAPS) {
+        const t = bookAt(t0, STEPS), p = add(c, dir(bearing(t)), inner(t) + BOOK_IN);
+        for (const [g, k] of openBook(p[0], yAt(t) + 1.5, p[1], -bearing(t) * deg + 0.15)) LB[k].add(g);
       }
     }
 
@@ -5266,15 +5907,50 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
     pitCore.rotation.x = -Math.PI / 2;
     pitCore.position.set(c[0], 7 - DEPTH, c[1]);
     root.add(pitCore);
-    lampCores.push({ p: [c[0], -447, c[1]], s: [7, 7, 7], color: '#ffe6b8', k: 2.2 });
+    // The light is never reached on foot. Walked down toward it, the disc in
+    // the throat keeps 420 below the eye (`tick`) — and since 2026-10-08 the
+    // rest of the light goes down with it, the hot core, the glow over it,
+    // the column standing up from it and the light it throws: before, only
+    // the disc went, and a reader walking on down the endless turns passed
+    // the glow, hanging in the well at the depth the light had been, and
+    // looked back up at it. However far down they walk, the light below
+    // looks as it did from the stair's head. (?wbrink=old: as it was.)
+    const sink = BRINK_OLD ? null : { halos: [], shaft: null, glow: null, wish: null };
+    if (sink) {
+      sink.glow = new THREE.InstancedMesh(keep(new THREE.SphereGeometry(1, 16, 12)), M.glow, 1);
+      sink.glow.setMatrixAt(0, new THREE.Matrix4().makeScale(7, 7, 7));
+      sink.glow.setColorAt(0, new THREE.Color('#ffe6b8').multiplyScalar(2.2));
+      sink.glow.position.set(c[0], -447, c[1]);
+      sink.glow.computeBoundingSphere();
+      sink.glow.name = 'sky';
+      root.add(sink.glow);
+    } else lampCores.push({ p: [c[0], -447, c[1]], s: [7, 7, 7], color: '#ffe6b8', k: 2.2 });
     halo(c, -445, 150, '#ffc680', 0.55);
     halo(c, -395, 90, '#ffb060', 0.2);
+    if (sink) sink.halos = halos.slice(-2).map((h) => ({ sprite: h.sprite, y: h.sprite.position.y }));
     // (the one column that stays whole with the eye inside it: the fall is down it)
-    LB.shafts.add(shaftVolume(new THREE.CylinderGeometry(9, 26, 300, 28, 1, true).rotateX(Math.PI).translate(c[0], -447 + 150, c[1])));
+    const column = shaftVolume(new THREE.CylinderGeometry(9, 26, 300, 28, 1, true).rotateX(Math.PI).translate(c[0], -447 + 150, c[1]));
+    if (sink) {
+      sink.shaft = new THREE.Mesh(keep(column), shaftMaterial);
+      sink.shaft.name = 'shafts';
+      root.add(sink.shaft);
+    } else LB.shafts.add(column);
     for (const [y, o] of [[-110, 0.06], [-190, 0.09], [-260, 0.12], [-320, 0.14], [-370, 0.17], [-410, 0.22]]) {
       decal(c, coneR(y) * 1.9, coneR(y) * 1.9, '#ffb25a', o, y, 0.08);
     }
     point(c, -425, '#ffa64a', 14000, 10, 2, [c[0], c[1], rWall + 14]);
+    if (sink) {
+      sink.wish = lightWishes.at(-1);
+      // (by how far the disc has gone below where it was built, at -453)
+      pitSink = (dy) => {
+        sink.glow.position.y = -447 + dy;
+        for (const h of sink.halos) h.sprite.position.y = h.y + dy;
+        sink.shaft.position.y = dy;
+        sink.wish.y = -425 + dy;
+      };
+    }
+    // (over the map, the well darkens with depth: mapFix.js, 7 — see pitFade)
+    pitCarved = carved.mat;
 
     // loose pages, turning slowly down the well
     {
@@ -5364,6 +6040,12 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
       stone: LB.step.mat ?? carved.mat, bronze: LB.bronze.mat, books: funnelRowsMat,
       // (the same rail on down every turn of it, and the string it stands in)
       rail: VRAIL_OLD ? null : (turn) => endlessRail({ ...turn, mouldGeo, M, carved: carved.mat }),
+      // (and the same book, by the same gap, on every one of its turns)
+      dress: BRINK_OLD ? null : ({ edge, pitch, angle0, steps }) => {
+        const TAU = Math.PI * 2, a0 = bearing(bookAt(GAPS[0][0], STEPS)) * deg;
+        const u = Math.round(((((a0 - angle0) % TAU) + TAU) % TAU) / TAU * steps) / steps, a = angle0 + u * TAU;
+        return openBook(Math.cos(a) * (edge + BOOK_IN), 1.5 - u * pitch, Math.sin(a) * (edge + BOOK_IN), -a + 0.15).map(([g, k]) => [g, M[k], k]);
+      },
     });
     root.add(spiral.root);
 
@@ -5392,9 +6074,16 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
   ).setPosition(PORTAL_AXIS[0], 0, PORTAL_AXIS[1]);
   // a point in the arch's frame, on the ground
   const inPortal = (x, z) => add(add(PORTAL_AXIS, dir(60), x), dir(150), z);
+  const portalStone = [];
   {
-    const into = { carve: LB.carve, dressed: LB.dressed, mass: LB.mass, marble: LB.marble, bronze: LB.bronze };
-    for (const [name, list] of Object.entries(buildPortal({ light }))) for (const g of list) into[name].add(g.applyMatrix4(portalFrame));
+    const into = { carve: LB.portalCarve, dressed: LB.portalDressed, mass: LB.mass, marble: LB.marble, bronze: LB.bronze };
+    for (const [name, list] of Object.entries(buildPortal({ light }))) {
+      for (const g of list) {
+        // (the stone the ivy grows on, in the arch's own frame — ivy.js)
+        if (!IVY_OLD) portalStone.push(g.clone());
+        into[name].add(g.applyMatrix4(portalFrame));
+      }
+    }
   }
   {
     const e = edgeFrame(DOOR, 5);
@@ -5468,7 +6157,8 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
       } else {
         // (rubble.js: the same layout the crack painter shaded the floor round)
         const { blocks, stones } = rubbleLayout(DOOR_FALLEN, DOOR_CRACKS);
-        for (const k of blocks) LB.rubbleBlocks.add(fallenBlock(k, { floor: 6, light }));
+        // (sharp where they broke fresh: doorProps.js, 8)
+        for (const k of blocks) LB.rubbleBlocks.add(fallenBlock(k, { floor: 6, light, crisp: !doorPropsOld(8) }));
         // (what broke off a block is as solid as the block; the stones darken
         // where a block stands over them)
         for (const s of stones) (s.felt ? LB.rubbleBlocks : s.size >= 1.3 ? LB.rubbleBig : LB.rubble).add(fragment(s, { floor: 6, near: blocks }));
@@ -5489,11 +6179,25 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
       const fallen = [[-27, 24, 0.4, 0.12], [-19, 33, 2.1, -0.08], [-33, 40, 1.2, 0.2], [21, 27, 2.6, -0.15], [30, 36, 0.9, 0.1]];
       // (folios, 41-47 cm, since 2026-10-06: they were 90 cm-1.2 m across)
       const fk = BOOKS_GIANT ? 1 : 0.46;
+      // (They lay shut, plain and dark, and from the stand read as tiles. One
+      // of the shut ones is in vellum now; and where a giant's two boards lay
+      // nearly flat on their face, a dark slab, a folio lies splayed open on
+      // its back with its leaves lifting, and another has fallen open on its
+      // face, a tent with its lettered spine up: doorProps.js, 5.)
+      const strewn = !doorPropsOld(5);
       fallen.forEach(([along, into, yaw, tilt], i) => {
         const q = at(along, into), th = (1.7 + (i % 3) * 0.4) * (BOOKS_GIANT ? 1 : 0.36);
-        books.push({ p: [q[0], 6 + th / 2 + Math.abs(tilt) * 2 * fk, q[1]], rot: [tilt, yaw, -tilt * 0.6], s: [(9.5 + i * 0.7) * fk, th, 7 * fk], color: ['#5a2923', '#6f4c31', '#221d19', '#7d5738', '#8e8062'][i], k: 0.9, spine: LAID + SPINE_KINDS.label[0] + i * 2 });
+        const vellum = strewn && i === 2;
+        books.push({ p: [q[0], 6 + th / 2 + Math.abs(tilt) * 2 * fk, q[1]], rot: [tilt, yaw, -tilt * 0.6], s: [(9.5 + i * 0.7) * fk, th, 7 * fk], color: vellum ? '#a59576' : ['#5a2923', '#6f4c31', '#221d19', '#7d5738', '#8e8062'][i], k: 0.9, spine: LAID + (vellum ? SPINE_KINDS.vellum[0] + 3 : SPINE_KINDS.label[0] + i * 2) });
       });
-      {
+      if (strewn) {
+        const q = at(-11, 46);
+        for (const [g, k] of splayedBook()) LB[k].add(g.rotateY(2.45).translate(q[0], 6.02, q[1]));
+        const tent = tentBook(), tq = at(27, 51), yaw = 0.95;
+        for (const [g, k] of tent.parts) LB[k].add(g.rotateY(yaw).translate(tq[0], 6.02, tq[1]));
+        // (its spine: a book's own, lettered, laid along the ridge and turned up)
+        books.push({ p: [tq[0], 6.02 + tent.spine[0], tq[1]], rot: [-Math.PI / 2, 0, yaw], s: [tent.spine[1], tent.spine[2], 0.3], color: '#5a2923', k: 1, spine: SPINE_KINDS.label[0] + 5 });
+      } else {
         const q = at(-11, 46);
         for (const side of [-1, 1]) {
           const half = new THREE.BoxGeometry(4.6, 0.22, 6.4).translate(side * 2.25, 0, 0).rotateZ(-side * 0.14).rotateY(0.7);
@@ -5644,7 +6348,7 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
         const tilt = within(-0.5, 0.5), sx = within(7, 12), sy = within(5, 8), deep = gr();
         if (y > PORTAL.SPR - 3 && PORTAL.soffitAt(x, 4) > y - 3) continue;   // never across the opening
         const q = inPortal(x, -PORTAL.WALL - 0.9 - deep * 0.6);
-        doorIvy.push({ p: [q[0], y, q[1]], rot: [0, faceYaw, tilt], s: [sx, sy, 1] });
+        if (IVY_OLD) doorIvy.push({ p: [q[0], y, q[1]], rot: [0, faceYaw, tilt], s: [sx, sy, 1] });
       }
       // And the curtain the plates hang in that doorway: green trailing down
       // from the vault at the garden end of the passage, wisteria in it, lit
@@ -5663,7 +6367,63 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
       for (let k = 0; k < (light ? 4 : 9); k++) {
         const side = k % 2 ? 1 : -1, z = -PORTAL.WALL + 1 + gr() ** 1.3 * 9, y = PORTAL.FLOOR + 1 + gr() ** 1.5 * 24;
         const q = inPortal(side * (PORTAL.HW - 0.15), z), n = dir(side < 0 ? 60 : 240);
-        doorIvy.push({ p: [q[0], y, q[1]], rot: [0, Math.atan2(n[0], n[1]), within(-0.5, 0.5)], s: [within(6, 10), within(4.5, 7), 1] });
+        const item = { p: [q[0], y, q[1]], rot: [0, Math.atan2(n[0], n[1]), within(-0.5, 0.5)], s: [within(6, 10), within(4.5, 7), 1] };
+        if (IVY_OLD) doorIvy.push(item);
+      }
+      // The ivy itself (ivy.js), grown out of the ground at the foot of the
+      // wall: up the garden face either side of the arch — highest on the
+      // left, where it has been longest and reaches round the ring of
+      // voussoirs and hangs from it — and in along the passage's walls as far
+      // as the garden's light goes. In the arch's frame, cast onto its stone.
+      if (!IVY_OLD) {
+        const W = PORTAL.WALL, HW = PORTAL.HW, F = PORTAL.FLOOR;
+        // (the wall's garden face beyond the arch's own masonry, either side)
+        const beyond = (x0, x1) => new THREE.PlaneGeometry(x1 - x0, 125).translate((x0 + x1) / 2, 62.5, -W);
+        const caster = stoneCaster([...portalStone, beyond(-80, -24), beyond(24, 80)]);
+        portalStone.forEach((g) => g.dispose());
+        const ir = makeRng(5521), R = (a, b) => a + (b - a) * ir();
+        const opening = (u, v, a) => Math.abs(u) < HW + a && v < PORTAL.soffitAt(u, a) + 0.4;
+        const face = {
+          ray: (u, v, o, d) => { o.set(u, v, -W - 12); d.set(0, 0, 1); }, far: 30,
+          light: new THREE.Vector3(0, 1, -0.5).normalize(), max: light ? 1400 : 3400,
+          allow: (u, v) => Math.abs(u) < 42 && v > F - 1 && !opening(u, v, 1.4)
+            && v < (u < 0 ? 82 - Math.max(0, -u - 22) * 1.3 : 58 - Math.max(0, u - 22) * 1.3),
+          seeds: [
+            ...[-15.6, -19.5, -24, -29, -34.5].map((u) => [u + R(-0.8, 0.8), F + 0.2, R(-0.3, 0.3), R(62, 88), R(0.75, 1)]),
+            ...[16, 20.5, 27, 33].map((u) => [u + R(-0.8, 0.8), F + 0.2, R(-0.3, 0.3), R(38, 58), R(0.6, 0.85)]),
+          ],
+        };
+        const reveal = (sd) => ({
+          ray: (u, v, o, d) => { o.set(sd * (HW - 6), v, u); d.set(sd, 0, 0); }, far: 20, drift: 0.3, scale: 0.9,
+          light: new THREE.Vector3(0, 0.7, -1).normalize(), max: light ? 200 : 650,
+          allow: (u, v) => u > -W - 0.2 && u < -W + 15 && v > F - 0.5 && v < 40 - (u + W) * 1.6,
+          seeds: [[-W + 0.8, F + 0.6, 0.2, R(28, 36), 0.7], [-W + 3, F + 0.6, 0.4, R(22, 30), 0.55], [-W + 6.5, F + 0.6, 0.3, R(14, 22), 0.4], [-W + 9.5, F + 0.6, 0.5, R(8, 14), 0.3]],
+        });
+        const grown = growIvy(caster, [face, reveal(-1), reveal(1)], ir);
+        // and strands hanging from the arch's edge on the left, where the
+        // stems that went over the ring come down; none lower than twice a
+        // head's height over the way through
+        for (const u of [-16.5, -14.5, -12, -9.5, -6.5, 11.5, 15]) {
+          if (u > 0 && ir() < 0.4) continue;
+          const top = PORTAL.soffitAt(u, 3.6) - 0.3, len = Math.min(R(5, 14), top - 40);
+          if (len < 3) continue;
+          const hung = hangIvy(new THREE.Vector3(u, top, -W - 0.4), new THREE.Vector3(0, 0, -1), len, ir);
+          grown.stems.push(hung.nodes);
+          grown.leaves.push(...hung.leaves);
+        }
+        caster.dispose();
+        const qf = new THREE.Quaternion().setFromRotationMatrix(portalFrame), eu = new THREE.Euler();
+        const stemTint = new THREE.Color('#857563');
+        for (const stem of grown.stems) {
+          ivyWood.tube(stem.map((nd) => ({ p: nd.p.clone().applyMatrix4(portalFrame), r: nd.r })), stem[0].r > 0.14 ? 6 : 4, stemTint);
+        }
+        for (const lf of grown.leaves) {
+          const p = lf.p.clone().applyMatrix4(portalFrame);
+          eu.setFromQuaternion(qf.clone().multiply(lf.q));
+          const old = ir() < 0.04;
+          const color = old ? '#4a3d24' : lf.young ? IVY_YOUNG[Math.floor(ir() * IVY_YOUNG.length)] : IVY_GREEN[Math.floor(ir() * IVY_GREEN.length)];
+          ivyLeaves.push({ p: [p.x, p.y, p.z], rot: [eu.x, eu.y, eu.z], s: [lf.s, lf.s, lf.s], color, k: 1.75 * R(0.85, 1.15) });
+        }
       }
     }
     // ── The green moon, through the jamb ──────────────────────────────────
@@ -5682,7 +6442,7 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
       const xv = new THREE.Vector3(dir(60)[0], 0, dir(60)[1]).projectOnPlane(yv).normalize();
       g.applyMatrix4(new THREE.Matrix4().makeBasis(xv, yv, xv.clone().cross(yv).normalize()));
       g.translate(...top.clone().add(foot).multiplyScalar(0.5).toArray());
-      const shaft = new THREE.Mesh(keep(shaftVolume(g)), keep(makeShaftMaterial('#a6edc6', 0.12)));
+      const shaft = new THREE.Mesh(keep(shaftVolume(g)), keep(makeShaftMaterial('#a6edc6', 0.12 * (doorOld(4) ? 1 : SHAFT_K))));
       shaft.renderOrder = 2;
       root.add(shaft);
     }
@@ -5715,7 +6475,7 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
     }
     // (its pool on the floor, over the moss at 6.15: at 6.6 it drew a pale
     // sock round the foot of the reading corner's legs)
-    lamp(add(DOOR, dir(214), 46), { light: 6500, priority: 3, strength: 1.2, pool: 0.12, poolSize: 140, poolY: 6.2, haze: 0.18, beam: false });
+    lamp(add(DOOR, dir(214), 46), { light: 6500, priority: 3, strength: 1.2, pool: doorPropsOld(2) ? 0.12 : DOOR_SPILL.warm.near, poolSize: 140, poolY: 6.2, haze: 0.18, beam: false });
     // ── Candles at the foot of the arch ──────────────────────────────────
     // A bronze candelabrum either side, standing before the piers, as every
     // plate of this room has them: the carving is lit from below, warm, the
@@ -5736,17 +6496,44 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
         put(new THREE.TubeGeometry(arm, 12, 0.24, 6, false));
         flames.push([c[0], 25.6, c[1], 2.2 + ((k * 7) % 3) * 0.55]);
       }
-      for (const [x, y, z, h] of flames) {
+      // (They were five clean cylinders of a size. Burnt down now, each as far
+      // as it has, its crown melted and its wax run down it and onto the pan,
+      // a glow round each flame — its own sprite: `halo()` draws on the world's
+      // stream — and the flames moving a little: doorProps.js, 4.)
+      const worn = !doorPropsOld(4), cr = makeRng(side < 0 ? 4411 : 4412);
+      flames.forEach(([x, y, z, h0], fi) => {
         put(L([[0, y - 0.4], [0.95, y - 0.35], [1.0, y - 0.15], [0.45, y], [0, y]], 14).translate(x, 0, z));
-        LB.paper.add(new THREE.CylinderGeometry(0.34, 0.36, h, 12).translate(at[0] + x, y + h / 2, at[1] + z));
+        const h = worn ? h0 * DOOR_CANDLES.burn[side < 0 ? 0 : 1][fi] : h0;
+        // (`top`: where the wick stands, down in the well of a melted crown)
+        let top = y + h;
+        if (worn) {
+          const c = candleWax(h, 0.35, 7700 + (side < 0 ? 0 : 10) + fi);
+          top = y + c.wick;
+          LB.wax.add(c.geo.rotateY(cr() * 6.28).translate(at[0] + x, y, at[1] + z));
+        } else LB.paper.add(new THREE.CylinderGeometry(0.34, 0.36, h, 12).translate(at[0] + x, y + h / 2, at[1] + z));
         if (LAMPS.flame) {
           // a flame, not an egg of light; a wick; the wax lit round it (lampPass.js)
-          trialFlames.push({ p: [at[0] + x, y + h + 0.66, at[1] + z], s: [0.32, 0.66, 0.32], color: '#ffffff', k: 1.45 });
-          trialWax.push(waxGlowGeometry(at[0] + x, y + h, at[1] + z, 0.34));
-          LB.iron.add(new THREE.CylinderGeometry(0.035, 0.035, 0.3, 4).translate(at[0] + x, y + h + 0.12, at[1] + z));
+          trialFlames.push({ p: [at[0] + x, top + (worn ? 0.78 : 0.66), at[1] + z], s: [0.32, 0.66, 0.32], color: '#ffffff', k: 1.45 });
+          trialWax.push(waxGlowGeometry(at[0] + x, worn ? top + 0.02 : y + h, at[1] + z, worn ? 0.36 : 0.34));
+          LB.iron.add(worn
+            ? new THREE.CylinderGeometry(0.03, 0.035, 0.42, 4).translate(at[0] + x, top + 0.2, at[1] + z)
+            : new THREE.CylinderGeometry(0.035, 0.035, 0.3, 4).translate(at[0] + x, y + h + 0.12, at[1] + z));
+          if (worn) {
+            const { size, opacity } = DOOR_CANDLES.halo;
+            const glow = new THREE.Sprite(haloMaterial('#ffb45e', opacity));
+            glow.scale.set(size, size, 1);
+            glow.position.set(at[0] + x, top + 0.85, at[1] + z);
+            glow.renderOrder = 4;
+            root.add(glow);
+            halos.push({ mat: glow.material, base: opacity, phase: cr() * 100, sprite: glow, size, lamp: false, seen: 1, seenTo: 1 });
+          }
         } else glows.push({ p: [at[0] + x, y + h + 0.55, at[1] + z], s: [0.3, 0.62, 0.3], color: '#ffc47a', k: 1.5 });
-      }
-      point(at, 27, '#ffb466', 2600, 5);
+      });
+      // (theirs to keep from anywhere in the room: the stand is further back
+      // since 2026-10-10 — doorProps.js, 1 — and from there two lamps out in the
+      // Vertigo were nearer than these, and the arch stood unlit)
+      point(at, 27, '#ffb466', 2600, 5, null, doorPropsOld(1) ? null : [DOOR[0], DOOR[1], R]);
+      if (worn) candleLights.push({ wish: lightWishes.at(-1), base: lightWishes.at(-1).intensity, phase: side < 0 ? 0.7 : 3.9 });
     }
     // Hung to the left of the arch rather than in front of it, where it stood
     // across the springing, and high, level with the head of the hood: from
@@ -5755,9 +6542,25 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
     // and the carving over the arch was one flat tone.)
     // (no beam: its cone was a hard pale wedge down the cases to the left of
     // the arch, and the breach is the one shaft of light this room wants)
-    lamp(inPortal(-44, 38), { y: 82, light: 5200, priority: 4, strength: 1.05, pool: 0.2, poolSize: 150, haze: 0.6, beam: false });
-    point(add(GATE, e.n, 14), 40, '#8ff0d4', 3800, 9);
-    decal(add(GATE, e.n, -22), 150, 140, '#7ee8c8', 0.17);
+    // (lower since 2026-10-09: at 82 the frame's top edge cut its globe in half — doorFix.js, 8)
+    // (a smaller globe burning lower since 2026-10-10, so the doorway and not
+    // the lamp is what the eye goes to; its light is what it was — doorProps.js, 7)
+    lamp(inPortal(-44, 38), {
+      y: doorOld(8) ? 82 : DOOR_LAMP_Y, light: 5200, priority: 4, poolSize: 150, beam: false,
+      pool: doorPropsOld(2) ? 0.2 : DOOR_SPILL.warm.side,
+      ...(doorPropsOld(7) ? { strength: 1.05, haze: 0.6 } : DOOR_SIDE_LAMP),
+    });
+    // The garden's light: a lamp outside the arch and its pool on the floor.
+    // (The pool was a hundred and fifty wide and laid 22 into the room, and
+    // the lamp, which no wall stops, hung close outside: the whole pavement
+    // was olive. A tongue now, in the passage and a slab beyond — doorProps.js, 2)
+    if (doorPropsOld(2)) {
+      point(add(GATE, e.n, 14), 40, '#8ff0d4', 3800, 9);
+      decal(add(GATE, e.n, -22), 150, 140, '#7ee8c8', 0.17);
+    } else {
+      point(add(GATE, e.n, DOOR_SPILL.lamp.out), 40, '#8ff0d4', DOOR_SPILL.lamp.power, 9);
+      for (const [into, wide, o] of DOOR_SPILL.pools) decal(add(add(GATE, e.n, -into), e.t, 1.5), wide, wide, '#7ee8c8', o);
+    }
   }
   const ENTRANCE = hallMid(0, 0, 2);
 
@@ -5825,7 +6628,7 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
   instances(new THREE.PlaneGeometry(0.9, 0.62).rotateX(-Math.PI / 2), M.petal, petals, { cast: false });
   instances(new THREE.PlaneGeometry(2.2, 1.3).rotateX(-Math.PI / 2), M.leaf, fallenLeaves, { cast: false });
   instances(new THREE.PlaneGeometry(1, 1), M.ivy, doorIvy, { cast: false });
-  instances(new THREE.BoxGeometry(1, 1, 1), M.stone, posts, { chunked: true });
+  instances(new THREE.BoxGeometry(1, 1, 1), M.wallTop, posts, { chunked: true });
 
   yield 'The garden';
   // ── The garden ────────────────────────────────────────────────────────────
@@ -5838,16 +6641,34 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
     lantern: new Batch(M.lanternStone, P), paperLit: new Batch(M.lanternPaper, { cast: false, receive: false }),
     paperDead: new Batch(M.paperDead, { cast: false }), iron: new Batch(M.iron),
     rakeDark: new Batch(M.rakeDark, { cast: false, receive: false }), rakeLit: new Batch(M.rakeLit, { cast: false }),
+    forkRakeDark: new Batch(M.forkRakeDark, { cast: false, receive: false }), forkPost: new Batch(M.forkPost, G),
+    pavBronze: new Batch(M.pavBronze),
+    // (pavilionProps.js: 13, 3, 4, 10)
+    pavGilt: new Batch(M.pavGilt), pavGreen: new Batch(M.pavGreen, { cast: false }), pavChalk: new Batch(M.pavChalk, { cast: false }),
+    brocade: new Batch(M.brocade), railWorn: new Batch(M.lacquerWorn, G),
+    // the gilt capitals cut round the armillary's pedestal (webFix.js, 7)
+    letters: new Batch(M.letters, { cast: false }),
+    // and the pedestal's stone, its uv laid round it and up it by webFix.js:
+    // projected per face, a turned and reeded surface took the stone's grain
+    // in streaks and rope-twists
+    pedestal: new Batch(M.pedestalStone),
     newWood: new Batch(M.newWood, WOOD_OLD ? {} : G), blackLacquer: new Batch(M.blackLacquer), silk: new Batch(M.silk),
     cushion: new Batch(M.cushion), pavilionThreshold: new Batch(M.plank, G), pavilionStep: new Batch(M.stone, P),
     // the pond's edge (shore.js): its set stones and the bridge's pier, the
     // stone stepped onto the bridge from (a stair, to the body), and the bank
     ...(SHORE_OLD ? {} : { shoreStone: new Batch(M.shoreRock), shoreStep: new Batch(M.shoreRock), bank: new Batch(M.bank, { cast: false }) }),
   };
-  const rocks = [], ivy = [], fireflies = [];
+  const rocks = [], ivy = [], fireflies = [], moreFlies = [];
   // lily leaves by kind (pond.js, PAD_KINDS), and the flowers and buds among them
   const lilies = [[], [], [], []], blooms = { white: [], pink: [], whiteBud: [], pinkBud: [] };
   const foliage = [];
+  // (the cedars behind the maze, apart: webProps.js, 2 — see `beltGroup`)
+  const beltFoliage = [], beltWood = [];
+  let beltGroup = null, beltLeaf = null;
+  const beltLight = {
+    uBackMoon: { value: new THREE.Color() }, uBackMoonDir: { value: new THREE.Vector3(0, 1, 0) },
+    uBackSky: { value: new THREE.Color() }, uBackGround: { value: new THREE.Color() }, uBackFill: { value: new THREE.Color() },
+  };
   const LEAF = ['#4a6b47', '#3f5c46', '#557a52', '#38503f', '#47664a'];
   const BLOSSOM = ['#9d7683', '#b39197', '#8e6a7a'];
   const mazeRoute = [];
@@ -5862,6 +6683,7 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
   const plantHedge = (loops, opts) => {
     if (HEDGE_DIAL === 'none') return;
     const { geometry, sprigs, litter } = growHedge(loops, { detail: HEDGE_DIAL === 'bare' ? 0 : light ? 0.5 : 1, ...opts });
+    hedgeGround.push(...loops);
     const m = new THREE.Mesh(keep(geometry), M.hedge);
     m.castShadow = true;
     m.receiveShadow = true;
@@ -5873,6 +6695,16 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
     floor.name = 'hedge-litter';
     root.add(floor);
     for (const s of sprigs) (s.flat ? topSprigs : faceSprigs).push(s);
+  };
+  // A clipped finial (forkProps.js, 6): a drum of the same hedge, domed by the
+  // shears, grown through a hedge's line at `p` and standing `up` over its top
+  // `H`. From across the garden a hedge was one level stripe of black from
+  // edge to edge of the frame; these are what stands out of it.
+  const finial = (p, { r, up }, ground, H, seed) => {
+    if (propsOld(6)) return;
+    plantHedge([[[p[0] - r, p[1] - r], [p[0] + r, p[1] - r], [p[0] + r, p[1] + r], [p[0] - r, p[1] + r]]], {
+      ground, H: H + up, seed, round: r - 0.3, shoulder: r * 0.6, batter: 0.8, foot: 0.6,
+    });
   };
   for (const cell of cells) if (cell.garden) GB.grass.add(slabGeo(hexPts(cell.c, RC + 0.5), [], 4, 0));
 
@@ -5951,6 +6783,8 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
   // what stands on the ground the ways must keep their stones off: the
   // pergola's posts, the lanterns and the waymark, each with the reach of its foot
   const standing = [];
+  // the lanterns that stand on the lawn, for the blades their light shows (lawn.js)
+  const lawnLamps = [], hedgeGround = [];
   const onNorthBridge = (p, m = 0) => NORTH_BRIDGE.slice(1).some((b, i) => segDist(p, NORTH_BRIDGE[i], b) < 13 + m);
   // And the lawn beyond the dressed garden closed off by a hedge, from the
   // Library's wall west of the Fork round the north of the road and the pond
@@ -5975,11 +6809,20 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
         for (const side of [-1, 1]) {
           if (path.fading && rnd() < 0.5) continue;
           const rp = add(add(a, t, u + rr(-2, 2)), n, side * (path.w / 2 + rr(0, 1.5)));
-          edging.push({ p: [rp[0], 5, rp[1]], rot: rot3(), s: [rr(1.2, 2.3), rr(0.8, 1.6), rr(1.2, 2.3)], color: pick(['#5f5b55', '#4e4b46', '#6b665f']) });
+          const stone = { p: [rp[0], 5, rp[1]], rot: rot3(), s: [rr(1.2, 2.3), rr(0.8, 1.6), rr(1.2, 2.3)], color: pick(['#5f5b55', '#4e4b46', '#6b665f']) };
+          // (in groups since 2026-10-09, laid below: these draws spent as they were)
+          if (forkOld(4)) edging.push(stone);
         }
       }
     });
   }
+  // The ways' stones set in groups, a big one and smaller ones against it,
+  // some sunk, gaps between — not one of a size every seven paces, like beads
+  // on a string (forkFix.js, 4). Each from its own stream; none on another
+  // way's gravel or down the bank.
+  const offPond = (p, m = 4) => ((p[0] - POND.c[0]) / (POND.rx + m)) ** 2 + ((p[1] - POND.c[1]) / (POND.rz + m)) ** 2 > 1;
+  const edgeOk = (way) => (p, r) => [...PATHS.slice(0, 3), ...WAYS].every((o) => o === way || lineDist(p, o.pts) > o.w / 2 + r * 0.5) && offPond(p);
+  if (!forkOld(4)) PATHS.slice(0, 3).forEach((path, i) => rocks.push(...edgeStones(path.pts, path.w, 9161 + i * 6, { ok: edgeOk(path) })));
 
   // The road not taken, laid: gravel the width of the old one, edged with
   // stones as it was (half of them gone, a way less walked), from a stream of
@@ -6011,10 +6854,11 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
             p: [rp[0], 5, rp[1]], rot: [qrr(0, 6.28), qrr(0, 6.28), qrr(0, 6.28)],
             s: [qrr(1.2, 2.3), qrr(0.8, 1.6), qrr(1.2, 2.3)], color: ['#5f5b55', '#4e4b46', '#6b665f'][Math.floor(qr() * 3)],
           };
-          if (FORK_OLD || (offGravel(rp) && offBank(rp))) rocks.push(stone);
+          if (forkOld(4) && (FORK_OLD || (offGravel(rp) && offBank(rp)))) rocks.push(stone);
         }
       }
     }
+    if (!forkOld(4)) rocks.push(...edgeStones(pts, w, seed + 40, { sparse, ok: edgeOk(way) }));
   }
 
   yield 'The fork, raked';
@@ -6029,19 +6873,23 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
     const TOP = 5.2, R0 = 9.6;   // the gravel's top (slabGeo above), the rings' reach
     // (only the stretches of it `keep` keeps: a groove stops where it would
     // run out over another way's gravel)
-    const furrow = (pts, o, keep) => {
+    // (`o` may be a function of how far along: the passes of the rake wander,
+    // forkFix.js, 2; and `gap(s, p)` breaks it — at a stone, or scuffed out)
+    const furrow = (pts, o, keep, gap) => {
+      let s = 0;
+      const along = pts.map((p, i) => (s += i ? dist(pts[i - 1], p) : 0));
       const off = pts.map((p, i) => {
         const t = unit2(pts[Math.max(0, i - 1)], pts[Math.min(pts.length - 1, i + 1)]);
-        return add(p, [-t[1], t[0]], o);
+        return add(p, [-t[1], t[0]], typeof o === 'function' ? o(along[i]) : o);
       });
       const runs = [[]];
-      for (const p of off) {
-        if (!keep || keep(p)) runs[runs.length - 1].push(p);
+      off.forEach((p, i) => {
+        if ((!keep || keep(p)) && !(gap && gap(along[i], p))) runs[runs.length - 1].push(p);
         else if (runs[runs.length - 1].length) runs.push([]);
-      }
+      });
       for (const run of runs) {
         if (run.length < 2) continue;
-        GB.rakeDark.add(wornRibbon(run, 0.26, TOP + 0.02));
+        (forkOld(2) ? GB.rakeDark : GB.forkRakeDark).add(wornRibbon(run, 0.26, TOP + 0.02));
         const lip = run.map((p, i) => {
           const t = unit2(run[Math.max(0, i - 1)], run[Math.min(run.length - 1, i + 1)]);
           return add(p, [-t[1], t[0]], 0.24);
@@ -6070,24 +6918,78 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
     const raked = [[PATHS[0].pts, PATHS[0].w], [PATHS[1].pts, PATHS[1].w], FORK_OLD
       ? [ROAD.ctrl.slice(0, 3), ROAD.w]
       : [fine([J, ...ROAD.pts.slice(1)]), ROAD.w, offWays([PATHS[1], PATHS[2]])]];
-    for (const [pts, w, keep] of raked) {
-      const way = fromStone(pts);
+    // the stones a furrow stops short of: whatever sits at the ways' edges
+    // (the stones set in groups along them since forkFix.js, 4, the big ones
+    // well into the gravel), each with its reach
+    const sitting = rocks.filter((r) => r.bank === undefined && dist([r.p[0], r.p[2]], J) < 170)
+      .map((r) => ({ p: [r.p[0], r.p[2]], r: Math.max(r.s[0], r.s[2]) + RAKE.clear }));
+    const atStone = (p) => sitting.some((st) => Math.abs(st.p[0] - p[0]) < st.r && Math.abs(st.p[1] - p[1]) < st.r && dist(st.p, p) < st.r);
+    raked.forEach(([pts, w, keep], wi) => {
       // (a groove every hand's breadth: at twice that, coarse and dark, the
       // raked way read from the stand as a striped walkway)
-      for (let o = -(w / 2 - 2.2); o <= w / 2 - 2.2 + 1e-6; o += 1.25) furrow(way, o, keep);
-    }
+      if (forkOld(2)) {
+        const way = fromStone(pts);
+        for (let o = -(w / 2 - 2.2); o <= w / 2 - 2.2 + 1e-6; o += 1.25) furrow(way, o, keep);
+        return;
+      }
+      // Ruled, they read as a crossing: in passes of a four-tined rake now,
+      // each pass wandering and the passes drifting apart and together, and a
+      // furrow broken where a stone sits and here and there scuffed out.
+      const way = fine(fromStone(pts));
+      for (let k = 0, o = -(w / 2 - 2.2); o <= w / 2 - 2.2 + 1e-6; o += 1.25, k++) {
+        const kk = k, o0 = o, scuffs = rakeScuffs(kk, wi, 600);
+        furrow(way, (s) => rakeOffset(kk, o0, s, wi), keep, (s, p) => atStone(p) || scuffs.some(([a, b]) => s >= a && s <= b));
+      }
+    });
     // (rings carry the ribbons' second uv set too, or the two will not merge)
     const ring = (r0, r1, y) => {
       const g = new THREE.RingGeometry(r0, r1, 64).rotateX(-Math.PI / 2).translate(J[0], y, J[1]);
       g.setAttribute('uv1', g.attributes.uv.clone());
       return g;
     };
-    for (let r = 3.1; r <= R0; r += 1.25) {
-      GB.rakeDark.add(ring(r - 0.13, r + 0.13, TOP + 0.02));
-      GB.rakeLit.add(ring(r + 0.15, r + 0.33, TOP + 0.025));
+    if (propsOld(3) || !GB.shoreStone) {
+      for (let r = 3.1; r <= R0; r += 1.25) {
+        (forkOld(2) ? GB.rakeDark : GB.forkRakeDark).add(ring(r - 0.13, r + 0.13, TOP + 0.02));
+        GB.rakeLit.add(ring(r + 0.15, r + 0.33, TOP + 0.025));
+      }
+      // the stone the ways part at, low and flat: stepped on, never stepped round
+      GB.stone.add(new THREE.CylinderGeometry(2.3, 2.5, 0.7, 20).scale(1, 1, 0.82).rotateY(0.4).translate(J[0], TOP + 0.2, J[1]));
+    } else {
+      // (forkProps.js, 3: that was a sawn disc with a groove ruled across it —
+      // a puck. A stone now, the garden's granite (shore.js): wider than it
+      // is tall, most of it in the ground, cleft and worn and lichened, its
+      // top level enough to stand on and no higher over the gravel than a
+      // foot goes up without thinking. And the rake goes round the stone it
+      // has, not round a compass point: the first ring a hand off its outline,
+      // each one rounder, the last the circle the ways' furrows start from.)
+      const g = gardenRock({ ...FORK_STONE.rock, flatTop: true, detail: light ? 12 : 22 });
+      g.computeBoundingBox();
+      g.rotateY(FORK_STONE.turn).translate(J[0], TOP + FORK_STONE.proud - g.boundingBox.max.y, J[1]);
+      // its outline where it comes out of the gravel, by bearing
+      const N = 96, out = new Float32Array(N), pos = g.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        const y = pos.getY(i);
+        if (y < TOP - 0.25 || y > TOP + 0.45) continue;
+        const x = pos.getX(i) - J[0], z = pos.getZ(i) - J[1];
+        const k = Math.round(((Math.atan2(z, x) / (Math.PI * 2) + 1) % 1) * N) % N;
+        out[k] = Math.max(out[k], Math.hypot(x, z));
+      }
+      const mean = out.reduce((s, v) => s + v, 0) / out.filter((v) => v > 0).length;
+      for (let k = 0; k < N; k++) if (!out[k]) out[k] = mean;
+      let line = Array.from(out);
+      for (let pass = 0; pass < 3; pass++) line = line.map((v, k) => (line[(k + N - 1) % N] + 2 * v + line[(k + 1) % N]) / 4);
+      GB.shoreStone.add(g);
+      const rings = Math.max(3, Math.round((R0 - mean - 0.8) / 1.25) + 1);
+      for (let j = 0; j < rings; j++) {
+        const t = j / (rings - 1);
+        const at = (off) => Array.from({ length: N + 1 }, (_, k) => {
+          const a = ((k % N) / N) * Math.PI * 2, r = (line[k % N] + 0.8) * (1 - t) + R0 * t + off;
+          return [J[0] + Math.cos(a) * r, J[1] + Math.sin(a) * r];
+        });
+        (forkOld(2) ? GB.rakeDark : GB.forkRakeDark).add(wornRibbon(at(0), 0.26, TOP + 0.02));
+        GB.rakeLit.add(wornRibbon(at(0.24), 0.18, TOP + 0.025));
+      }
     }
-    // the stone the ways part at, low and flat: stepped on, never stepped round
-    GB.stone.add(new THREE.CylinderGeometry(2.3, 2.5, 0.7, 20).scale(1, 1, 0.82).rotateY(0.4).translate(J[0], TOP + 0.2, J[1]));
   }
 
   yield 'The wisteria pergola, hung with lanterns';
@@ -6200,7 +7102,45 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
         pts.push(new THREE.Vector3(x + Math.cos(ang) * r, GROUND + 1 + f * (RAFTER[1] - GROUND - 0.4), z + Math.sin(ang) * r));
       }
       for (let k = 1; k <= 8; k++) pts.push(new THREE.Vector3(x + Math.sin(k) * 0.8, RAFTER[1] + 0.6 + Math.sin(k * 1.7) * 0.3, z + k * 2.6 * (x < 0 ? 1 : -1)));
-      wood(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), light ? 40 : 90, 0.3, 6, false));
+      if (IVY_OLD) wood(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), light ? 40 : 90, 0.3, 6, false));
+    }
+    // (ivy.js) The same four vines grown as wisteria grows: out of the ground
+    // beside the plinth, over its edge, two strands twisted on each other as
+    // they twine the post, thick and grey-barked at the foot and thinning as
+    // they climb; up past the head of the post on the outside, clear of the
+    // tie beam, and over onto the rafters, where the run of the old vine
+    // went; leaves off the upper post and the run, and a few young shoots
+    // reaching out into the air.
+    if (!IVY_OLD) {
+      const vr = makeRng(6611), VR = (lo, hi) => lo + (hi - lo) * vr();
+      const qf = new THREE.Quaternion().setFromRotationMatrix(frame), eu = new THREE.Euler();
+      const barkTint = new THREE.Color('#8f8d88'), shootTint = new THREE.Color('#7d7a52');
+      const VINE_GREEN = ['#4f6e30', '#5a7a36', '#476629', '#62823a', '#55743a'];
+      for (const [x, z, turns] of [[-POST, FRAMES[0], 2.2], [POST, FRAMES[1], 1.8], [-POST, FRAMES[2], 2.5], [POST, FRAMES[3], 2]]) {
+        const sx = Math.sign(x), runZ = x < 0 ? 1 : -1;
+        // the side of the tie beam to go up past: the one farther from a rafter
+        const clear = (zz) => Math.min(...rafters.map((r) => Math.abs(r - zz)));
+        const dz = clear(z + 1.6) >= clear(z - 1.6) ? 1.6 : -1.6;
+        const over = [
+          new THREE.Vector3(x + sx * 2.0, TIE[0] - 0.4, z + dz * 1.1),
+          new THREE.Vector3(x + sx * 2.5, TIE[0] + 2.1, z + dz * 1.05),
+          new THREE.Vector3(x + sx * 2.6, PURLIN[0] + 1.8, z + dz * 0.97),
+          new THREE.Vector3(x + sx * 2.0, RAFTER[1] + 0.45, z + dz * 0.8),
+        ];
+        for (let k = 1; k <= 6; k++) over.push(new THREE.Vector3(x + sx * 1.4 + Math.sin(k * 1.3) * 0.7, RAFTER[1] + 0.45 + Math.max(0, Math.sin(k * 1.7)) * 0.25, z + dz * 0.8 + k * 2.6 * runZ));
+        const vine = twineWisteria({
+          x, z, postR: 1.5, plinthR: 2.5, ground: GROUND, foot: { r: 1.95, y: GROUND + 3.3 }, top: TIE[0] - 1.8, turns,
+          endAngle: Math.atan2(dz * 1.1, sx * 2.0), over,
+        }, vr);
+        for (const st of vine.strands) ivyWood.tube(st.map((nd) => ({ p: nd.p.clone().applyMatrix4(frame), r: nd.r })), st[0].r > 0.25 ? 9 : 6, barkTint);
+        for (const sh of vine.shoots) ivyWood.tube(sh.map((nd) => ({ p: nd.p.clone().applyMatrix4(frame), r: nd.r })), 4, shootTint);
+        for (const lf of vine.leaflets) {
+          const p = lf.p.clone().applyMatrix4(frame);
+          eu.setFromQuaternion(qf.clone().multiply(lf.q));
+          const s = lf.s * 0.72;
+          vineLeaves.push({ p: [p.x, p.y, p.z], rot: [eu.x, eu.y, eu.z], s: [s, s, s], color: VINE_GREEN[Math.floor(vr() * VINE_GREEN.length)], k: VR(0.85, 1.1) });
+        }
+      }
     }
     // The wisteria: a raceme from the rafters every couple of units, longest
     // at the sides and short over the path, so the way through is a tunnel of
@@ -6215,13 +7155,46 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
         hangs.push({ p: [q.x, q.y, q.z], rot: [0, yaw, 0], s: [wide, len, 1], kind, color: green ? '#c4d0c0' : '#e6dcec', k });
       }
     }
+    let canopy = 0;
+    const canopyFrame = new THREE.Quaternion().setFromRotationMatrix(frame), canopyEuler = new THREE.Euler();
+    const CANOPY_GREEN = ['#3f5c28', '#4a6a2e', '#3a5524', '#55743a'];
     for (let z = zA + 2; z < zB - 2; z += within(3.5, 5)) {
       for (const x of [-18, -9, 0, 9, 18]) {
         const skip = pr() < 0.25;
         const q = W3(x + within(-3, 3), RAFTER[1] + within(1.2, 2.4), z);
         const item = { p: [q.x, q.y, q.z], rot: [within(-0.2, 0.2), pr() * 6.28, within(-0.2, 0.2)], s: Array(3).fill(within(6, 9.5)), color: LEAF[Math.floor(pr() * LEAF.length)], k: within(0.55, 0.8) };
-        if (!skip) foliage.push(item);
+        if (skip) continue;
+        if (IVY_OLD) { foliage.push(item); continue; }
+        // (ivy.js) not a ball of painted leaf on the battens but the leaves
+        // themselves: a spread of wisteria leaves where it lay, laid out over
+        // the rafters and hanging between them
+        const cr = makeRng(7000 + canopy++), CR = (lo, hi) => lo + (hi - lo) * cr();
+        const S = item.s[0];
+        for (let n = 0; n < (light ? 6 : 12); n++) {
+          const a = cr() * Math.PI * 2, r = Math.sqrt(cr()) * S * 0.42;
+          const base = new THREE.Vector3(x + Math.cos(a) * r, RAFTER[1] + CR(0.3, 1.4), z + Math.sin(a) * r);
+          const dirn = new THREE.Vector3(Math.cos(a + CR(-0.6, 0.6)), CR(-0.25, 0.25), Math.sin(a + CR(-0.6, 0.6))).normalize();
+          const got = [];
+          compoundLeaf(base, dirn, CR(2.6, 3.8), 0.72 * CR(0.85, 1.15), cr, got);
+          for (const lf of got) {
+            const p = lf.p.applyMatrix4(frame);
+            canopyEuler.setFromQuaternion(canopyFrame.clone().multiply(lf.q));
+            vineLeaves.push({ p: [p.x, p.y, p.z], rot: [canopyEuler.x, canopyEuler.y, canopyEuler.z], s: [lf.s, lf.s, lf.s], color: CANOPY_GREEN[Math.floor(cr() * CANOPY_GREEN.length)], k: CR(0.7, 1.0) });
+          }
+        }
       }
+    }
+    if (ivyLeaves.length) instances(ivyLeafGeometry(), M.ivyLeaf, ivyLeaves, { cast: false, chunked: true, name: 'ivy' });
+    if (vineLeaves.length) instances(leafletGeometry(), M.vineLeaf, vineLeaves, { cast: false, chunked: true, name: 'ivy' });
+    if (ivyWood.pos.length) {
+      const g = keep(ivyWood.geometry());
+      g.computeBoundingSphere();
+      const m = new THREE.Mesh(g, M.bark);
+      m.castShadow = true;
+      m.receiveShadow = true;
+      // (not felt: a foot or a shoulder brushes past ivy — body.js, UNFELT)
+      m.name = 'ivyStems';
+      root.add(m);
     }
     // The lanterns: round paper globes on cords, a fine bamboo rib every so
     // often round them, a lacquered cap and foot, and a short silk tassel.
@@ -6242,7 +7215,8 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
       wood(new THREE.CylinderGeometry(0.08, 0.08, RAFTER[0] - LY - H - 0.6, 5).translate(0, (RAFTER[0] + LY + H + 0.6) / 2, z));
       gold(new THREE.SphereGeometry(0.28, 10, 8).translate(0, LY - H - 0.55, z));
       lacq(new THREE.CylinderGeometry(0.18, 0.34, 2.1, 10).translate(0, LY - H - 1.8, z));
-      halo([p.x, p.z], LY, 40, '#ffb866', 0.35);
+      // (from the Door the three lay one on another down the pergola: doorFix.js, 4)
+      halo([p.x, p.z], LY, doorOld(4) ? 40 : LANTERN_HALO.size, '#ffb866', doorOld(4) ? 0.35 : LANTERN_HALO.opacity);
     }
     point(add(a, t, 64), 25, '#ffb866', 4200, 6);
     decal(lerp2(a, b, 0.5), 220, 130, '#ffae5c', 0.24 * POOL_DIAL, 5.8, 0.12);
@@ -6461,6 +7435,7 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
     stone(lathe([[0, b], [0.42, b], [0.72, b + 0.22], [0.9, b + 0.55], [0.88, b + 0.88], [0.72, b + 1.2], [0.48, b + 1.5], [0.26, b + 1.78], [0.1, b + 2.0], [0, b + 2.15]], round));
     if (lit) {
       waterLamps.push({ p: [p[0], 21, p[1]], color: '#ffcd86', k: 1.1 });
+      lawnLamps.push({ p, y: 21, ...LAWN.toro });
       halo(p, 21.2, 18, '#ffc070', 0.14, lampHaloTex);
       // the light it lays on the ground, out of its windows
       const pool = decal(p, 100, 76, '#ffb462', 0.3 * POOL_DIAL, 5.3, 0.14);
@@ -6505,16 +7480,32 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
     // taken, with nothing written on it. (Since the road not taken goes to the
     // Heart, THE HEART points down it, toward the maze's mouth, and there is no
     // third way to leave blank: ?wfork=old for the three boards.)
-    const at = add(J, dir(279), 30);
-    standing.push({ p: at, r: 4 });
-    GB.stone.add(placed(new THREE.BoxGeometry(5.6, 3.2, 5.6), at, 4, 12 * deg));
-    GB.stone.add(placed(new THREE.BoxGeometry(4.6, 1.6, 4.6), at, 6.4, 12 * deg));
-    GB.stone.add(placed(new THREE.CylinderGeometry(2.05, 2.62, 22, 4).rotateY(Math.PI / 4), at, 4 + 11, 12 * deg));
-    GB.stone.add(placed(new THREE.BoxGeometry(3.4, 0.5, 3.4), at, 23.9, 12 * deg));
-    GB.stone.add(placed(new THREE.BoxGeometry(4.2, 0.55, 4.2), at, 24.45, 12 * deg));
-    GB.stone.add(placed(new THREE.BoxGeometry(4.8, 1.2, 4.8), at, 25.3, 12 * deg));
-    GB.stone.add(placed(new THREE.ConeGeometry(3.3, 3.0, 4), at, 27.4, 57 * deg));
-    GB.stone.add(placed(new THREE.SphereGeometry(0.75, 12, 8), at, 29.2));
+    //
+    // (2026-10-09, forkFix.js 3: that pillar was the biggest and palest thing
+    // in the Fork's frame, dead ahead, and its boards were blank from both
+    // sides — the names faced into the wood. A slim post of weathered timber
+    // now, standing back in the lawn between the ways, the names facing out.)
+    const slim = !forkOld(3);
+    const at = slim ? add(J, dir(WAYMARK.bearing), WAYMARK.dist) : add(J, dir(279), 30);
+    standing.push({ p: at, r: slim ? 2.6 : 4 });
+    if (slim) {
+      const { r0, r1, top } = WAYMARK.post, turn = (WAYMARK.bearing + 45) * deg;
+      // a dressed footing, mostly in the ground, and the post in it
+      GB.stone.add(placed(new THREE.CylinderGeometry(1.75, 2.05, 1.6, 8), at, 4.3, turn));
+      GB.forkPost.add(placed(new THREE.CylinderGeometry(r1, r0, top - 4, 4).rotateY(Math.PI / 4), at, (top + 4) / 2, turn));
+      // a board cap and a low hipped top
+      GB.forkPost.add(placed(new THREE.BoxGeometry(r1 * 2.3, 0.32, r1 * 2.3), at, top + 0.16, turn));
+      GB.forkPost.add(placed(new THREE.ConeGeometry(r1 * 1.7, 1.1, 4), at, top + 0.32 + 0.55, turn + Math.PI / 4));
+    } else {
+      GB.stone.add(placed(new THREE.BoxGeometry(5.6, 3.2, 5.6), at, 4, 12 * deg));
+      GB.stone.add(placed(new THREE.BoxGeometry(4.6, 1.6, 4.6), at, 6.4, 12 * deg));
+      GB.stone.add(placed(new THREE.CylinderGeometry(2.05, 2.62, 22, 4).rotateY(Math.PI / 4), at, 4 + 11, 12 * deg));
+      GB.stone.add(placed(new THREE.BoxGeometry(3.4, 0.5, 3.4), at, 23.9, 12 * deg));
+      GB.stone.add(placed(new THREE.BoxGeometry(4.2, 0.55, 4.2), at, 24.45, 12 * deg));
+      GB.stone.add(placed(new THREE.BoxGeometry(4.8, 1.2, 4.8), at, 25.3, 12 * deg));
+      GB.stone.add(placed(new THREE.ConeGeometry(3.3, 3.0, 4), at, 27.4, 57 * deg));
+      GB.stone.add(placed(new THREE.SphereGeometry(0.75, 12, 8), at, 29.2));
+    }
     const nameTex = (text) => tex(paint(1024, 160, (g, w, h) => {
       g.clearRect(0, 0, w, h);
       g.font = '600 104px Georgia, "Times New Roman", serif';
@@ -6534,10 +7525,14 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
     }));
     const boards = FORK_OLD
       ? [[[1216, 218], 20.5, 'THE PAVILION', 1], [[1216, 218], 17.9, 'THE HEART', 0.84], [[1120, 160], 16.5, null, 1]]
-      : [[[1216, 218], 20.5, 'THE PAVILION', 1], [MAZE_ENTRY, 17.9, 'THE HEART', 0.84]];
+      // (the Pavilion's from the slim post: at the bridge's foot — [1216, 218]
+      // is the way's bend, behind it from there)
+      : [[slim ? SHORE : [1216, 218], slim ? WAYMARK.boards[0] : 20.5, 'THE PAVILION', 1], [MAZE_ENTRY, slim ? WAYMARK.boards[1] : 17.9, 'THE HEART', 0.84]];
+    // (out from the post's face: the slim post is a third as wide)
+    const b0 = slim ? 0.45 : 1.6;
     boards.forEach(([to, y, name, len]) => {
-      const a = Math.atan2(to[1] - at[1], to[0] - at[0]) / deg, L = 10.2 * len;
-      const board = [[1.6, y - 1.1], [1.6 + L, y - 1.1], [2.9 + L, y], [1.6 + L, y + 1.1], [1.6, y + 1.1]];
+      const a = Math.atan2(to[1] - at[1], to[0] - at[0]) / deg, L = (slim ? 8.8 : 10.2) * len;
+      const board = [[b0, y - 1.1], [b0 + L, y - 1.1], [b0 + 1.3 + L, y], [b0 + L, y + 1.1], [b0, y + 1.1]];
       (name ? GB.wood : GB.newWood).add(profileGeo(board, 0.55, at, a));
       if (!name) return;
       const mat = keep(new THREE.MeshStandardMaterial({
@@ -6547,9 +7542,12 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
       const t = dir(a), n = [-t[1], t[0]];
       for (const side of [-1, 1]) {
         const plate = new THREE.Mesh(keep(new THREE.PlaneGeometry(L * 0.86, 1.55)), mat);
-        const q = add(add(at, t, 1.6 + L / 2), n, side * 0.3);
+        const q = add(add(at, t, b0 + L / 2), n, side * 0.3);
         plate.position.set(q[0], y, q[1]);
-        plate.rotation.y = side > 0 ? -a * deg + Math.PI : -a * deg;
+        // (each plate faces OUT of its side of the board: turned the other way,
+        // as they were till forkFix.js 3, both faced into the wood and neither
+        // side of a board showed its name)
+        plate.rotation.y = (side > 0) === slim ? -a * deg : -a * deg + Math.PI;
         plate.name = 'waymark-name';
         root.add(plate);
       }
@@ -6557,14 +7555,14 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
     // An iron bracket off the post, braced, and hung from it a tsuri-dōrō: a
     // six-sided iron lantern, a lattice round paper, under a roof of its own.
     // It was two gilt discs with a glowing egg between them.
-    const arm = dir(196);
-    GB.iron.add(boxGeo(add(at, arm, 1.6), add(at, arm, 8), 0.5, 0.5, 24.4));
+    const arm = dir(slim ? WAYMARK.arm : 196), a0 = slim ? 0.5 : 1.6;
+    GB.iron.add(boxGeo(add(at, arm, a0), add(at, arm, a0 + 6.4), 0.5, 0.5, 24.4));
     {
-      const a = add(at, arm, 1.9), b = add(at, arm, 5.4);
+      const a = add(at, arm, a0 + 0.3), b = add(at, arm, a0 + 3.8);
       GB.iron.add(rodGeo([a[0], 20.6, a[1]], [b[0], 24.5, b[1]], 0.16));
     }
     {
-      const lp = add(at, arm, 7.6), flame = new THREE.Vector3(lp[0], 20.6, lp[1]);
+      const lp = add(at, arm, a0 + 6), flame = new THREE.Vector3(lp[0], 20.6, lp[1]);
       const yaw = Math.atan2(arm[0], arm[1]);
       const iron = (g) => GB.iron.add(g.rotateY(yaw).translate(lp[0], 0, lp[1]));
       iron(new THREE.TorusGeometry(0.32, 0.07, 6, 14).translate(0, 24.1, 0));
@@ -6587,6 +7585,7 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
         GB.paperLit.add(litPaper(sheetG, flame, RB * Math.cos(HEX / 2) - 0.06, 0.75));
       }
       waterLamps.push({ p: [lp[0], 20.6, lp[1]], color: '#ffc077', k: 1.1 });
+      lawnLamps.push({ p: lp, y: 20.6, ...LAWN.waymark });
       halo(lp, 20.6, 16, '#ffbc70', 0.14, lampHaloTex);
       // (900 when it was an egg of light: it blew the post beside it out to white)
       point(lp, 20.4, '#ffb866', 180, 4);
@@ -6730,6 +7729,11 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
     // of every bay, the rafters land on the purlins they cross, and the gap in
     // the balustrade is the bay the bridge actually arrives at.
     const DECK = 12, HEAD = 46, R_COL = 26;
+    // (pavilionProps.js, 13: gilt on every column, under every lantern and on
+    // the table's lamp, with the finial, was a casino's. The small fittings
+    // are bronze; the one bright gold thing here is the finial.)
+    const FITTING = pavPropsOld(13) ? GB.gold : GB.pavBronze;
+    const RAIL_WORN = !pavPropsOld(10);
     const bay = (k) => 22.5 + k * 45;
     const on = (a, r) => add(PV, dir(a), r);
     // A piece in a bay's own frame: +x runs out from the middle of the
@@ -6743,8 +7747,15 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
     // lifting to the ridge — and `soffit` IS that curve. Everything that has to
     // fit under the roof asks it where the roof is rather than guessing, which
     // is how the old rafters came to hang five units below it in open air.
-    const TIERS = [{ r: 52, h: 17, y: 44 }, { r: 29, h: 15, y: 58 }];
-    const soffit = (t, r) => t.y + t.h * (1 - Math.min(1, Math.max(0, r) / t.r) ** 2.4);
+    // (forkProps.js, 2: that curve was a dome's — level at the top, steepest
+    // at the eave — and the roof it made was a conservatory's. The roof is
+    // tiled now, pavilionRoof.js, on a hollow curve with its corners swept
+    // up, and `soffit` asks that roof where it is: `a`, the bearing, because
+    // a facet between two hips is lower at its middle than a lathe's ring.)
+    const ROOF_OLD = propsOld(2);
+    const TIERS = ROOF_OLD ? [{ r: 52, h: 17, y: 44 }, { r: 29, h: 15, y: 58 }]
+      : ROOF_TIERS.map((t) => ({ ...t, h: roofProfile(t, 0) - t.y }));
+    const soffit = (t, r, a = 22.5) => (ROOF_OLD ? t.y + t.h * (1 - Math.min(1, Math.max(0, r) / t.r) ** 2.4) : roofTop(t, a, Math.max(0, r)));
     // and the way OUT of that surface at radius r, for laying a ridge along it
     const outward = (t, r) => {
       const y0 = soffit(t, r - 0.4), y1 = soffit(t, r + 0.4);
@@ -6774,14 +7785,27 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
       // a stone plinth, a shaft tapered the way a timber one is, a gilt collar
       GB.stone.add(placed(new THREE.CylinderGeometry(2.9, 3.5, 2.6, 8), p, DECK + 1.3));
       GB.lacquer.add(placed(new THREE.CylinderGeometry(1.45, 1.9, HEAD - DECK - 2.6, 12), p, (DECK + 2.6 + HEAD) / 2));
-      GB.gold.add(placed(new THREE.CylinderGeometry(1.8, 1.8, 0.45, 12), p, HEAD - 4.4));
+      if (pavPropsOld(13)) GB.gold.add(placed(new THREE.CylinderGeometry(1.8, 1.8, 0.45, 12), p, HEAD - 4.4));
+      else {
+        // (a dark gilt band between two beads, closer on the shaft)
+        GB.pavGilt.add(placed(new THREE.CylinderGeometry(1.66, 1.68, 0.5, 16), p, HEAD - 4.4));
+        for (const dy of [0.33, -0.33]) GB.pavGilt.add(placed(new THREE.CylinderGeometry(1.74, 1.74, 0.14, 16), p, HEAD - 4.4 + dy));
+      }
 
       if (arrivals.includes(k)) continue;
       const c0 = on(a0, 30), c1 = on(a1, 30);
-      GB.lacquer.add(boxGeo(c0, c1, 1.1, 2.1, DECK + 0.5));                 // bottom rail
-      GB.lacquer.add(boxGeo(c0, c1, 1.5, 3.2, 16.4));                       // handrail
-      for (let i = 1; i < 8; i++) {                                         // balusters
-        GB.lacquer.add(placed(new THREE.BoxGeometry(0.75, 3.0, 0.75), lerp2(c0, c1, i / 8), 15.0, -a0 * deg));
+      if (RAIL_WORN) {
+        // (pavilionProps.js, 10: the same members, worn)
+        const span = dist(c0, c1);
+        GB.railWorn.add(wornBar(c0, c1, DECK + 0.5, 1.1, 2.1, { rub: 0.3, joints: Array.from({ length: 9 }, (_, i) => (span * i) / 8) }));
+        GB.railWorn.add(wornBar(c0, c1, 16.4, 1.5, 3.2, { rub: 1, ease: 0.34, joints: [0, span] }));
+        for (let i = 1; i < 8; i++) GB.railWorn.add(wornPost(lerp2(c0, c1, i / 8), 13.5, 0.75, 3.0, -a0 * deg));
+      } else {
+        GB.lacquer.add(boxGeo(c0, c1, 1.1, 2.1, DECK + 0.5));                 // bottom rail
+        GB.lacquer.add(boxGeo(c0, c1, 1.5, 3.2, 16.4));                       // handrail
+        for (let i = 1; i < 8; i++) {                                         // balusters
+          GB.lacquer.add(placed(new THREE.BoxGeometry(0.75, 3.0, 0.75), lerp2(c0, c1, i / 8), 15.0, -a0 * deg));
+        }
       }
       // the seat that makes a pavilion somewhere to sit and not only to pass
       // through — a board inside the rail, on stubby brackets, stopping short
@@ -6849,11 +7873,32 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
     // band under the eave was a heap of loose blocks; eight, one to a column,
     // repeat, and repetition is what makes joinery read as made. (With the
     // room that leaves, each tier's arms reach further along the eave.)
-    for (let k = 0; k < 8; k++) dougong(bay(k));
+    // (2026-10-09, pavilionFix.js 2: from the bridge those two tiers of plain
+    // boxes, the rafters and a second purlin running through them, and a gilt
+    // cube on the front of each, read as stacked lumber. One set to a column
+    // now, block and arm in a stepped cross, its arms along the beams.)
+    const PAV_BRACKETS = !pavOld(2);
+    if (PAV_BRACKETS) {
+      // (pavilionProps.js, 3: the arms eased and painted)
+      const set = bracketSet({ paint: pavPropsOld(3) ? null : CAIHUA });
+      // carried from the column's frame (+x out, +z along) onto column k
+      const carry = (g, a) => { const p = on(a, R_COL); return g.clone().rotateY(-a * deg).translate(p[0], HEAD, p[1]); };
+      for (let k = 0; k < 8; k++) {
+        for (const g of set.arms) GB.wood.add(carry(g, bay(k)));
+        for (const g of set.blocks) GB.lacquer.add(carry(g, bay(k)));
+        for (const g of set.caps) GB.pavBronze.add(carry(g, bay(k)));
+        for (const g of set.chalk) GB.pavChalk.add(carry(g, bay(k)));
+        for (const g of set.green) GB.pavGreen.add(carry(g, bay(k)));
+      }
+      [...set.arms, ...set.blocks, ...set.caps, ...set.chalk, ...set.green].forEach((g) => g.dispose());
+    } else for (let k = 0; k < 8; k++) dougong(bay(k));
     // the purlin the brackets were put there to hold, and the beam behind them
+    // (each on the top blocks of the sets now, where they had floated a little
+    // over them and the purlin sat inside the ring of rafter purlins below)
     for (let k = 0; k < 8; k++) {
-      GB.wood.add(boxGeo(on(bay(k), 33), on(bay(k + 1), 33), 1.7, 2.0, HEAD + 6.6));
-      GB.lacquer.add(boxGeo(on(bay(k), R_COL), on(bay(k + 1), R_COL), 1.5, 1.8, HEAD + 5.6));
+      const out = PAV_BRACKETS ? R_COL + BRACKET.purlinOut : 33;
+      GB.wood.add(boxGeo(on(bay(k), out), on(bay(k + 1), out), 1.7, 2.0, HEAD + (PAV_BRACKETS ? BRACKET.purlinY : 6.6)));
+      GB.lacquer.add(boxGeo(on(bay(k), R_COL), on(bay(k + 1), R_COL), 1.5, 1.8, HEAD + (PAV_BRACKETS ? BRACKET.beamY : 5.6)));
     }
 
     // ── The ceiling and the eave ──────────────────────────────────────────
@@ -6865,12 +7910,14 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
       const a = 22.5 + k * 11.25, full = k % 2 === 0;
       let last = null;
       for (const r of full ? [50, 43, 36, 29, 21, 13, 6, 0] : [50, 44, 38, 33]) {
-        const p = on(a, r), here = [p[0], soffit(TIERS[0], r) - 1.4, p[1]];
+        const p = on(a, r), here = [p[0], soffit(TIERS[0], r, a) - 1.4, p[1]];
         if (last) GB.wood.add(rodGeo(last, here, full ? 0.85 : 0.6));
         last = here;
       }
     }
-    for (const r of [33, 21]) {
+    // (the outer of the two rings sat at the eave purlin's own radius, just
+    // under it and crossing it at every bay: two purlins in one place)
+    for (const r of pavOld(2) ? [33, 21] : [21]) {
       for (let k = 0; k < 16; k++) {
         GB.wood.add(boxGeo(on(22.5 + k * 22.5, r), on(45 + k * 22.5, r), 1.4, 1.6, soffit(TIERS[0], r) - 3.5));
       }
@@ -6878,8 +7925,17 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
     {
       const apex = soffit(TIERS[0], 0);
       GB.lacquer.add(placed(new THREE.CylinderGeometry(5.2, 3.2, 1.6, 16), PV, apex - 1.4));
-      GB.gold.add(placed(new THREE.CylinderGeometry(2.6, 1.3, 1.3, 16), PV, apex - 2.8));
-      GB.gold.add(placed(new THREE.SphereGeometry(1.1, 10, 8), PV, apex - 4.0));
+      if (pavPropsOld(3)) {
+        GB.gold.add(placed(new THREE.CylinderGeometry(2.6, 1.3, 1.3, 16), PV, apex - 2.8));
+        GB.gold.add(placed(new THREE.SphereGeometry(1.1, 10, 8), PV, apex - 4.0));
+      } else if (ROOF_OLD) {
+        // (pavilionProps.js, 3: a gilt cup and ball hung there, a bell. A
+        // stepped boss of the ceiling's own timber, and a bud turned down.
+        // Under the tiled roof the rafters' meeting is above the ceiling's
+        // board, and the boss is on the board: see the roofs, below.)
+        GB.wood.add(placed(new THREE.CylinderGeometry(3.3, 2.5, 0.7, 16), PV, apex - 2.55));
+        GB.lacquer.add(placed(lotusBud({ height: 1.5, radius: 0.85 }).rotateX(Math.PI), PV, apex - 2.9));
+      }
     }
 
     // ── The eaves ─────────────────────────────────────────────────────────
@@ -6889,12 +7945,12 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
       // small, and burning low. As big as a head and nearly as bright as the
       // lamp on the table they were eight lamps against its one, and "a single
       // pavilion burns warm" is a building lit from inside.
-      GB.gold.add(placed(new THREE.CylinderGeometry(0.18, 0.18, 2.6, 6), lp, 45.8));
+      FITTING.add(placed(new THREE.CylinderGeometry(0.18, 0.18, 2.6, 6), lp, 45.8));
       if (LAMPS.paper) trialEaves.push({ p: [lp[0], 42.8, lp[1]], s: [1.15, 1.5, 1.15], color: '#ffb070', k: 0.6 });
       else glows.push({ p: [lp[0], 42.8, lp[1]], s: [1.15, 1.5, 1.15], color: '#ff8a3e', k: 0.5 });
       GB.lacquer.add(placed(new THREE.CylinderGeometry(0.75, 1.0, 0.5, 10), lp, 44.5));
       GB.lacquer.add(placed(new THREE.CylinderGeometry(1.0, 0.75, 0.45, 10), lp, 41.2));
-      GB.gold.add(placed(new THREE.SphereGeometry(0.34, 8, 6), lp, 40.8));
+      FITTING.add(placed(new THREE.SphereGeometry(0.34, 8, 6), lp, 40.8));
       halo(lp, 42.8, 12, '#ff9a4e', 0.1);
     }
 
@@ -6907,7 +7963,37 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
     // fall on the eight column lines and a hip runs the whole way up.
     M.roof.side = THREE.BackSide;
     const underside = Std({ color: '#2b1b12', roughness: 0.9, side: THREE.FrontSide });
-    for (const tier of TIERS) {
+    if (!ROOF_OLD) {
+      // Tiled (pavilionRoof.js): the slopes with their rolls, tile-ends and
+      // hips in one mesh, the soffit and the eave board in another; and
+      // between the two tiers, the short wall the upper one stands on.
+      const kind = ROOF_KIND, surface = ROOF_SURFACE[kind];
+      const roofMat = skyDull(Std({ map: tex(roofTiles(kind), [1, 1]), roughness: surface.roughness, side: THREE.DoubleSide }), surface.sky, surface.direct);
+      const roof = tiledRoof({ at: PV, kind, light });
+      for (const [geo, material] of [[roof.tiles, roofMat], [roof.under, underside]]) {
+        const m = new THREE.Mesh(keep(geo), material);
+        m.castShadow = material === roofMat;
+        m.receiveShadow = true;
+        m.name = 'pavRoof';
+        root.add(m);
+      }
+      const [low, high] = TIERS, wallR = high.r * 0.88;
+      // (to the upper tier's soffit at a facet's middle: at its hips that roof is already sweeping up)
+      const y0 = soffit(low, wallR) - 0.5, y1 = roofProfile(high, wallR) - 0.3;
+      GB.lacquer.add(placed(new THREE.CylinderGeometry(wallR, wallR, y1 - y0, 8, 1, true), PV, (y0 + y1) / 2, 22.5 * deg));
+      GB.wood.add(placed(new THREE.CylinderGeometry(wallR + 0.5, wallR + 0.5, 0.7, 8, 1, false), PV, y0 + 0.75, 22.5 * deg));
+      // (pavilionProps.js, 3: that board is the ceiling a reader under it
+      // looks up at, plain from edge to edge. A boss on its middle — a step
+      // of lacquer, a step of timber, and a lotus bud turned down.)
+      if (!pavPropsOld(3)) {
+        const under = y0 + 0.4;
+        GB.lacquer.add(placed(new THREE.CylinderGeometry(4.4, 5.0, 0.5, 16), PV, under - 0.25));
+        GB.wood.add(placed(new THREE.CylinderGeometry(2.5, 3.2, 0.6, 16), PV, under - 0.8));
+        GB.lacquer.add(placed(lotusBud({ height: 1.5, radius: 0.85 }).rotateX(Math.PI), PV, under - 1.1));
+      }
+      // (the gold balls, for whoever asks for them back: forkProps.js, 11)
+      if (propsOld(11)) for (const p of roof.tips) GB.gold.add(new THREE.SphereGeometry(0.95, 32, 24).translate(p[0], p[1], p[2]));
+    } else for (const tier of TIERS) {
       const { r, h, y } = tier;
       const profile = [new THREE.Vector2(r * 1.05, 2.2), new THREE.Vector2(r, 0)];
       for (let i = 1; i <= 10; i++) {
@@ -7022,7 +8108,7 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
         GB.lacquer.add(placed(new THREE.BoxGeometry(0.45, 7.2, 0.45), add(PV, dir(45 + i * 90), 2.4), TT + 5.9));
       }
       GB.lacquer.add(placed(new THREE.CylinderGeometry(4.4, 3.2, 0.9, 8), PV, TT + 9.9, 22.5 * deg));
-      GB.gold.add(placed(new THREE.SphereGeometry(0.8, 8, 6), PV, TT + 10.9));
+      FITTING.add(placed(new THREE.SphereGeometry(0.8, pavPropsOld(13) ? 8 : 16, pavPropsOld(13) ? 6 : 12), PV, TT + 10.9));
       if (LAMPS.table) {
         // lit panels of silk in the frame, a lattice over them, and no glow
         // egg — the posts stand dark against the light (lampPass.js)
@@ -7041,11 +8127,34 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
       // and its light laid on the black water under the pavilion (water.js)
       waterLamps.push({ p: [PV[0], TT + 5.6, PV[1]], color: '#ffc884', k: 1.2 });
       // "Its music seems to arrive from all your lives at once" — and nothing
-      // in it could make a sound. A guqin on the table beside the lamp, on the
+      // in it could make a sound. (Nor can the world: it has none. The copy
+      // speaks of the qin waiting instead, since pavilionFix.js 6.) A guqin on the table beside the lamp, on the
       // side the bridge comes from: a long zither in black lacquer, seven silk
       // strings, the thirteen studs of mother-of-pearl along its near edge; on
       // the boards before it, the cushion someone sits on to play it.
-      {
+      // (pavilionProps.js, 4: from the stand that was a board with a pale
+      // stripe. A qin's outline and arched top, its strings and studs where
+      // a qin's are, the head out over the table's edge with its pegs and
+      // tassels, and a cloth under its tail let down over the rim.)
+      if (!pavPropsOld(4)) {
+        const toBridge = 127, a = (toBridge - 90) * deg;
+        // `OUT` from the table's middle to the qin's line (clear of the lamp's
+        // foot), `SHIFT` along that line toward its head: the tail on the
+        // table, and the head past its rim by a hand's width at the least
+        const OUT = 5.3, SHIFT = 1.66, top = TT + 1.3;
+        const mid = add(PV, dir(toBridge), OUT);
+        const carry = (g, dx = 0) => g.translate(dx, 0, 0).rotateY(-a).translate(mid[0], top, mid[1]);
+        const q = qin();
+        for (const g of q.body) GB.blackLacquer.add(carry(g, SHIFT));
+        for (const g of [...q.strings, ...q.pearl]) GB.silk.add(carry(g, SHIFT));
+        for (const g of q.fittings) GB.wood.add(carry(g, SHIFT));
+        for (const g of q.tassels) GB.cushion.add(carry(g, SHIFT));
+        const cloth = qinCloth({ centre: [0, -OUT], rim: 8.06, x0: SHIFT - q.L / 2 + 0.3, x1: SHIFT - q.L / 2 + 3.7 });
+        for (const g of cloth.cloth) GB.brocade.add(carry(g));
+        for (const g of cloth.trim) GB.pavGilt.add(carry(g));
+        const seat = add(PV, dir(toBridge), 12.5);
+        GB.cushion.add(new THREE.CylinderGeometry(2.6, 2.8, 1.0, 20).scale(1, 1, 0.82).rotateY(-a).translate(seat[0], DECK + 0.5, seat[1]));
+      } else {
         const toBridge = 127, a = (toBridge - 90) * deg, along = dir(toBridge - 90);
         const mid = add(PV, dir(toBridge), 5.7), top = TT + 1.3;
         const body = [
@@ -7112,14 +8221,21 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
       };
       // a member laid along a line of points, each piece lengthened at a turn
       // by just enough to close the outside of the mitre
-      const along = (pts, h, t, y0, batch) => {
+      // (`worn`, pavilionProps.js 10: a rail's member in worn lacquer, deeper
+      // where each post — and, `balusters`, each baluster — meets it)
+      const along = (pts, h, t, y0, batch, worn = null) => {
         const u = pts.slice(1).map((p, i) => unit2(pts[i], p));
         const over = (i) => {
           if (i <= 0 || i >= u.length) return 0;
           const c = Math.max(-0.99, u[i - 1][0] * u[i][0] + u[i - 1][1] * u[i][1]);
           return (t / 2) * Math.sqrt((1 - c) / (1 + c));
         };
-        u.forEach((v, i) => batch.add(boxGeo(add(pts[i], v, -over(i)), add(pts[i + 1], v, over(i + 1)), h, t, y0)));
+        u.forEach((v, i) => {
+          const from = add(pts[i], v, -over(i)), to = add(pts[i + 1], v, over(i + 1));
+          if (!worn) { batch.add(boxGeo(from, to, h, t, y0)); return; }
+          const L = dist(pts[i], pts[i + 1]), bays = Math.max(1, Math.round(L / 8)), n = bays * (worn.balusters ? 3 : 1);
+          GB.railWorn.add(wornBar(from, to, y0, h, t, { ...worn, joints: Array.from({ length: n + 1 }, (_, j) => over(i) + (L * j) / n) }));
+        });
       };
       // a convex outline cut down to where f(p) >= 0
       const keepWhere = (poly, f) => {
@@ -7204,20 +8320,26 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
       // a handrail over them and a kick rail under, balusters between.
       const post = (q, v) => {
         const ang = -Math.atan2(v[1], v[0]);
-        GB.lacquer.add(placed(new THREE.BoxGeometry(1.4, 4.4, 1.4), q, TOP + 2.2, ang));
+        if (RAIL_WORN) GB.railWorn.add(wornPost(q, TOP, 1.4, 4.4, ang));
+        else GB.lacquer.add(placed(new THREE.BoxGeometry(1.4, 4.4, 1.4), q, TOP + 2.2, ang));
         // A capped head, not a brass knob: the walk goes along this rail and
         // a gilt ball on every post came past the eye like a row of melons.
         // (And not a squat pyramid either, which was the nearest, heaviest
         // shape in the Pavilion's frame: a small lacquered bud on a collar.)
-        GB.gold.add(placed(new THREE.CylinderGeometry(0.85, 0.85, 0.22, 8), q, 13.95));
+        FITTING.add(placed(new THREE.CylinderGeometry(0.85, 0.85, 0.22, 8), q, 13.95));
         GB.lacquer.add(placed(new THREE.CylinderGeometry(0.42, 0.62, 0.35, 10), q, 14.25));
-        GB.lacquer.add(placed(new THREE.SphereGeometry(0.5, 12, 8).scale(1, 1.45, 1), q, 14.95));
+        // (and not an egg, which the nearest, out of focus at the frame's
+        // foot, made an acorn of: a lotus bud with its petals carved in —
+        // pavilionFix.js, 3)
+        if (pavOld(3)) GB.lacquer.add(placed(new THREE.SphereGeometry(0.5, 12, 8).scale(1, 1.45, 1), q, 14.95));
+        else GB.lacquer.add(placed(bud.clone(), q, 14.38, ang));
       };
+      const bud = keep(lotusBud());
       for (const s of [1, -1]) {
         const line = edge(s * RW, 2, 32);
         along(line, 1.0, 1.4, TOP, GB.wood);                               // curb
-        along(line, 0.9, 1.5, 10.0, GB.lacquer);                           // kick rail
-        along(line, 1.1, 2.0, 13.0, GB.lacquer);                           // handrail
+        along(line, 0.9, 1.5, 10.0, GB.lacquer, RAIL_WORN ? { rub: 0.3, balusters: true } : null);   // kick rail
+        along(line, 1.1, 2.0, 13.0, GB.lacquer, RAIL_WORN ? { rub: 1, ease: 0.3 } : null);         // handrail
         const u = line.slice(1).map((p, i) => unit2(line[i], p));
         line.forEach((p, i) => {
           // at a turn the post stands square to the line halfway between the two runs
@@ -7227,7 +8349,10 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
           for (let j = 0; j < bays; j++) {
             const a = lerp2(p, line[i + 1], j / bays), b = lerp2(p, line[i + 1], (j + 1) / bays);
             if (j > 0) post(a, u[i]);
-            for (const f of [0.33, 0.67]) GB.lacquer.add(placed(new THREE.BoxGeometry(0.6, 2.3, 0.6), lerp2(a, b, f), 11.95, ang));
+            for (const f of [0.33, 0.67]) {
+              if (RAIL_WORN) GB.railWorn.add(wornPost(lerp2(a, b, f), 10.8, 0.6, 2.3, ang));
+              else GB.lacquer.add(placed(new THREE.BoxGeometry(0.6, 2.3, 0.6), lerp2(a, b, f), 11.95, ang));
+            }
           }
         });
       }
@@ -7309,6 +8434,9 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
         set(c, r, d, 1);
         if (!reachable()) set(c, r, d, 0);
       }
+      // and a fifth way out, off the axis, that can be SEEN from the way in:
+      // the fourth gate is straight behind the armillary (webFix.js, 3)
+      if (!webOld(3)) openGate(grid, COURT, set, reachable);
     }
     // the one way through to the heart, for the walk
     {
@@ -7345,6 +8473,11 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
       }
     }
     plantHedge(rectUnionLoops(footprint), { ground: 5, H: 20, seed: 11 });
+    // its mouth between two clipped finials, and one on each corner (forkProps.js, 6)
+    if (!paintings) {
+      [[x0 + 4 * cw, z0], [x0 + 5 * cw, z0], [x0, z0], [x0 + cols * cw, z0], [x0, z0 + rows * ch], [x0 + cols * cw, z0 + rows * ch]]
+        .forEach((p, i) => finial(p, FINIALS.mouth, 5, 20, 1101 + i));
+    }
     mazeGrid = grid;
     mazeRects = footprint;
     // (3800 and a pool of 0.34 until 2026-10-05: the pale paving printed as one
@@ -7387,12 +8520,33 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
       // An armillary of gold rings turning over a stone plinth — the size of a
       // thing a court is built round now, not of a thing on a desk: the rings
       // were 5 to 6.4 across and read, at the end of the walk, as a toy.
-      GB.stone.add(placed(new THREE.CylinderGeometry(6.2, 6.6, 1.4, 20), HEART, 5 + 0.7));
-      GB.stone.add(placed(new THREE.CylinderGeometry(3.2, 4.0, 8.6, 16), HEART, 6.4 + 4.3));
-      GB.stone.add(placed(new THREE.CylinderGeometry(4.2, 3.4, 1.1, 16), HEART, 15 + 0.55));
-      // the drum banded in gilt top and foot, as an instrument's stand is
-      GB.gold.add(placed(new THREE.TorusGeometry(3.86, 0.16, 6, 40).rotateX(Math.PI / 2), HEART, 7.8));
-      GB.gold.add(placed(new THREE.TorusGeometry(3.32, 0.14, 6, 40).rotateX(Math.PI / 2), HEART, 14.2));
+      if (webOld(7)) {
+        GB.stone.add(placed(new THREE.CylinderGeometry(6.2, 6.6, 1.4, 20), HEART, 5 + 0.7));
+        GB.stone.add(placed(new THREE.CylinderGeometry(3.2, 4.0, 8.6, 16), HEART, 6.4 + 4.3));
+        GB.stone.add(placed(new THREE.CylinderGeometry(4.2, 3.4, 1.1, 16), HEART, 15 + 0.55));
+        // the drum banded in gilt top and foot, as an instrument's stand is
+        GB.gold.add(placed(new THREE.TorusGeometry(3.86, 0.16, 6, 40).rotateX(Math.PI / 2), HEART, 7.8));
+        GB.gold.add(placed(new THREE.TorusGeometry(3.32, 0.14, 6, 40).rotateX(Math.PI / 2), HEART, 14.2));
+      } else {
+        // A carved stand (webFix.js, 7): three plain cylinders under the
+        // most richly made thing in the garden read as a drainpipe under a
+        // clock. A stepped plinth, a moulded base, a shaft reeded at foot and
+        // head, an ovolo capital; and between the reeds, in two rings of gilt
+        // capitals, the sentence the map says when the walk is over — its
+        // middle turned to the way in.
+        const { stone, gold } = pedestalGeometry();
+        GB.pedestal.add(stone.translate(HEART[0], 0, HEART[1]));
+        for (const g of gold) GB.gold.add(g.translate(HEART[0], 0, HEART[1]));
+        const from = mazeRoute.length > 1 ? unit2(HEART, mazeRoute[mazeRoute.length - 2]) : [0, -1];
+        for (const L of pedestalLetters(gilt.glyphs, Math.atan2(from[1], from[0]))) {
+          const G = gilt.glyphs[L.ch];
+          const g = new THREE.PlaneGeometry(gilt.cellW * L.cap, gilt.cellH * L.cap);
+          const uv = g.attributes.uv;
+          for (let v = 0; v < uv.count; v++) uv.setXY(v, (G.col + uv.getX(v)) / gilt.cols, 1 - (G.row + 1 - uv.getY(v)) / gilt.rows);
+          // standing on the shaft, facing out from it
+          GB.letters.add(g.rotateY(Math.PI / 2 - L.a).translate(HEART[0] + Math.cos(L.a) * L.r, L.y, HEART[1] + Math.sin(L.a) * L.r));
+        }
+      }
       // An instrument, not three hoops. Three plain gold rings on a stalk had
       // less to them than a lamp, and they were the last thing the walk shows.
       // Now: the meridian, standing, its rim cut in degrees, with the polar
@@ -7413,9 +8567,21 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
         parts.forEach((x) => x.dispose());
         return keep(g);
       };
+      // (webProps.js, 3: the degrees and the hours were those `ticks`, gilt
+      // blocks stood out from the rims of round hoops, and the rings read as
+      // gears. Flat bands now, the scale let into their faces.)
+      const ringed = (group, which, hoop, teeth, opts) => {
+        if (webPropsOld(3)) {
+          group.add(new THREE.Mesh(keep(hoop()), M.bronze));
+          group.add(new THREE.Mesh(teeth(), M.gold));
+          return;
+        }
+        const { band, scale } = graduatedRing(which, (parts) => mergeGeometries(parts), opts);
+        group.add(new THREE.Mesh(keep(band), M.bronze));
+        group.add(new THREE.Mesh(keep(scale), M.gold));
+      };
       const meridian = new THREE.Group();
-      meridian.add(new THREE.Mesh(keep(new THREE.TorusGeometry(9.4, 0.46, 10, 120)), M.bronze));
-      meridian.add(new THREE.Mesh(ticks(9.82, 72, 0.42, 0.62, 6), M.gold));
+      ringed(meridian, 'meridian', () => new THREE.TorusGeometry(9.4, 0.46, 10, 120), () => ticks(9.82, 72, 0.42, 0.62, 6));
       {
         const lat = 35 * deg, L = 11.8;
         const axisRod = new THREE.Mesh(keep(new THREE.CylinderGeometry(0.2, 0.2, 2 * L, 10)), M.bronze);
@@ -7429,8 +8595,7 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
       }
       armillary.add(meridian);
       const equator = new THREE.Group();
-      equator.add(new THREE.Mesh(keep(new THREE.TorusGeometry(8.6, 0.32, 8, 110)), M.bronze));
-      equator.add(new THREE.Mesh(ticks(8.88, 24, 0.36, 0.42), M.gold));
+      ringed(equator, 'equator', () => new THREE.TorusGeometry(8.6, 0.32, 8, 110), () => ticks(8.88, 24, 0.36, 0.42), { edge: true });
       equator.rotation.set(Math.PI / 2, 0, 0);
       armillary.add(equator);
       const ecliptic = new THREE.Group();
@@ -7477,6 +8642,13 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
       if (s >= 100 && (!inGarden(p) || pathDist(p) > 80)) continue;
       fireflies.push({ p: [p[0], rr(12, 46), p[1]], s: Array(3).fill(rr(0.7, 1.35)), color: pick(['#f4ff9c', '#fff2a4', '#b8ffe6']), k: rr(0.8, 1.4), phase: rr(0, 100) });
     }
+    // and more over the maze, from a stream of their own (webFix.js, 5)
+    if (!webOld(5)) {
+      const fr = makeRng(FLIES.seed), frr = (a, b) => a + (b - a) * fr();
+      for (let s = 0; s < (light ? FLIES.extra / 2 : FLIES.extra); s++) {
+        moreFlies.push({ p: [frr(x0 - 10, x0 + cols * cw + 10), frr(12, 40), frr(z0 - 10, z0 + rows * ch + 10)], s: Array(3).fill(frr(0.7, 1.35)), color: fr() < 0.5 ? '#f4ff9c' : '#fff2a4', k: frr(0.8, 1.4), phase: frr(0, 100) });
+      }
+    }
   }
 
   // ivy over the stone where the honeycomb meets the garden
@@ -7488,7 +8660,10 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
       const o0 = add(cell.c, dir(60 * k), RC), o1 = add(cell.c, dir(60 * k + 60), RC);
       for (let s = 0; s < 3; s++) {
         const p = add(lerp2(o0, o1, rr(0.1, 0.9)), e.n, rr(-10, 4));
-        ivy.push({ p: [p[0], MASS_H + CAP + 0.6 + s * 0.3, p[1]], rot: [0, -Math.atan2(e.t[1], e.t[0]) + rr(-0.25, 0.25), 0], s: [rr(56, 90), 1, rr(22, 34)] });
+        // (mats laid flat on the coping: from the Web of Time, over the
+        // cedars, a row of dark green discs. Drawn, not laid: auditFix.js, 2)
+        const mat = { p: [p[0], MASS_H + CAP + 0.6 + s * 0.3, p[1]], rot: [0, -Math.atan2(e.t[1], e.t[0]) + rr(-0.25, 0.25), 0], s: [rr(56, 90), 1, rr(22, 34)] };
+        if (auditOld(2)) ivy.push(mat);
       }
     }
   }
@@ -7501,7 +8676,11 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
       const along = rr(-46, 46), out = rr(-16, 16);
       const p = add(add(GATE, e.t, along * 0.32), e.n, 48 + out * 1.2);
       const y = Math.abs(along) < 30 ? rr(46, 60) : rr(20, 60);
-      ivy.push({ p: [p[0], 47 + (y - 20) * 0.04, p[1]], rot: [0, rr(0, 6.28), 0], s: [rr(40, 64) * 0.7, 1, rr(26, 40) * 0.7] });
+      // (seen from under the pergola, a ceiling of painted green balls; the
+      // wisteria's own leaves lie over its rafters now — ivy.js — and the
+      // draws are only spent)
+      const mat = { p: [p[0], 47 + (y - 20) * 0.04, p[1]], rot: [0, rr(0, 6.28), 0], s: [rr(40, 64) * 0.7, 1, rr(26, 40) * 0.7] };
+      if (IVY_OLD) ivy.push(mat);
     }
   }
 
@@ -7601,7 +8780,10 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
       // willows and pines by the water lean out over it
       const lean = gap < 135 ? Math.atan2(POND.c[1] - p[1], POND.c[0] - p[0]) + trr(-0.5, 0.5) : null;
       const wood = new Wood(7);
-      const grown = growTree(species, tr, wood, { ...shape, lean, detail: !light && walk < 420 });
+      // (pavilionProps.js, 6: a willow is dressed as a weeping one, from a
+      // stream of its own — the trees' stream is spent as it always was)
+      const weeping = species === 'willow' && !pavPropsOld(6) ? makeRng(6100 + placedTrees.length * 17) : null;
+      const grown = growTree(species, tr, wood, { ...shape, lean, detail: !light && walk < 420, weeping });
       // (one on the road not taken, the way along the shore, the road's old
       // second bridge or the hedge that closes the garden is grown all the
       // same — its own stream spent to the draw — and not stood up)
@@ -7613,26 +8795,131 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
       if (gone) g.dispose();
       else woodChunks.get(key).push(g);
 
-      const palette = species === 'maple' && tr() < 0.2 ? TINT.mapleTurning : TINT[species];
+      // (forkProps.js, 7: a cherry in flower at night. Its sprays were the
+      // palest pink in the garden and lit all round, and from across the
+      // water each tree was a puff of the one saturated colour in the frame.
+      // Greyer now and deeper; a third of its sprays left off, so the dark
+      // limbs show through; and a spray under the crown's middle is in the
+      // crown's own shade — the moon is on its top. No draws are spent on
+      // any of it: the stream does not move.)
+      const night = species === 'cherry' && !propsOld(7);
+      const palette = species === 'maple' && tr() < 0.2 ? TINT.mapleTurning : night ? BLOSSOM_NIGHT.tints : TINT[species];
       const base = new THREE.Color(tpick(palette));
-      for (const sp of grown.sprays) {
+      // (A weeping willow has more sprays than the willow it was, and every
+      // spray stood up draws its tint from the trees' stream: that stream is
+      // spent on the sprays it HAD, to the draw, and the ones it has take
+      // theirs from its own. Drawn for the new ones, every tree after the
+      // first willow was another tree.)
+      for (const sp of grown.was ?? []) {
+        const at = [sp.p[0] + p[0], sp.p[1] + GROUND_T, sp.p[2] + p[1]];
+        if (walkDist([at[0], at[2]]) < 8 + sp.s[0] * 0.5 && at[1] - sp.s[1] * 0.5 < 30) continue;
+        tpick(palette);
+      }
+      const tintOf = grown.was ? (xs) => xs[Math.floor(weeping() * xs.length)] : tpick;
+      for (const [si, sp] of grown.sprays.entries()) {
         const at = [sp.p[0] + p[0], sp.p[1] + GROUND_T, sp.p[2] + p[1]];
         // nothing in the walk's way at head height
         if (walkDist([at[0], at[2]]) < 8 + sp.s[0] * 0.5 && at[1] - sp.s[1] * 0.5 < 30) continue;
-        tone.copy(base).lerp(pickTone.set(tpick(palette)), 0.3);
+        tone.copy(base).lerp(pickTone.set(tintOf(palette)), 0.3);
         if (gone) continue;
+        let shade = sp.shade;
+        if (night) {
+          if (((si * 0.618034 + Math.abs(sp.p[0]) * 0.071) % 1) < BLOSSOM_NIGHT.drop) continue;
+          const up = (sp.p[1] - sp.crown[1]) / (sp.crown[3] || 1);
+          shade *= BLOSSOM_NIGHT.under + (1 - BLOSSOM_NIGHT.under) * Math.min(1, Math.max(0, (up + 0.25) / 0.8));
+        }
         foliage.push({
-          p: at, rot: sp.rot, s: sp.s, color: tone.getHex(), k: sp.shade, kind: sp.kind,
+          p: at, rot: sp.rot, s: sp.s, color: tone.getHex(), k: shade, kind: sp.kind,
           crown: [sp.crown[0] + p[0], sp.crown[1] + GROUND_T, sp.crown[2] + p[1], sp.crown[3]],
         });
       }
-      for (const w of grown.whips) {
+      for (const [wi, w] of grown.whips.entries()) {
+        // (broad strands, pavilionFix.js 4: each now carries one or two ropes
+        // of leaf, which seen at all are seen as a wall of bars — so about
+        // half the cards are left off. No draws are spent here: the stream
+        // does not move.)
+        // (pavilionProps.js, 6: darker to their tips, fewer are left off)
+        if (WILLOW_BROAD && ((wi * 0.618034 + w.p[0] * 0.013) % 1) < (weeping ? WILLOW.skip : 0.45)) continue;
         const at = [w.p[0] + p[0], w.p[1] + GROUND_T, w.p[2] + p[1]];
         let len = w.len;
         if (walkDist([at[0], at[2]]) < 8 + w.wide) len = Math.min(len, at[1] - 30);
         if (len < 6 || gone) continue;
-        hangs.push({ p: at, rot: [0, w.yaw, 0], s: [w.wide, len, 1], kind: w.kind, color: '#d6dac4', k: w.shade });
+        hangs.push({ p: at, rot: [w.tilt?.[0] ?? 0, w.yaw, w.tilt?.[1] ?? 0], s: [w.wide, len, 1], kind: w.kind, color: weeping ? WILLOW.tone : '#d6dac4', k: w.shade });
       }
+    }
+    // Behind the maze, a belt of cedars (webFix.js, 2). The Library's garden
+    // faces stand three paces past the maze's far hedge and ten metres tall,
+    // and from the heart they were the top half of the frame: a garden maze
+    // in a walled yard. Two and three deep, the back rows taller, their
+    // spires are the skyline from the court and the stone is behind them.
+    // (Their own stream: nothing above moves.)
+    if (!webOld(2) && !paintings) {
+      const sr = makeRng(SCREEN.seed), spick = (xs) => xs[Math.floor(sr() * xs.length)];
+      const around = (p, r) => Array.from({ length: 8 }, (_, k) => add(p, [Math.cos(k * Math.PI / 4), Math.sin(k * Math.PI / 4)], r));
+      const ok = (p, S) => inGarden(p) && around(p, S * 0.4).every(inGarden)
+        && boundaryDist(p) > 8 && wayDist(p) > 24 && pathDist(p) > 24
+        && !placedTrees.some((o) => dist(o, p) < 12);
+      // (webProps.js, 2: spires, of many heights; where the Library's stone
+      // is close behind one, a tall one)
+      const walled = webPropsOld(2) ? null : (p) => BELT.beside.some((dx) => !inGarden([p[0] - dx, p[1] + BELT.behind]));
+      const belt = screenPlaces(sr, MZ, ok, walled);
+      // (and closed, from where it is looked at: wherever the rows left the
+      // Library's stone showing between two spires, one more)
+      if (!webPropsOld(2)) {
+        const hedge = MZ.z0 + MZ.rows * MZ.ch, laneX = MZ.x0 + (WEB_GATE.col + 0.5) * MZ.cw;
+        const clear = (p, S) => (p[1] > hedge + 9 || p[0] < MZ.x0 - 9 || p[0] > MZ.x0 + MZ.cols * MZ.cw + 9)
+          && !(WEB_GATE.through && p[1] < hedge + 50 && Math.abs(p[0] - laneX) < S * WEB_GATE.lane[0] + WEB_GATE.lane[1]);
+        const far = (t) => t.p[1] > hedge + 56;
+        closeBelt(belt, sr, ok, clear, GROUND_T).forEach((t) => { if (t.closing) t.far = far(t); });
+      }
+      for (const t of belt) {
+        const wood = new Wood(7);
+        const grown = growTree('cedar', sr, wood, { H: t.H, S: t.S, detail: !light && !t.far, skirt: SCREEN.skirt, spire: webPropsOld(2) ? null : SPIRE });
+        treeList.push({ p: t.p, species: 'cedar', H: +t.H.toFixed(1), screen: true });
+        const g = wood.geometry().translate(t.p[0], GROUND_T, t.p[1]);
+        const key = chunkKey(t.p[0], t.p[1]);
+        if (!webPropsOld(2)) beltWood.push(g);
+        else {
+          if (!woodChunks.has(key)) woodChunks.set(key, []);
+          woodChunks.get(key).push(g);
+        }
+        const base = new THREE.Color(spick(TINT.cedar));
+        for (const sp of grown.sprays) {
+          tone.copy(base).lerp(pickTone.set(spick(TINT.cedar)), 0.3);
+          // (a tree beyond the garden's hedge is seen from the court or not
+          // at all, and from there the hedges stand across its foot — its
+          // lowest whorls, the broadest cards it has, are not stood up. The
+          // tint is drawn all the same.)
+          if (t.far && !webPropsOld(2) && sp.p[1] < BELT.foot) continue;
+          (webPropsOld(2) ? foliage : beltFoliage).push({
+            p: [sp.p[0] + t.p[0], sp.p[1] + GROUND_T, sp.p[2] + t.p[1]], rot: sp.rot, s: sp.s, color: tone.getHex(), k: sp.shade * (webPropsOld(2) ? 1 : 1 + (BELT.moon - 1) * (0.35 + 0.65 * Math.min(1, sp.p[1] / t.H))), kind: sp.kind,
+            crown: [sp.crown[0] + t.p[0], sp.crown[1] + GROUND_T, sp.crown[2] + t.p[1], sp.crown[3]],
+          });
+        }
+      }
+    }
+    // The belt stands in a group of its own, because of the map. Its spires
+    // are the tallest things in the garden and stand south of the maze, which
+    // is where the map is looked at from: at their full height they stood
+    // across the maze and the lit court on it. Over the map they are drawn
+    // down to `BELT.map` of their height (setVeil), and they stand up as the
+    // reader comes down among the walls. And they cast no shadow: the moon is
+    // low, the shadows of spires this tall lie three hundred units long
+    // across the Library, and the shadow map is drawn once, over the map.
+    if (beltWood.length) {
+      beltGroup = new THREE.Group();
+      beltGroup.name = 'belt';
+      root.add(beltGroup);
+      const geo = keep(mergeGeometries(beltWood, false));
+      beltWood.forEach((g) => g.dispose());
+      geo.computeBoundingSphere();
+      const m = new THREE.Mesh(geo, M.bark);
+      m.receiveShadow = true;
+      m.name = 'trees';
+      // (after its leaf: nearly all of the wood is behind it, and bark drawn
+      // first is lit in full and then drawn over)
+      m.renderOrder = 1;
+      beltGroup.add(m);
     }
     for (const geos of woodChunks.values()) {
       const geo = keep(mergeGeometries(geos, false));
@@ -7747,6 +9034,40 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
     const loop = [...side(5.5), ...side(-5.5).reverse()];
     const area = loop.reduce((a, [x, z], i) => a + (x * loop[(i + 1) % loop.length][1] - loop[(i + 1) % loop.length][0] * z) / 2, 0);
     if (!NO_BOUND) plantHedge([area > 0 ? loop : loop.reverse()], { ground: 4, H: 24, seed: 31, detail: light ? 0.3 : 0.6 });
+    // and its finials: one at each turn of it, and one along each long run
+    // between (forkProps.js, 6) — never at its two ends, which stand in stone
+    if (!NO_BOUND) {
+      BOUNDARY.forEach((q, i) => {
+        if (i > 0 && i < BOUNDARY.length - 1) finial(q, FINIALS.turn, 4, 24, 3101 + i);
+        if (i < BOUNDARY.length - 1 && dist(q, BOUNDARY[i + 1]) > FINIALS.longRun) finial(lerp2(q, BOUNDARY[i + 1], 0.5), FINIALS.run, 4, 24, 3201 + i);
+      });
+    }
+  }
+  // The lawn's blades, round each lantern that stands on it (lawn.js;
+  // forkProps.js, 10): wherever there is lawn — not a way's gravel, nor the
+  // pond's bank, nor under a hedge or a lantern's own foot.
+  if (!propsOld(10) && !paintings) {
+    const inLoop = (p, loop) => {
+      let hit = false;
+      for (let i = 0, j = loop.length - 1; i < loop.length; j = i++) {
+        const [xi, zi] = loop[i], [xj, zj] = loop[j];
+        if ((zi > p[1]) !== (zj > p[1]) && p[0] < ((xj - xi) * (p[1] - zi)) / (zj - zi) + xi) hit = !hit;
+      }
+      return hit;
+    };
+    const ways = [...PATHS.slice(0, 3), ...WAYS];
+    const hedged = hedgeGround.map((loop) => ({
+      loop, x0: Math.min(...loop.map((q) => q[0])), x1: Math.max(...loop.map((q) => q[0])), z0: Math.min(...loop.map((q) => q[1])), z1: Math.max(...loop.map((q) => q[1])),
+    }));
+    const ok = (p) => inGarden(p) && ways.every((o) => lineDist(p, o.pts) > o.w / 2 + 0.4) && offPond(p, LAWN.bank)
+      && !standing.some((st) => dist(p, st.p) < st.r + 0.2)
+      && !hedged.some((h) => p[0] > h.x0 && p[0] < h.x1 && p[1] > h.z0 && p[1] < h.z1 && inLoop(p, h.loop));
+    for (const g of lawnBlades({ lamps: lawnLamps, ok, ground: 4, density: LAWN.density * (light ? 0.5 : 1), height: LAWN.height })) {
+      const m = new THREE.Mesh(keep(g), M.lawnBlade);
+      m.receiveShadow = true;
+      m.name = 'lawnBlades';
+      root.add(m);
+    }
   }
   if (SHORE_OLD) {
     instances(stoneGeo(), M.gardenStone, rocks.map((r) => {
@@ -7790,7 +9111,9 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
       && deckD(p) > HWB + r + 0.6
       && approachD(p) > 5.5 + r
       && standing.every((st) => dist(p, st.p) > st.r + r + 0.5);
-    const shore = pondShore({ edge: pondEdge, waterY: WATER_Y, world: { floorAt, gravelAt, under, clear, near: offWay }, light });
+    // (the pebbled bank coming and going round the pond: forkFix.js, 7; the
+    // kerb where a way comes to the water set in groups, 4)
+    const shore = pondShore({ edge: pondEdge, waterY: WATER_Y, world: { floorAt, gravelAt, under, clear, near: offWay }, light, bankVary: BANK_VARY, kerbVary: !forkOld(4) });
     for (const g of shore.arcs) GB.bank.add(g);
     for (const g of shore.stones) GB.shoreStone.add(g);
     // the stones that stand guard at each bridge's foot, either side of its
@@ -7842,6 +9165,20 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
       prepass: M.foliagePre,
       attrs: { aKind: (it) => it.kind ?? 0, aCrown: (it) => it.crown ?? [it.p[0], it.p[1], it.p[2], 0] },
     });
+    if (beltGroup) {
+      // (lit by the card's corner, not by the pixel: effects.js)
+      const lit = BELT.lit;
+      // Nearest the court first. What is left of the belt's cost is its cards
+      // lying over one another, five rows deep, and a card drawn behind one
+      // already drawn fails the depth test before its texture is read.
+      beltFoliage.sort((a, b) => dist([a.p[0], a.p[2]], HEART) - dist([b.p[0], b.p[2]], HEART));
+      beltLeaf = lit ? null : keep(makeBackdropFoliage(leaves, wind, FOLIAGE_KINDS, beltLight));
+      instances(crossedCards(), lit ? M.foliage : beltLeaf, beltFoliage, {
+        chunked: true, cast: false, to: beltGroup,
+        prepass: lit ? M.foliagePre : null,
+        attrs: { aKind: (it) => it.kind ?? 0, aCrown: (it) => it.crown ?? [it.p[0], it.p[1], it.p[2], 0] },
+      });
+    }
     for (const [cards, sprigs] of [[crossedCards(), topSprigs], [crossedCards({ flat: false }), faceSprigs]]) {
       instances(cards, M.hedgeLeaf, sprigs, {
         chunked: true,
@@ -7878,10 +9215,18 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
     // front of everything, they read as dots on the lens, not as insects.
     // (All still drawn from the stream; only these are shown. No mint ones:
     // the garden takes no teal.)
-    fireflies.length && makeSparkles(fireflies.filter((_, i) => i % 3 === 0).map((f, i) => ({
-      ...f, p: [f.p[0], 12 + (f.p[1] - 12) * 0.45, f.p[2]], k: (f.k ?? 1) * (0.4 + ((i * 0.618) % 1) * 0.9),
-      color: f.color === '#b8ffe6' ? '#eaf7a6' : f.color,
-    })), { drift: 5, rise: 0.5, pulse: 0.8, rate: 0.45, sizeOf: (f) => f.s[0] * 1.7 }),
+    // (webFix.js, 5: and still they read as dust — few, large and steady. All
+    // of them now, and more over the maze, half the size, each flashing on a
+    // beat of its own and dark between.)
+    fireflies.length && (webOld(5)
+      ? makeSparkles(fireflies.filter((_, i) => i % 3 === 0).map((f, i) => ({
+        ...f, p: [f.p[0], 12 + (f.p[1] - 12) * 0.45, f.p[2]], k: (f.k ?? 1) * (0.4 + ((i * 0.618) % 1) * 0.9),
+        color: f.color === '#b8ffe6' ? '#eaf7a6' : f.color,
+      })), { drift: 5, rise: 0.5, pulse: 0.8, rate: 0.45, sizeOf: (f) => f.s[0] * 1.7 })
+      : makeSparkles([...fireflies, ...moreFlies].map((f, i) => ({
+        ...f, p: [f.p[0], 12 + (f.p[1] - 12) * 0.45, f.p[2]], k: (f.k ?? 1) * (0.5 + ((i * 0.618) % 1) * 0.8),
+        color: f.color === '#b8ffe6' ? '#eaf7a6' : f.color,
+      })), { drift: 5, rise: 0.5, rate: 0.45, blink: FLIES.blink, sizeOf: (f) => f.s[0] * 1.7 * FLIES.size })),
     dust.length && makeSparkles(dust, { drift: 3.5, rise: 0.9, rate: 0.22, sizeOf: (d) => d.s[0] * 1.3 }),
   ].filter(Boolean);
   sparkles.forEach((points) => {
@@ -8090,7 +9435,78 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
   const setVeil = (amount) => {
     veilMat.opacity = 0.72 * amount;
     veil.visible = amount > 0.01;
+    // (and what is there only over the map: mapFix.js, 7 and 8)
+    mapWarm.value = amount;
+    // (and the belt of cedars, drawn down out of the map's way: webProps.js, 2)
+    if (beltGroup) {
+      const t = Math.min(1, Math.max(0, (amount - BELT.sink[0]) / (BELT.sink[1] - BELT.sink[0])));
+      beltGroup.scale.y = 1 - (1 - BELT.map) * t * t * (3 - 2 * t);
+    }
   };
+
+  // Over the map, the Vertigo has no floor (mapFix.js, 7). Seen from up there
+  // the stair's pale treads and carriage, the shelves and their lips at the
+  // head of the well, and the ring of floor round its mouth, lit by the lamps
+  // hanging in it, turned down the funnel as one beige disc. Inside the pit, below its floor, they darken
+  // with depth while the map shows; the books keep their colour, and the
+  // light at the bottom warms them as it always did, so what is left to see
+  // down there is the glow. (Chained onto whatever the material already does,
+  // last, so nothing laid on it later takes its place.)
+  const pitFade = (mat) => {
+    const prev = mat.onBeforeCompile, prevKey = mat.customProgramCacheKey;
+    mat.onBeforeCompile = (sh, renderer) => {
+      prev?.call(mat, sh, renderer);
+      sh.uniforms.uPitMap = mapWarm;
+      sh.vertexShader = sh.vertexShader
+        .replace('#include <common>', `#include <common>
+          varying vec3 vPitW;`)
+        .replace('#include <begin_vertex>', `#include <begin_vertex>
+          #ifdef USE_INSTANCING
+            vPitW = (modelMatrix * instanceMatrix * vec4(transformed, 1.0)).xyz;
+          #else
+            vPitW = (modelMatrix * vec4(transformed, 1.0)).xyz;
+          #endif`);
+      sh.fragmentShader = sh.fragmentShader
+        .replace('#include <common>', `#include <common>
+          uniform float uPitMap;
+          varying vec3 vPitW;`)
+        // (the lamplight it takes, not its own glow: the books' warmth from
+        // the light below is emissive, and stays)
+        .replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
+          float pitFade = 1.0 - uPitMap
+            * mix(${PIT_FADE.floor.toFixed(2)}, ${PIT_FADE.k.toFixed(2)}, smoothstep(${PIT_FADE.from.toFixed(1)}, ${PIT_FADE.to.toFixed(1)}, vPitW.y))
+            * step(vPitW.y, 7.5)
+            * step(distance(vPitW.xz, vec2(${PIT[0].toFixed(2)}, ${PIT[1].toFixed(2)})), 104.0);
+          reflectedLight.directDiffuse *= pitFade;
+          reflectedLight.indirectDiffuse *= pitFade;
+          reflectedLight.directSpecular *= pitFade;
+          reflectedLight.indirectSpecular *= pitFade;`);
+    };
+    mat.customProgramCacheKey = () => `${prevKey.call(mat)}-pitfade`;
+  };
+  if (!mapOld(7)) [M.step, M.shelf, M.shelfLip, M.floor, M.inlay, pitCarved].forEach((m) => m && pitFade(m));
+  // And the cone of lit air under the lamp hung in the drum, which was most of
+  // that disc: looked down along its axis from the map it is a lit round foot
+  // on the floor. Over the map it goes, inside the drum only and above the
+  // well's own light (the column standing up from the bottom stays).
+  if (!mapOld(7)) {
+    const sh = shaftMaterial;
+    sh.uniforms.uPitMap = mapWarm;
+    const vert = sh.vertexShader
+      .replace('varying float vOpen;', `varying float vOpen;
+      varying vec3 vShaftW;`)
+      .replace('gl_Position = projectionMatrix * mv;', `vShaftW = (modelMatrix * vec4(position, 1.0)).xyz;
+        gl_Position = projectionMatrix * mv;`);
+    const frag = sh.fragmentShader
+      .replace('varying float vOpen;', `varying float vOpen;
+      uniform float uPitMap;
+      varying vec3 vShaftW;`)
+      .replace('gl_FragColor = vec4(uColor, uStrength', `float pitOff = 1.0 - ${PIT_FADE.shaft.toFixed(2)} * uPitMap * step(-100.0, vShaftW.y)
+          * step(distance(vShaftW.xz, vec2(${PIT[0].toFixed(2)}, ${PIT[1].toFixed(2)})), 104.0);
+        gl_FragColor = vec4(uColor, pitOff * uStrength`);
+    if (vert === sh.vertexShader || frag === sh.fragmentShader) console.warn('mapFix 7: the shaft shader has changed; the cone in the drum is left lit');
+    else Object.assign(sh, { vertexShader: vert, fragmentShader: frag, needsUpdate: true });
+  }
 
   // The readers far off in the galleries (`figure`), all one mesh.
   if (distantReaders.length) {
@@ -8198,9 +9614,13 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
   const eye = (p, ground) => [p[0], ground + EYE, p[1]];
   const way = (ground, pts) => pts.map((p) => eye(p, ground));
   // a line that keeps to its corners (the bridge, the maze) instead of cutting them
+  // (never further along a side than half of it: the way into the maze ends
+  // three units past its last corner, and four along it from that corner was a
+  // point BEYOND the end — the walk overshot its stand by a pace and came back,
+  // and the eyes, which look along the way, turned right round in one frame)
   const hug = (ground, pts, r = 3) => pts.flatMap((p, i) => (i === 0 || i === pts.length - 1
     ? [eye(p, ground)]
-    : [eye(add(p, unit(p, pts[i - 1]), r), ground), eye(p, ground), eye(add(p, unit(p, pts[i + 1]), r), ground)]));
+    : [eye(add(p, unit(p, pts[i - 1]), Math.min(r, dist(p, pts[i - 1]) / 2)), ground), eye(p, ground), eye(add(p, unit(p, pts[i + 1]), Math.min(r, dist(p, pts[i + 1]) / 2)), ground)]));
   // Approach the bridge along its first run, using the actual abutment
   // steps. Entering diagonally from the shore crossed the side rail.
   const bridgeAxis = unit(SHORE, BRIDGE[1]);
@@ -8210,6 +9630,7 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
     eye(add(SHORE, bridgeAxis, -3.6), 6.7),
     eye(SHORE, DECK),
   ];
+  const SHORE_WALK_OLD = Q.get('wshoreway') === 'old';
   const pergola = unit(PERGOLA0, J);
   const heartFrom = unit(mazeRoute[mazeRoute.length - 2] ?? MAZE_ENTRY, HEART);
   // `p` turned about `o` by `a` degrees (to the right, seen from above the way the walk faces)
@@ -8222,11 +9643,18 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
   const onEdge = (t) => { const st = stairAt(t); return at(add(PIT, dir(st.a), st.edge + 1.4), st.tread + EYE - 0.5); };
   const spot = [
     // Rest on the centreline too; the Echo faces its first tread squarely.
-    vestibuleMiddle(150), echoMiddle(180), silenceMiddle(90), null,
+    // (the Echo's a few strides in from the aisle's middle: echoFix.js, 1)
+    vestibuleMiddle(150), echoOld(1) ? echoMiddle(180) : ring(C1, 180, ECHO_STAND_R), silenceMiddle(90), null,
     // The Web of Time: in the corridor a few paces short of the court's gate,
     // looking in at the heart. (It stood 22 from the heart, and the heart was a
     // corridor; the step into the court is the finale's.)
-    doorLane(-38), add(J, pergola, -8), BRIDGE_STAND, add(HEART, heartFrom, paintings ? -22 : -(COURT_HALF + 12)),
+    // (the Fork's back at the pergola's end and a little left, where both ways
+    // can be seen leaving the stone: forkFix.js, 1)
+    // (the Door's further back, so the gable's finial is in the frame: doorProps.js, 1)
+    doorLane(doorPropsOld(1) ? -38 : -38 - DOOR_STAND.back), forkOld(1) ? add(J, pergola, -8) : add(add(J, pergola, -FORK_STAND.back), [-pergola[1], pergola[0]], FORK_STAND.side),
+    // (the Pavilion's back on the bridge's first run, near the shore, so its
+    // roof is against the sky and not over the eye: pavilionFix.js, 8)
+    pavOld(8) ? BRIDGE_STAND : standOn(BRIDGE), add(HEART, heartFrom, paintings ? -22 : -(COURT_HALF + 12)),
   ];
   // The Echo's stair, every tread of it, up over the well and down the other
   // side: the second leg walks it, and the climb to the crossing is its first
@@ -8287,22 +9715,39 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
     { eye: eye(spot[2], FLOOR), look: at(ring(C2, 285, 26), 37) },
     // Face the next steps. A chord across the funnel looked well away from
     // the stair's tangent and made setting off feel like a sideways turn.
-    { eye: onStair(0.06), look: onStair(0.072) },
+    // (turned in toward the well and looking down into it: vertigoFix.js, 1)
+    { eye: onStair(0.06), look: vertigoOld(1) ? onStair(0.072) : (() => {
+      const e = onStair(0.06), n = onStair(0.072), yaw = Math.atan2(n[2] - e[2], n[0] - e[0]) + STAND_TURN * deg, p = STAND_PITCH * deg;
+      return [e[0] + Math.cos(yaw) * Math.cos(p) * 40, e[1] + Math.sin(p) * 40, e[2] + Math.sin(yaw) * Math.cos(p) * 40];
+    })() },
     // Up at the arch, gable and pinnacles and all: level, the frame stopped at
     // the springing of its hood and the carving above it was cut off.
-    { eye: eye(spot[4], FLOOR), look: at(add(GATE, dir(330), 40), 45) },
+    { eye: eye(spot[4], FLOOR), look: at(add(GATE, dir(330), 40), doorPropsOld(1) ? 45 : DOOR_STAND.lookY) },
     // at the end of the pergola, the waymark ahead where the gravel divides —
     // turned a few degrees right of it, so the pergola's last post is out of
     // the frame (it stood down the whole left edge, the nearest, darkest
     // thing in it, and read as a tree trunk; since 2026-10-07 the pergola
     // ends a bay short of here and that post is gone, but the turn still
     // keeps the waymark off the middle)
-    { eye: eye(spot[5], GRAVEL), look: at(turnAbout(spot[5], add(J, dir(285), 30), 7), 13) },
-    // on the bridge, the whole pavilion across the water
-    { eye: eye(spot[6], DECK), look: at(PV, 26) },
+    //
+    // It showed no fork: the stone the ways part at was eight paces off,
+    // under the frame's bottom edge, and the look was down the way to the
+    // bridge — which runs on the pergola's own line — with the road to the
+    // Heart out of the frame to the right. Back from the stone and a little
+    // left, both ways leave it across the frame now: to the Pavilion, under
+    // the moon, and to the maze's mouth and its two lanterns. (Level enough
+    // that the moon over the Pavilion is whole: forkFix.js, 1 and 6.)
+    { eye: eye(spot[5], GRAVEL), look: forkOld(1) ? at(turnAbout(spot[5], add(J, dir(285), 30), 7), 13)
+      : at(add(spot[5], dir(FORK_STAND.yaw), 40 * Math.cos(FORK_STAND.pitch * deg)), GRAVEL + EYE + 40 * Math.sin(FORK_STAND.pitch * deg)) },
+    // on the bridge, the whole pavilion across the water — the roof's eave a
+    // line against the sky, the finial whole, and the lanterns along the eave
+    // all in the frame (pavilionFix.js, 8 and 5)
+    { eye: eye(spot[6], DECK), look: at(PV, pavOld(8) ? 26 : PAV_STAND.lookY) },
     // at the gate of the court at the heart of the maze, looking in
     { eye: eye(spot[7], MAZE), look: at(HEART, paintings ? 21 : 23) },
   ];
+  // (the file on its bridge keeps out of the edges of the Vestibule's first frame)
+  if (walkers) walkers.watchFrom({ eye: stands[0].eye, look: stands[0].look, fov: 58 });
   const pavilionWalk = paintings ? [] : pavilionCrossing(BRIDGE, EYE);
   const pavilionSplit = pavilionWalk.reduce((nearest, p, i) =>
     dist([p[0], p[2]], spot[6]) < dist([pavilionWalk[nearest][0], pavilionWalk[nearest][2]], spot[6]) ? i : nearest, 0);
@@ -8316,7 +9761,18 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
     eye(add(N_SHORE, northAxis, -3.6), 6.7),
     eye(N_SHORE, DECK),
   ];
-  const pavilionThrough = paintings ? [] : [
+  // The way on from the Pavilion went through the room, out over its second
+  // bridge to the landing that bridge comes down on — a few paces of gravel
+  // and a hedge — turned round there, and came all the way back before it set
+  // off for the maze: twenty-five seconds of a fifty-six second walk spent
+  // going to a dead end and returning from it. It goes in, once round the
+  // table, and out again by the bridge it came over; the second bridge is
+  // there to be found. (?wpavway=old: over it and back.)
+  const pavilionThrough = paintings ? [] : Q.get('wpavway') !== 'old' ? [
+    ...pavilionVisit,
+    ...pavilionRound(pavilionVisit.at(-1), EYE).slice(1),
+    ...pavilionVisit.slice(0, -1).reverse(), ...pavilionIn.slice(0, -1).reverse(),
+  ] : [
     ...pavilionVisit,
     ...pavilionInterior(pavilionVisit.at(-1), northWalk.at(-1), EYE).slice(1),
     ...northWalk.slice(0, -1).reverse(),
@@ -8348,12 +9804,23 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
       // Free walking continues down the same stair after the composed stand.
       // The tour still arrives at the broken rail, where its fall begins.
       followThrough: Array.from({ length: 188 }, (_, i) => onStair(0.065 + i * 0.005)),
+      // ...but walked on from the stand, the way by default (World.jsx's
+      // FOLLOW) is not on down the stair: it bends in across the tread to
+      // where the rail has given way, a few steps on, and ends facing out
+      // over the edge — so that a reader who only keeps walking comes to the
+      // edge, looks over, and goes over if they keep on. The stair down is
+      // there to be chosen (turn onto it). (?wbrink=old: the way goes on down.)
+      brink: BRINK_OLD ? null : [[0.0632, 6.6], [0.0655, 5.4], [0.0668, 4.2]].map(([t, r]) => {
+        const st = stairAt(t);
+        return at(add(PIT, dir(st.a), st.edge + r), st.tread + EYE);
+      }),
     },
     // off the stair where its rail has given way (0.06 is inside the Vertigo's GAP)
     { kind: 'fall', edge: onEdge(0.06), center: PIT, bottom: -430 },
     { kind: 'walk', points: [
       ...way(FLOOR, [spot[4], doorLane(0), doorLane(50)]),
-      ...way(GRAVEL, [doorLane(A), ...[0.2, 0.5, 0.8].map((t) => lerp2(PERGOLA0, J, t)), spot[5]]),
+      // (none of it past the stand, which is further back since forkFix.js 1)
+      ...way(GRAVEL, [doorLane(A), ...[0.2, 0.5, 0.8].map((t) => lerp2(PERGOLA0, J, t)).filter((p) => dist(p, J) > dist(spot[5], J) + 4), spot[5]]),
     ] },
     { kind: 'walk', points: [
       ...way(GRAVEL, [spot[5], J, [1216, 218]]),
@@ -8368,8 +9835,14 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
       // the eye out over the bridge's rail and the strip of water beside it;
       // a reader walking it on their own feet (World.jsx's free walk follows
       // this way by default) stood at the rail and could go no further.
-      ...way(GRAVEL, [[1231, 203], [1239, 208.5]]),
-      ...way(GRAVEL, [[1256, 208], [1290, 216], ...PATHS[2].pts.slice(0, -1)]),
+      // (Out onto the middle of the shore's own gravel, SHORE_WAY, and round
+      // with it: that way ran a pace and a half from the end of the bridge's
+      // stone step, whose corner a reader's foot came up onto and stood on —
+      // "on a crest" — and went no further; and it met the way to the maze at
+      // a right angle and more, walked at a crawl. ?wshoreway=old)
+      ...(SHORE_WALK_OLD
+        ? way(GRAVEL, [[1231, 203], [1239, 208.5], [1256, 208], [1290, 216], ...PATHS[2].pts.slice(0, -1)])
+        : way(GRAVEL, [[1227.5, 204.5], [1231, 208.5], [1238, 211], [1262, 213], [1290, 218], [1302, 220.5], [1310, 228], [1311.6, 240], PATHS[2].pts[1]])),
       // (no further in than the stand: the court is the finale's)
       ...hug(MAZE, [[MAZE_ENTRY[0], MAZE_ENTRY[1] - 6], ...pathToPoint(mazeRoute, spot[7])], 4),
     ] },
@@ -8532,7 +10005,34 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
   const aimFar = (at, eye) => {
     aimHalos(at ?? eye, !at);
     placeLights(at ? false : twinning);
+    // the light columns thinned with the fog, for the far eye only
+    const k = at ? portalThin(eye) : 1;
+    if (!hazeMats) {
+      hazeMats = [];
+      root.traverse((o) => {
+        const m = o.material;
+        if (m?.uniforms?.uStrength && m.uniforms.uSoft && !hazeMats.some((h) => h.mat === m)) hazeMats.push({ mat: m, base: m.uniforms.uStrength.value });
+      });
+    }
+    for (const h of hazeMats) h.mat.uniforms.uStrength.value = h.base * k;
   };
+  // How much of its haze the room through the Vestibule's way in is drawn
+  // with, for a reader whose eye is at `eye`. Through the arch the Echo was
+  // the brightest and the greyest thing in the Vestibule's first frame: its
+  // moon shaft and its fog, seen down the length of the room, lifted its
+  // blacks to milk. Seen from across the room it keeps half of them; walking
+  // up to the arch it gets them all back, so that by the step through — where
+  // the doorway has to be the room itself — it is the room itself (review
+  // 2026-10-08, point 3; ?wvest=old:3).
+  const portalThin = (eye) => {
+    if (vestOld(3) || !eye || !doorways.length) return 1;
+    const at = doorways[0].at;
+    const d = Math.hypot(eye.x - at[0], eye.z - at[1]);
+    const t = Math.min(1, Math.max(0, (d - 14) / 38));
+    return 1 - 0.5 * t * t * (3 - 2 * t);
+  };
+  // (every light column's material and its own strength, gathered the first time)
+  let hazeMats = null;
 
   const coreColor = new THREE.Color('#ffe4b4');
   // The widest a halo may look from the walk: its full width over its distance,
@@ -8611,7 +10111,22 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
       h.sprite.scale.set(size, size, 1);
     }
   };
-  const tick = (t, eye, gaze) => {
+  // While the reader falls down the Vertigo's well, or climbs back up out of
+  // it, the light at the bottom stays where it was when they went (true); it
+  // keeps its distance below the eye again after (false).
+  const holdPit = (on) => { pitHeld = on && pitCore ? (pitHeld ?? pitCore.position.y) : null; };
+  // `aspect`: the frame's width over its height (the file on the Vestibule's
+  // bridge keeps out of its edges: walkers.js)
+  const tick = (t, eye, gaze, aspect = 0) => {
+    // (the belt's leaf takes its light from the world's own lights, as they
+    // stand this frame: webProps.js, 2)
+    if (beltLeaf) {
+      beltLight.uBackMoon.value.copy(moon.color).multiplyScalar(moon.intensity);
+      beltLight.uBackMoonDir.value.copy(moon.position).sub(moon.target.position).normalize();
+      beltLight.uBackSky.value.copy(hemi.color).multiplyScalar(hemi.intensity);
+      beltLight.uBackGround.value.copy(hemi.groundColor).multiplyScalar(hemi.intensity);
+      beltLight.uBackFill.value.setRGB(...BELT.fill).multiplyScalar(root.parent?.environmentIntensity ?? 1);
+    }
     // A lamp breathes; it does not flicker. The fast terms in both of these —
     // 11 and 6 radians a second, about two a second — were what read as
     // blinking, and a pool of light on stone has no business doing that.
@@ -8619,6 +10134,9 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
       const n = Math.sin(t * 1.15 + p.phase) * 0.6 + Math.sin(t * 2.6 + p.phase * 1.7) * 0.4;
       p.mat.opacity = p.base * (1 + n * p.amount * 0.55);
     }
+    // (the Door's candles: the flames move, and their light on the piers with them)
+    M.lpFlame.uniforms.uTime.value = light ? 0 : t;
+    for (const c of candleLights) c.wish.intensity = c.base * (1 + DOOR_CANDLES.breath * (light ? 0 : 0.6 * Math.sin(t * 1.3 + c.phase) + 0.4 * Math.sin(t * 2.9 + c.phase * 2.1)));
     haloT = t;
     occlude(t, eye, gaze);
     aimHalos(eye);
@@ -8630,12 +10148,15 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
     if (finale) finale.tick(light ? 0 : t);
     if (pitCore) {
       pitCore.material.color.copy(coreColor).multiplyScalar(1.35 + Math.sin(t * 1.3) * 0.12);
-      const below = eye && Math.hypot(eye.x - PIT[0], eye.z - PIT[1]) < 101 ? Math.min(-453, eye.y - 420) : -453;
+      // (held where it is while the reader falls toward it or climbs out of
+      // it — `holdPit` — or the light would flee the fall all the way down)
+      const below = pitHeld ?? (eye && Math.hypot(eye.x - PIT[0], eye.z - PIT[1]) < 101 ? Math.min(-453, eye.y - 420) : -453);
       pitCore.position.y = below;
+      pitSink?.(below + 453);
     }
     if (drift) drift(light ? 0 : t);
     if (vault) vault(t, eye, gaze);
-    if (walkers) walkers.tick(t);
+    if (walkers) walkers.tick(t, eye, aspect);
     for (const f of mist) {
       f.m.position.x = f.home[0] + Math.sin(t * f.speed + f.phase) * f.reach;
       f.m.position.z = f.home[1] + Math.cos(t * f.speed * 0.73 + f.phase * 1.3) * f.reach * 0.6;
@@ -8689,5 +10210,5 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
   const pit = { x: PIT[0], z: PIT[1], r: 101 };
   // the Silence, where the fill is let down so that its one lamp carries the room
   const hush = { x: cellC(2, -2)[0], z: cellC(2, -2)[1], r: R };
-  return { root, moon, hemi, mounts, stands, legs, overlay, pit, spiral, hush, water, toWater, finale, doorways, mirrors, mirrorHide, aimFar, tick, setPainting, setVeil, setEye, updateLights, setLightBudget, takeShadowRequest, cull, setViewport, setSight, poolShadows, dispose };
+  return { root, moon, hemi, mounts, stands, legs, overlay, pit, spiral, hush, water, toWater, finale, doorways, mirrors, mirrorHide, aimFar, portalThin, walkers, tick, holdPit, setPainting, setVeil, setEye, setWay, updateLights, setLightBudget, takeShadowRequest, cull, setViewport, setSight, poolShadows, dispose };
 }

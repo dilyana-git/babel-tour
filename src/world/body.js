@@ -40,6 +40,12 @@ const KNEE = STEP_UP + 0.5;
 const HEAD = EYE + 2;
 // Steeper than this is a wall, not somewhere to stand.
 const FLOOR_NORMAL = 0.6;
+// ...but a stair's own stone may lean this far and still be stepped on (floorIn)
+const LEANING = 0.2;
+// Water no deeper than this over something to stand on is not water (floorIn).
+const WADE = 0.2;
+// A gap no wider than twice this is stepped across (landing).
+const CRACK = 0.8;
 // A step up taller than any tread (the treads rise 2.1-2.4) has to be onto
 // somewhere: floor all round the feet — every 45°, bar the ones behind, where
 // the feet came up from — at each of FEET, no more than a riser (TREAD) below
@@ -60,7 +66,9 @@ const BEHIND = -0.3;
 // behind, are never more than a tread above nothing.
 // (a flight's nosings are the parapet's stone, `cap` — `capShade` in the Silence;
 // and its treads are worn down the middle, `wornStep`, laid over them)
-const STAIRS = new Set(['step', 'carved', 'cap', 'capShade', 'wornStep', 'pavilionThreshold', 'pavilionStep', 'shoreStep']);
+// (`nosing`: the Echo's stair lips, in a paler stone of their own since
+// 2026-10-08 — echoFix.js)
+const STAIRS = new Set(['step', 'carved', 'cap', 'capShade', 'wornStep', 'nosing', 'pavilionThreshold', 'pavilionStep', 'shoreStep']);
 const FOOT = 2.5;
 // Nor on a crest — a kerb, a coping, a rail, a beam: somewhere with the
 // ground more than RIDGE below the foot on both sides of it at once.
@@ -76,7 +84,10 @@ const MOVING = /^(bridge-reader|finale|koi)/;
 // (and the doorways that open somewhere else: a picture of a room, walked into)
 // Wear and inlaid colour sit over existing stone. Their thin overlapping
 // triangles must not replace the supporting floor in a foot probe.
-const AIR = new Set(['stars', 'sky', 'dust', 'dustFan', 'shafts', 'doorway', 'wornPath', 'floorBand', 'inlay']);
+// (`moonLand`, the moon laid on the Echo's treads, is a sheet a twentieth over
+// them, unnamed until 2026-10-09: once it was carried down to the first riser,
+// that step read as a climb onto nothing a stair is, and was refused)
+const AIR = new Set(['stars', 'sky', 'dust', 'dustFan', 'shafts', 'doorway', 'wornPath', 'floorBand', 'inlay', 'moonLand']);
 // The books on the galleries' shelves, real-sized since 2026-10-06, are never
 // reached: the shelves' boards run out to the case's front past them at every
 // height the column has, and the case's ledge keeps the feet off. There are
@@ -86,7 +97,11 @@ const AIR = new Set(['stars', 'sky', 'dust', 'dustFan', 'shafts', 'doorway', 'wo
 // and only the smallest on the way through: a foot goes among them, and the body
 // riding up and down over each was a walk across a gravel bed. (They were
 // never felt before 2026-10-07 either. Its fallen blocks are.)
-const UNFELT = new Set(['shelvedBooks', 'rubble', 'rubbleBig']);
+// (Nor the ivy's stems on the Door's stone, nor the wisteria twined up the
+// pergola's posts: ivy.js. The posts they hold to are felt.)
+// (Nor the lawn's blades round a lantern, a hand high — lawn.js — nor the
+// Pavilion's roof tiles, which nobody reaches: forkProps.js.)
+const UNFELT = new Set(['shelvedBooks', 'rubble', 'rubbleBig', 'ivyStems', 'lawnBlades', 'pavRoof']);
 
 const bvhs = new WeakMap();
 const treeFor = (geometry) => {
@@ -223,12 +238,34 @@ export function makeBody(root) {
   // underside of something, a slope, open air, water).
   // (and `floorWhat`: what the last floor found was, by its mesh's name)
   let floorWhat = '';
+  // (and `shoulderY`: where the first thing there was a face too steep to stand
+  // on — a stone's shoulder, a kerb's chamfer — how high it was met)
+  let shoulderY = null;
   // (`solid`: a field of boxes counts as what is there, for round the foot)
   const floorIn = (list, x, top, z, depth, solid = false) => {
     ray.origin.set(x, top, z);
     ray.direction.set(0, -1, 0);
-    const hit = cast(list, depth);
+    let hit = cast(list, depth);
+    // (a film of water over stone is the stone: the pond's surface lies a
+    // finger under the top of the abutment each bridge comes ashore on, and
+    // where that stone dips it shows through — a hand's width of "water" that
+    // a foot coming off the deck was refused for standing over)
+    if (hit && hit.water) {
+      const surface = hit.y;
+      hit = cast(list, depth, false);
+      if (!hit || surface - hit.y > WADE) {
+        floorWhat = 'water';
+        shoulderY = null;
+        return null;
+      }
+    }
     floorWhat = hit ? hit.what : '';
+    shoulderY = hit && !hit.water && !hit.field && hit.up > 0 && hit.up < FLOOR_NORMAL ? hit.y : null;
+    // (a step of rough stone has a riser that leans — the bridges' feet on the
+    // shore: met from above it is too steep to be a floor, and a reader coming
+    // back up off the gravel was held at the foot of it with nothing to say
+    // why. On a stair's own stone, a face that leans is part of the step.)
+    if (shoulderY !== null && hit.up > LEANING && STAIRS.has(hit.what)) return hit.y;
     // (a field of boxes — the books — is never a floor: a pile of folios by a
     // desk in the Silence was a step off the stair onto the top of it)
     return !hit || hit.water || (hit.field && !solid) || hit.up < FLOOR_NORMAL ? null : hit.y;
@@ -254,10 +291,37 @@ export function makeBody(root) {
   let refused = '';
   const no = (why) => { refused = why; return null; };
   const landing = (x, z, y, ux, uz, whole = true) => {
-    const f = floorAt(x, y + STEP_UP + 0.5, z, STEP_UP + STEP_DOWN + 1);
+    let f = floorAt(x, y + STEP_UP + 0.5, z, STEP_UP + STEP_DOWN + 1);
+    // The shoulder of a low stone, under the foot's middle: a face too steep
+    // to be a floor, but of something no more than RIDGE proud of the ground
+    // round it (the Fork's rock, with the way laid over it: the feet were
+    // turned aside at its flank and went round it in a shimmy). Proud of the
+    // ground ROUND it, not of where the feet stand — or a slope of any height
+    // could be crept up a finger at a time.
+    if (f === null && shoulderY !== null && Math.abs(shoulderY - y) <= RIDGE) {
+      const on = shoulderY;
+      let low = Infinity;
+      for (const [dx, dz] of FOOTPRINT) {
+        const g = floorAt(x + dx * FOOT, on + TREAD, z + dz * FOOT, TREAD + RIDGE + 0.5, true);
+        if (g !== null) low = Math.min(low, g);
+      }
+      // (asked again, for what it is)
+      floorAt(x, y + STEP_UP + 0.5, z, STEP_UP + STEP_DOWN + 1);
+      if (on - low <= RIDGE) f = on;
+    }
+    // A crack is not a gap: between the two stones a bridge comes ashore on
+    // there is a slot a hand wide with the pond in it, and a foot put down
+    // across it was a foot over water. With floor a little short of the place
+    // and a little past it (CRACK each way, along the step), level with where
+    // the feet stand, it is stepped across.
+    if (f === null || y - f > STEP_DOWN) {
+      const a = floorAt(x - ux * CRACK, y + TREAD, z - uz * CRACK, TREAD + RIDGE), b = floorAt(x + ux * CRACK, y + TREAD, z + uz * CRACK, TREAD + RIDGE);
+      if (a !== null && b !== null && Math.abs(a - y) <= RIDGE && Math.abs(b - y) <= RIDGE) f = Math.abs(a - y) < Math.abs(b - y) ? a : b;
+      else floorAt(x, y + STEP_UP + 0.5, z, STEP_UP + STEP_DOWN + 1);
+    }
     if (f === null || f - y > STEP_UP || y - f > STEP_DOWN) return no(f === null ? 'no floor' : f > y ? 'too high' : 'too deep');
-    const stair = STAIRS.has(floorWhat);
-    if (f - y > TREAD && !stair) return no(`climb onto ${floorWhat || '?'}`);
+    const what = floorWhat, stair = STAIRS.has(what);
+    if (f - y > TREAD && !stair) return no(`climb onto ${what || '?'}`);
     // Stepping up a tall step (a first riser: TALL), the foot is put down on
     // the edge of it, and a point of the ring a little behind it is off the nosing,
     // over the floor the step was taken from — where the other foot still
@@ -293,11 +357,26 @@ export function makeBody(root) {
         const [dx, dz] = FOOTPRINT[i];
         // (the books beside the foot are as solid as the floor: only never under it)
         foot[i] = floorAt(x + dx * FOOT, f + STEP_UP + 0.5, z + dz * FOOT, STEP_UP + 1 + STEP_DOWN, true);
+        // (the shoulder of a low stone is not a drop: the Fork's, a hand proud
+        // of the gravel with the way laid across it, turned every reader back
+        // who walked up to it — "foot over nothing" — because its rounded flank
+        // is too steep to be a floor. A face that steep but no more than RIDGE
+        // below the floor under the foot's middle is something the foot rests
+        // on or against, not a drop — and one that stands above it, like the
+        // end of the bridge's deck over its stone step, is for the next rule.)
+        if (foot[i] === null && shoulderY !== null && shoulderY >= f - RIDGE) foot[i] = shoulderY;
         const along = dx * ux + dz * uz;
         if (along < BEHIND) continue;
         // (ahead, off a flight's own stone, the ground may fall a whole step:
         // the Echo's first riser, walked down)
         const fall = stair && along > 0.5 ? STEP_DOWN : TREAD;
+        // (and a crack under one point of the ring is not a drop either:
+        // floor both nearer in and further out along that bearing)
+        if (foot[i] === null || f - foot[i] > fall) {
+          const a = floorAt(x + dx * (FOOT - CRACK), f + TREAD, z + dz * (FOOT - CRACK), TREAD + fall, true);
+          const b = a === null ? null : floorAt(x + dx * (FOOT + CRACK), f + TREAD, z + dz * (FOOT + CRACK), TREAD + fall, true);
+          if (a !== null && b !== null) foot[i] = Math.min(a, b);
+        }
         if (foot[i] === null || f - foot[i] > fall) {
           if (!(rise && along < 0 && cameFrom(x + dx * FOOT, z + dz * FOOT, foot[i]))) return no(`foot over nothing, bearing ${i * 45}°`);
           continue;
@@ -476,6 +555,30 @@ export function makeBody(root) {
       y = f;
     }
     return far;
+  };
+
+  // ── At an edge ─────────────────────────────────────────────────────────────
+  // How far ahead along (ux, uz), within `far`, the floor falls away by more
+  // than DEEP — a gallery's well, the side of a bridge over the floor, the
+  // open side of the Vertigo's stair — or null. A rail at the edge does not
+  // hide it (a reader walks up to a rail to look over it), and a stair going
+  // down is not one (each tread is under the last); but a wall at eye height
+  // before it does hide it. For the head going down to look over an edge as
+  // the reader walks up to it (World.jsx, BRINK).
+  const DEEP = 20;
+  const BRINK_STEP = 1.5;
+  const brink = (feet, ux, uz, far) => {
+    const list = around(feet);
+    ray.origin.set(feet.x, feet.y + EYE - 1, feet.z);
+    ray.direction.set(ux, 0, uz);
+    const wall = cast(list, far, false);
+    const reach = wall ? wall.d - 1 : far;
+    for (let d = BRINK_STEP; d <= reach; d += BRINK_STEP) {
+      ray.origin.set(feet.x + ux * d, feet.y + EYE - 1, feet.z + uz * d);
+      ray.direction.set(0, -1, 0);
+      if (!cast(list, EYE - 1 + DEEP, false)) return d;
+    }
+    return null;
   };
 
   // ── Room to stand ──────────────────────────────────────────────────────────
@@ -660,6 +763,7 @@ export function makeBody(root) {
     step,
     clear,
     clearance,
+    brink,
     floorUnder,
     landing,
     wallAhead,
@@ -670,6 +774,11 @@ export function makeBody(root) {
     ground: (x, y, z) => {
       const f = floorAt(x, y + 1, z, 3);
       return { y: f, what: floorWhat };
+    },
+    // (and straight down from `top`, as the foot's ring asks it)
+    under: (x, top, z, depth) => {
+      const y = floorAt(x, top, z, depth, true);
+      return { y, what: floorWhat, shoulder: shoulderY };
     },
     footing: (x, y, z, r = 2.5) => FOOTPRINT.filter(([dx, dz]) => {
       const g = floorAt(x + dx * r, y + STEP_UP + 0.5, z + dz * r, STEP_UP + 0.5 + TREAD, true);

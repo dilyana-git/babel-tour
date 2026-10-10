@@ -110,6 +110,25 @@ const boundsOf = (pts) => pts.reduce((b, [x, y]) => ({
   x0: Math.min(b.x0, x), y0: Math.min(b.y0, y), x1: Math.max(b.x1, x), y1: Math.max(b.y1, y),
 }), { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity });
 
+// Where a room's numeral stands: over the middle of the room, a fixed height
+// above the room's top edge as it is drawn on the screen — the edge itself,
+// where the middle crosses it, not the top of the room's bounding box (with
+// the map turned off north that is a corner off to one side, and a numeral
+// set over it floated clear of some rooms and sat on the rims of others:
+// board 2 · 6).
+const NUMERAL_LIFT = 12;
+function numeralAt(poly) {
+  const b = boundsOf(poly);
+  const x = (b.x0 + b.x1) / 2;
+  let top = Infinity;
+  poly.forEach(([ax, ay], k) => {
+    const [bx, by] = poly[(k + 1) % poly.length];
+    if ((ax - x) * (bx - x) > 0 || ax === bx) return;
+    top = Math.min(top, ay + ((x - ax) / (bx - ax)) * (by - ay));
+  });
+  return [x, (Number.isFinite(top) ? top : b.y0) - NUMERAL_LIFT];
+}
+
 // The lantern: the walk's rooms, and the way between them through the
 // Library, are left lit and the rest of the honeycomb is dimmed, so the walk
 // is told by light — there is no line drawn over the stone. In screen pixels,
@@ -133,6 +152,16 @@ function lanternFor(rooms, doorAt) {
   };
 }
 
+// Under the garden, the honeycomb goes on to the bottom right corner as cell
+// after empty cell — the largest part of the frame, and nothing in it. It
+// fades into the dark there (board 2 · 5): an ellipse of fog from the corner,
+// reaching up no further than the bottom of the garden's light.
+function fogFor(lantern, w, h) {
+  const top = lantern.garden.cy + lantern.garden.ry;
+  const cy = h + Math.max(0, h - top) * 0.3;
+  return { cx: w, cy, rx: w * 0.55, ry: Math.max(1, cy - top) };
+}
+
 // Inside the tour the garden restarts its count (PATH I–IV), but on one sheet
 // holding both worlds "I The Door" beside "I The Vestibule" reads as an error,
 // so the map counts the whole walk.
@@ -140,8 +169,16 @@ const MAP_NUMERAL = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'];
 // How long a reader stands with their hands off everything before the key caps
 // come back.
 const HINT_IDLE_MS = 15000;
-// One cell of the honeycomb, for the walk's progress in the room HUD.
-const HEX = '7,1 13,4.5 13,11.5 7,15 1,11.5 1,4.5';
+// How long the one word on steering stays up after the reader's first walk.
+const HINT_TIP_MS = 9000;
+// The seal of the eight rooms beside the walk, which is the map's button: the
+// Library's four up their diagonal, as on the map, and the garden's four
+// stepping on from where the fall lands (pointy cells, 17.3 apart).
+const SEAL = [[12, 60], [20.66, 45], [29.32, 30], [37.98, 15], [72, 45], [80.66, 30], [89.32, 45], [97.98, 30]];
+const SEAL_FALL = 'M46.5 15 Q62 14 66 35';
+const hexAt = ([x, y], r) => [-90, -30, 30, 90, 150, 210]
+  .map((a) => `${(x + r * Math.cos((a * Math.PI) / 180)).toFixed(2)},${(y + r * Math.sin((a * Math.PI) / 180)).toFixed(2)}`)
+  .join(' ');
 // The keys held down in a room: turning and tilting the head, and the feet.
 const HELD_KEYS = { ArrowLeft: 'left', a: 'left', A: 'left', ArrowRight: 'right', d: 'right', D: 'right', ArrowUp: 'up', ArrowDown: 'down' };
 const STEP_KEYS = { w: 1, W: 1, s: -1, S: -1 };
@@ -206,6 +243,9 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
   // The world tour: where the reader stands (null on the map), and where the
   // camera is headed. The two differ while it flies, walks or falls.
   const sectionRef = useRef(null);
+  const roomTitleRef = useRef(null);
+  const lastRoomRef = useRef(suggested);
+  const focusOnMapRef = useRef(true);
   const [place, setPlace] = useState(null);
   const [target, setTarget] = useState(null);
   // And, inside a room that has a second place to stand (vantages.js),
@@ -221,6 +261,22 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
   const [between, setBetween] = useState(null);
   // Whether the reader has walked anywhere yet, this visit (the key caps).
   const [walked, setWalked] = useState(false);
+  // The one thing the arrival caps leave out — that turning while walking
+  // leaves the way — said once, as the reader first walks, and not again.
+  const [tip, setTip] = useState(false);
+  const tipSaid = useRef(false);
+  // A finger on the touch walk button (it is the held W of a touch screen).
+  const [holding, setHolding] = useState(false);
+  // How tall the room's HUD stands, so the hint can sit above it on a phone.
+  const hudRef = useRef(null);
+  const [hudHeight, setHudHeight] = useState(0);
+  // The hint on the walk's bottom line, between the caption and the walk, when
+  // there is room for it there (`hintAt`: its centre and its bottom, from the
+  // map's bottom left); else, null, it keeps to bottom centre above the walk.
+  const navRef = useRef(null);
+  const plateRef = useRef(null);
+  const assistRef = useRef(null);
+  const [hintAt, setHintAt] = useState(null);
   // How many times the reader has arrived anywhere: it turns the line the
   // caption gives the road (voices.js, PASSAGES), so two walks running do not
   // say the same thing.
@@ -238,6 +294,7 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
   // the room the hallway the reader is standing in runs on to
   const beyond = between?.find((r) => r !== place);
   const onMap = place === null && target === null;
+  const mapHidden = worldRooms && !onMap;
   const lookRef = useRef({ yaw: 0, pitch: 0, keys: { left: false, right: false, up: false, down: false } });
   const fadeRef = useRef(null);
   const dragRef = useRef(null);
@@ -277,6 +334,11 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
     if (place !== null) {
       walkRef.current.hold = dir;
       walkRef.current.press += 1;
+      setWalked(true);
+      if (!tipSaid.current) {
+        tipSaid.current = true;
+        setTip(true);
+      }
     }
   }, [place]);
   // The buttons: the piece does the walking, the whole way to the next room
@@ -308,16 +370,127 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
     setToUp((u) => !u);
   }, [place, moving]);
 
-  // The key caps (`walked`, above, and `idle`). They used to be one long line
-  // of grey capitals across the top of every room, on for good, barely lighter
-  // than the stone. Now they are there when the reader first stands in a room,
-  // go once they have walked (they know the keys by then), and come back only
-  // if the reader stands with their hands off everything for a while — someone
-  // who has stopped may be someone who is stuck.
+  // The faded map stays mounted for the flight, but its controls belong only
+  // to the map. Hand focus over once the new view has finished arriving.
+  useLayoutEffect(() => {
+    if (!worldRooms) return;
+    if (place !== null) lastRoomRef.current = place;
+    if (moving || onMap === focusOnMapRef.current) return;
+    if (onMap) {
+      if (!liveOverlay) return;
+      setHot(lastRoomRef.current);
+      roomRefs.current[lastRoomRef.current]?.focus({ preventScroll: true });
+    } else {
+      roomTitleRef.current?.focus({ preventScroll: true });
+    }
+    focusOnMapRef.current = onMap;
+  }, [worldRooms, place, moving, onMap, liveOverlay]);
+
+  // The key caps (`walked`, above, and `idle`). They used to be a strip of five
+  // instructions across the top of every room. Now there are three, there when
+  // the reader first stands in a room, gone once they have walked (`tip` says
+  // the rest, once), and back only if the reader stands with their hands off
+  // everything for a while — someone who has stopped may be someone who is
+  // stuck.
   const [idle, setIdle] = useState(false);
   useEffect(() => {
     if (place !== null && moving) setWalked(true);
   }, [place, moving]);
+  useEffect(() => {
+    if (!tip) return undefined;
+    const id = setTimeout(() => setTip(false), HINT_TIP_MS);
+    return () => clearTimeout(id);
+  }, [tip]);
+  useLayoutEffect(() => {
+    const hud = hudRef.current;
+    if (!hud || typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(() => setHudHeight(hud.offsetHeight));
+    ro.observe(hud);
+    setHudHeight(hud.offsetHeight);
+    return () => ro.disconnect();
+  }, [worldRooms, place === null]);
+  useLayoutEffect(() => {
+    const hud = hudRef.current, nav = navRef.current, plate = plateRef.current, assist = assistRef.current;
+    if (!hud || !nav || !plate || !assist || typeof ResizeObserver === 'undefined') return undefined;
+    const seat = () => {
+      if (COARSE || tall) { setHintAt(null); return; }
+      // (measured from what the hint is placed in — the map, not the HUD: the
+      // HUD is a sibling of it, and the two need not share a bottom edge)
+      const box = (assist.offsetParent ?? hud).getBoundingClientRect();
+      const n = nav.getBoundingClientRect();
+      const p = assist.firstElementChild;
+      if (!p) return;
+      const GAP = 32;
+      // Where a box's last line of words ends (its words' boxes, not the
+      // element's: the walk's buttons stand 44 px tall round their words).
+      const words = document.createRange();
+      const textFoot = (el) => {
+        let foot = -Infinity;
+        const texts = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+        for (let t = texts.nextNode(); t; t = texts.nextNode()) {
+          words.selectNodeContents(t);
+          for (const r of words.getClientRects()) if (r.width) foot = Math.max(foot, r.bottom);
+        }
+        return foot;
+      };
+      // The hint as it is on one line, unhindered — measured the same way
+      // whatever its seat now, so seating it cannot rock between two seats.
+      const held = assist.style.maxWidth;
+      assist.style.maxWidth = 'none';
+      const hint = p.getBoundingClientRect();
+      const lift = hint.bottom - textFoot(p);
+      const lh = parseFloat(getComputedStyle(p).lineHeight) || 24;
+      assist.style.maxWidth = held;
+      // Its words end on the line the walk's last words end on (the caption's
+      // last line is on it too: the HUD lines up their baselines). The HUD
+      // rises 10 px into place as a room is arrived in; it is measured where
+      // it will stand.
+      const rise = new DOMMatrixReadOnly(getComputedStyle(hud).transform === 'none' ? undefined : getComputedStyle(hud).transform).m42;
+      const ways = nav.querySelector('.room-ways');
+      const last = ways?.lastElementChild ? textFoot(ways.lastElementChild) : -Infinity;
+      const base = (Number.isFinite(last) ? last : n.bottom - 4) - rise + (Number.isFinite(lift) ? lift : 0);
+      const top = base - Math.max(hint.height, 2 * lh) - 6, bottom = base + 6;
+      // In the way is only the caption's TEXT on the hint's rows, not the
+      // caption's box: that is 27rem wide whatever it says, and its last lines
+      // rarely reach across it. Only the words showing: the caption's other
+      // lines stand stacked in the same place at opacity 0, and a range over
+      // the whole caption also returns each line's full-width box.
+      const texts = document.createTreeWalker(plate, NodeFilter.SHOW_TEXT);
+      let reach = box.left;
+      for (let t = texts.nextNode(); t; t = texts.nextNode()) {
+        const line = t.parentElement?.closest('.room-voice-line');
+        if ((line && !line.classList.contains('is-on')) || t.parentElement?.closest('.sr-only')) continue;
+        words.selectNodeContents(t);
+        for (const r of words.getClientRects()) if (r.width && r.bottom - rise > top && r.top - rise < bottom) reach = Math.max(reach, r.right);
+      }
+      // Centred on the screen when it clears the caption and the walk, else
+      // centred in the gap between them, else there on two lines, else (no
+      // room at all) above the walk.
+      const from = reach + GAP, to = n.left - GAP, mid = box.left + box.width / 2;
+      const room = to - from;
+      let next = null;
+      if (2 * Math.min(mid - from, to - mid) >= hint.width) next = { x: mid, width: null };
+      else if (room >= hint.width) next = { x: (from + to) / 2, width: null };
+      else if (room >= 200) next = { x: (from + to) / 2, width: Math.floor(room) };
+      if (next) next = { left: Math.round(next.x - box.left), bottom: Math.round(box.bottom - base), width: next.width };
+      setHintAt((was) => (was?.left === next?.left && was?.bottom === next?.bottom && was?.width === next?.width ? was : next));
+    };
+    // The walk's line moves without changing size — its words change on
+    // arriving, the HUD's other pieces come and go — and a seat measured once
+    // left the hint hanging over the line, 170 px short of it (2026-10-08).
+    // So it is measured again whenever anything in the HUD changes, at most
+    // once a frame.
+    let frame = 0;
+    const later = () => { if (!frame) frame = requestAnimationFrame(() => { frame = 0; seat(); }); };
+    const ro = new ResizeObserver(later);
+    [hud, nav, plate, assist.firstElementChild].forEach((el) => el && ro.observe(el));
+    const mo = new MutationObserver(later);
+    mo.observe(hud, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['class'] });
+    window.addEventListener('resize', later);
+    document.fonts?.ready.then(later);
+    seat();
+    return () => { ro.disconnect(); mo.disconnect(); window.removeEventListener('resize', later); cancelAnimationFrame(frame); };
+  }, [worldRooms, place === null, finale === null, tall]);
   useEffect(() => {
     if (!worldRooms || place === null) return undefined;
     let timer = null;
@@ -355,7 +528,7 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
   }, [shown, reducedMotion]);
 
   const choose = useCallback((i) => {
-    if (opening !== null) return;
+    if (opening !== null || mapHidden) return;
     const stage = stageRef.current?.getBoundingClientRect();
     const room = roomRefs.current[i]?.getBoundingClientRect();
     if (stage && room && stage.width && stage.height) {
@@ -377,7 +550,7 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
       return;
     }
     onChoose(i);
-  }, [opening, onChoose, liveWorld, reducedMotion, worldRooms]);
+  }, [opening, onChoose, liveWorld, reducedMotion, worldRooms, mapHidden]);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -447,6 +620,12 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
     window.addEventListener('keydown', onDown);
     return () => window.removeEventListener('keydown', onDown);
   }, [worldRooms, place, moving, foot, climb, finale]);
+
+  // The touch walk button let go of: stand where they are, as letting go of W.
+  const standStill = () => {
+    if (walkRef.current.hold === 1) walkRef.current.hold = 0;
+    setHolding(false);
+  };
 
   // Dragging in a room looks around, camera-style: the view follows the hand.
   const letGo = () => {
@@ -660,6 +839,7 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
   // rooms, each with its numeral over its rim. The names are in the caption
   // alone.
   const lantern = layout && lanternFor(layout.rooms, libraryMax + 1);
+  const fog = lantern && fogFor(lantern, layout.w, layout.h);
   const lanternOverlay = lantern && (
     <svg
       className="map-svg map-dim is-live"
@@ -681,8 +861,21 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
             <ellipse {...lantern.garden} strokeWidth="0" />
           </g>
         </mask>
+        <radialGradient
+          id="map-fog"
+          gradientUnits="userSpaceOnUse"
+          cx={fog.cx}
+          cy={fog.cy}
+          r={fog.rx}
+          gradientTransform={`translate(${fog.cx} ${fog.cy}) scale(1 ${(fog.ry / fog.rx).toFixed(4)}) translate(${-fog.cx} ${-fog.cy})`}
+        >
+          <stop offset="0" stopColor="#050403" stopOpacity="0.85" />
+          <stop offset="0.55" stopColor="#050403" stopOpacity="0.55" />
+          <stop offset="1" stopColor="#050403" stopOpacity="0" />
+        </radialGradient>
       </defs>
       <rect className="map-dim-veil" width={layout.w} height={layout.h} mask="url(#map-lantern)" />
+      <rect className="map-fog" width={layout.w} height={layout.h} fill="url(#map-fog)" mask="url(#map-lantern)" />
     </svg>
   );
   const worldOverlay = layout && (
@@ -702,12 +895,12 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
       ))}
       <g className="map-numerals" aria-hidden="true">
         {layout.rooms.map((poly, i) => {
-          const b = boundsOf(poly);
+          const [x, y] = numeralAt(poly);
           return (
             <text
               key={i}
-              x={(b.x0 + b.x1) / 2}
-              y={b.y0 - 10}
+              x={x}
+              y={y}
               className={`map-numeral${i === shown ? ' is-shown' : ''}${isGarden(i) ? ' is-garden' : ''}`}
             >
               {MAP_NUMERAL[i]}
@@ -725,8 +918,8 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
         + `${liveWorld ? ' is-world' : ''}${flying !== null ? ' is-flying' : ''}`
         + `${worldRooms ? ' is-world-tour' : ''}${worldRooms && !onMap ? ' is-in-room' : ''}`
         + `${worldRooms && !liveWorld ? ' is-assembling' : ''}`}
-      aria-labelledby="map-title"
-      style={{ '--zoom-origin': origin }}
+      aria-labelledby={worldRooms && place !== null ? 'room-title' : 'map-title'}
+      style={{ '--zoom-origin': origin, '--hud-h': `${hudHeight}px` }}
     >
       <div className="map-stage" ref={stageRef} {...(worldRooms && place !== null ? lookHandlers : {})}>
         {worldOn && !worldFailed && (worldRooms || scenes) && (
@@ -768,7 +961,11 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
           />
         )}
         {liveOverlay && lanternOverlay}
-        {liveOverlay ? worldOverlay : worldRooms ? null : stillOverlay}
+        {worldRooms ? (
+          <div inert={mapHidden} aria-hidden={mapHidden || undefined}>
+            {liveOverlay && worldOverlay}
+          </div>
+        ) : liveOverlay ? worldOverlay : stillOverlay}
       </div>
       <div className="world-fade" ref={fadeRef} aria-hidden="true" />
 
@@ -782,10 +979,10 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
           in the caption's place (Assembly.jsx), and the caption comes in where
           it goes out. On a phone the column comes apart (display: contents)
           and its pieces take their places above and below the map. */}
-      <div className="map-head">
+      <div className="map-head" inert={mapHidden} aria-hidden={mapHidden || undefined}>
         <header className="map-title">
           <span className="map-title-rule" aria-hidden="true" />
-          <h1 className="map-title-name" id="map-title">La Biblioteca de Babel</h1>
+          <h1 className="map-title-name" id="map-title" lang="es">La Biblioteca de Babel</h1>
           <span className="map-title-rule" aria-hidden="true" />
           <div className="map-title-line">
             <span className="map-title-eyebrow">Jorge Luis Borges · 1941</span>
@@ -815,97 +1012,84 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
       </div>
 
       {worldRooms && place !== null && (
-        <div className={`room-hud${isGarden(place) ? ' is-garden' : ''}${moving ? ' is-moving' : ''}${finale !== null ? ` is-finale is-finale-${finalePhase ?? 'walk'}` : ''}`}>
-          <section className="room-plate" aria-live="polite" aria-labelledby="room-title">
+        <div ref={hudRef} data-room={NODES[place].slug} className={`room-hud${isGarden(place) ? ' is-garden' : ''}${moving ? ' is-moving' : ''}${finale !== null ? ` is-finale is-finale-${finalePhase ?? 'walk'}` : ''}`}>
+          <section ref={plateRef} className="room-plate" aria-live="polite" aria-labelledby="room-title">
             <div className="room-kicker">{`${kindOf(place)} ${MAP_NUMERAL[place]} of ${MAP_NUMERAL[NODES.length - 1]}`}</div>
-            <h2 className="room-title" id="room-title">{NODES[place].title}</h2>
+            <h2 ref={roomTitleRef} className="room-title" id="room-title" tabIndex={-1}>{NODES[place].title}</h2>
             <p className="room-sub">{NODES[place].subtitle}</p>
-            <span className="room-plate-rule" aria-hidden="true" />
             <p className="sr-only">{voice.said}</p>
             <RoomVoice room={NODES[place].slug} lines={voice.lines} lead={voice.lead} quotes={voice.quotes} />
           </section>
-          <nav className="room-nav" aria-label="The walk">
-            {/* The walk as one line: the room behind, where you are among the
-                eight, the room ahead. They used to be three equal outlined
-                pills with the map weighing as much as the rooms and nothing to
-                say how far along the walk the reader was. Out in a hallway on
+          <nav ref={navRef} className="room-nav" aria-label="The walk">
+            {/* The walk, in the corner across from the caption and in its
+                voice: the way on large, the way back small under it, and
+                beside them a seal of the eight rooms with this one lit, which
+                is the map. It was a mono line of three equal pieces — back,
+                eight dots that read as a carousel and said again what the
+                caption's kicker says, on — with a generic map icon in a ring
+                (the options canvas of 2026-10-09, C). Out in a hallway on
                 their own walk, "where you are" is the last room walked into,
                 and the room the hallway runs on to is marked. */}
             {(() => {
               const backTo = place - 1;
               const onTo = place + 1;
-              const backText = place > 0 ? stepLabel(place, place - 1) : 'The way in';
-              const onText = place < last ? stepLabel(place, place + 1) : 'Into the heart';
+              const backText = place > 0
+                ? `${crossing(place, backTo) === 'climb' ? 'climb back to' : 'back to'} ${NODES[backTo].title.replace(/^The /, 'the ')}`
+                : 'the way in';
+              const onText = place < last ? stepLabel(place, onTo) : 'Into the heart';
               return (
-                <div className="room-walk">
-                  <button
-                    type="button"
-                    className="room-step is-back"
-                    disabled={moving || place === 0}
-                    aria-label={backText}
-                    {...actionHandlers(() => send(-1))}
-                  >
-                    <svg viewBox="0 0 16 10" aria-hidden="true"><path d="M15 5 H2 M6 1 L2 5 L6 9" /></svg>
-                    {backTo >= 0 && <span className={`room-step-num${isGarden(backTo) ? ' is-garden' : ''}`}>{MAP_NUMERAL[backTo]}</span>}
-                    <span className="room-step-name">{backText}</span>
-                  </button>
-                  <div
-                    className="room-progress"
-                    role="img"
-                    aria-label={`${kindOf(place)} ${place + 1} of ${NODES.length}`}
-                  >
-                    {NODES.map((_, i) => (
-                      <svg
-                        key={i}
-                        viewBox="0 0 14 16"
-                        aria-hidden="true"
-                        className={[
-                          'room-cell',
-                          isGarden(i) ? 'is-garden' : 'is-library',
-                          i === place ? 'is-here' : i < place ? 'is-past' : 'is-ahead',
-                          i === beyond ? 'is-next' : '',
-                        ].join(' ')}
-                      >
-                        <polygon points={HEX} />
-                      </svg>
-                    ))}
-                  </div>
+                <div className="room-ways">
                   <button
                     type="button"
                     className="room-step is-on"
                     disabled={moving}
-                    aria-label={place === last ? 'Into the heart of the maze' : onText}
+                    aria-label={place === last ? 'Into the heart of the maze: the ending, a film of half a minute' : onText}
                     {...actionHandlers(() => send(1))}
                   >
-                    <span className="room-step-name">{onText}</span>
+                    {place < last && crossing(place, onTo) === 'fall' && <span className="room-step-verb">fall into</span>}
+                    <span className="room-step-name">{place < last ? NODES[onTo].title : onText}</span>
+                    {/* The last way on is not a walk to another room: it plays
+                        the ending, and says so (webFix.js, 6). */}
+                    {place === last && <span className="room-step-verb is-after">· the ending</span>}
                     {onTo < NODES.length && <span className={`room-step-num${isGarden(onTo) ? ' is-garden' : ''}`}>{MAP_NUMERAL[onTo]}</span>}
-                    <svg viewBox="0 0 16 10" aria-hidden="true"><path d="M1 5 H14 M10 1 L14 5 L10 9" /></svg>
+                    <svg viewBox="0 0 38 14" aria-hidden="true"><path d="M1 7 H36 M29 1.5 Q32.5 6 36 7 Q32.5 8 29 12.5" /></svg>
                   </button>
+                  <button
+                    type="button"
+                    className="room-step is-back"
+                    disabled={moving || place === 0}
+                    aria-label={backText.charAt(0).toUpperCase() + backText.slice(1)}
+                    {...actionHandlers(() => send(-1))}
+                  >
+                    <svg viewBox="0 0 24 10" aria-hidden="true"><path d="M23 5 H2 M6.5 1 Q4 4.2 2 5 Q4 5.8 6.5 9" /></svg>
+                    {backTo >= 0 && <span className={`room-step-num${isGarden(backTo) ? ' is-garden' : ''}`}>{MAP_NUMERAL[backTo]}</span>}
+                    <span className="room-step-name">{backText}</span>
+                  </button>
+                  {/* Where the room has somewhere else to stand: up to it, and
+                      back down. Labelled with the place it goes, like the
+                      walk's own buttons, and said in full to a screen reader. */}
+                  {vantage && (
+                    <button
+                      type="button"
+                      className="room-step is-climb"
+                      disabled={moving}
+                      aria-label={up ? `Come back down to ${NODES[place].title}'s floor` : `Climb up to ${vantage.name}`}
+                      {...actionHandlers(climb)}
+                    >
+                      <svg viewBox="0 0 10 10" aria-hidden="true">
+                        {up
+                          ? <path d="M5 1 V8 M2 5 L5 8 L8 5" />
+                          : <path d="M5 9 V2 M2 5 L5 2 L8 5" />}
+                      </svg>
+                      {up ? vantage.down : vantage.up}
+                    </button>
+                  )}
                 </div>
               );
             })()}
-            {/* Where the room has somewhere else to stand: up to it, and back
-                down. Labelled with the place it goes, like the walk's own
-                buttons, and said in full to a screen reader. */}
-            {vantage && (
-              <button
-                type="button"
-                className="room-step is-climb"
-                disabled={moving}
-                aria-label={up ? `Come back down to ${NODES[place].title}'s floor` : `Climb up to ${vantage.name}`}
-                {...actionHandlers(climb)}
-              >
-                <svg viewBox="0 0 10 10" aria-hidden="true">
-                  {up
-                    ? <path d="M5 1 V8 M2 5 L5 8 L8 5" />
-                    : <path d="M5 9 V2 M2 5 L5 2 L8 5" />}
-                </svg>
-                {up ? vantage.down : vantage.up}
-              </button>
-            )}
-            <span className="room-rule" aria-hidden="true" />
-            {/* The map is a way out of the walk, not a step along it: an icon,
-                apart from the rooms. */}
+            {/* The map is a way out of the walk, not a step along it: the
+                seal of the eight rooms, the Library's up its diagonal in gold,
+                the fall, and the garden's in jade. */}
             <button
               type="button"
               className="room-map"
@@ -914,34 +1098,110 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
               title="Map (M)"
               {...actionHandlers(() => setTarget(null))}
             >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <polygon points="1.5 6 1.5 21.5 8 18 16 21.5 22.5 18 22.5 2.5 16 6 8 2.5 1.5 6" />
-                <line x1="8" y1="2.5" x2="8" y2="18" />
-                <line x1="16" y1="6" x2="16" y2="21.5" />
+              <svg className="room-seal" viewBox="0 0 110 72" aria-hidden="true">
+                <defs>
+                  <filter id="room-seal-glow" x="-1" y="-1" width="3" height="3">
+                    <feGaussianBlur stdDeviation="3" />
+                  </filter>
+                </defs>
+                <path className="room-seal-fall" d={SEAL_FALL} />
+                {NODES.map((_, i) => SEAL[i] && (
+                  <g
+                    key={i}
+                    className={[
+                      'room-cell',
+                      isGarden(i) ? 'is-garden' : 'is-library',
+                      i === place ? 'is-here' : i < place ? 'is-past' : 'is-ahead',
+                      i === beyond ? 'is-next' : '',
+                    ].join(' ')}
+                  >
+                    {i === place && <polygon className="room-cell-glow" points={hexAt(SEAL[i], 11)} filter="url(#room-seal-glow)" />}
+                    <polygon points={hexAt(SEAL[i], 9)} />
+                  </g>
+                ))}
               </svg>
+              <span className="room-map-name">The map</span>
             </button>
           </nav>
+          {/* While the ending plays, the one thing left to do is to stop
+              watching it: on screen for its whole length, on every device
+              (M and Escape do the same). It ends where the film does, on
+              the map. */}
+          {finale !== null && (
+            <button
+              type="button"
+              className="room-skip"
+              disabled={finale === 'skip'}
+              {...actionHandlers(() => setFinale((f) => (f === null ? f : 'skip')))}
+            >
+              Skip to the map
+              <svg viewBox="0 0 38 14" aria-hidden="true"><path d="M1 7 H36 M29 1.5 Q32.5 6 36 7 Q32.5 8 29 12.5" /></svg>
+            </button>
+          )}
         </div>
       )}
-      {worldRooms && place !== null && (
-        <p
-          className={`room-hint${!moving && (!walked || idle) ? ' is-shown' : ''}`}
-          aria-hidden="true"
-        >
-          {COARSE
-            ? <span>Drag to look around</span>
-            : (
-              <>
-                <span className="room-key"><kbd>W</kbd> walk the way</span>
-                <span className="room-key">Arrows or drag to look</span>
-                <span className="room-key">Release <kbd>W</kbd>, look, press again to steer</span>
-                <span className="room-key"><kbd>S</kbd> step back</span>
-                {vantage && <span className="room-key"><kbd>E</kbd> {up ? 'back down' : `up to ${vantage.name}`}</span>}
-                <span className="room-key"><kbd>M</kbd> map</span>
-              </>
+      {/* The hint, bottom centre above the walk's buttons, in three stages: on
+          arriving, the three things to do (walk, look, the map); once, as the
+          reader first walks, the one rule the walk has (turning leaves the
+          way) and the keys that only now apply; and on a touch screen, the
+          walking itself, as a button held down like W. */}
+      {worldRooms && place !== null && finale === null && (() => {
+        const stage = tip ? 'tip' : !moving && (!walked || idle) ? 'arrive' : null;
+        return (
+          <div
+            ref={assistRef}
+            className={`room-assist${COARSE ? ' is-touch' : ''}${hintAt ? ' is-inline' : ''}${hintAt?.width ? ' is-tight' : ''}`}
+            style={hintAt ? { left: `${hintAt.left}px`, bottom: `${hintAt.bottom}px`, maxWidth: hintAt.width ? `${hintAt.width}px` : undefined } : undefined}
+          >
+            <p
+              className={`room-hint${stage ? ' is-shown' : ''}${stage === 'tip' ? ' is-tip' : ''}`}
+              aria-hidden={stage ? undefined : 'true'}
+            >
+              {COARSE
+                ? (stage === 'tip'
+                  ? <span className="room-tip">Drag while walking to leave the path</span>
+                  : <span className="room-tip">Drag to look · Hold to walk</span>)
+                : stage === 'tip'
+                  ? (
+                    <>
+                      <span className="room-tip">Turn while walking to leave the path</span>
+                      <span className="room-key"><kbd>S</kbd>to step back</span>
+                      {vantage && <span className="room-key"><kbd>E</kbd>{up ? 'back down' : `up to ${vantage.name}`}</span>}
+                    </>
+                  )
+                  : (
+                    <>
+                      <span className="room-key"><kbd>W</kbd>to walk</span>
+                      <span className="room-key"><kbd>drag</kbd>to look</span>
+                      <span className="room-key"><kbd>M</kbd>for the map</span>
+                    </>
+                  )}
+            </p>
+            {COARSE && (
+              <button
+                type="button"
+                className={`room-hold${holding ? ' is-held' : ''}`}
+                aria-label="Hold to walk"
+                onPointerDown={(e) => {
+                  if (e.pointerType === 'mouse' && e.button !== 0) return;
+                  e.preventDefault();
+                  foot(1);
+                  setHolding(true);
+                  try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* no live pointer to keep */ }
+                }}
+                onPointerUp={standStill}
+                onPointerCancel={standStill}
+                onLostPointerCapture={standStill}
+                onContextMenu={(e) => e.preventDefault()}
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 19 V5 M6 11 L12 5 L18 11" />
+                </svg>
+              </button>
             )}
-        </p>
-      )}
+          </div>
+        );
+      })()}
     </section>
   );
 }

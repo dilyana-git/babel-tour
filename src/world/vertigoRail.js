@@ -18,7 +18,8 @@
 //
 // It is laid as one rail: round the pit's mouth on the floor, along the
 // landing at the stair's head to its newel, and down the stair's open edge
-// but for the gap where it has given way (the fall); and down every turn of
+// but for the gaps where it has given way (the fall: one every turn, at the
+// same bearing, spiral.js GAPS); and down every turn of
 // the endless stair below (spiral.js), whose turns are one geometry, reused.
 // Nothing here draws on the world's random stream. (?wvrail=old: the rail as
 // it was.)
@@ -197,16 +198,28 @@ export function buildVertigoRail({ level, corners, toHead = true, floor, helix, 
 // Returns [geometry, material, name] for each part.
 // (sampled more coarsely than the stair above: its eight turns are drawn
 // together, and seen, if at all, by a reader walking on down past the end)
-export function endlessRail({ edge, pitch, angle0, mouldGeo, M, carved, samples = 120 }) {
+// `gap`: [u0, u1], where in the turn the rail has given way, as it has at the
+// same bearing on every turn above (spiral.js GAPS) — or null.
+export function endlessRail({ edge, pitch, angle0, gap = null, mouldGeo, M, carved, samples = 120 }) {
   const r = edge - 0.9, TAU = Math.PI * 2;
   const helix = {
     at: (u) => [Math.cos(angle0 + u * TAU) * r, Math.sin(angle0 + u * TAU) * r],
     tread: (u) => 1.5 - u * pitch, base: (u) => 2.2 - u * pitch,
   };
-  const run = helixRun(helix, 0, 1, samples), runs = [{ run, knots: [0, run.at(-1).s] }];
+  // (the string the bars stand in runs on under the gap: it is the stair's)
+  const whole = helixRun(helix, 0, 1, samples);
+  const runs = (gap ? [[0, gap[0]], [gap[1], 1]] : [[0, 1]])
+    .map(([u0, u1]) => helixRun(helix, u0, u1, samples))
+    .map((run) => ({ run, knots: [0, run.at(-1).s] }));
   const into = () => { const list = []; return { list, add: (g) => list.push(g.index ? g.toNonIndexed() : g) }; };
   const iron = into(), wood = into(), stone = into();
   members(runs, mouldGeo, iron, wood);
+  // Where it gave way the rail just stops, the walnut rounded off at each end.
+  if (gap) {
+    for (const p of [runs[0].run.at(-1), runs[1].run[0]]) {
+      wood.add(woodUv(placed(new THREE.SphereGeometry(0.9, 12, 8).scale(1, 0.75, 1), p.x, p.top - 0.55, p.z)));
+    }
+  }
   // (spaced from the turn's ends by half a bar's spacing, so the turns meet
   // with the bars running on evenly)
   const { twist, plain } = barsOf(runs, SPACING / 2), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
@@ -218,7 +231,7 @@ export function endlessRail({ edge, pitch, angle0, mouldGeo, M, carved, samples 
   bar.plain.dispose();
   // the string, from under the tread's top up to the bars' feet, and its roll
   // (a section's `across` points inward from the rail's line)
-  const line = run.map((p) => [p.x, p.base, p.z]);
+  const line = whole.map((p) => [p.x, p.base, p.z]);
   stone.add(mouldGeo(line, [[-1.5, -5.2, true], [0.9, -5.2, true], [0.9, 0, true], [-1.5, 0, true]]));
   stone.add(mouldGeo(line, Array.from({ length: 10 }, (_, k) => [0.35 + Math.cos((k * Math.PI) / 5) * 1.15, 0.1 + Math.sin((k * Math.PI) / 5) * 1.0])));
   const merged = (parts) => { const g = mergeGeometries(parts.list, false); parts.list.forEach((p) => p.dispose()); return g; };

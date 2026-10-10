@@ -229,7 +229,7 @@ const LIBRARY_NODE_VARIANTS = {
   silence: {
     title: 'The Silence',
     subtitle: 'Where the lamps grow faint',
-    summary: 'At the deepest reach the stairways still their crossing, and a single lamp keeps the dark honest.',
+    summary: 'Where the stairways stop crossing, a single lamp keeps the dark honest.',
     accent: '#c98a3e',
     variants: [
       {
@@ -314,7 +314,7 @@ const GARDEN_NODE_VARIANTS = {
   door: {
     title: 'The Door',
     subtitle: 'One volume was a gate',
-    summary: 'Between two shelves the stone gives way; beyond the jamb, hedges breathe under a green moon.',
+    summary: 'Between two shelves the stone gives way; beyond the jamb, wisteria and a lantern in the dark.',
     accent: '#9fc48a',
     variants: [
       {
@@ -401,7 +401,7 @@ const GARDEN_NODE_VARIANTS = {
   pavilion: {
     title: 'The Pavilion',
     subtitle: 'Where the lamp keeps every future',
-    summary: 'Over black water a single pavilion burns warm, and its music seems to arrive from all your lives at once.',
+    summary: 'Over black water a single pavilion burns warm, and on its table a qin waits for whichever of your lives sits down to play.',
     accent: '#e0b45c',
     variants: [
       {

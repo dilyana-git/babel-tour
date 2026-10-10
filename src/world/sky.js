@@ -12,6 +12,18 @@
 // wide soft corona. Written in linear light for the composer, bright enough in
 // its cores for the bloom to take them.
 import * as THREE from 'three';
+import { propsOld, MOON } from './forkProps';
+import { GLOW } from './webProps';
+
+// The moon's radius in the sky (the sine of it: a degree and a half, six times
+// the real one's, as it always was here) and its seas on the unit disc, north
+// up: [x, y, half-width, half-height, depth].
+const MOON_R = 0.0272;
+const SEAS = [
+  [-0.27, 0.52, 0.33, 0.3, 1], [0.27, 0.44, 0.2, 0.2, 0.95], [0.46, 0.13, 0.25, 0.2, 1], [0.79, 0.3, 0.09, 0.12, 0.9],
+  [0.69, -0.1, 0.13, 0.18, 0.85], [0.47, -0.3, 0.1, 0.1, 0.8], [-0.62, 0.16, 0.3, 0.42, 0.9], [-0.53, -0.42, 0.12, 0.12, 0.85],
+  [-0.2, -0.4, 0.25, 0.2, 0.8], [0.0, 0.84, 0.5, 0.06, 0.6], [0.08, 0.12, 0.12, 0.1, 0.55],
+];
 
 const vertexShader = /* glsl */ `
   varying vec3 vDir;
@@ -26,6 +38,7 @@ const fragmentShader = /* glsl */ `
   uniform float uTime;
   uniform float uAmount;
   uniform vec3 uMoonDir;
+  uniform float uGlow;
   varying vec3 vDir;
 
   float hash(vec3 p) {
@@ -70,13 +83,54 @@ const fragmentShader = /* glsl */ `
     float dust = noise(d * 7.0) * 0.6 + noise(d * 19.0) * 0.4;
     col += vec3(0.034, 0.038, 0.05) * band * smoothstep(0.35, 0.75, dust) * smoothstep(-0.02, 0.25, up);
 
+    // Behind the cedars at the heart of the maze (webProps.js, 7): the sky
+    // there and the spires in front of it were both at nothing, and a tree
+    // with no outline is a hole. Low haze with the moon on it — the horizon's
+    // own grey carried up the sky that way, thinning as it climbs, uneven as
+    // haze is — and the belt cuts out against it.
+    if (uGlow > 0.0) {
+      float toward = dot(d.xz, vec2(${GLOW.dir[0].toFixed(3)}, ${GLOW.dir[1].toFixed(3)})) / max(length(d.xz), 0.001);
+      float lobe = smoothstep(${(1 - 2 * GLOW.wide).toFixed(3)}, 0.85, toward);
+      float rise = smoothstep(-0.05, ${GLOW.rise[0].toFixed(3)}, up) * (1.0 - smoothstep(${GLOW.rise[1].toFixed(3)}, ${GLOW.rise[2].toFixed(3)}, up));
+      float drift = 0.82 + 0.36 * (noise(d * vec3(2.6, 7.0, 2.6) + 4.0) * 0.65 + noise(d * vec3(6.0, 15.0, 6.0)) * 0.35 - 0.5);
+      col += haze * uGlow * lobe * rise * drift;
+    }
+
     float sky = smoothstep(0.0, 0.18, up);
     col += (starLayer(d, 220.0, 0.972, 1.0) + starLayer(d, 520.0, 0.985, 0.55) + starLayer(d, 90.0, 0.994, 2.2)) * sky;
 
     // a low moon, and the wide pale corona round it
     float m = max(dot(d, uMoonDir), 0.0);
-    col += vec3(1.0, 0.96, 0.88) * smoothstep(0.99955, 0.99972, m) * 3.2;
-    col += vec3(0.16, 0.2, 0.26) * pow(m, 90.0) * 0.9 + vec3(0.05, 0.065, 0.085) * pow(m, 8.0) * 0.6;
+    ${propsOld(1) ? `col += vec3(1.0, 0.96, 0.88) * smoothstep(0.99955, 0.99972, m) * 3.2;
+    col += vec3(0.16, 0.2, 0.26) * pow(m, 90.0) * 0.9 + vec3(0.05, 0.065, 0.085) * pow(m, 8.0) * 0.6;` : `
+    // (forkProps.js, 1: an even white disc was a lamp. Its face now: the seas
+    // where they lie, their shores broken by a little noise, two rayed craters,
+    // the limb a little darker, ivory — and no brighter than keeps them.)
+    vec3 mRight = normalize(cross(vec3(0.0, 1.0, 0.0), uMoonDir)), mUp = cross(uMoonDir, mRight);
+    vec2 q = vec2(-dot(d, mRight), dot(d, mUp)) / ${MOON_R.toFixed(5)};
+    float qr = length(q), qe = fwidth(qr) * 1.2 + 0.004;
+    float disc = (1.0 - smoothstep(1.0 - qe, 1.0 + qe, qr)) * step(0.0, dot(d, uMoonDir));
+    if (disc > 0.0) {
+      // low in the sky it lies over on its side a little
+      vec2 f = mat2(0.906, -0.423, 0.423, 0.906) * q;
+      vec2 w = f + 0.16 * vec2(noise(vec3(f * 4.0, 1.7)) - 0.5, noise(vec3(f * 4.0, 8.3)) - 0.5)
+        + 0.05 * vec2(noise(vec3(f * 11.0, 3.1)) - 0.5, noise(vec3(f * 11.0, 5.9)) - 0.5);
+      float land = 1.0;
+      ${SEAS.map(([x, y, rx, ry, k]) => `land *= 1.0 - ${k.toFixed(2)} * (1.0 - smoothstep(0.5, 1.45, length((w - vec2(${x.toFixed(3)}, ${y.toFixed(3)})) / vec2(${rx.toFixed(3)}, ${ry.toFixed(3)}))));`).join(' ')}
+      float seas = 1.0 - land;
+      float high = noise(vec3(f * 9.0, 4.4)) * 0.6 + noise(vec3(f * 23.0, 9.2)) * 0.4;
+      float albedo = 1.0 - ${MOON.seas.toFixed(3)} * seas * (0.82 + 0.36 * high) - 0.07 * (high - 0.5);
+      // Tycho and Copernicus: a bright point each, and Tycho's rays
+      vec2 ty = f - vec2(-0.08, -0.69);
+      albedo += 0.1 * (1.0 - smoothstep(0.0, 0.07, length(ty)))
+        + 0.045 * (1.0 - smoothstep(0.1, 0.75, length(ty))) * smoothstep(0.55, 0.9, noise(vec3(atan(ty.y, ty.x) * 5.0, 0.0, 2.0)))
+        + 0.07 * (1.0 - smoothstep(0.0, 0.05, length(f - vec2(-0.33, 0.16))));
+      float mu = sqrt(max(0.0, 1.0 - qr * qr));
+      albedo *= 1.0 - ${MOON.limb.toFixed(3)} * (1.0 - mu);
+      col = mix(col, vec3(1.0, 0.925, 0.77) * albedo * ${MOON.k.toFixed(3)}, disc);
+    }
+    col += (vec3(0.16, 0.2, 0.26) * pow(m, 420.0) * 0.55 + vec3(0.12, 0.15, 0.2) * pow(m, 60.0) * 0.22 + vec3(0.05, 0.065, 0.085) * pow(m, 8.0) * 0.5)
+      * ${MOON.halo.toFixed(3)} / 0.45 * (1.0 - disc);`}
 
     gl_FragColor = vec4(col * uAmount, 1.0);
   }
@@ -90,6 +144,7 @@ export function makeSky() {
       uTime: { value: 0 },
       uAmount: { value: 1 },
       uMoonDir: { value: new THREE.Vector3(0.62, 0.3, -0.72).normalize() },
+      uGlow: { value: 0 },
     },
     side: THREE.BackSide,
     depthWrite: false,
@@ -106,6 +161,11 @@ export function makeSky() {
       material.uniforms.uAmount.value = amount;
       mesh.visible = amount > 0.001;
       if (eye) mesh.position.copy(eye);
+      if (GLOW.on && eye) {
+        const far = Math.hypot(eye.x - GLOW.heart[0], eye.z - GLOW.heart[1]);
+        const near = Math.min(1, Math.max(0, (GLOW.far - far) / (GLOW.far - GLOW.near)));
+        material.uniforms.uGlow.value = GLOW.k * near * near * (3 - 2 * near);
+      }
     },
     dispose() {
       mesh.geometry.dispose();

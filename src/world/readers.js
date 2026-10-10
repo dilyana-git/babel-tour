@@ -43,6 +43,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { makeRng } from './textures';
+import { vestOld } from './vestFix';
 
 const clamp01 = (x) => Math.min(1, Math.max(0, x));
 const smooth = (x) => { const t = clamp01(x); return t * t * (3 - 2 * t); };
@@ -604,6 +605,8 @@ export function readerGeometry({ seed = 1, color = ROBES[0], book = false, seate
   const merged = mergeGeometries(parts, false);
   parts.forEach((g) => g.dispose());
   merged.computeBoundingSphere();
+  // where the open book's pages are, for the light they throw (clothShader's uBook)
+  if (book || seated) merged.userData.book = seated ? [0, LAP + 2.6, 3.4] : [0, 11.85 * tall + 0.3, 3.2 + lean(11.85)];
   return merged;
 }
 
@@ -631,13 +634,40 @@ export function readerGeometry({ seed = 1, color = ROBES[0], book = false, seate
 // stay dark, sheen and all.) Leather takes a soft highlight, and a grain.
 const f3 = (x) => x.toFixed(3);
 const PAGE_BOUNCE = 0.2;   // how much of the page's light reaches the face (more than a page would give)
+// The review of 2026-10-08 (point 2; ?wvest=old:2): from the Vestibule's stand
+// the readers were holes in the picture, flat black against the lit shelves,
+// because every lamp hung behind or above them. Now the cloth is lit as cloth
+// in a lit room: a warm rim where a lamp behind them catches the wool's edge;
+// the lamps' light wrapped round onto the side turned from them (the room's
+// light, thrown back off its stone and books), so the robe reads as a dark
+// umber wool and not as nothing; and an open book's pages throw the light
+// that falls on them up into the hood, onto the hands and the chest.
+const LIT_CLOTH = !vestOld(2);
+// x the wool's edge against a lamp behind, y the light wrapped onto the dark
+// side, z the pages' light under the hood (one for every reader; DEV:
+// window.__readerLit)
+export const READER_LIT = { value: new THREE.Vector3(6.5, 2.2, 2.5) };
 export const clothShader = (sh, u) => {
+  if (!u.uBook) u.uBook = { value: new THREE.Vector4() };
+  // `uGlow`: a lit floor at a reader's feet — where, and how strongly its
+  // light comes back up (the Silence's seated reader over the lamp's pool;
+  // 0 for everyone else)
+  if (!u.uGlow) u.uGlow = { value: new THREE.Vector4() };
+  // `uSheen`: how much of the wool's fuzz and its lit edge a reader shows (1
+  // for everyone but the Silence's, near its lamp and turned half from it,
+  // where both together made the robe's shoulder pale plaster)
+  if (!u.uSheen) u.uSheen = { value: 1 };
   Object.assign(sh.uniforms, u);
+  sh.uniforms.uLit = READER_LIT;
   sh.vertexShader = sh.vertexShader
     .replace('#include <common>', `#include <common>
       uniform float uStride;
       uniform float uMove;
       uniform float uReach;
+      uniform vec4 uBook;
+      varying vec3 vBookV;
+      uniform vec4 uGlow;
+      varying vec3 vGlowV;
       attribute float aDark;
       attribute float aKind;
       varying float vDark;
@@ -673,6 +703,8 @@ export const clothShader = (sh, u) => {
     .replace('#include <begin_vertex>', `#include <begin_vertex>
       vDark = aDark;
       vKind = aKind;
+      vBookV = (modelViewMatrix * vec4(uBook.xyz, 1.0)).xyz;
+      vGlowV = (viewMatrix * vec4(uGlow.xyz, 1.0)).xyz;
       vCloth = position;
       if (rFoot > 0.5) {
         vec3 rP = vec3(0.0, 0.0, ${f3(FOOT_Z0)} + rPivot);
@@ -701,6 +733,12 @@ export const clothShader = (sh, u) => {
   sh.fragmentShader = sh.fragmentShader
     .replace('#include <common>', `#include <common>
       uniform mat3 normalMatrix;
+      uniform vec3 uLit;
+      uniform vec4 uBook;
+      varying vec3 vBookV;
+      uniform vec4 uGlow;
+      varying vec3 vGlowV;
+      uniform float uSheen;
       varying float vDark;
       varying float vKind;
       varying vec3 vCloth;
@@ -754,7 +792,7 @@ export const clothShader = (sh, u) => {
         vec3 cIrr = (reflectedLight.directDiffuse + reflectedLight.indirectDiffuse) / max(diffuseColor.rgb, vec3(0.003));
         float cNV = clamp(dot(normal, normalize(vViewPosition)), 0.0, 1.0);
         vec3 cTint = mix(diffuseColor.rgb, vec3(dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11))), 0.5) * 2.0 + 0.012;
-        outgoingLight += cIrr * cTint * (0.9 * pow(1.0 - cNV, 4.0) + 0.04);
+        outgoingLight += cIrr * cTint * (0.9 * pow(1.0 - cNV, 4.0) + 0.04) * uSheen;
       }
       // the hollows no light reaches (aDark), and the inside of the cloth —
       // the back of the hood seen past the face, up a sleeve, under a hem —
@@ -778,5 +816,55 @@ export const clothShader = (sh, u) => {
         outgoingLight += diffuseColor.rgb * cPage * ${f3(PAGE_BOUNCE)} * cFaces * clamp((0.97 - vDark) / 0.13, 0.0, 1.0);
       }
       #endif
+      ${LIT_CLOTH ? `#if NUM_POINT_LIGHTS > 0
+      {
+        vec3 cV = normalize(vViewPosition);
+        float cNV2 = clamp(dot(normal, cV), 0.0, 1.0);
+        float cOpen = 1.0 - vDark;
+        bool cCloth = vKind < 2.5;
+        vec3 cUp2 = normalize((viewMatrix * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
+        vec3 cRim = vec3(0.0), cWrap = vec3(0.0), cOnPage = vec3(0.0);
+        for (int i = 0; i < NUM_POINT_LIGHTS; i++) {
+          vec3 cL = pointLights[i].position + vViewPosition;
+          float cD = length(cL);
+          vec3 cLd = cL / cD;
+          vec3 cE = pointLights[i].color * getDistanceAttenuation(cD, pointLights[i].distance, pointLights[i].decay);
+          // the edge turned toward a lamp, most of all a lamp behind the reader
+          float cBack = 0.3 + 0.7 * max(0.0, -dot(cV, cLd));
+          cRim += cE * pow(1.0 - cNV2, 3.0) * max(dot(normal, cLd), 0.0) * cBack;
+          float cW = dot(normal, cLd) * 0.5 + 0.5;
+          cWrap += cE * cW * cW;
+          if (uBook.w > 0.5) {
+            vec3 cB = pointLights[i].position - vBookV;
+            float cBd = length(cB);
+            cOnPage += pointLights[i].color * getDistanceAttenuation(cBd, pointLights[i].distance, pointLights[i].decay) * max(dot(cB / cBd, cUp2), 0.0);
+          }
+        }
+        if (cCloth) {
+          outgoingLight += cRim * (diffuseColor.rgb * 2.5 + vec3(0.012, 0.008, 0.004)) * uLit.x * cOpen * uSheen;
+          outgoingLight += cWrap * diffuseColor.rgb * uLit.y * cOpen;
+        }
+        // The page as a lamp of its own, low and warm: on whatever of the
+        // reader faces it within a forearm or two, the inside of the hood too
+        // (its dark, aDark, is where this light is the only light).
+        if (uBook.w > 0.5 && (cCloth || (vKind > 4.75 && vKind < 5.75))) {
+          vec3 cP = vBookV + vViewPosition;
+          float cPd = length(cP);
+          float cFall = 1.0 / (1.0 + cPd * cPd / 9.0);
+          float cToward = max(dot(normal, cP / max(cPd, 1e-3)), 0.0) * 0.8 + 0.2;
+          outgoingLight += diffuseColor.rgb * cOnPage * vec3(1.0, 0.86, 0.66) * uLit.z * cFall * cToward;
+        }
+      }
+      #endif` : ''}
+      // The lit stone at the feet, as a low warm lamp of its own: on the
+      // front of the robe, the hands, the book's edge and — up under the
+      // hood, where nothing else reaches — the chin and the brow.
+      if (uGlow.w > 0.0) {
+        vec3 gP = vGlowV + vViewPosition;
+        float gD = length(gP);
+        float gFall = 1.0 / (1.0 + gD * gD / 9.0);
+        float gToward = max(dot(normal, gP / max(gD, 1e-3)), 0.0);
+        outgoingLight += diffuseColor.rgb * vec3(1.0, 0.78, 0.52) * uGlow.w * gFall * gToward * (1.0 - 0.8 * vDark);
+      }
       #include <opaque_fragment>`);
 };

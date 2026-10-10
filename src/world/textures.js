@@ -112,7 +112,8 @@ const soil = (g, rnd, size, count, lightChance = 0.35) => {
 // need be the same length. Eight equal courses of four equal blocks, every
 // joint the same dark, read at room distance as brick wallpaper.
 const RHYTHM = [1.3, 0.8, 1.12, 0.78, 1.06, 0.86, 1.22, 0.86];
-export function ashlar({ size = 1024, seed = 7, courses = 8, blocks = 4, tone = [112, 100, 88], joint = 3, strength = 3.2 } = {}) {
+// `spread`: how far a block's tone may stray from `tone`, either way.
+export function ashlar({ size = 1024, seed = 7, courses = 8, blocks = 4, tone = [112, 100, 88], joint = 3, strength = 3.2, spread = 18 } = {}) {
   const rnd = makeRng(seed);
   const [col, c] = canvas(size);
   const [hei, hg] = canvas(size);
@@ -142,7 +143,7 @@ export function ashlar({ size = 1024, seed = 7, courses = 8, blocks = 4, tone = 
   // and at any distance a wall of them read as rivets or as Morse.)
   const block = (x, y, w, h, look) => {
     const { v, wear, tilt, warm, mottle, angle, chips } = look;
-    const l = v * 18;
+    const l = v * spread;
     c.fillStyle = `rgb(${tone[0] + l + 4 + warm * 7},${tone[1] + l + warm * 2},${tone[2] + l - 3 - warm * 6})`;
     c.fillRect(x, y, w, h);
     for (const g of [c, hg]) { g.save(); g.beginPath(); g.rect(x, y, w, h); g.clip(); }
@@ -1088,7 +1089,7 @@ export function spineLayout({ seed = 31 } = {}) {
 // The round of the spine is no longer painted: the shader bends the normal
 // across it, so the lamps light the crown and the joints fall away as the
 // reader moves. What is painted is the dark in the joints.
-export function spineAtlas2({ cellW = 128, cellH = 512, seed = 23 } = {}) {
+export function spineAtlas2({ cellW = 128, cellH = 512, seed = 23, tooling = false } = {}) {
   const rnd = makeRng(seed);
   const layout = spineLayout();
   const W = cellW * SPINE_COLS, H = cellH * SPINE_ROWS, k = cellW / 64;
@@ -1198,6 +1199,39 @@ export function spineAtlas2({ cellW = 128, cellH = 512, seed = 23 } = {}) {
         });
         dot(cx, cy, r * 0.1);
         for (const [dx, dy] of [[0, -0.95], [0, 0.95], [-0.7, 0], [0.7, 0]]) dot(cx + dx * r, cy + dy * r, r * 0.07);
+      } else if (design === 3) {
+        // (tooling) a rosette: eight short petals round a boss, ringed with points
+        for (let q = 0; q < 8; q++) {
+          const a = (q * Math.PI) / 4 + Math.PI / 8;
+          tool((c) => { c.beginPath(); c.ellipse(cx + Math.cos(a) * r * 0.36, cy + Math.sin(a) * r * 0.36, r * 0.2, r * 0.09, a, 0, Math.PI * 2); });
+          dot(cx + Math.cos(a + Math.PI / 8) * r * 0.72, cy + Math.sin(a + Math.PI / 8) * r * 0.72, r * 0.06);
+        }
+        tool((c) => { c.beginPath(); c.arc(cx, cy, r * 0.15, 0, Math.PI * 2); });
+      } else if (design === 4) {
+        // (tooling) a sprig: a curled stem up the compartment, leaves off it
+        // either side, a bud at its head — the one tool that is not symmetrical
+        tool((c) => {
+          c.beginPath();
+          c.moveTo(cx - r * 0.05, cy + r * 0.8);
+          c.bezierCurveTo(cx + r * 0.25, cy + r * 0.3, cx - r * 0.25, cy - r * 0.2, cx + r * 0.05, cy - r * 0.62);
+          c.lineTo(cx + r * 0.13, cy - r * 0.6);
+          c.bezierCurveTo(cx - r * 0.15, cy - r * 0.2, cx + r * 0.33, cy + r * 0.3, cx + r * 0.05, cy + r * 0.8);
+          c.closePath();
+        });
+        for (const [t, side] of [[0.45, -1], [0.1, 1], [-0.25, -1]]) {
+          const lx = cx + side * r * 0.24, ly = cy + t * r;
+          tool((c) => { c.beginPath(); c.ellipse(lx, ly, r * 0.22, r * 0.08, side * -0.6, 0, Math.PI * 2); });
+        }
+        tool((c) => { c.beginPath(); c.ellipse(cx + r * 0.06, cy - r * 0.72, r * 0.1, r * 0.16, 0, 0, Math.PI * 2); });
+      } else if (design === 5) {
+        // (tooling) a small oval panel, a fillet round it, a point in its middle
+        tool((c) => {
+          c.beginPath();
+          c.ellipse(cx, cy, r * 0.5, r * 0.78, 0, 0, Math.PI * 2);
+          c.ellipse(cx, cy, r * 0.38, r * 0.66, 0, 0, Math.PI * 2, true);
+        });
+        dot(cx, cy, r * 0.1);
+        for (const s of [-1, 1]) dot(cx, cy + s * r * 0.92, r * 0.06);
       } else {
         // a star of eight rays round a boss
         tool((c) => {
@@ -1278,6 +1312,14 @@ export function spineAtlas2({ cellW = 128, cellH = 512, seed = 23 } = {}) {
       // corner, on a gilt-banded one a small single tool, on the rest nothing.
       if (rich || bandGilt) {
         const design = Math.floor(rnd() * 3), corners = rich && rnd() < 0.6;
+        // (tooling: two tools worked turn about down the spine and a third at
+        // the tail, as a finisher varies a back, instead of one tool in every
+        // panel — the same small gold cross in every compartment of a shelf
+        // of volumes read as a grid of plus signs. A draw of its own, after
+        // the stream's, so nothing else here moves.)
+        const tr = makeRng(seed * 977 + i * 131 + 7);
+        const toolsA = [3, 1, 2, 4, 5], pickT = () => toolsA[Math.floor(tr() * toolsA.length)];
+        const tA = pickT(), tB = pickT(), tC = pickT(), small = ['dot', 'lozenge', 'star', 'none'][Math.floor(tr() * 4)];
         const edges = [0.035, ...cell.bands, 0.965];
         for (let c = 0; c < edges.length - 1; c++) {
           // (and none under a number tooled straight onto the leather: the
@@ -1286,8 +1328,12 @@ export function spineAtlas2({ cellW = 128, cellH = 512, seed = 23 } = {}) {
           const a = Y(edges[c]) + (c ? FILLET_AT * cellH + 2 * k : 4 * k), b = Y(edges[c + 1]) - FILLET_AT * cellH - 2 * k;
           if (b - a < 10 * k) continue;
           const cy = (a + b) / 2, r = Math.min(cellW * 0.3, (b - a) * 0.36);
-          if (rich) fleuron(cy, r, design);
-          else dot(cx, cy, Math.min(2.4 * k, r * 0.25));
+          if (rich) fleuron(cy, r, tooling ? (c === edges.length - 2 ? tC : c % 2 ? tB : tA) : design);
+          else if (!tooling || small === 'dot') dot(cx, cy, Math.min(2.4 * k, r * 0.25));
+          else if (small === 'lozenge') {
+            const q = Math.min(4 * k, r * 0.4);
+            tool((cc) => { cc.beginPath(); cc.moveTo(cx, cy - q); cc.lineTo(cx + q * 0.6, cy); cc.lineTo(cx, cy + q); cc.lineTo(cx - q * 0.6, cy); cc.closePath(); });
+          } else if (small === 'star') fleuron(cy, Math.min(7 * k, r * 0.6), 2);
           if (corners) for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) dot(cx + sx * (cellW / 2 - 12 * k), cy + sy * ((b - a) / 2 - 6 * k), 1.3 * k);
         }
       }
@@ -2505,7 +2551,7 @@ export function purbeck({ size = 512, seed = 67 } = {}) {
 // to a card, each hung with narrow leaves that point down it, the curtain the
 // willows by the pond let fall (trees.js).
 export const HANGING_KINDS = 6;
-export function hanging({ w = 128, h = 512, seed = 71 } = {}) {
+export function hanging({ w = 128, h = 512, seed = 71, broadWillow = false } = {}) {
   const rnd = makeRng(seed);
   const [col, c] = canvas(w * HANGING_KINDS, h);
   c.clearRect(0, 0, w * HANGING_KINDS, h);
@@ -2550,6 +2596,59 @@ export function hanging({ w = 128, h = 512, seed = 71 } = {}) {
         g.addColorStop(1, `hsla(258,40%,${L - 14}%,0)`);
         c.fillStyle = g;
         c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill();
+      }
+    } else if (kind >= 4 && broadWillow) {
+      // Willow whips, broad (pavilionFix.js, 4). Three whips a pixel across to
+      // a card some three units wide were, from the bridge, less than a pixel
+      // each: alpha-tested, they flickered on and off down their length and
+      // the willows read as vertical scan lines. One strand to a card (kind 4)
+      // or two (5), each a full rope of leaf some twenty texels across — about
+      // half a unit, a few pixels from the bridge — thinning and opening out
+      // over its last third, so a strand ends in a few loose leaves and not
+      // with a cut. (Its own stream: the other kinds' draws do not move.)
+      const wr = makeRng(seed + 400 + kind);
+      const strands = kind === 4 ? 1 : 2;
+      for (let s = 0; s < strands; s++) {
+        let x = x0 + w * (strands === 1 ? 0.5 + (wr() - 0.5) * 0.12 : 0.3 + 0.4 * s + (wr() - 0.5) * 0.08), y = 0;
+        const reach = h * (0.66 + wr() * 0.32), drift = (wr() - 0.5) * 0.35;
+        const pts = [];
+        while (y < reach) {
+          pts.push([x, y]);
+          y += 4;
+          x += drift + (wr() - 0.5) * 0.9;
+          x = Math.max(x0 + 22, Math.min(x0 + w - 22, x));
+        }
+        c.strokeStyle = 'rgba(92,84,50,1)';
+        c.lineCap = 'round';
+        pts.forEach(([px, py], i) => {
+          if (!i) return;
+          const t = py / reach;
+          c.lineWidth = 3.2 * (1 - t * 0.7);
+          c.beginPath(); c.moveTo(pts[i - 1][0], pts[i - 1][1]); c.lineTo(px, py); c.stroke();
+        });
+        pts.forEach(([px, py], i) => {
+          if (i < 2) return;
+          const t = py / reach;
+          // the last third thins: fewer leaves, shorter, lying closer in
+          const tip = Math.max(0, (t - 0.66) / 0.34);
+          for (const side of [-1, 1]) {
+            if (wr() < 0.1 + tip * 0.55) continue;
+            const L = (17 + wr() * 8) * (1 - tip * 0.45);
+            const a = Math.PI / 2 + side * (0.3 + wr() * 0.32) * (1 - tip * 0.4);
+            const bw = 3.6 * (1 - tip * 0.45);
+            c.save();
+            c.translate(px + (wr() - 0.5) * 2, py);
+            c.rotate(a);
+            // (a shade darker than the fine whips': there is more of each)
+            c.fillStyle = `hsl(${72 + wr() * 22},${12 + wr() * 12}%,${15 + wr() * 13 - t * 4}%)`;
+            c.beginPath();
+            c.moveTo(0, 0);
+            c.quadraticCurveTo(L * 0.45, -bw, L, 0);
+            c.quadraticCurveTo(L * 0.45, bw, 0, 0);
+            c.fill();
+            c.restore();
+          }
+        });
       }
     } else if (kind >= 4) {
       // Willow whips: fine, pale-barked, hanging straight and swaying out a

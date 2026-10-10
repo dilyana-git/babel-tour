@@ -35,7 +35,7 @@ const HOT = new THREE.Color('#fff1c9');
 
 // The film, in seconds from the step into the court.
 export const FINALE = {
-  walk: 5,              // from the gate to the heart
+  walk: 5,              // settle the gaze on the heart from the current spot
   ignite: 5.2,          // the heart catches
   flood: 42,            // how fast its light runs down a corridor, units a second
   rise: [18.2, 34],     // out of the maze and up to the map

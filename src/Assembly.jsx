@@ -32,7 +32,8 @@
 // DEV: ?ink=20 makes the opening take at least 20 seconds, to watch it;
 // window.__ink is the driver (u, ready, inked, gone).
 import { useEffect, useRef, useState } from 'react';
-import { TILT_ELEVATION, TILT_FOV, restPose } from './world/plan';
+import { TILT_ELEVATION, TILT_FOV, TILT_YAW, restPose } from './world/plan';
+import { mapOld } from './world/mapFix';
 import { VOICES } from './voices';
 import { DEV_PACE, GUESS, startInk, stream } from './ink';
 
@@ -108,7 +109,7 @@ export function AssemblyInk({ driver, progress, ready, shown, plan, reserveLeft,
       }
       ink.set({
         size: { width, height, dpr },
-        rest: { target: rest.target.toArray(), distance: rest.distance, shift: rest.shift, fov: TILT_FOV, elevation: TILT_ELEVATION },
+        rest: { target: rest.target.toArray(), distance: rest.distance, shift: rest.shift, fov: TILT_FOV, elevation: TILT_ELEVATION, yaw: TILT_YAW, lensed: !mapOld('L2') },
         progress: props.current.progress,
         ready: props.current.ready,
       });

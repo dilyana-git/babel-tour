@@ -201,6 +201,9 @@ export function rubbleStone({ size = 1024, seed = 83 } = {}) {
 // world (x, z) and its turn about the vertical there (`theta`, three's) — and
 // `rest`, what the crack painter shades the floor round:
 // [along, into, half length, half width, turn, how dark, round].
+// (A block's sixth entry, if it has one, is how it lies — doorFix.js, 2:
+// `wedge` and `twist`, sheared to a wedge; `tilt`; `bury`, how far its high
+// edge is in the floor. Blocks that have one get big spalls round them.)
 export function rubbleLayout(fallen, { origin, along, into }) {
   const r = makeRng(4406);
   const R = (lo, hi) => lo + (hi - lo) * r();
@@ -239,13 +242,22 @@ export function rubbleLayout(fallen, { origin, along, into }) {
     blocks.push(world(k));
     return k;
   };
-  fallen.forEach(([a, b, w, h, d0], i) => {
+  fallen.forEach(([a, b, w, h, d0, how], i) => {
     const phi = R(0, Math.PI * 2);
     // (a block's bed four-fifths of DOOR_FALLEN's: at its full depth every
     // one of them, seen from its end, was a cube)
     const d = d0 * 0.8;
     // one came down on a stone that fell before it, and is propped on it
     const propped = i === 3;
+    // Bedded where it struck: tipped as it landed, its high edge `bury` into
+    // the floor and the rest of it further, as far as the tip takes it down.
+    // (Tipped about its length it rises across its width, and the other way.)
+    const lie = how && !propped ? (ww) => {
+      const t = how.tilt ?? [0, 0];
+      // (its slope, the fresh break, turned to the room: the side it keeps
+      // low is the one toward the reader coming in)
+      return { tilt: t, sink: (how.bury ?? 0) + Math.abs(Math.sin(t[0])) * d + Math.abs(Math.sin(t[1])) * ww, wedge: how.wedge ?? 0, twist: how.twist ?? 0, wside: Math.cos(phi) > 0 ? -1 : 1 };
+    } : () => ({});
     const tilt = propped ? [R(0.13, 0.17), 0] : undefined;
     // (its low edge only just into the floor: the prop is cut to the gap)
     const sink = propped ? 0.06 : undefined;
@@ -259,7 +271,7 @@ export function rubbleLayout(fallen, { origin, along, into }) {
         const a1 = a - c * (w - w1) / 2, b1 = b - s * (w - w1) / 2;
         const gap = R(0.6, 2), a2 = a1 + c * (w1 / 2 + gap + piece / 2), b2 = b1 + s * (w1 / 2 + gap + piece / 2);
         if (!free(a2, b2, piece) || !free(a1, b1, w1)) continue;
-        block({ a: a1, b: b1, w: w1, h, d, phi: ph, end: 1 });
+        block({ a: a1, b: b1, w: w1, h, d, phi: ph, end: 1, ...lie(w1) });
         stones.push(world({
           a: a2, b: b2, size: piece, phi: R(0, Math.PI * 2), tilt: [R(-0.06, 0.06), R(-0.06, 0.06)], seed: seed(), tone: R(0.9, 1.05),
           dressed: true, flat: h / piece * R(0.9, 1.1), cuts: 3, sink: 0.12, felt: true,
@@ -268,7 +280,7 @@ export function rubbleLayout(fallen, { origin, along, into }) {
         return;
       }
     }
-    const k = block({ a, b, w, h, d, phi, ...(tilt ? { tilt, sink } : {}) });
+    const k = block({ a, b, w, h, d, phi, ...(tilt ? { tilt, sink } : {}), ...lie(w), heap: !!how });
     if (propped) {
       // Tipped about its length, its edge at -v is up off the floor; under it,
       // a stone the height of the gap there (and a little into both).
@@ -314,6 +326,20 @@ export function rubbleLayout(fallen, { origin, along, into }) {
       const out = edgeAt(k, cu, sv) + size * 0.4 + 0.15 - Math.log(1 - r() * 0.95) * (offEnd ? 1.3 : 1);
       const [a, b] = fromBlock(k, cu * out, sv * out);
       stone(a, b, size);
+    }
+  }
+  // Spalls: what a block lost when it struck — big flakes and wedges, a
+  // third of it across and more, lying round its foot and most of them on the
+  // side it came from. (Only round the heaps' blocks.)
+  for (const k of blocks.filter((q) => q.heap || q.end)) {
+    if (!fallen.some((f) => f[5])) break;
+    for (let j = 0, n = 2 + Math.floor(r() * 3); j < n; j++) {
+      const toBreach = Math.atan2(-k.b, -k.a * 0.3) - k.phi;
+      const psi = r() < 0.6 ? toBreach + R(-1, 1) : R(0, Math.PI * 2), cu = Math.cos(psi), sv = Math.sin(psi);
+      const size = Math.min(3.8, 1.5 * (1 - r() * 0.9) ** (-1 / 1.8));
+      const out = edgeAt(k, cu, sv) + size * 0.5 + R(0, 1.4);
+      const [a, b] = fromBlock(k, cu * out, sv * out);
+      stone(a, b, size, { dressed: r() < 0.5, flat: R(0.3, 0.52), cuts: 3 + Math.floor(r() * 3), sink: size * R(0.06, 0.12), tilt: [R(-0.12, 0.12), R(-0.12, 0.12)], felt: size >= 2.2 });
     }
   }
   // Thrown in from the breach: fewer and smaller the farther they went.
@@ -465,7 +491,13 @@ const lay = (g, { tilt, theta, x, z, floor, sink, ns, foot, near = [] }) => {
 // Built in its own frame (x its length, y its height, z across, the face that
 // was the room's at -z), then laid. Comes back in the world, its tone in its
 // vertex colours.
-export function fallenBlock({ w, h, d, tilt, end, seed, tone, sink, theta, x: X, z: Z }, { floor, light = false }) {
+// `crisp` (doorProps.js, 8): where it broke FRESH its arrises are sharp. Every
+// arris of every block was spalled and worn alike, all the way round, and from
+// the room that read as foam. A stone that has just come out of a wall has
+// old arrises (worn, knocked) and new ones: the ridge of the slope a wedge was
+// sheared along, the rim of a break across its length, and an edge or two the
+// fall split clean. Those run straight, unworn and unchipped.
+export function fallenBlock({ w, h, d, tilt, end, wedge = 0, twist = 0, wside = 1, seed, tone, sink, theta, x: X, z: Z }, { floor, light = false, crisp = false }) {
   const rng = makeRng(seed);
   const R = (lo, hi) => lo + (hi - lo) * rng();
   const ns = seed % 9973;
@@ -476,6 +508,32 @@ export function fallenBlock({ w, h, d, tilt, end, seed, tone, sink, theta, x: X,
   const g = boxSurface(w, h, d, seg(w), seg(h), seg(d));
   const hx = w / 2, hy = h / 2, hz = d / 2, H = [hx, hy, hz];
   const warp = (t) => Math.sign(t) * (1 - (1 - Math.min(1, Math.abs(t))) ** 1.5);
+  // The fresh arrises, [the axis it runs along, the side of each of the other
+  // two it is on]: from a stream of their own, so the block's is as it was.
+  const sharp = [];
+  if (crisp) {
+    const cr = makeRng(seed ^ 0x51ed27), pm = () => (cr() < 0.5 ? -1 : 1);
+    // (a wedge: the ridge of its slope; a plain block: one of its top arrises)
+    sharp.push([0, 1, wedge ? wside : pm()]);
+    // and an upright one (on its side at z, at its end at x), at an end that
+    // is not the broken one
+    sharp.push([1, wedge ? wside : pm(), end ? -end : pm()]);
+  }
+  // how fresh the arris nearest a point is: 1 on it, 0 a hand's breadth off
+  const freshAt = (x, y, z) => {
+    let m = 0;
+    const q = [x, y, z];
+    for (const [ax, s1, s2] of sharp) {
+      const o1 = (ax + 1) % 3, o2 = (ax + 2) % 3;
+      const d1 = H[o1] - s1 * q[o1], d2 = H[o2] - s2 * q[o2];
+      m = Math.max(m, 1 - smoothstep(0.5, 1.3, Math.hypot(d1, d2)));
+    }
+    // and the rim of the break across it, all the way round
+    if (end && crisp) m = Math.max(m, 1 - smoothstep(0.6, 1.6, hx - end * x));
+    return m;
+  };
+  // (a chip is not struck off a fresh arris; its draws are made all the same)
+  const spared = (e) => crisp && freshAt(e[0], e[1], e[2]) > 0.25;
 
   // Spalled where it struck and where it rolled: flakes off every arris, many
   // and small and a few large, so that no edge of it runs straight for long;
@@ -501,10 +559,12 @@ export function fallenBlock({ w, h, d, tilt, end, seed, tone, sink, theta, x: X,
     out[o1] = s1 * R(0.5, 1);
     out[o2] = s2 * R(0.5, 1);
     scar(e, out, size, size * R(0.22, 0.45), ax, R(1.2, 2.2));
+    if (spared(e)) chips.pop();
   }
   for (let k = 0, n = 3 + Math.floor(rng() * 4); k < n; k++) {
     const s = [sgn(), sgn(), sgn()], size = 0.5 + rng() ** 2 * 1.6;
     scar(s.map((v, j) => v * H[j]), s.map((v) => v * R(0.6, 1)), size, size * R(0.4, 0.75));
+    if (spared(s.map((v, j) => v * H[j]))) chips.pop();
   }
   for (let k = 0, n = 2 + Math.floor(rng() * 4); k < n; k++) {
     const ax = Math.floor(rng() * 3), o1 = (ax + 1) % 3, o2 = (ax + 2) % 3, s = sgn();
@@ -523,6 +583,16 @@ export function fallenBlock({ w, h, d, tilt, end, seed, tone, sink, theta, x: X,
     return [R(0.15, 0.8) + Math.abs(a) + Math.abs(b), a, b];
   });
   const bo = R(0, 50);
+  // Sheared to a wedge (doorFix.js, 2): what is left of it rises from `wedge`
+  // of its height on one side to the arris on the other, the slope winding a
+  // little along it (`twist`) and broken rough — in broad shallow steps, not
+  // ridged: ridged as deep as the end's break, its edge ran in saw-teeth.
+  // `wside`: which side it keeps tall (+1, the side at +z).
+  const ws = wside;
+  const shear = (x, z) => -hy + h * wedge + (h * (1 - wedge) + 0.05) * clamp((z * ws / hz + 1) / 2, 0, 1) ** 1.15 + twist * (x / hx) * h * 0.16
+    - 0.16 * smoothstep(0.3, 0.7, noise(x * 0.32 + bo, z * 0.32, bo, ns + 21))
+    - 0.06 * noise(x * 1.1, z * 1.1 + bo, bo, ns + 23)
+    - 0.02 * noise(x * 3.1, z * 3.1, bo, ns + 25);
   const broken = (y, z) => {
     let m = 0;
     for (const [c, a, b] of planes) m = Math.max(m, c + a * y / hy + b * z / hz);
@@ -548,7 +618,8 @@ export function fallenBlock({ w, h, d, tilt, end, seed, tone, sink, theta, x: X,
     const face = fx >= fy && fx >= fz ? 0 : fy >= fz ? 1 : 2;
     const side = Math.sign([x0, y0, z0][face]) || 1;
     // Its arrises: sharp along some lengths, worn round along others.
-    const rr = 0.03 + 0.34 * smoothstep(0.5, 0.82, fbm(x * 0.28, y * 0.28, z * 0.28, ns + 1));
+    const worn = 0.03 + 0.34 * smoothstep(0.5, 0.82, fbm(x * 0.28, y * 0.28, z * 0.28, ns + 1));
+    const rr = crisp ? worn + (0.012 - worn) * freshAt(x, y, z) : worn;
     const qx = clamp(x, rr - hx, hx - rr), qy = clamp(y, rr - hy, hy - rr), qz = clamp(z, rr - hz, hz - rr);
     let dx = x - qx, dy = y - qy, dz = z - qz;
     const L = Math.hypot(dx, dy, dz) || 1;
@@ -557,7 +628,7 @@ export function fallenBlock({ w, h, d, tilt, end, seed, tone, sink, theta, x: X,
     // A face is not a plane: weathered over, tooled once. And on a bed or a
     // head (inside the wall), the lime it was laid in, crusted in patches.
     // (the lime keeps off the arrises: crusted over them it hung like icing)
-    const inside = face === 1 || (face === 0 && side !== end);
+    const inside = (face === 1 && !(wedge && side > 0)) || (face === 0 && side !== end);
     const fromEdge = Math.min(...[0, 1, 2].filter((a) => a !== face).map((a) => H[a] - Math.abs([x, y, z][a])));
     const m = inside ? smoothstep(0.56, 0.66, fbm(x * 0.5, y * 0.5, z * 0.5, ns + 8)) * smoothstep(0.25, 0.7, fromEdge) : 0;
     // (only just: soft bulges seven millimetres deep, raked by the moon, made
@@ -584,11 +655,16 @@ export function fallenBlock({ w, h, d, tilt, end, seed, tone, sink, theta, x: X,
       const lim = hx - broken(y, z);
       if (end * x > lim) x = end * lim;
     }
+    // (squashed, each upright of it, to its slope: clamped flat, the chips
+    // and the rounded arrises folded over and showed their backs, black)
+    const yWas = y;
+    if (wedge) y = -hy + (y + hy) * (shear(x, z) + hy) / (2 * hy);
     p.setXYZ(i, x, y, z);
 
     // ── its tone, where it was in the wall: the stone's own clouding, slow
     // and strong, and finer under it
-    const fresh = smoothstep(0.03, 0.2, Math.hypot(x - wx, y - wy, z - wz));
+    // (a wedge's top is all of it the break it was sheared along)
+    const fresh = Math.max(smoothstep(0.03, 0.2, Math.hypot(x - wx, yWas - wy, z - wz)), wedge && face === 1 && side > 0 ? 0.85 : 0);
     const k = tone * 0.74 * (0.74 + 0.4 * fbm(x * 0.22, y * 0.22, z * 0.22, ns + 2) + 0.07 * (noise(x * 1.3, y * 1.3, z * 1.3, ns + 12) - 0.5));
     let c = [k * tint[0], k * 0.99, k * 0.97 * tint[2]];
     if (face === 2 && side < 0) {

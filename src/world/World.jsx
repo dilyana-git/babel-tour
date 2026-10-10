@@ -25,7 +25,8 @@
 // over any floor the world has (body.js) — up the Echo's stair, round the
 // pond, into the honeycomb's hallways — and the piece only reports where that
 // has taken them (onRoam: the room, or the two rooms a hallway joins). Held
-// Looking over the Vertigo's inner rail invites the fall; walked into the court at the
+// Walking on where the Vertigo's rail has given way, or looking down over it
+// there, is the fall (BRINK); walked into the court at the
 // heart of the maze, the finale (onGo). Ask for one of the piece's walks from
 // out there and it sets off from wherever the reader has got to.
 //
@@ -36,7 +37,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { EffectComposer, Bloom, Vignette, N8AO, ToneMapping, Noise, wrapEffect } from '@react-three/postprocessing';
 import { BlendFunction, ToneMappingMode, KernelSize } from 'postprocessing';
 import * as THREE from 'three';
-import { SPIRAL, spiralAt, railIntent } from './spiral';
+import { SPIRAL, spiralAt, railIntent, atBreak, BRINK_OLD } from './spiral';
 import { assembleWorld, PAINTED } from './buildWorld';
 import { makePainter } from './paint';
 import { GradeEffect, gradePlace } from './Grade';
@@ -48,7 +49,8 @@ import { prepareEnvironment } from './effects';
 import { probeClearance, probeRay } from './probe';
 import { GLASS } from './mirror';
 import { makeBody, EYE, ROOM_STAND } from './body';
-import { makeWalkCurve, makeWalkPace } from './walkPath';
+import { READER_LIT } from './readers';
+import { makeWalkCurve, makeWalkPace, makeGazeTrack, bendPace, viewPace, LOOK_AHEAD, PACE, MOTION_OLD } from './walkPath';
 import { pendingFinale } from './finaleLifecycle';
 import { WATER } from './water';
 import { DPR_MAX, LIGHT_MESH } from '../capability';
@@ -102,15 +104,61 @@ const WALK_SPEED = 18;
 const WALK_GATHER = 0.7;   // seconds to reach a stride from standing, and back
 const WALK_CHECK = 0.3;    // ...and to slow for a bend: a walker checks faster than they set off
 const WALK_STOP = 0.2;
+// How a pace is come to (springTo, below): not at once at its fastest and then
+// ever more slowly — which is what easing a fraction of the difference each
+// frame does, and why setting off was a lurch and stopping a jolt — but as a
+// body does it, the push building over the first moment and easing off into
+// the new pace. Each is how quickly (1/s): gathering a stride from standing,
+// checking it for a bend, and putting it down when W is let go.
+const EASE_GATHER = 3.4;
+const EASE_CHECK = 5.5;
+const EASE_STOP = 8;
+// Coming to a room's stand the piece's walk slows steadily (ARRIVE_BRAKE,
+// units/s², a little under a metre a second squared) to ARRIVE_PACE there.
+const ARRIVE_BRAKE = 9;
+const ARRIVE_PACE = 0.8;
+const ARRIVE_LEAD = 0.3;
+// Where the reader's own feet go changes no faster than this (rad/s): a look
+// that takes over the course (GAZE_STEER, a new press of W) used to turn the
+// feet up to a hundred degrees in one frame, and the way's own line kinks at
+// every corner of the zigzag.
+const COURSE_RATE = 3.2;
+// How quickly the eye follows the feet up and down a step (1/s, a spring).
+const EYE_EASE = 9;
 const WALK_BRAKE = 26;     // units out from the end the body begins to slow
 const STRIDE = 7.5;        // about 70 cm per step
 // Walking where the reader looks (the free walk, body.js) goes at the same
 // pace as the piece's own walks, and backs away at half of it: a step back is
 // a step back, not a reverse gear.
 const BACK_SPEED = 9;
-// Sustained looking inward and down near the rail commits the descent.
+// Sustained looking inward and down near the rail leans the reader out over
+// it, and where the rail has given way (spiral.js GAPS) commits the descent.
 // A shorter peek can be cancelled by looking away.
 const LEAN_S = 1.25;
+// ── At an edge ───────────────────────────────────────────────────────────────
+// Walking up to a drop — a gallery's well, the side of the Echo's crossing,
+// the open side of the Vertigo's stair (body.js `brink`) — the head goes down
+// to look over it, as anyone's does at an edge: from BRINK_FAR out, down by
+// BRINK_TILT at BRINK_NEAR. Keep walking at it and the body leans out over
+// it. A rail holds it (BRINK_HELD of a lean, and no further); at the
+// Vertigo's broken rail, where nothing does, it goes on over the edge after
+// BRINK_GO seconds of pressing on, and that is the fall. Let go of W and the
+// head comes back up. So a reader learns at every well that walking on at an
+// edge is leaning over it, and at the one edge with no rail, walking on is
+// going over. (Looking down over the Vertigo's stair, LEAN_S, still leans out
+// too — held by its rail but for the gaps.) ?wbrink=old: none of it; W walks
+// on down the Vertigo's stair, and looking down over its edge anywhere falls.
+const BRINK_FAR = 16;
+const BRINK_NEAR = 5;
+const BRINK_TILT = 0.5;        // rad (29°) — about where a reader at a rail looks
+const BRINK_LEAN_TILT = 0.3;   // and further down, leaning right out
+const BRINK_EASE = 2.4;        // 1/s: the head goes down and comes back up over about half a second
+const BRINK_RAIL = 9;          // pressing on: the drop this near ahead, past a rail...
+const BRINK_OPEN = 5.5;        // ...or at the open edge
+const BRINK_HELD = 0.4;
+const BRINK_GO = 1.6;
+const BRINK_REACH = 3;         // how far out the head goes, leaning right out
+const BRINK_DIP = 1;
 // ── A guiding hand ───────────────────────────────────────────────────────────
 // Walking on their own, a reader who is plainly about to walk into something
 // is turned aside before they do: the body feels ahead along the way they face
@@ -149,7 +197,8 @@ const DOORS = typeof window === 'undefined' || new URLSearchParams(window.locati
 // Holding W, the reader is walked along the piece's own way (buildWorld's
 // `legs`, as the buttons walk it) for as long as they do not deliberately
 // leave it: the feet stay on its centreline, and the head remains free.
-// Release W, look elsewhere and press W again to choose another course.
+// Release W, look elsewhere and press W again to choose another course, or
+// (GAZE_STEER) keep looking well off it while walking until the course turns.
 // Coming back onto the path, heading along it either way, resumes the walk.
 // Crossing sideways remains independent.
 // From a room's stand, a reader who has not turned away from the view the
@@ -197,6 +246,22 @@ const FOLLOW_BRAKE = 22;
 // sampling, or a bend coming into view, never jogs the head.
 const FOLLOW_AIM_EASE = 0.15;
 const FOLLOW_ROUND = THREE.MathUtils.degToRad(120);  // a turn this long keeps to the side it began on
+// ── Steering by looking ──────────────────────────────────────────────────────
+// Holding W, a reader who looks well off the way they are walking (past
+// FOLLOW_CONE) and keeps looking there, the head settled rather than still
+// turning, for GAZE_DWELL is taken to mean it: the course turns to where they
+// look, as a new press of W would have turned it, and the way lets them go. A
+// glance, or a head still on its way round, stays a glance. Not past GAZE_MAX:
+// a look back over the shoulder is not an about-turn. ?wgaze=0: only a new
+// press of W changes the course.
+const GAZE_STEER = typeof window === 'undefined' || new URLSearchParams(window.location.search).get('wgaze') !== '0';
+const GAZE_DWELL = 0.6;
+const GAZE_SETTLED = 0.35;   // rad/s: a head turning slower than this has settled
+const GAZE_MAX = THREE.MathUtils.degToRad(110);
+// The way, shown (buildWorld's `setWay`): the worn stone a few strides on
+// lights while the reader walks the way, a little less while they stand on it
+// (W walks on) or at a stand facing the way on, and fades as they leave it.
+const WAY_WALKING = 1, WAY_WAITING = 0.5, WAY_EASE = 0.5;
 const ARRIVE_AT = 0.9;
 const FILL = 1.12;
 // ── The key ──────────────────────────────────────────────────────────────────
@@ -259,6 +324,14 @@ const FILL_DIAL = typeof window === 'undefined' ? 1
 const MOON_DIAL = typeof window === 'undefined' ? 1
   : Number(new URLSearchParams(window.location.search).get('wmoon')) || 1;
 const smooth = (x) => { const t = clamp01(x); return t * t * (3 - 2 * t); };
+// `s.speed` toward `want` as a critically damped spring of rate `omega` (its
+// own rate of change kept in `s.accel`): exact for any frame time.
+const springTo = (s, want, dt, omega) => {
+  const d = s.speed - want, a = s.accel ?? 0;
+  const e = Math.exp(-omega * dt), n = (a + omega * d) * dt;
+  s.speed = want + (d + n) * e;
+  s.accel = (a - omega * n) * e;
+};
 const smoother = (x) => { const t = clamp01(x); return t * t * t * (t * (t * 6 - 15) + 10); };
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
 const LOCAL_X = new THREE.Vector3(1, 0, 0);
@@ -380,8 +453,11 @@ const flightMove = (rest, to, endFov, reverse, duration) => {
 // straight into the pier beside the archway at nine units and back out again —
 // "like I am crushing into the columns". A walker looks through the doorway
 // before they reach it; the far point is what turns the head early, and the
-// near one keeps it honest on a straight.
-const LOOK_AHEAD = [[16, 0.45], [36, 0.35], [64, 0.2]];
+// near one keeps it honest on a straight. (LOOK_AHEAD, walkPath.js — where
+// the eyes' bearing is now laid out along the whole way before it is walked,
+// `makeGazeTrack`: this blend, but turned no faster than a head turns, looking
+// through a chicane to where it comes out, and never jumping. Here the blend
+// still says how far up or down they look.)
 const END_TURN = 22;
 // Turned right round at either end of a walk, the body does not spin as it
 // goes. Down from the Echo's crossing, the stand at the foot of the flight
@@ -394,11 +470,22 @@ const END_TURN = 22;
 // round. (And the same at the start: turn, then go.)
 const PIVOT = 16;
 const PIVOT_TURN = 0.6 * Math.PI;   // 108°
+// A walk the piece makes never turns the view faster than VIEW_MOVE (rad/s:
+// sixty-six degrees a second, a little faster than the reader's own keys), nor
+// goes slower for it than VIEW_SLOWEST; and turned right round on the spot the
+// view goes round at PIVOT_PEAK at its quickest: an about-turn in three seconds.
+const VIEW_MOVE = 1.15;
+const VIEW_SLOWEST = 1.2;
+const PIVOT_PEAK = 1.6;
 const flat = (v) => { v.y = 0; return v.lengthSq() > 1e-8 ? v.normalize() : null; };
 const walkMove = (points, fromQ, toQ) => {
   const curve = makeWalkCurve(points);
   const Lp = curve.getLength();
-  const pace = makeWalkPace(curve, WALK_SPEED);
+  // the eyes' track, a sample a unit (walkPath.js)
+  const gazeN = Math.max(2, Math.ceil(Lp));
+  const gaze = MOTION_OLD || Lp < 1e-6 ? null : makeGazeTrack(curve.getSpacedPoints(gazeN), Lp / gazeN);
+  const looks = { yaw: 0, slope: 0, pitch: 0 };
+  const pace = makeWalkPace(curve, WALK_SPEED, gaze);
   const turned = (q, tangent) => {
     const face = flat(new THREE.Vector3(0, 0, -1).applyQuaternion(q)), way = flat(tangent);
     return face && way && face.angleTo(way) > PIVOT_TURN;
@@ -420,17 +507,24 @@ const walkMove = (points, fromQ, toQ) => {
   // How much of the step the body is taking: 1 at a stride, 0 standing still —
   // otherwise a reader who stops halfway is left with their head down mid-dip.
   let gait = 1;
-  return {
-    kind: 'walk',
-    length: L,
-    duration: L / WALK_SPEED,   // what it takes when the piece walks it
-    pivot: [pivotIn, pivotOut],
-    paceAt(d) { return pace(along(d)); },
-    setGait(g) { gait = g; },
-    at(s, out) {
-      const d = clamp01(s) * L;
-      const ps = clamp01(along(d) / Lp);
-      curve.getPointAt(ps, p);
+  // The turn to the stand's own view, over the last stretch. It was 34
+  // units, and on the way into the Echo — whose stand is just outside the
+  // ring of arcade piers — that began while the reader was still behind the
+  // pier at 165°, and turned their face into its pedestal. Over 22 they keep
+  // looking along the way until the way has cleared it. Turning right round,
+  // it is the last three quarters of the pivot, by when the feet have two
+  // units left to go.
+  const endTurn = pivotOut ? pivotOut * 0.75 : END_TURN;
+  // Where the eye is and which way it looks, `d` along the walk (no step in it).
+  const poseAt = (d, out) => {
+    const ps = clamp01(along(d) / Lp);
+    curve.getPointAt(ps, p);
+    if (gaze) {
+      // along the eyes' own track: the blend below, steadied (walkPath.js)
+      gaze.at(ps * gazeN, looks);
+      const level = Math.cos(looks.pitch);
+      aim.set(Math.cos(looks.yaw) * level, Math.sin(looks.pitch), Math.sin(looks.yaw) * level);
+    } else {
       aim.set(0, 0, 0);
       for (const [reach, weight] of LOOK_AHEAD) {
         curve.getPointAt(Math.min(1, ps + reach / Lp), probe);
@@ -442,30 +536,82 @@ const walkMove = (points, fromQ, toQ) => {
         const len = probe.length();
         if (len > 1e-3) aim.addScaledVector(probe, weight / len);
       }
-      // half the climb or fall of the way ahead, as before: the eyes lead the
-      // feet up a stair but do not stare at the treads
-      ahead.copy(p).addScaledVector(aim.setY(aim.y * 0.5), 26);
-      out.position.copy(p);
+      // half the climb or fall of the way ahead: the eyes lead the feet up a
+      // stair but do not stare at the treads
+      aim.setY(aim.y * 0.5);
+    }
+    ahead.copy(p).addScaledVector(aim, 26);
+    out.position.copy(p);
+    if (ahead.distanceToSquared(p) > 1) {
+      m.lookAt(p, ahead, WORLD_UP);
+      q.setFromRotationMatrix(m);
+    } else {
+      q.copy(toQ);
+    }
+    out.quaternion.slerpQuaternions(fromQ, q, smooth(pivotIn ? d / pivotIn : d / 22));
+    out.quaternion.slerp(toQ, smooth((d - (L - endTurn)) / endTurn));
+    return out;
+  };
+  // How fast the walk goes, by how fast that turns the view. The turns at a
+  // walk's two ends — from the view the reader had, and to the view the room
+  // was composed for — are laid out over distance, and what they were in TIME
+  // was left to whatever the feet happened to be doing: setting off back the
+  // way they came, the view went round at two hundred degrees a second in the
+  // first stride; arriving turned right round, it went a hundred and thirty
+  // and then dribbled on for three seconds at a crawl. So: `turns`, the view's
+  // turning for a unit of the walk at every unit of it; the walk never goes
+  // faster than turns the view VIEW_MOVE; and a turn right round (a pivot) is
+  // walked at one steady pace, which makes it the same eased turn in time as
+  // it is in distance — PIVOT_PEAK at its quickest.
+  const N = Math.max(2, Math.ceil(L)), unit = L / N, turns = new Float32Array(N + 1);
+  let vIn = 0, vOut = 0;
+  if (!MOTION_OLD) {
+    const a = { position: new THREE.Vector3(), quaternion: new THREE.Quaternion() }, z = { position: new THREE.Vector3(), quaternion: new THREE.Quaternion() };
+    let angleIn = 0, angleOut = 0;
+    poseAt(0, a);
+    for (let i = 1; i <= N; i++) {
+      poseAt(i * unit, z);
+      const angle = a.quaternion.angleTo(z.quaternion);
+      turns[i - 1] = angle / unit;
+      if (i * unit <= pivotIn) angleIn += angle;
+      if (i * unit > L - endTurn) angleOut += angle;
+      a.quaternion.copy(z.quaternion);
+    }
+    turns[N] = turns[N - 1];
+    const turnTime = (angle) => Math.max(1.2, (1.5 * angle) / PIVOT_PEAK);
+    vIn = pivotIn ? pivotIn / turnTime(angleIn) : 0;
+    vOut = pivotOut ? endTurn / turnTime(angleOut) : 0;
+  }
+  return {
+    kind: 'walk',
+    length: L,
+    duration: L / WALK_SPEED,   // what it takes when the piece walks it
+    pivot: [pivotIn, pivotOut],
+    // The pace `d` along the walk; `steady`: that is the pace itself, not one
+    // to ease to (a pivot); `left`: how far the feet still have to go.
+    paceAt(d) {
+      if (MOTION_OLD) return pace(along(d));
+      if (pivotIn && d < pivotIn) return vIn;
+      if (pivotOut && d > L - endTurn) return vOut;
+      let want = pace(along(d));
+      const i = Math.min(N, Math.max(0, Math.floor(d / unit)));
+      for (let j = i; j <= Math.min(N, i + 24); j++) {
+        const most = Math.max(VIEW_SLOWEST, VIEW_MOVE / Math.max(1e-6, turns[j]));
+        want = Math.min(want, Math.sqrt(most * most + 2 * PACE.brake * (j - i) * unit));
+      }
+      // into a pivot at the walk's end: down to its pace by the time it begins
+      if (pivotOut && d > L - 2 * pivotOut) want += (vOut - want) * smooth((d - (L - 2 * pivotOut)) / (2 * pivotOut - endTurn));
+      return want;
+    },
+    steady(d) { return !MOTION_OLD && ((pivotIn > 0 && d < pivotIn) || (pivotOut > 0 && d > L - endTurn)); },
+    left(d) { return pivotOut ? Infinity : Lp - along(d); },
+    setGait(g) { gait = g; },
+    at(s, out) {
+      const d = clamp01(s) * L;
+      poseAt(d, out);
       // a step: the head dips and rises once a stride, and not while standing
       const env = smooth(d / 14) * smooth((L - d) / 14);
       out.position.y += (Math.sin((d / STRIDE) * Math.PI) ** 2 - 0.5) * 0.5 * env * gait;
-      if (ahead.distanceToSquared(p) > 1) {
-        m.lookAt(p, ahead, WORLD_UP);
-        q.setFromRotationMatrix(m);
-      } else {
-        q.copy(toQ);
-      }
-      out.quaternion.slerpQuaternions(fromQ, q, smooth(pivotIn ? d / pivotIn : d / 22));
-      // The turn to the stand's own view, over the last stretch. It was 34
-      // units, and on the way into the Echo — whose stand is just outside the
-      // ring of arcade piers — that began while the reader was still behind the
-      // pier at 165°, and turned their face into its pedestal. Over 22 they keep
-      // looking along the way until the way has cleared it; the brake over the
-      // last WALK_BRAKE units is what keeps a shorter turn from being a snap.
-      // Turning right round, it is the last three quarters of the pivot, by
-      // when the feet have two units left to go.
-      const endTurn = pivotOut ? pivotOut * 0.75 : END_TURN;
-      out.quaternion.slerp(toQ, smooth((d - (L - endTurn)) / endTurn));
       out.fov = ROOM_FOV;
       out.shift = 0;
       out.veil = 0;
@@ -552,27 +698,26 @@ const fallMove = (leg, from, to, reverse) => {
 };
 
 // The heart of the maze (buildWorld's `finale`, finale.js): the way on from the
-// last room, and the one move nobody walks back along. Through the gate into
-// the court; a look round it as the heart catches and the others come in,
+// last room, and the one move nobody walks back along. A look round from where
+// the reader stands as the heart catches and the others come in,
 // ending on the one standing in the gate the reader came in by; then up out of
 // the maze looking down into it — a net of light by then — and on and back over
 // the whole walk as the light runs along it, into the map's own pose, so the
 // map takes over without a seam. A film on a clock, like the flight and the
 // fall.
 const NORTH = new THREE.Vector3(0, 0, -1);
-// `from`: where the reader steps in from — the stand at the gate, or, walking
-// on their own, wherever in the court they have got to (inCourt).
+// `from`: the rendered eye and gaze when the ending begins. The light and
+// readers play around that spot, and the rise leaves from it too.
 const finaleMove = (world, rest, from = null) => {
   const f = world.finale;
   const T = f.timeline;
   const st = world.stands[f.room];
-  const eyeY = st.eye[1];
-  const inside = new THREE.Vector3(f.inside[0], eyeY, f.inside[1]);
+  const start = from ?? standPose(st);
+  const inside = start.position.clone();
+  const eyeY = inside.y;
   const heartAt = new THREE.Vector3(f.heart[0], eyeY + 4, f.heart[1]);
   const heartDown = new THREE.Vector3(f.heart[0], f.ground, f.heart[1]);
-  const start = from ?? standPose(st);
   const atHeart = lookQuat(inside, heartAt);
-  const walk = walkMove(asPoints([start.position.toArray(), inside.toArray()]), start.quaternion, atHeart);
   // Where the eyes go round the court, as headings from where the reader
   // stops (0 is +x, a quarter turn is +z): the heart, the west gate where two
   // of the others come in, and the gate behind — each with how far off and how
@@ -619,7 +764,9 @@ const finaleMove = (world, rest, from = null) => {
     at(u, out) {
       const t = u * T.end;
       if (t < T.walk) {
-        walk.at(smoother(t / T.walk), out);
+        out.position.copy(inside);
+        out.quaternion.slerpQuaternions(start.quaternion, atHeart, smoother(t / T.walk));
+        Object.assign(out, { fov: ROOM_FOV, shift: 0, veil: 0, eye: 1, fade: 0, near: 0.5 });
         return u;
       }
       out.fade = 0;
@@ -1024,6 +1171,8 @@ function LiveWorld({
   const phaseRef = useRef(null);
   const moveRef = useRef(null);
   const look = useRef({ yaw: 0, pitch: 0 });
+  // The way, shown (WAY_*): how much, and from where which way, as last given to the world.
+  const wayRef = useRef({ on: 0, at: new THREE.Vector3(), dir: new THREE.Vector3(0, 0, -1) });
   const pose = useMemo(() => ({
     position: new THREE.Vector3(), quaternion: new THREE.Quaternion(), fov: TILT_FOV, shift: 0, veil: 1, eye: 0, fade: 0, near: 1,
   }), []);
@@ -1075,8 +1224,8 @@ function LiveWorld({
   // room, or up to a vantage and down again, joins its way at the nearest
   // point they can walk to straight (joinWay); the fall goes over the edge
   // from where they stand if they are at it. Anything else — the fall from
-  // across the room, the climb back out of the Door, the step into the heart
-  // of the maze — is made from the room's own stand, and the piece walks them
+  // across the room, the climb back out of the Door — is made from the room's
+  // own stand, and the piece walks them
   // back to it first (`home`: on arrival nothing settles, and the move asked
   // for begins from there on the next frame).
   const moveFromBody = (body, to, up) => {
@@ -1113,8 +1262,21 @@ function LiveWorld({
     return home();
   };
   // At the Vertigo's broken rail, where the fall goes over: the rail is gone
-  // for about sixty units of the stair's edge either side of `leg.edge`.
+  // for about sixty units of the stair's edge either side of `leg.edge`
+  // (?wbrink=old; otherwise `byTheBreak`, below).
   const nearTheBreak = (leg, p) => Math.hypot(p.x - leg.edge[0], p.z - leg.edge[2]) < 32 && Math.abs(p.y - leg.edge[1]) < 10;
+  // Feet (or a point at their level) on the Vertigo's stair beside a gap in its
+  // rail (spiral.js GAPS: one every turn) — within `margin` radians of it and
+  // near enough the open edge to go over. (?wbrink=old: the one gap, by the leg.)
+  const byTheBreak = (p, margin = 0) => {
+    if (placeRef.current !== 3 || !world.pit) return false;
+    if (BRINK_OLD) {
+      const leg = world.legs[3];
+      return leg?.kind === 'fall' && nearTheBreak(leg, pose.position);
+    }
+    const center = [world.pit.x, world.pit.z], st = spiralAt(center, (5.5 - p.y) / SPIRAL.drop);
+    return Math.hypot(p.x - center[0], p.z - center[1]) < st.edge + 12 && atBreak(center, p, margin);
+  };
 
   // ── The way, by default (see FOLLOW) ───────────────────────────────────────
   // The piece's walk as the few long lines it is — the walk legs end to end,
@@ -1129,12 +1291,17 @@ function LiveWorld({
     // lines of runs: a run is one curve, a line the runs end to end
     const lines = [];
     let line = null;
+    // Walked on from the Vertigo's stand, the way goes to the broken edge
+    // (the leg's `brink`, see BRINK) and the stair down is a way of its own:
+    // a branch, which a reader is taken along only once they are on it.
+    const branches = [];
     world.legs.forEach((leg) => {
       if (leg.kind !== 'walk') {
         line = null;
         return;
       }
-      const pts = asPoints([...leg.points, ...(leg.followThrough ?? [])]);
+      const pts = asPoints([...leg.points, ...(leg.brink ?? leg.followThrough ?? [])]);
+      if (leg.brink && leg.followThrough) branches.push([asPoints([leg.points.at(-1), ...leg.followThrough])]);
       if (line) {
         const run = line[line.length - 1];
         const a = run[run.length - 2], m = run[run.length - 1], z = pts[1];
@@ -1142,6 +1309,7 @@ function LiveWorld({
         if (u.dot(v) < -0.85) line.push([...pts]);
         else run.push(...pts.slice(1));   // (the stand the two legs share)
       } else lines.push(line = [[...pts]]);
+      if (leg.brink) line.brinkEnd = true;
     });
     // Continue on the court's axis past its arrival stand. W should carry
     // the reader through the gate without dropping guidance at the last bend.
@@ -1149,8 +1317,10 @@ function LiveWorld({
       const run = line.at(-1), end = run.at(-1), inside = world.finale.inside;
       run.push(new THREE.Vector3(inside[0], end.y, inside[1]));
     }
-    return lines.map((runs) => {
+    return [...lines, ...branches].map((runs, li) => {
       const chain = [];
+      chain.branch = li >= lines.length;
+      chain.brinkEnd = !!runs.brinkEnd;
       runs.forEach((ctrl, r) => {
         const curve = makeWalkCurve(ctrl);
         const pts = curve.getSpacedPoints(Math.max(2, Math.ceil(curve.getLength() / ROUTE_STEP)));
@@ -1166,6 +1336,25 @@ function LiveWorld({
         const d = tan[i1] - tan[i0];
         chain.kappa[i] = i1 > i0 ? Math.abs(Math.atan2(Math.sin(d), Math.cos(d))) / ((i1 - i0) * ROUTE_STEP) : 0;
       }
+      // The eyes' track along it, walked either way, and the pace each sample
+      // of it is walked at (walkPath.js: the same laws as the piece's walks).
+      if (!MOTION_OLD) {
+        chain.gaze = { 1: makeGazeTrack(chain, ROUTE_STEP), [-1]: makeGazeTrack([...chain].reverse(), ROUTE_STEP) };
+        chain.limit = {};
+        for (const dir of [1, -1]) {
+          const limit = chain.limit[dir] = new Float32Array(n);
+          for (let i = 0; i < n; i++) {
+            const a = chain[Math.max(0, i - 1)], p = chain[i], z = chain[Math.min(n - 1, i + 1)];
+            const ux = p.x - a.x, uz = p.z - a.z, vx = z.x - p.x, vz = z.z - p.z;
+            const lu = Math.hypot(ux, uz), lv = Math.hypot(vx, vz), flat = Math.hypot(z.x - a.x, z.z - a.z);
+            const angle = lu > 1e-4 && lv > 1e-4 ? Math.acos(THREE.MathUtils.clamp((ux * vx + uz * vz) / (lu * lv), -1, 1)) : 0;
+            const feet = angle > 2.6 ? PACE.about : bendPace(Math.max(0.1, flat / 2) / Math.max(1e-6, angle));
+            const eyes = viewPace(chain.gaze[dir].slope[dir > 0 ? i : n - 1 - i], WALK_SPEED);
+            const slope = Math.abs(z.y - a.y) / Math.max(0.1, flat);
+            limit[i] = WALK_SPEED * Math.min(1 / (1 + slope * 1.5), feet, eyes);
+          }
+        }
+      }
       return chain;
     });
   }, [world]);
@@ -1174,8 +1363,9 @@ function LiveWorld({
   // from where it was last, and never back: the way over the Pavilion's bridges
   // and the way back from them lie on top of each other at the zigzag's corner,
   // and searched both ways the reader was flipped from one to the other there
-  // and stood turning on the spot.
-  const nearWay = (feet, reach, on = null, onward = null) => {
+  // and stood turning on the spot. `only`: line `only` alone, or 'trunk': not
+  // the branches.
+  const nearWay = (feet, reach, on = null, onward = null, only = null) => {
     let best = null, bestD = reach;
     const scan = (c, i0, i1) => {
       const pts = route[c];
@@ -1195,7 +1385,7 @@ function LiveWorld({
       }
     };
     if (on) scan(on.c, on.dir > 0 ? on.i : on.i - 4, on.dir > 0 ? on.i + 5 : on.i + 1);
-    else route.forEach((pts, c) => scan(c, 0, pts.length));
+    else route.forEach((pts, c) => { if (only === null || (only === 'trunk' ? !pts.branch : only === c)) scan(c, 0, pts.length); });
     return best;
   };
   // Along line c from sample i, `dir` (+1 on through the walk, -1 back), the
@@ -1252,7 +1442,7 @@ function LiveWorld({
   // The way line c runs further on from sample i, going `dir`: from
   // FOLLOW_SEE_FROM to FOLLOW_SEE_TO along it (as far as it goes), level, in
   // `out` — or false where too little of it is left to say.
-  const further = new THREE.Vector3(), blend = new THREE.Vector3();
+  const further = new THREE.Vector3(), blend = new THREE.Vector3(), looks = { yaw: 0, slope: 0 };
   const wayFurther = (c, i, dir, out) => {
     const pts = route[c], last = dir > 0 ? pts.length - 1 : 0;
     const clampJ = (j) => (dir > 0 ? Math.min(j, last) : Math.max(j, last));
@@ -1289,24 +1479,38 @@ function LiveWorld({
     const leg = onward && world.legs[placeRef.current];
     const course = leg?.kind === 'walk' && leg.points.length > 1
       ? new THREE.Vector3(leg.points[1][0] - leg.points[0][0], 0, leg.points[1][2] - leg.points[0][2]).normalize() : null;
-    const near = nearWay(b.feet, onward ? 14 : FOLLOW_CAPTURE, null, course);
-    if (!near) return null;
-    if (onward) return wayOn(near.c, near.i, 1, b.feet, along) ? { c: near.c, i: near.i, dir: 1 } : null;
-    let best = null, bestA = FOLLOW_CONE;
-    for (const dir of [1, -1]) {
-      const pts = route[near.c];
-      const a = pts[Math.max(0, near.i - 1)], z = pts[Math.min(pts.length - 1, near.i + 1)];
-      along.set((z.x - a.x) * dir, 0, (z.z - a.z) * dir).normalize();
-      const angle = Math.abs(turnTo(h, along));
-      if (angle < bestA) {
-        bestA = angle;
-        best = { c: near.c, i: near.i, dir };
-      }
+    // (walking on from a stand, the way on, never a branch off it)
+    if (onward) {
+      const near = nearWay(b.feet, 14, null, course, 'trunk');
+      return near && wayOn(near.c, near.i, 1, b.feet, along) ? { c: near.c, i: near.i, dir: 1 } : null;
     }
+    // Where two lines meet (the Vertigo's stair and the way to its edge both
+    // leave its stand), the one that runs the way the reader faces.
+    let best = null, bestA = FOLLOW_CONE;
+    route.forEach((pts, c) => {
+      const near = nearWay(b.feet, FOLLOW_CAPTURE, null, null, c);
+      if (!near) return;
+      for (const dir of [1, -1]) {
+        const a = pts[Math.max(0, near.i - 1)], z = pts[Math.min(pts.length - 1, near.i + 1)];
+        along.set((z.x - a.x) * dir, 0, (z.z - a.z) * dir).normalize();
+        let angle = Math.abs(turnTo(h, along));
+        // (or facing the way the eyes go along it there: over the zigzag
+        // bridge that is well off the way the deck runs)
+        if (pts.gaze) {
+          const yaw = pts.gaze[dir].yaw[dir > 0 ? near.i : pts.length - 1 - near.i];
+          angle = Math.min(angle, Math.abs(turnTo(h, q.set(Math.cos(yaw), 0, Math.sin(yaw)))));
+        }
+        if (angle < bestA) {
+          bestA = angle;
+          best = { c, i: near.i, dir };
+        }
+      }
+    });
     return best;
   };
   // Route following turns the walking body and moderates its pace for bends.
-  // Head input never releases the route or changes the pace of a held stride.
+  // A glance never releases the route or changes the pace of a held stride
+  // (a look held off it does, in `steer`: GAZE_STEER).
   const follow = (b, hold, pressed, dt) => {
     if (!FOLLOW) return null;
     if (hold <= 0) return null;
@@ -1328,6 +1532,17 @@ function LiveWorld({
       return follow(b, hold, false, dt);
     }
     const near = nearWay(b.feet, FOLLOW_LOSE, f);
+    // The way to the Vertigo's broken edge ends facing out over it, a few
+    // strides short of it (its last stretch is too near the drop to aim at):
+    // from there it goes on straight, and further round toward the well, over
+    // the last of the tread to the edge, the head coming round with it
+    // (BRINK takes it from there).
+    if (near && f.dir > 0 && route[f.c].brinkEnd && near.i >= route[f.c].length - 8) {
+      const pts = route[f.c], a = pts.at(-4), z = pts.at(-1);
+      const direction = new THREE.Vector3(z.x - a.x, 0, z.z - a.z).normalize();
+      if (world.pit) direction.add(q.set(world.pit.x - b.feet.x, 0, world.pit.z - b.feet.z).normalize()).normalize();
+      return { direction, turn: THREE.MathUtils.clamp(turnTo(h, direction) * FOLLOW_GAIN, -FOLLOW_COMFORT, FOLLOW_COMFORT), keep: 1 };
+    }
     const t = near && wayOn(near.c, near.i, f.dir, b.feet, along, true);
     if (!t) {
       const atEnd = near && (f.dir > 0 ? near.i >= route[f.c].length - 3 : near.i <= 2);
@@ -1343,6 +1558,42 @@ function LiveWorld({
     f.i = near.i;
     // The feet follow the centreline while the gaze anticipates a bend.
     const direction = t.clone();
+    // The eyes go along their own track (walkPath.js), laid out along the way
+    // before it was walked — through the zigzag of the Pavilion's bridge they
+    // stay on the pavilion while the feet tack under them — and the body is
+    // turned WITH it as it turns (what it will turn in this stride, and
+    // whatever the head is still behind by), not after it. The pace is the
+    // way's own: a walker's round a bend, no faster than the eyes can turn.
+    const line = route[f.c];
+    if (line.gaze) {
+      const on = near.i + f.dir;
+      let part = 0;
+      if (on >= 0 && on < line.length) {
+        const a = line[near.i], z = line[on], dx = z.x - a.x, dz = z.z - a.z, L2 = dx * dx + dz * dz;
+        if (L2 > 1e-6) part = THREE.MathUtils.clamp(((b.feet.x - a.x) * dx + (b.feet.z - a.z) * dz) / L2, -1, 1);
+      }
+      line.gaze[f.dir].at((f.dir > 0 ? near.i : line.length - 1 - near.i) + part, looks);
+      t.set(Math.cos(looks.yaw), 0, Math.sin(looks.yaw));
+      if (!f.aim || f.aim.dot(t) < 0) f.aim = t.clone();
+      else f.aim.lerp(t, 1 - Math.exp(-dt / FOLLOW_AIM_EASE)).normalize();
+      let diff = turnTo(h, f.aim);
+      if (Math.abs(diff) > FOLLOW_ROUND && b.round) diff = b.round * Math.abs(diff);
+      b.round = Math.abs(diff) > FOLLOW_ROUND ? Math.sign(diff) : 0;
+      let pace = WALK_SPEED;
+      const limit = line.limit[f.dir];
+      for (let k = -1, j = f.i - f.dir; k <= Math.ceil(PACE.ahead / ROUTE_STEP); k++, j += f.dir) {
+        if (j < 0 || j >= line.length) continue;
+        pace = Math.min(pace, Math.sqrt(limit[j] * limit[j] + 2 * PACE.brake * Math.max(0, k) * ROUTE_STEP));
+      }
+      return {
+        direction,
+        turn: THREE.MathUtils.clamp(diff * FOLLOW_GAIN - looks.slope * Math.max(0, b.speed), -FOLLOW_RATE, FOLLOW_RATE),
+        keep: Math.min(
+          Math.max(0, Math.cos(Math.min(Math.max(0, Math.abs(diff) - FOLLOW_EASY), Math.PI / 2))),
+          pace / WALK_SPEED,
+        ),
+      };
+    }
     // the bend coming (FOLLOW_ANTICIPATE), less of it the nearer a wall it leads
     if (wayFurther(near.c, near.i, f.dir, further)) {
       blend.copy(t).addScaledVector(further, FOLLOW_ANTICIPATE).normalize();
@@ -1380,15 +1631,17 @@ function LiveWorld({
       ),
     };
   };
-  // A held stride retains its course. A new press can commit a new course.
+  // A held stride retains its course through a glance. A new press, or a look
+  // held well off the course (GAZE_STEER), commits a new one.
   const steer = (b, hold, dt) => {
     const press = walkRef?.current.press ?? 0;
     const pressed = hold > 0 && (!b.holding || b.press !== press);
     b.press = press;
     b.holding = hold > 0;
-    // Commit gaze only on a new W press. Preserve the rendered view when
+    // The gaze becomes the course on a new W press, or (GAZE_STEER) on a look
+    // held well off the course while walking. Preserve the rendered view when
     // its yaw becomes the body's course, including any remaining look ease.
-    if (pressed && Math.abs(look.current.yaw) > FOLLOW_UNTURNED) {
+    const commitGaze = () => {
       const yaw = look.current.yaw;
       turnBody(b, yaw);
       look.current.yaw = 0;
@@ -1396,6 +1649,20 @@ function LiveWorld({
       b.follow = null;
       b.fresh = false;
       b.omega = 0;
+      b.gazeOff = 0;
+      b.yawWas = 0;
+    };
+    const yaw = look.current.yaw, off = Math.abs(yaw);
+    const yawRate = Math.abs(yaw - (b.yawWas ?? yaw)) / Math.max(dt, 1e-3);
+    b.yawWas = yaw;
+    if (pressed && off > FOLLOW_UNTURNED) commitGaze();
+    else if (GAZE_STEER) {
+      const looking = hold > 0 && b.speed > WALK_SPEED * 0.25 && off > FOLLOW_CONE && off < GAZE_MAX;
+      // Counted only while the head is settled; held, not lost, while it is
+      // still turning (a look that pauses on its way round still counts).
+      if (!looking) b.gazeOff = 0;
+      else if (yawRate < GAZE_SETTLED) b.gazeOff = (b.gazeOff ?? 0) + dt;
+      if (b.gazeOff >= GAZE_DWELL) commitGaze();
     }
     let g = follow(b, hold, pressed, dt);
     if (g) {
@@ -1412,9 +1679,7 @@ function LiveWorld({
   // how much of the stride to keep.
   const guide = (b, hold, own) => {
     // (not at the Vertigo's broken rail: that edge is the way on, walked into on purpose)
-    const leg = world.legs[placeRef.current];
-    const atBreak = leg?.kind === 'fall' && nearTheBreak(leg, pose.position);
-    if (!ASSIST || hold <= 0 || b.speed < WALK_SPEED * 0.25 || atBreak) {
+    if (!ASSIST || hold <= 0 || b.speed < WALK_SPEED * 0.25 || byTheBreak(b.feet, 0.12)) {
       b.clear = null;
       b.side = 0;
       return UNGUIDED;
@@ -1496,28 +1761,74 @@ function LiveWorld({
     if (placeRef.current === 3 && world.spiral?.update(b.feet.y)) feel.refresh();
     const g = steer(b, hold, dt);
     if (g.turn) turnBody(b, g.turn * dt);
-    const want = hold > 0 ? WALK_SPEED * g.keep : hold < 0 ? -BACK_SPEED : 0;
-    const easing = !hold ? WALK_STOP : b.speed * want <= 0 || Math.abs(want) < Math.abs(b.speed) ? WALK_CHECK : WALK_GATHER;
-    b.speed += (want - b.speed) * (1 - Math.exp(-dt / easing));
-    if (!hold && Math.abs(b.speed) < 0.3) b.speed = 0;
+    // At an edge (BRINK): how far ahead the floor falls away, if it does, and
+    // whether that is at the Vertigo's broken rail, where nothing holds the
+    // body. Pressing on: W held with the edge right ahead and the feet stopped
+    // at it (a rail stops them; walked at a slant they slide along it, and
+    // that is not leaning out) — or at the open edge, at all. The feet stay
+    // put then, and the body leans instead.
+    // (the way the feet are going: following the way, the head can lag it)
+    const ahead = (g.direction && g.direction.lengthSq() > 1e-6 ? g.direction : heading(b)).clone().normalize();
+    const edge = BRINK_OLD || (hold <= 0 && !b.pressing) ? null : feel.brink(b.feet, ahead.x, ahead.z, BRINK_FAR);
+    const open = edge !== null && byTheBreak(brinkAt.set(b.feet.x + ahead.x * edge, b.feet.y, b.feet.z + ahead.z * edge));
+    b.pressing = hold > 0 && edge !== null && (open ? edge <= BRINK_OPEN : edge <= BRINK_RAIL && (b.pressing || b.stalled));
+    b.edge = edge;
+    const want = b.pressing ? 0 : hold > 0 ? WALK_SPEED * g.keep : hold < 0 ? -BACK_SPEED : 0;
+    if (MOTION_OLD) {
+      const easing = !hold ? WALK_STOP : b.speed * want <= 0 || Math.abs(want) < Math.abs(b.speed) ? WALK_CHECK : WALK_GATHER;
+      b.speed += (want - b.speed) * (1 - Math.exp(-dt / easing));
+    } else {
+      const was = b.speed;
+      springTo(b, want, dt, !hold ? EASE_STOP : b.speed * want <= 0 || Math.abs(want) < Math.abs(b.speed) ? EASE_CHECK : EASE_GATHER);
+      // (put down, a stride does not swing back the other way)
+      if (!want && was * b.speed < 0) b.speed = 0;
+    }
+    if (!hold && Math.abs(b.speed) < 0.3) { b.speed = 0; b.accel = 0; }
+    // Where the feet go: the way's line, or the way the body faces — come
+    // round to, not jumped to (COURSE_RATE).
+    const to = g.direction ? (g.direction.lengthSq() > 1e-6 ? g.direction : null) : heading(b);
+    if (!b.course || MOTION_OLD || Math.abs(b.speed) < 0.5) b.course = (to ?? b.course ?? heading(b)).clone();
+    else if (to) {
+      const off = Math.atan2(b.course.x * to.z - b.course.z * to.x, b.course.x * to.x + b.course.z * to.z);
+      const by = Math.sign(off) * Math.min(Math.abs(off), Math.min(COURSE_RATE, Math.abs(off) * 14 + 0.4) * dt);
+      const c = Math.cos(by), sn = Math.sin(by);
+      b.course.set(b.course.x * c - b.course.z * sn, 0, b.course.x * sn + b.course.z * c).normalize();
+    }
     let moved = 0, stop = null;
     const fromX = b.feet.x, fromZ = b.feet.z;
     // The verified route already provides comfortable room. A second soft
     // wall correction cut its corners and stalled inside the maze's bends.
     // Hard collision and foot support checks still apply to every step.
     const comfort = g.direction && b.follow ? 0 : ROOM;
-    if (b.speed) ({ moved, stop } = feel.step(b.feet, (g.direction ?? heading(b)).clone().multiplyScalar(b.speed * dt), comfort));
+    if (b.speed) ({ moved, stop } = feel.step(b.feet, b.course.clone().multiplyScalar(b.speed * dt), comfort));
     if (moved) throughDoor(b, fromX, fromZ);
+    b.stalled = hold > 0 && b.speed > 2 && moved < b.speed * dt * 0.5;
     // (DEV: who turned the head this frame, how much of the stride was kept, what held the feet)
     if (import.meta.env.DEV) b.dbg = { turn: +g.turn.toFixed(3), keep: +g.keep.toFixed(2), by: b.follow ? 'way' : g.turn ? 'hand' : '', stop: stop ? `${stop}: ${feel.why()}` : '' };
     b.stride += moved;
     b.gait += (clamp01(moved / Math.max(dt, 1e-3) / (WALK_SPEED * 0.4)) - b.gait) * (1 - Math.exp(-dt * 6));
     // Let the torso lift through a tread instead of jolting the eye up with
     // the instant foot contact, especially at the Echo's tall first riser.
-    b.eyeY += (b.feet.y + EYE - b.eyeY) * (1 - Math.exp(-dt * 6.5));
+    // (As a spring, not a fraction of the difference a frame: that set the
+    // eye off upward at its fastest the instant the foot touched — thirty
+    // units a second at the Echo's first riser — and was the lurch at every
+    // tall step. The head starts to rise, rises, and settles.)
+    if (MOTION_OLD) b.eyeY += (b.feet.y + EYE - b.eyeY) * (1 - Math.exp(-dt * 6.5));
+    else {
+      const d = b.eyeY - (b.feet.y + EYE), v = b.eyeV ?? 0, e = Math.exp(-EYE_EASE * dt), n = (v + EYE_EASE * d) * dt;
+      b.eyeY = b.feet.y + EYE + (d + n) * e;
+      b.eyeV = (v - EYE_EASE * n) * e;
+    }
     pose.position.set(b.feet.x, b.eyeY, b.feet.z);
     if (!reducedMotion) pose.position.y += (Math.sin((b.stride / STRIDE) * Math.PI) ** 2 - 0.5) * 0.5 * b.gait;
     pose.quaternion.copy(b.base);
+    // the head going down to look over the edge ahead, and further leaning out
+    // (not while the reader has the head tipped themselves: it is theirs)
+    const tiltTo = edge === null || hold <= 0 || Math.abs(look.current.pitch) > 0.05 ? 0
+      : BRINK_TILT * smooth((BRINK_FAR - edge) / (BRINK_FAR - BRINK_NEAR)) + BRINK_LEAN_TILT * (b.leanAmount ?? 0);
+    b.tilt = (b.tilt ?? 0) + (tiltTo - (b.tilt ?? 0)) * (1 - Math.exp(-dt * BRINK_EASE));
+    if (b.tilt < 1e-4) b.tilt = 0;
+    else pose.quaternion.multiply(tiltQ.setFromAxisAngle(LOCAL_X, -b.tilt));
     Object.assign(pose, { fov: ROOM_FOV, shift: 0, veil: 0, eye: 1, fade: 0, near: 0.5 });
 
     const room = roomAt(b.feet, placeRef.current);
@@ -1530,18 +1841,27 @@ function LiveWorld({
     // knows they are in: what they were last told stands until they are in a room)
     if (room !== null) b.doorway = false;
     tellRoam(b, place, room === null ? (b.doorway ? b.between : betweenAt(b.feet)) : null);
-    // Looking inward and down near the rail invites a small, cancellable
-    // lean. Only sustained intent commits the passage to the next room.
-    camera.getWorldDirection(scratch.gaze);
-    const leaning = place === 3 && railIntent(b.feet, scratch.gaze, [world.pit.x, world.pit.z]);
-    b.lean = leaning ? b.lean + Math.min(dt, 0.1) : 0;
-    b.leanAmount = (b.leanAmount ?? 0) + ((leaning ? smooth(b.lean / LEAN_S) : 0) - (b.leanAmount ?? 0)) * (1 - Math.exp(-dt * 6));
+    // Looking inward and down near the Vertigo's rail invites a small,
+    // cancellable lean, and so does pressing on at any edge (BRINK). A rail
+    // holds it; only sustained intent where the rail has gone commits the
+    // passage to the next room. (The gaze is the reader's own, without the
+    // head's going down at the edge: that alone must never tip anyone over.)
+    gazeQ.copy(b.base).premultiply(scratch.yaw.setFromAxisAngle(WORLD_UP, look.current.yaw)).multiply(scratch.pitch.setFromAxisAngle(LOCAL_X, look.current.pitch));
+    scratch.gaze.set(0, 0, -1).applyQuaternion(gazeQ);
+    const looking = place === 3 && railIntent(b.feet, scratch.gaze, [world.pit.x, world.pit.z]);
+    const leaning = BRINK_OLD ? looking : b.pressing || looking;
+    const free = BRINK_OLD || (b.pressing ? open : byTheBreak(b.feet, 0.06));
+    const needs = b.pressing ? BRINK_GO : LEAN_S;
+    b.lean = leaning ? Math.min(needs * 2, b.lean + Math.min(dt, 0.1)) : 0;
+    const lean = leaning ? Math.min(free ? 1 : BRINK_HELD, smooth(b.lean / needs)) : 0;
+    b.leanAmount = (b.leanAmount ?? 0) + (lean - (b.leanAmount ?? 0)) * (1 - Math.exp(-dt * 6));
     if (!reducedMotion && b.leanAmount) {
-      const inward = new THREE.Vector3(world.pit.x - b.feet.x, 0, world.pit.z - b.feet.z).normalize();
-      pose.position.addScaledVector(inward, b.leanAmount * 2);
-      pose.position.y -= b.leanAmount * 0.5;
+      // out over the edge ahead, pressing on; looking down, in toward the well
+      const out = b.pressing ? ahead : new THREE.Vector3(world.pit.x - b.feet.x, 0, world.pit.z - b.feet.z).normalize();
+      pose.position.addScaledVector(out, b.leanAmount * (BRINK_OLD ? 2 : BRINK_REACH));
+      pose.position.y -= b.leanAmount * (BRINK_OLD ? 0.5 : BRINK_DIP);
     }
-    if (b.lean >= LEAN_S) {
+    if (leaning && free && b.lean >= needs) {
         targetRef.current = place + 1;
         onGo?.(place + 1);
     }
@@ -1603,19 +1923,50 @@ function LiveWorld({
     return { ...walkMove(points, a.quaternion, b.quaternion), to, from };
   };
 
+  // A frame of a walk the piece is making: the body gathers its stride, walks,
+  // and slows into the room.
+  // (It crept into every room: the brake was a curve of the distance left that
+  // held the last six units at a sixth of a stride — two seconds of it — and
+  // then stopped dead from there. Now it slows as a walker does, steadily, to
+  // nearly nothing at the stand itself.)
+  const paceWalk = (move, dt) => {
+    if (MOTION_OLD) {
+      const want = Math.min(move.paceAt(move.distance), WALK_SPEED * Math.max(0.16, smooth((move.length - move.distance) / WALK_BRAKE)));
+      move.speed += (want - move.speed) * (1 - Math.exp(-dt / (want < move.speed ? WALK_CHECK : WALK_GATHER)));
+    } else if (move.steady(move.distance)) {
+      move.speed = move.paceAt(move.distance);
+      move.accel = 0;
+    } else {
+      // (braking, the pace lags what is asked by about a third of a second:
+      // asked that much early, it is at the stand's pace AT the stand)
+      const left = Math.max(0, move.left(move.distance) - move.speed * ARRIVE_LEAD);
+      const want = Math.min(move.paceAt(move.distance), move.paceAt(Math.min(move.length, move.distance + move.speed * ARRIVE_LEAD)),
+        Math.sqrt(ARRIVE_PACE * ARRIVE_PACE + 2 * ARRIVE_BRAKE * left));
+      springTo(move, want, dt, want < move.speed ? EASE_CHECK : EASE_GATHER);
+      move.speed = Math.max(0.3, move.speed);
+    }
+    move.distance += move.speed * dt;
+    move.setGait(clamp01(move.speed / (WALK_SPEED * 0.4)));
+  };
+
   // Setting off on foot from wherever the camera is now (a stand, a vantage,
   // or partway along a walk the piece was doing): the reader's from here on.
   // Null where there is no floor under the eye to stand on.
   const setOff = () => {
     const floor = feel.floorUnder(pose.position);
     if (floor === null) return null;
+    // (taking over a walk the piece was making, the reader keeps its stride:
+    // it used to stop dead under them and gather itself again from standing)
+    const walking = !MOTION_OLD && moveRef.current?.kind === 'walk' && moveRef.current.started ? moveRef.current : null;
+    const pace = walking && !walking.steady(walking.distance) ? walking.speed : 0;
     return {
       feet: new THREE.Vector3(pose.position.x, floor, pose.position.z),
       eyeY: pose.position.y,
       base: pose.quaternion.clone(),
-      speed: 0,
-      stride: 0,
-      gait: 0,
+      speed: pace,
+      accel: 0,
+      stride: walking ? walking.distance : 0,
+      gait: clamp01(pace / (WALK_SPEED * 0.4)),
       lean: 0,
       room: placeRef.current,
       between: null,
@@ -1678,8 +2029,9 @@ function LiveWorld({
     });
     return leg < 0 ? null : [leg, leg + 1];
   };
-  // The committed walking course. Looking and tilting do not change it.
+  // The committed walking course. A glance or a tilt does not change it.
   const facing = new THREE.Vector3(), turnQ = new THREE.Quaternion();
+  const tiltQ = new THREE.Quaternion(), gazeQ = new THREE.Quaternion(), brinkAt = new THREE.Vector3();
   const heading = (b) => {
     facing.set(0, 0, -1).applyQuaternion(b.base).setY(0);
     return facing.lengthSq() > 1e-6 ? facing.normalize() : facing.set(0, 0, 0);
@@ -1717,6 +2069,10 @@ function LiveWorld({
       }
     };
     window.__worldScene = scene;
+    window.__worldCamera = camera;
+    window.__readerLit = READER_LIT.value;
+    // the file on the Vestibule's bridge: where each is, and who is across an edge of its first frame
+    window.__worldWalkers = () => ({ where: world.walkers?.where(), across: world.walkers?.across() });
     // (and the body's line of sight, which the halos ask: buildWorld's occlude)
     window.__worldSight = (a, b, short = 0) => feel?.sight(new THREE.Vector3(...a), new THREE.Vector3(...b), short);
     // the finale's numbers: how far its light runs, and where the others start
@@ -1740,6 +2096,9 @@ function LiveWorld({
     // and their dials, live: __glass.budget = 2, __glass.quality = 0.4 ...
     window.__glass = GLASS;
     window.__worldRay = (from, dir, far) => probeRay(scene, from, dir, far);
+    // (the body's feel for an edge ahead, body.js `brink`: feet [x, y the floor, z])
+    window.__worldBrink = (feet, ux, uz, far = BRINK_FAR) => feel.brink(new THREE.Vector3(...feet), ux, uz, far);
+    window.__worldUnder = (x, top, z, depth = 12.5) => feel.under(x, top, z, depth);
     // A whole leg felt out at once, without waiting on frames: where the walk
     // from room `from` to room `to` puts the eye, and what is within reach of
     // it there. (The headless clock is not to be trusted with pacing; this asks
@@ -1805,6 +2164,10 @@ function LiveWorld({
         room: bodyRef.current.room,
         between: bodyRef.current.between,
         dbg: bodyRef.current.dbg ?? null,
+        // at an edge (BRINK): how far ahead it falls away, the head's going
+        // down, the lean, and whether W is pressing on there
+        brink: { edge: bodyRef.current.edge ?? null, tilt: +(bodyRef.current.tilt ?? 0).toFixed(3),
+          lean: +(bodyRef.current.leanAmount ?? 0).toFixed(3), pressing: !!bodyRef.current.pressing },
       },
       move: moveRef.current && {
         kind: moveRef.current.kind,
@@ -1821,6 +2184,8 @@ function LiveWorld({
     });
     // The way as the free walk follows it, every ROUTE_STEP (eye points).
     window.__worldRoute = () => route.map((pts) => pts.map((p, i) => [r1(p.x), r1(p.y), r1(p.z), +pts.kappa[i].toFixed(3)]));
+    // (and the legs it is made of, as buildWorld gives them)
+    window.__worldLegs = () => world.legs.map((leg) => (leg.kind === 'walk' ? leg.points.map((p) => p.map(r1)) : leg.kind));
     // The free walk without the frame clock: set off from where the eye is
     // (if not already walking), face `yaw` radians round from the way the body
     // set off, and take `n` steps of `len` units, as the frame loop would with
@@ -1865,6 +2230,94 @@ function LiveWorld({
       b.speed = 0;
       b.eyeY = b.feet.y + EYE;
       return trace;
+    };
+    // A walk on a fixed clock instead of the frame's (a headless page draws
+    // twenty frames a second and stops after half a minute, and how a walk
+    // FEELS is its speed and its turning over time): the reader's own, W held
+    // for `seconds` from where they stand — or, given `to`, the piece's walk
+    // to that room. Every `dt`: [t, eye x, y, z, the view's bearing (rad),
+    // speed, what steered it].
+    window.__worldSim = ({ move = null, room = null, up = false, off = false, seconds = 30, dt = 1 / 60, hold = 1, script = null } = {}) => {
+      const out = [], q = new THREE.Quaternion();
+      const note = (t, speed, said, own = false) => {
+        q.copy(pose.quaternion);
+        // (the reader's own head, as the frame loop lays it over the pose)
+        if (own && (look.current.yaw || look.current.pitch)) {
+          q.premultiply(scratch.yaw.setFromAxisAngle(WORLD_UP, look.current.yaw)).multiply(scratch.pitch.setFromAxisAngle(LOCAL_X, look.current.pitch));
+        }
+        out.push([+t.toFixed(4), +pose.position.x.toFixed(3), +pose.position.y.toFixed(3), +pose.position.z.toFixed(3),
+          +q.x.toFixed(5), +q.y.toFixed(5), +q.z.toFixed(5), +q.w.toFixed(5), +speed.toFixed(3), said, +(pose.fov ?? 0).toFixed(2), +(pose.fade ?? 0).toFixed(3)]);
+      };
+      if (!move) {
+        // The reader's own walk. `script`: [[from this second, { hold, left,
+        // right, yaw }]...] — W or S held or let go, A/D held, or the head
+        // put `yaw` round at once (a drag) — applied as the frame loop does.
+        // (`room`: from that room's stand, as the reader stands there untouched —
+        // without waiting on a frame to put them there)
+        if (room !== null) {
+          const s = standPose(spotAt(world, room, false));
+          pose.position.copy(s.position);
+          pose.quaternion.copy(s.quaternion);
+          moveRef.current = null;
+          bodyRef.current = null;
+          placeRef.current = room;
+          targetRef.current = room;
+          upRef.current = false;
+          wishUpRef.current = false;
+          zeroLook();
+        }
+        if (!bodyRef.current) {
+          moveRef.current = null;
+          bodyRef.current = setOff();
+          if (!bodyRef.current) return 'no floor under the eye';
+        }
+        const b = bodyRef.current, wish = lookRef?.current, keys = { left: false, right: false };
+        const steps = [...(script ?? [])];
+        for (let t = 0; t < seconds; t += dt) {
+          while (steps.length && steps[0][0] <= t) {
+            const now = steps.shift()[1];
+            if (now.hold !== undefined) { hold = now.hold; if (hold && walkRef?.current) walkRef.current.press += 1; }
+            if (now.left !== undefined) keys.left = now.left;
+            if (now.right !== undefined) keys.right = now.right;
+            if (now.yaw !== undefined && wish) wish.yaw += now.yaw;
+          }
+          stroll(b, hold, dt);
+          if (wish) {
+            wish.yaw += ((keys.left ? 1 : 0) - (keys.right ? 1 : 0)) * TURN_RATE * dt;
+            look.current.yaw += (wish.yaw - look.current.yaw) * (1 - Math.exp(-dt * 10));
+          }
+          note(t, b.speed, `${b.follow ? `way ${b.follow.c}/${b.follow.i}` : 'free'} keep ${b.dbg?.keep ?? ''} ${b.dbg?.stop ?? ''}`, true);
+        }
+        return { kind: 'own', ticks: out };
+      }
+      // A move the piece makes, from room move[0] (null: the map) to move[1].
+      // ('finale': the film at the heart of the maze, from the last room's stand.)
+      const [from, to] = move === 'finale' ? [world.finale.room, null] : move;
+      const was = placeRef.current, walking = bodyRef.current;
+      placeRef.current = from;
+      bodyRef.current = null;
+      const made = move === 'finale' ? { ...finaleMove(world, rest), to: null } : startMove(to, size.width / Math.max(1, size.height), up, off);
+      placeRef.current = was;
+      bodyRef.current = walking;
+      const m = { ...made, distance: 0, speed: 0 };
+      const ends = (i, vantage) => {
+        const e = i === null ? rest : standPose(spotAt(world, i, vantage));
+        return [...e.position.toArray(), ...e.quaternion.toArray()].map((x) => +x.toFixed(5));
+      };
+      const film = Math.min(dt, 1 / 24);
+      if (m.kind === 'walk') {
+        for (let t = 0; m.distance < m.length && t < seconds; t += dt) {
+          paceWalk(m, dt);
+          m.at(clamp01(m.distance / m.length), pose);
+          note(t, m.speed, `walk ${m.distance.toFixed(0)}/${m.length.toFixed(0)}`);
+        }
+      } else {
+        for (let t = 0; t <= m.duration + 1e-6 && t < seconds; t += film) {
+          m.at(clamp01(t / m.duration), pose);
+          note(t, 0, m.kind);
+        }
+      }
+      return { kind: m.kind, duration: m.duration, to: m.to, start: ends(from, from === to ? !up : off), end: ends(m.to === undefined ? to : m.to, from === to ? up : false), ticks: out };
     };
     // How open the way is from where the feet stand, at each of the guiding
     // hand's headings (degrees off the way the head faces now).
@@ -1939,12 +2392,15 @@ function LiveWorld({
     };
     return () => {
       delete window.__worldJump;
+      delete window.__worldCamera;
       delete window.__worldVantages;
       delete window.__worldWalk;
       delete window.__worldStroll;
+      delete window.__worldSim;
       delete window.__worldClear;
       delete window.__worldReach;
       delete window.__worldRoute;
+      delete window.__worldLegs;
       delete window.__worldLook;
       delete window.__worldEye;
       delete window.__water;
@@ -1959,6 +2415,8 @@ function LiveWorld({
       delete window.__worldSweep;
       delete window.__worldBench;
       delete window.__worldRay;
+      delete window.__worldBrink;
+      delete window.__worldUnder;
     };
   });
 
@@ -2041,20 +2499,17 @@ function LiveWorld({
       };
       const last = world.finale?.room;
       if (endingIntent) {
-        // Into the heart: the last room's way on — from the stand at the gate,
-        // or from wherever in the court the reader has walked to. Elsewhere in
-        // the maze, back to the gate first.
-        const b = bodyRef.current;
-        if (b && !inCourt(b.feet) && endingIntent !== 'skip') begin(last, false);
-        else {
-          const from = b && { position: new THREE.Vector3(b.feet.x, b.eyeY, b.feet.z), quaternion: b.base.clone() };
-          moveRef.current = {
-            ...finaleMove(world, rest, from), to: null, from: last,
-            travelled: reducedMotion ? 1e9 : 0, distance: 0, speed: 0, arrived: false, started: false,
-          };
-          bodyRef.current = null;
-          phaseRef.current = null;
-        }
+        // Keep the current eye, including the reader's head turn and stride.
+        // Capturing the body's base would discard the gaze; retaining the
+        // look offset would apply that gaze twice once the film starts.
+        const from = { position: camera.position.clone(), quaternion: camera.quaternion.clone() };
+        zeroLook();
+        moveRef.current = {
+          ...finaleMove(world, rest, from), to: null, from: last,
+          travelled: reducedMotion ? 1e9 : 0, distance: 0, speed: 0, arrived: false, started: false,
+        };
+        bodyRef.current = null;
+        phaseRef.current = null;
       } else if (placeRef.current !== null && wishUp !== upRef.current) {
         // Down off a vantage AND on to the next room: one walk from up there
         // (startMove, `off`), not down to the room's stand and away again.
@@ -2068,13 +2523,8 @@ function LiveWorld({
       // Frame time, capped: a machine that drops frames sees the whole move
       // slower, rather than a long frame jumping it to the end.
       if (move.started && scrubRef.current === null) {
-        if (move.kind === 'walk') {
-          // The body gathers its stride, walks, and slows into the room.
-          const want = Math.min(move.paceAt(move.distance), WALK_SPEED * Math.max(0.16, smooth((move.length - move.distance) / WALK_BRAKE)));
-          move.speed += (want - move.speed) * (1 - Math.exp(-walkDt / (want < move.speed ? WALK_CHECK : WALK_GATHER)));
-          move.distance += move.speed * walkDt;
-          move.setGait(clamp01(move.speed / (WALK_SPEED * 0.4)));
-        } else move.travelled += dt;
+        if (move.kind === 'walk') paceWalk(move, walkDt);
+        else move.travelled += dt;
       }
       if (move.kind === 'finale' && finaleRef.current === 'skip') move.travelled = move.duration;
       move.started = true;
@@ -2126,6 +2576,29 @@ function LiveWorld({
       pose.position.copy(s.position);
       pose.quaternion.copy(s.quaternion);
       Object.assign(pose, { fov: ROOM_FOV, shift: 0, veil: 0, eye: 1, fade: 0, near: 0.5 });
+    }
+
+    // The way, shown (WAY_*): on it with W held, its worn stone lights a few
+    // strides on; stopped on it, or at a stand still facing the way on (where
+    // W walks on), a little less; off it, or carried by the piece, not at all.
+    if (rooms && world.setWay) {
+      const w = wayRef.current, b = bodyRef.current;
+      let want = 0;
+      if (b?.follow && !b.follow.spiral) {
+        want = hold > 0 ? WAY_WALKING : WAY_WAITING;
+        w.at.copy(b.feet);
+        w.dir.copy(b.follow.aim ?? heading(b));
+      } else if (!b && !move && placeRef.current !== null && !upRef.current && Math.abs(look.current.yaw) < FOLLOW_UNTURNED) {
+        const leg = world.legs[placeRef.current];
+        if (leg?.kind === 'walk' && leg.points.length > 1) {
+          want = WAY_WAITING;
+          w.at.set(pose.position.x, pose.position.y - EYE, pose.position.z);
+          w.dir.set(leg.points[1][0] - leg.points[0][0], 0, leg.points[1][2] - leg.points[0][2]).normalize();
+        }
+      }
+      w.on += (want - w.on) * (1 - Math.exp(-dt / WAY_EASE));
+      if (w.on < 1e-3 && !want) w.on = 0;
+      world.setWay(w.on, w.at.x, w.at.y, w.at.z, w.dir.x, w.dir.z);
     }
 
     // The head: turned by held keys and drags while standing — and while walking
@@ -2185,7 +2658,9 @@ function LiveWorld({
     world.setEye(pose.eye);
     world.finale?.update(film, { eye: pose.eye, camera });
     // where the reader is looking, too: the Silence's vault is raised by it
-    world.tick(t, pose.eye > 0 ? camera.position : null, camera.getWorldDirection(scratch.gaze));
+    // (the light at the bottom of the Vertigo stays put while the reader falls to it)
+    world.holdPit?.(moveRef.current?.kind === 'fall');
+    world.tick(t, pose.eye > 0 ? camera.position : null, camera.getWorldDirection(scratch.gaze), camera.aspect);
     // ?wpoolshadow=1: the floor's lamp pools shadowed, baked a few lamps a
     // frame once the first seconds' compiling is over (lampPass.js)
     if (world.poolShadows && !world.poolShadows.done && t > 3) world.poolShadows.step(gl, scene);
@@ -2251,7 +2726,7 @@ function LiveWorld({
     if (world.doorways?.length) {
       camera.updateMatrixWorld();
       for (const d of world.doorways) {
-        if (DOORS && e > 0.9) d.render(gl, scene, camera, STENCIL, (at) => world.aimFar(at, camera.position));
+        if (DOORS && e > 0.9) d.render(gl, scene, camera, STENCIL, (at) => world.aimFar(at, camera.position), world.portalThin?.(camera.position) ?? 1);
         else d.hide();
       }
     }

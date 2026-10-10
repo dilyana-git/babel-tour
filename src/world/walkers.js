@@ -15,6 +15,7 @@
 import * as THREE from 'three';
 import { readerGeometry, ROBES, clothShader } from './readers';
 import { makeRng } from './textures';
+import { vestOld } from './vestFix';
 
 const clamp01 = (x) => Math.min(1, Math.max(0, x));
 const smooth = (a, b, x) => { const t = clamp01((x - a) / (b - a)); return t * t * (3 - 2 * t); };
@@ -24,7 +25,7 @@ const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 // its feet (readers.js, clothShader): still when uMove is 0, which is how the
 // readers who do not walk wear it.
 export const readerMaterial = (keep) => {
-  const u = { uStride: { value: 0 }, uMove: { value: 0 }, uReach: { value: STRIDE / 2 } };
+  const u = { uStride: { value: 0 }, uMove: { value: 0 }, uReach: { value: STRIDE / 2 }, uBook: { value: new THREE.Vector4() }, uGlow: { value: new THREE.Vector4() }, uSheen: { value: 1 } };
   const mat = keep(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.96, metalness: 0, side: THREE.DoubleSide }));
   mat.onBeforeCompile = (sh) => clothShader(sh, u);
   mat.customProgramCacheKey = () => 'babel-walker';
@@ -95,6 +96,8 @@ export function buildWalkers({ root, keep, c, ax, px, deck, lectern, light = fal
   const figure = (name, i, book) => {
     const { mat, u } = readerMaterial(keep);
     const mesh = new THREE.Mesh(keep(readerGeometry({ seed: 3 + i * 13, color: ROBES[(i * 3 + 1) % ROBES.length], book })), mat);
+    // (the open book's pages, which throw the lamps' light up under the hood)
+    if (mesh.geometry.userData.book) u.uBook.value.set(...mesh.geometry.userData.book, 1);
     mesh.name = name;
     group.add(mesh);
     const shadow = new THREE.Mesh(shadowGeo, keep(new THREE.MeshBasicMaterial({
@@ -185,14 +188,110 @@ export function buildWalkers({ root, keep, c, ax, px, deck, lectern, light = fal
   }
   walkers.forEach(place);
 
+  // ── Nobody cut in half on arrival ──
+  // The stand's frame cuts the bridge a third of the way along: the near end
+  // of the file's way round is off its left edge, so a reader is forever half
+  // in and half out of it. Walking, that is only someone walking out of the
+  // picture; but on arrival, the first frame the piece composes, a reader cut
+  // in two by its edge was the first person the visitor met (review
+  // 2026-10-08, point 1; ?wvest=old:1). No turn of the stand keeps the whole
+  // way in frame, so the file keeps out of the frame's edges instead, while a
+  // reader is arriving and for a little while after: whoever is across an
+  // edge walks on out of it, and nobody steps into one. Where the edges fall
+  // depends on the screen's shape, so they are found again for each.
+  let watch = null;            // { eye, look, fov }: the stand, and where it looks
+  let edges = null, edgesFor = 0;
+  const STEP = 0.5;
+  const findEdges = (aspect) => {
+    const cam = new THREE.PerspectiveCamera(watch.fov, aspect, 0.5, 2000);
+    cam.position.set(...watch.eye);
+    cam.lookAt(...watch.look);
+    cam.updateMatrixWorld();
+    const q = new THREE.Vector3();
+    const n = Math.ceil(LOOP / STEP), cut = new Uint8Array(n);
+    for (let i = 0; i < n; i++) {
+      const [u, w] = along(i * STEP);
+      const [x, z] = toWorld(u, w);
+      let lo = Infinity, hi = -Infinity, bot = Infinity, top = -Infinity, behind = false;
+      for (const dx of [-3.2, 3.2]) {
+        for (const dz of [-3.2, 3.2]) {
+          for (const y of [deck, deck + 19]) {
+            q.set(x + dx, y, z + dz).applyMatrix4(cam.matrixWorldInverse);
+            if (q.z > -0.5) { behind = true; continue; }
+            q.applyMatrix4(cam.projectionMatrix);
+            lo = Math.min(lo, q.x); hi = Math.max(hi, q.x); bot = Math.min(bot, q.y); top = Math.max(top, q.y);
+          }
+        }
+      }
+      // in the picture at all, and not wholly inside it (with a little to spare)
+      const seen = hi > -1.02 && lo < 1.02 && top > -1.02 && bot < 1.02;
+      const whole = !behind && lo > -0.96 && hi < 0.96 && bot > -0.96 && top < 0.96;
+      cut[i] = seen && !whole ? 1 : 0;
+    }
+    return cut;
+  };
+  const cutAt = (s) => edges[Math.floor((((s % LOOP) + LOOP) % LOOP) / STEP) % edges.length] === 1;
+  // where, ahead of `s`, the next edge begins (Infinity: none within reach)
+  const edgeAhead = (s, reach = 40) => {
+    for (let k = STEP; k <= reach; k += STEP) if (cutAt(s + k)) return s + k - STEP;
+    return Infinity;
+  };
+  // where, ahead of `s` inside an edge, it is left behind
+  const edgeEnd = (s) => {
+    let k = 0;
+    while (k < LOOP && cutAt(s + k)) k += STEP;
+    return s + k + STEP;
+  };
+  // Armed when the eye comes into the room — or comes down off the map, from
+  // wherever the flight starts — and held until a few seconds after it has
+  // settled on the stand; let go when the eye leaves.
+  const guard = { near: false, at: 0, settled: null, map: false };
+  const guarding = (time, eye) => {
+    if (!watch) return false;
+    if (!eye) { guard.map = true; guard.near = false; return false; }
+    const d = Math.hypot(eye.x - watch.eye[0], eye.z - watch.eye[2]);
+    // (off the map, the flight is held to until it lands, wherever it lands)
+    const flying = guard.map || (guard.near && guard.settled === null && time - guard.at < 40 && d < 400);
+    guard.map = false;
+    const near = (d < 90 && eye.y < 90) || flying;
+    if (near && !guard.near) Object.assign(guard, { at: time, settled: null });
+    guard.near = near;
+    if (!near) return false;
+    if (d < 2 && guard.settled === null) guard.settled = time;
+    // (ten seconds: long enough to take in the first frame, short enough
+    // that a reader held back from an edge is only pausing)
+    return guard.settled === null ? time - guard.at < 40 : time - guard.settled < 10;
+  };
+
   let last = null;
-  const tick = (time) => {
+  const tick = (time, eye = null, aspect = 0) => {
     const dt = last === null ? 0 : Math.min(0.1, Math.max(0, time - last));
     last = time;
     if (light || dt === 0) return;
+    const keepOut = !vestOld(1) && watch && aspect > 0;
+    if (keepOut && Math.abs(aspect - edgesFor) > 0.005) { edges = findEdges(aspect); edgesFor = aspect; }
+    const held = keepOut && guarding(time, eye);
+    // Over the map, where a reader is a pixel, whoever stands across an edge
+    // is put on past it: then nobody is there when the eye comes down.
+    if (keepOut && !eye) {
+      for (const o of walkers) {
+        if (!cutAt(o.s)) continue;
+        const to = edgeEnd(o.s);
+        o.d += to - o.s;
+        o.s = to;
+        o.stopped = false;
+        o.turn = 0;
+        if (o.stopAt < o.s) plan(o);
+        place(o);
+      }
+    }
     for (const o of walkers) {
       const [gap] = gaps(o);
       let want = 0;
+      const across = held && cutAt(o.s);
+      // (stopped across an edge, they go on at once)
+      if (across && o.stopped) o.hold = Math.min(o.hold, 0);
+      const wall = held && !across ? edgeAhead(o.s) : Infinity;
       if (o.s >= o.stopAt - 0.3) {
         // stopped: turn to whatever is being looked at, and back before going
         if (!o.stopped) {
@@ -214,9 +313,11 @@ export function buildWalkers({ root, keep, c, ax, px, deck, lectern, light = fal
         want = o.pace * (0.92 + 0.08 * Math.sin(time * 0.13 + o.ph));
         want = Math.min(want, Math.sqrt(2 * 3.2 * Math.max(0, o.stopAt - o.s)));
         want = Math.min(want, Math.max(0, gap - GAP) * 1.4);
+        // (and not into the frame's edge, while one is being arrived at)
+        want = Math.min(want, Math.sqrt(2 * 3.2 * Math.max(0, wall - o.s)));
       }
       o.v += (want - o.v) * Math.min(1, dt * 2.4);
-      const step = Math.min(o.v * dt, Math.max(0, gap - GAP + 0.5));
+      const step = Math.min(o.v * dt, Math.max(0, gap - GAP + 0.5), Math.max(0, wall - o.s));
       o.s += step;
       o.d += step;
       place(o);
@@ -229,5 +330,9 @@ export function buildWalkers({ root, keep, c, ax, px, deck, lectern, light = fal
     return { name: o.mesh.name, s: +o.s.toFixed(1), u: +u.toFixed(1), w: +w.toFixed(1), v: +o.v.toFixed(2), hold: +Math.max(0, o.hold).toFixed(1), look: o.look };
   });
 
-  return { group, tick, where };
+  // `eye` and `look` [x, y, z] and `fov`: the stand the file keeps out of the edges of
+  const watchFrom = (w) => { watch = w; edgesFor = 0; };
+  // (and for a harness: which of them is across an edge of the stand's frame now)
+  const across = () => walkers.map((o) => (edges ? cutAt(o.s) : null));
+  return { group, tick, where, watchFrom, across };
 }

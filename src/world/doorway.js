@@ -155,7 +155,10 @@ export function makeDoorway({ root, keep, at, out, half, floor, top, by }) {
   // drawn for an eye (the halos) for the far one, and `aim(null)` back for
   // the reader's. Call after the camera's matrix is up to date and before the
   // frame is drawn.
-  const render = (renderer, scene, camera, stencil, aim = null) => {
+  // `thin`: how much of the room's fog the far room is drawn through (1 all
+  // of it; World.jsx asks buildWorld's portalThin, which thins it seen from
+  // across the room and gives it all back by the time the doorway is reached).
+  const render = (renderer, scene, camera, stencil, aim = null, thin = 1) => {
     const ahead = -past(camera.position.x, camera.position.z);
     near = ahead < 70 && across(camera.position.x, camera.position.z) < half + 40;
     // Only from this side, and near enough for the doorway to be more than a speck.
@@ -221,14 +224,18 @@ export function makeDoorway({ root, keep, at, out, half, floor, top, by }) {
 
     const was = renderer.getRenderTarget();
     const wasShadow = renderer.shadowMap.autoUpdate;
+    const fog = scene.fog, fogFar = fog?.far;
     show(false);
     try {
+      // (a linear fog's density down to `thin` of itself: its far end that much further off)
+      if (fog?.isFog && thin < 1) fog.far = fog.near + (fog.far - fog.near) / Math.max(thin, 0.05);
       renderer.shadowMap.autoUpdate = false;
       aim?.(eye.position);
       renderer.setRenderTarget(target);
       renderer.clear();
       renderer.render(scene, eye);
     } finally {
+      if (fog?.isFog) fog.far = fogFar;
       renderer.setRenderTarget(was);
       renderer.shadowMap.autoUpdate = wasShadow;
       aim?.(null);
@@ -246,6 +253,7 @@ export function makeDoorway({ root, keep, at, out, half, floor, top, by }) {
 
   return {
     render,
+    at,
     hide: () => show(false),
     crossed,
     by,
