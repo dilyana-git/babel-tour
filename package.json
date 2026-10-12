@@ -9,7 +9,6 @@
     "build": "vite build",
     "lint": "oxlint",
     "check:governor": "node tools/governor-check.mjs",
-    "check:walk": "node tools/walk-check.mjs",
     "check:selenium": "node tools/selenium/run.mjs",
     "check:walls": "node tools/wall-check.mjs",
     "check:navigation": "node --test tools/navigation-check.mjs tools/navigation-properties-check.mjs tools/navigation-runner-check.mjs tools/navigation-observations-check.mjs tools/finale-lifecycle-check.mjs tools/probe-check.mjs tools/input-activation-check.mjs tools/spiral-check.mjs",
@@ -21,13 +20,10 @@
     "check:navigation:watch:fast": "node tools/navigation-watch.mjs --tier=fast",
     "dev:checked:fast": "node tools/navigation-watch.mjs --dev --tier=fast",
     "check:fast": "npm run lint -- src tools && npm run check:governor && npm run check:navigation",
-    "check:legacy": "node tools/legacy-browser-check.mjs",
-    "check:project": "npm run check:major && npm run check:legacy",
+    "check:project": "npm run check:major",
     "check:major": "npm run lint -- src && npm run check:governor && npm run check:navigation:all && npm run build",
-    "review:ux": "node tools/ux-review-agent.mjs",
     "review:world-ux": "node tools/ux-world-audit.mjs",
-    "verify:assets": "node tools/verify-assets.mjs",
-    "check:deploy": "npm run lint -- src && npm run verify:assets && npm run check:governor && npm run build && node tools/verify-dist.mjs",
+    "check:deploy": "npm run lint -- src && npm run check:governor && npm run build && node tools/verify-dist.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

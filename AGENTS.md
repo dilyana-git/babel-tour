@@ -25,7 +25,3 @@ touch input. Development diagnostics only observe outcomes and accelerate the
 clock; do not replace tested inputs with jump/scrub/stroll hooks. Geometry
 sweeps are separate coverage. Reports and failure screenshots are written to
 `.ux-review/navigation/<run>/` and must retain failed and unexecuted scenarios.
-
-When changing the retained plate tour or reading balcony, also run the relevant
-existing Selenium/plate or balcony checks. The world navigation suite does not
-claim coverage of those separate experiences.

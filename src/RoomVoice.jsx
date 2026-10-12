@@ -11,6 +11,14 @@
 // the moment the reader arrives, so the room's name above it never jumps as a
 // longer quotation comes in.
 //
+// On a tall screen there is no room under the name for that (a phone's lowest
+// quarter was already all caption), and the lines were not shown at all. There
+// the voice is given a pace (`pace`, world/phoneFix7.js, 3): a line surfaces in
+// the name's own place, EntryMap letting the name go while it is up
+// (`onSpeak`), holds as long as it does anywhere, and goes; the name stands
+// alone a while; then the next. Nothing surfaces while the reader is walking
+// (`hush`), and a touch on the caption turns it (`ask`).
+//
 // All of it is aria-hidden. The room plate is a live region and a quotation
 // every ten seconds would be read out over everything else; EntryMap keeps the
 // plain line for a screen reader beside it.
@@ -29,9 +37,19 @@ const rotate = (list, by) => list.map((_, k) => list[(k + by) % list.length]);
 // makes it a quotation and names its story). `lead` is what it is saying now,
 // in order, and `quotes` what follows it round and round; with no quotes the
 // caption stops on the last of `lead`.
-export default function RoomVoice({ room, lines, lead, quotes = [] }) {
+//
+// `pace` ({ first, rest, still }, ms) is for a reader standing in a room (it
+// is not kept on the way between two, where the road's line is all there is
+// to read): the wait before the first line, between two lines, and after the
+// reader has stopped walking. `hush`: they are walking. `ask` ({ n, up }): a
+// touch, counted - `up` true to say the next line now, false to stop saying
+// this one, null only to start the wait again.
+export default function RoomVoice({ room, lines, lead, quotes = [], pace = null, hush = false, ask = null, onSpeak }) {
   const key = `${room}|${lead.join('+')}`;
-  const fresh = () => ({ key, k: 0, from: heard.get(room) ?? 0 });
+  const loop = quotes.length > 0;
+  const paced = Boolean(pace) && loop;
+  const asked = ask?.n ?? 0;
+  const fresh = () => ({ key, k: 0, from: heard.get(room) ?? 0, up: false, wait: pace?.first ?? 0, asked, turn: 0 });
   const [at, setAt] = useState(fresh);
   let cur = at;
   if (at.key !== key) {
@@ -39,21 +57,44 @@ export default function RoomVoice({ room, lines, lead, quotes = [] }) {
     setAt(cur);
   }
   const order = [...lead, ...rotate(quotes, cur.from)];
+  if (paced && cur.asked !== asked) {
+    cur = ask.up === true ? { ...cur, up: true }
+      : ask.up === false && cur.up ? { ...cur, up: false, k: (cur.k + 1) % order.length, wait: pace.rest }
+        : { ...cur, turn: cur.turn + 1 };
+    cur = { ...cur, asked };
+    setAt(cur);
+  } else if (paced && hush && (cur.up || cur.wait !== pace.still)) {
+    // (walked off in the middle of a line: it is said again, from its start,
+    // once they have stood still a while)
+    cur = { ...cur, up: false, wait: pace.still };
+    setAt(cur);
+  }
+  const up = cur.up || !paced;
   const on = order[cur.k];
   const line = lines.find((l) => l.id === on);
   const hold = line?.hold ?? holdFor(line?.text ?? '');
-  const loop = quotes.length > 0;
   const last = cur.k >= order.length - 1;
 
   useEffect(() => {
+    if (paced && hush) return undefined;
+    if (!up) {
+      const t = setTimeout(() => setAt((a) => (a.key === key ? { ...a, up: true } : a)), cur.wait);
+      return () => clearTimeout(t);
+    }
     if (order.length < 2 || (last && !loop)) return undefined;
     const t = setTimeout(() => setAt((a) => (a.key === key
-      ? { ...a, k: (a.k + 1) % order.length }
+      ? { ...a, k: (a.k + 1) % order.length, up: false, wait: pace?.rest ?? 0 }
       : a)), hold);
     return () => clearTimeout(t);
-  }, [key, cur.k, hold, last, loop, order.length]);
+  }, [key, cur.k, cur.wait, cur.turn, up, paced, hush, hold, last, loop, order.length, pace?.rest]);
 
-  const quoteAt = quotes.indexOf(on);
+  const said = up && Boolean(line);
+  useEffect(() => {
+    onSpeak?.(said);
+    return () => onSpeak?.(false);
+  }, [said, onSpeak]);
+
+  const quoteAt = up ? quotes.indexOf(on) : -1;
   useEffect(() => {
     if (quoteAt >= 0) heard.set(room, (quoteAt + 1) % quotes.length);
   }, [room, quoteAt, quotes.length]);
@@ -66,7 +107,7 @@ export default function RoomVoice({ room, lines, lead, quotes = [] }) {
         return (
           <p
             key={`${room}:${l.id}`}
-            className={`room-voice-line${quoted ? ' is-quote' : ''}${l.id === on ? ' is-on' : ''}`}
+            className={`room-voice-line${quoted ? ' is-quote' : ''}${up && l.id === on ? ' is-on' : ''}`}
             style={{ '--n': words.length }}
           >
             {words.map((w, i) => (

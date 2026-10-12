@@ -32,24 +32,29 @@
 // DEV: ?ink=20 makes the opening take at least 20 seconds, to watch it;
 // window.__ink is the driver (u, ready, inked, gone).
 import { useEffect, useRef, useState } from 'react';
-import { TILT_ELEVATION, TILT_FOV, TILT_YAW, restPose } from './world/plan';
 import { mapOld } from './world/mapFix';
+import { MAP_TALL, phone7Old } from './world/phoneFix7';
 import { VOICES } from './voices';
 import { DEV_PACE, GUESS, startInk, stream } from './ink';
+
+// Fetch the camera math alongside the world, without making Three's renderer
+// a prerequisite for displaying the opening's title and canvas.
+const planModule = import('./world/plan');
+planModule.catch(() => {});
 
 // The Library's alphabet: twenty-two letters, the comma, the period and the
 // space ("the orthographical symbols are twenty-five in number").
 const SYMBOLS = 'abcdefghilmnopqrstuvxyz,.';
 const SENTENCE = VOICES.vestibule[0];
 
-export function AssemblyInk({ driver, progress, ready, shown, plan, reserveLeft, reducedMotion, onInked, onGone }) {
+export function AssemblyInk({ driver, progress, ready, shown, plan, reserveLeft, tall = false, reducedMotion, keep = null, onInked, onGone }) {
   const wrapRef = useRef(null);
   const inkRef = useRef(null);
   const feedRef = useRef(null);
-  const props = useRef({ plan, reserveLeft, progress, ready, onInked, onGone });
+  const props = useRef({ plan, reserveLeft, tall, progress, ready, onInked, onGone });
   useEffect(() => {
-    props.current = { plan, reserveLeft, progress, ready, onInked, onGone };
-  }, [plan, reserveLeft, progress, ready, onInked, onGone]);
+    props.current = { plan, reserveLeft, tall, progress, ready, onInked, onGone };
+  }, [plan, reserveLeft, tall, progress, ready, onInked, onGone]);
 
   useEffect(() => {
     const wrap = wrapRef.current;
@@ -92,35 +97,54 @@ export function AssemblyInk({ driver, progress, ready, shown, plan, reserveLeft,
 
     // Its size, and the map's resting camera for that size: the world's own
     // frame once it has been built, GUESS until then.
-    let restFor = '';
+    let restFor = '', projection = null, alive = true;
     const feed = () => {
+      if (!projection) return;
+      const { TILT_ELEVATION, TILT_FOV, restPose } = projection;
       const box = wrap.getBoundingClientRect();
       const dpr = Math.min(1.5, window.devicePixelRatio || 1);
       const width = Math.max(1, Math.round(box.width * dpr)), height = Math.max(1, Math.round(box.height * dpr));
-      const { plan: points, reserveLeft: left } = props.current;
-      const id = `${width}x${height}|${points ? 'world' : 'guess'}|${left}`;
+      // (on a tall screen the map's camera is turned to look along the walk,
+      // plan.js: the drawing is told which way its camera comes to rest)
+      const { plan: points, reserveLeft: left, tall: upright } = props.current;
+      const id = `${width}x${height}|${points ? 'world' : 'guess'}|${left}|${upright}`;
       if (id === restFor) return;
       restFor = id;
-      const rest = restPose(width / height, points ?? GUESS, left);
+      const rest = restPose(width / height, points ?? GUESS, left, upright);
       if (import.meta.env.DEV && points) {
-        const guess = restPose(width / height, GUESS, left);
+        const guess = restPose(width / height, GUESS, left, upright);
         const off = Math.abs(guess.distance / rest.distance - 1) + guess.target.distanceTo(rest.target) / rest.distance;
         if (off > 0.01) console.warn('[ink] the opening guessed the map\'s frame wrong by', off.toFixed(3), '- update GUESS in ink.js');
       }
       ink.set({
         size: { width, height, dpr },
-        rest: { target: rest.target.toArray(), distance: rest.distance, shift: rest.shift, fov: TILT_FOV, elevation: TILT_ELEVATION, yaw: TILT_YAW, lensed: !mapOld('L2') },
+        rest: {
+          target: rest.target.toArray(), distance: rest.distance, shift: rest.shift, fov: TILT_FOV, elevation: TILT_ELEVATION, yaw: rest.yaw, lensed: !mapOld('L2'),
+          // (and, on a tall screen, how much of its hairlines the kept drawing keeps)
+          fine: upright && !phone7Old(4) ? MAP_TALL : null,
+        },
         progress: props.current.progress,
         ready: props.current.ready,
+        keep,
       });
     };
     feedRef.current = feed;
     feed();
+    planModule.then((module) => {
+      if (!alive) return;
+      projection = module;
+      feed();
+    }).catch((error) => {
+      if (!alive) return;
+      console.warn('[ink] the map camera could not be loaded:', error);
+      hear({ u: 1, inked: true, gone: true });
+    });
     const observer = new ResizeObserver(feed);
     observer.observe(wrap);
     const onPointer = (e) => ink.set({ lean: [e.clientX / Math.max(1, window.innerWidth) - 0.5, e.clientY / Math.max(1, window.innerHeight) - 0.5] });
     if (!reducedMotion) window.addEventListener('pointermove', onPointer, { passive: true });
     return () => {
+      alive = false;
       ink.stop();
       inkRef.current = null;
       feedRef.current = null;
@@ -128,7 +152,7 @@ export function AssemblyInk({ driver, progress, ready, shown, plan, reserveLeft,
       window.removeEventListener('pointermove', onPointer);
       canvas.remove();
     };
-  }, [driver, reducedMotion]);
+  }, [driver, reducedMotion, keep]);
 
   // what it needs to know as it changes
   useEffect(() => { inkRef.current?.set({ progress }); }, [progress]);
@@ -136,11 +160,11 @@ export function AssemblyInk({ driver, progress, ready, shown, plan, reserveLeft,
     driver.current.ready = ready;
     inkRef.current?.set({ ready });
   }, [ready, driver]);
-  useEffect(() => { feedRef.current?.(); }, [plan, reserveLeft]);
+  useEffect(() => { feedRef.current?.(); }, [plan, reserveLeft, tall]);
   // (the world shown under it: the drawing lets go)
   useEffect(() => { inkRef.current?.set({ shown }); }, [shown]);
 
-  return <div ref={wrapRef} className="assembly-ink" aria-hidden="true" />;
+  return <div ref={wrapRef} className={`assembly-ink${keep ? ' is-kept' : ''}`} aria-hidden="true" />;
 }
 
 // ── The first sentence, found ────────────────────────────────────────────────
@@ -148,14 +172,20 @@ export function AssemblyInk({ driver, progress, ready, shown, plan, reserveLeft,
 // over by itself; as the drawing goes on they are found, roughly in reading
 // order, until the sentence stands whole. The words keep their lengths from
 // the start (a space stays a space), so nothing reflows while it is searched.
-// Above it the shelf being searched, as a librarian would give it.
+// Above it the shelf being searched, as a librarian would give it — in two
+// halves, the room and the book, which sit on one line where there is room for
+// it and on two where there is not (map.css): on a phone the one line was cut
+// off before its page number, and that number is the joke (board 14 · 2).
 const WORDS = SENTENCE.split(' ');
 const LETTERS = [...SENTENCE.replaceAll(' ', '')];
 const shelfmark = (rnd) => {
   const hexagon = Math.floor(1 + rnd() * 999999).toLocaleString('en-US');
-  return `Hexagon ${hexagon} · shelf ${1 + Math.floor(rnd() * 5)} · vol. ${1 + Math.floor(rnd() * 35)} · p. ${1 + Math.floor(rnd() * 410)}`;
+  return [
+    `Hexagon ${hexagon} · shelf ${1 + Math.floor(rnd() * 5)}`,
+    `vol. ${1 + Math.floor(rnd() * 35)} · p. ${1 + Math.floor(rnd() * 410)}`,
+  ];
 };
-const FOUND_MARK = 'Hexagon I · shelf 1 · vol. 1 · p. 1';
+const FOUND_MARK = ['Hexagon I · shelf 1', 'vol. 1 · p. 1'];
 const TICK_MS = 160;
 const FOUND_GLOW_MS = 480;
 
@@ -177,6 +207,7 @@ export function AssemblyEpigraph({ driver, reducedMotion }) {
     const next = new Float64Array(n);
     const found = new Float64Array(n); // when each letter was found (0: not yet)
     let markNext = 0, timer = 0;
+    const setMark = (mark) => mark.forEach((half, k) => { markRef.current.children[k].textContent = half; });
     // A few times a second, and nothing that repaints in between: this runs
     // on the page's thread while it builds the world, and a glow animated on
     // each letter as it was found (a repaint every frame) cost the assembly
@@ -210,13 +241,13 @@ export function AssemblyEpigraph({ driver, reducedMotion }) {
         }
       }
       if (!left && !noteRef.current.classList.contains('is-found')) {
-        markRef.current.textContent = FOUND_MARK;
+        setMark(FOUND_MARK);
         noteRef.current.textContent = 'The Library of Babel';
         noteRef.current.classList.add('is-found');
       }
       if (!left && !glowing) return;
       if (left && !reducedMotion && now >= markNext) {
-        markRef.current.textContent = shelfmark(rnd);
+        setMark(shelfmark(rnd));
         markNext = now + 650 + rnd() * 400;
       }
       timer = setTimeout(tick, TICK_MS);
@@ -229,7 +260,9 @@ export function AssemblyEpigraph({ driver, reducedMotion }) {
   return (
     <div className="assembly-epigraph" aria-hidden="true">
       <div className="assembly-epigraph-in">
-        <div className="assembly-mark" ref={markRef}>{reducedMotion ? FOUND_MARK : first.mark}</div>
+        <div className="assembly-mark" ref={markRef}>
+          {(reducedMotion ? FOUND_MARK : first.mark).map((half, k) => <span key={k} className="assembly-mark-half">{half}</span>)}
+        </div>
         <p className="assembly-line" ref={lineRef}>
           {WORDS.map((word, w) => (
             <span key={w}>

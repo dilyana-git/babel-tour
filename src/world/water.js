@@ -57,6 +57,7 @@
 // Plus the shore: waves feel the bottom and shrink as they come in, the water
 // goes over to silt where you can see through it, and the mirror gives out.
 import * as THREE from 'three';
+import { POND } from './gardenFix5';
 
 const MAX_LAMPS = 12;
 const WAVES = 6;
@@ -103,6 +104,22 @@ export const WATER = {
   // lying over it (buildWorld, the Pavilion), and nothing else could have
   // settled that: a surface with six terms on it cannot be read by eye.
   debug: 0,
+  // (gardenFix5.js, 7) The lamps, broken into the chop. From the Pavilion's
+  // bridge every lantern's true reflection falls below the frame — the eye
+  // stands too high over the water for anything taller than a rail to show
+  // in it — and the water round the most lit thing in the garden gave back
+  // nothing. So the lamps (and the lit columns, as one low red light: see
+  // `glow`) are reflected a second time off a steeper surface: the same
+  // wave train with `shatterSteep` times its slope, which tilts enough
+  // facets toward each light to lay a scatter of warm glints between it and
+  // the eye. `shatterTight`: the lobe; `shatterGain`: how bright;
+  // `shatterReach`: how far from a lamp's foot they lie.
+  shatterSteep: POND.steep, shatterTight: POND.tight, shatterGain: POND.on ? POND.gain : 0, shatterReach: POND.reach,
+  // `glow`: the lit Pavilion as a light on the water round it — `glowK` how
+  // strong, from `glowFrom` units off its middle (its own floor's edge) and
+  // fading over `glowFade` more; `glowLean`: how far a facet must lean toward
+  // it to begin to take it, and to take all of it (slopes).
+  glowK: POND.glow.k, glowFrom: POND.glow.from, glowFade: POND.glow.fade, glowLean: [...POND.glow.lean],
 };
 
 // The one surface every body of water in the garden lies in. A reflection is
@@ -170,6 +187,10 @@ export function makeWater({ mirror = true } = {}) {
     uMirrorMap: { value: null },
     uMirrorMatrix: { value: new THREE.Matrix4() },
     uWarp: { value: WATER.warp },
+    uShatter: { value: new THREE.Vector4(WATER.shatterSteep, WATER.shatterTight, WATER.shatterGain, WATER.shatterReach) },
+    uShatterAt: { value: new THREE.Vector4(0, -1e6, 0, 0) },
+    uShatterRing: { value: new THREE.Vector4(WATER.glowFrom, WATER.glowFade, WATER.glowLean[0], WATER.glowLean[1]) },
+    uShatterColor: { value: new THREE.Color('#ff5a2e') },
   };
 
   const common = /* glsl */ `
@@ -196,6 +217,10 @@ export function makeWater({ mirror = true } = {}) {
     uniform float uMirror;
     uniform sampler2D uMirrorMap;
     uniform float uWarp;
+    uniform vec4 uShatter;
+    uniform vec4 uShatterAt;
+    uniform vec4 uShatterRing;
+    uniform vec3 uShatterColor;
     varying vec4 vMirrorUv;
 
     // What a reflected ray finds. Not the scene environment — that is a
@@ -334,6 +359,29 @@ export function makeWater({ mirror = true } = {}) {
             float s = max(dot(wR, toL * inversesqrt(d2)), 0.0);
             float fall = 1.0 / (1.0 + d2 * 0.00045);
             wLit += uLampColor[i] * fall * (pow(s, wNe) * wGe + pow(s, 6.0) * uGlint.z);
+          }
+          // (gardenFix5.js, 7) the same lamps again, off the steeper chop
+          if (uShatter.z > 0.0) {
+            vec3 wN2 = normalize(vec3(-wSlope.x * uShatter.x, 1.0, -wSlope.y * uShatter.x));
+            vec3 wR2 = reflect(-wV, wN2);
+            float wReach2 = uShatter.w * uShatter.w;
+            vec3 wBroke = vec3(0.0);
+            for (int i = 0; i < ${MAX_LAMPS}; i++) {
+              if (i >= uLampCount) break;
+              vec3 toL = uLampPos[i] - vWPos;
+              float s = max(dot(wR2, normalize(toL)), 0.0);
+              wBroke += uLampColor[i] * pow(s, uShatter.y) / (1.0 + dot(toL.xz, toL.xz) / wReach2);
+            }
+            wLit += wBroke * uShatter.z;
+            // and the lit Pavilion itself, lying on the water round its foot:
+            // on every facet that leans toward it, less with distance from it
+            vec2 toP = uShatterAt.xz - vWPos.xz;
+            float dP = max(length(toP), 1e-3);
+            float wRing = exp(-max(dP - uShatterRing.x, 0.0) / uShatterRing.y);
+            float wLean = dot(-wSlope, toP / dP);
+            // (the lacquer's red on a facet that barely leans, the lanterns' orange on one that leans hard)
+            vec3 wGlowCol = mix(uShatterColor * vec3(0.85, 0.4, 0.38), uShatterColor, smoothstep(uShatterRing.w * 0.7, uShatterRing.w * 1.8, wLean));
+            wLit += wGlowCol * (uShatterAt.w * wRing * smoothstep(uShatterRing.z, uShatterRing.w, wLean));
           }
           // The moon is a long way off: a direction, not a place.
           float wMs = max(dot(wR, uMoonDir), 0.0);
@@ -542,11 +590,20 @@ export function makeWater({ mirror = true } = {}) {
     shared.uShoreFall.value = WATER.shore;
     shared.uWarp.value = WATER.warp;
     shared.uDebug.value = WATER.debug;
+    shared.uShatter.value.set(WATER.shatterSteep, WATER.shatterTight, WATER.shatterGain, WATER.shatterReach);
+    shared.uShatterRing.value.set(WATER.glowFrom, WATER.glowFade, WATER.glowLean[0], WATER.glowLean[1]);
+    shared.uShatterAt.value.w = WATER.glowK;
+  };
+  // The lit Pavilion, as a glow the chop breaks up (gardenFix5.js, 7):
+  // where it stands and what colour it is.
+  const setGlow = ([x, y, z], color) => {
+    shared.uShatterAt.value.set(x, y, z, WATER.glowK);
+    shared.uShatterColor.value.set(color);
   };
 
   const dispose = () => { target?.dispose(); };
 
   // (DEV: where the lamps it was handed are, for __water's report)
   const list = () => lamps.map((l) => [+l.p.x.toFixed(1), +l.p.y.toFixed(1), +l.p.z.toFixed(1), +l.power.toFixed(2)]);
-  return { material, surface, reflect, addLamp, setViewport, tick, redial, dispose, count: () => lamps.length, list };
+  return { material, surface, reflect, addLamp, setGlow, setViewport, tick, redial, dispose, count: () => lamps.length, list };
 }

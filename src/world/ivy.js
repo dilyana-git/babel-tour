@@ -346,7 +346,9 @@ export function hangIvy(from, out, len, rng) {
 // `top`, where `over` (points) takes it over the beams. Returns the strands as
 // node lists, the compound leaves as leaflets { p, q, s }, and a few young
 // shoots (node lists) reaching out into the air.
-export function twineWisteria({ x, z, postR, foot, plinthR, ground, top, turns, endAngle = null, over = [] }, rng) {
+// `rope` (gardenFix5.js, 4 — VINE): the trunk as a rope of unequal stems,
+// thick at the foot, winding the post closer and twisting tighter as it climbs.
+export function twineWisteria({ x, z, postR, foot, plinthR, ground, top, turns, endAngle = null, over = [], rope = null }, rng) {
   const R = (a, b) => a + (b - a) * rng();
   const phase = R(0, 6.28), lean = Math.sign(x) || 1;
   const spine = [];
@@ -364,9 +366,12 @@ export function twineWisteria({ x, z, postR, foot, plinthR, ground, top, turns, 
   }
   for (let k = 1; k <= N; k++) {
     const f = k / N, y = y0 + f * (top - y0) + Math.sin(f * 11 + phase) * 0.9;
-    const a = a0 + 0.3 + (f + Math.sin(f * 7.3 + phase * 2) * 0.035) * total;
+    // (the rope: slowly round the post low down, closer as it climbs)
+    const wind = rope ? (f * (1 + (rope.ease - 1) * f)) / rope.ease : f;
+    const a = a0 + 0.3 + (wind + Math.sin(f * 7.3 + phase * 2) * 0.035) * total;
     // thinner as it climbs, so it sits closer to the post
-    const r = postR + 0.25 + 0.6 * (1 - f) + Math.max(0, Math.sin(f * 13 + phase)) * 0.35;
+    const r = rope ? postR + 0.12 + (rope.head + (rope.foot - rope.head) * (1 - f) ** 1.25) * 0.95 + Math.max(0, Math.sin(f * 13 + phase)) * 0.3
+      : postR + 0.25 + 0.6 * (1 - f) + Math.max(0, Math.sin(f * 13 + phase)) * 0.35;
     spine.push(at(a, r, y));
   }
   spine.push(...over);
@@ -375,11 +380,28 @@ export function twineWisteria({ x, z, postR, foot, plinthR, ground, top, turns, 
   const pts = curve.getSpacedPoints(n), frames = curve.computeFrenetFrames(n, false);
   // two strands about the spine, twisted round each other; the second runs
   // out a little before the top and the first goes on alone
-  const strands = [[], []];
+  const strands = rope ? rope.stems.map(() => []) : [[], []];
   // (a full twist every five to seven units: slower, and the two lay side by side as a strap)
   const twist = R(0.9, 1.25);
+  let turned = phase;
   for (let i = 0; i <= n; i++) {
     const f = i / n, s = i * L / n;
+    if (rope) {
+      // each stem its own place in the rope, its own thickness, and its end:
+      // the thinnest gives out two thirds of the way up, drawn down to nothing
+      const girth = rope.head + (rope.foot - rope.head) * (1 - f) ** 1.25;
+      turned += (L / n) * (rope.twist[0] + (rope.twist[1] - rope.twist[0]) * f);
+      const T = frames.tangents[i], out = V(pts[i].x - x, 0, pts[i].z - z);
+      if (out.lengthSq() < 1e-6) out.set(1, 0, 0);
+      out.normalize().addScaledVector(T, -out.dot(T)).normalize();
+      const B = V().crossVectors(T, out);
+      rope.stems.forEach((stem, k) => {
+        if (f > stem.end) return;
+        const a = turned + stem.a, off = girth * stem.off, fade = Math.min(1, (stem.end - f) / 0.08 + 0.25);
+        strands[k].push({ p: pts[i].clone().addScaledVector(out, Math.cos(a) * off).addScaledVector(B, Math.sin(a) * off), r: girth * stem.r * (1 + 0.1 * Math.sin(s * 1.3 + k * 2.1)) * fade });
+      });
+      continue;
+    }
     const radius = 0.62 - 0.42 * f ** 0.7;
     const ang = s * twist + phase;
     const T = frames.tangents[i];

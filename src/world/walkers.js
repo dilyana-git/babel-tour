@@ -16,6 +16,9 @@ import * as THREE from 'three';
 import { readerGeometry, ROBES, clothShader } from './readers';
 import { makeRng } from './textures';
 import { vestOld } from './vestFix';
+import { tallFov } from './phoneFix';
+import { lib3Old, BRIDGE_READERS } from './libFix3';
+import { hud3Old, CAPTION } from './hudFix3';
 
 const clamp01 = (x) => Math.min(1, Math.max(0, x));
 const smooth = (a, b, x) => { const t = clamp01((x - a) / (b - a)); return t * t * (3 - 2 * t); };
@@ -25,7 +28,10 @@ const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 // its feet (readers.js, clothShader): still when uMove is 0, which is how the
 // readers who do not walk wear it.
 export const readerMaterial = (keep) => {
-  const u = { uStride: { value: 0 }, uMove: { value: 0 }, uReach: { value: STRIDE / 2 }, uBook: { value: new THREE.Vector4() }, uGlow: { value: new THREE.Vector4() }, uSheen: { value: 1 } };
+  const u = {
+    uStride: { value: 0 }, uMove: { value: 0 }, uReach: { value: STRIDE / 2 }, uBook: { value: new THREE.Vector4() }, uGlow: { value: new THREE.Vector4() }, uSheen: { value: 1 },
+    uLitK: { value: new THREE.Vector3(1, 1, 1) }, uArch: { value: new THREE.Vector4() }, uArchTint: { value: new THREE.Vector4(1, 0.8, 0.54, 150) },
+  };
   const mat = keep(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.96, metalness: 0, side: THREE.DoubleSide }));
   mat.onBeforeCompile = (sh) => clothShader(sh, u);
   mat.customProgramCacheKey = () => 'babel-walker';
@@ -84,7 +90,12 @@ const shadowTexture = () => {
 // `c` the bridge's middle, `ax` along it, `px` across it, `deck` the height
 // of its walking surface; `lectern` the one who has stopped to read:
 // { at: [x, z], y, face } (face: the angle about y they look along).
-export function buildWalkers({ root, keep, c, ax, px, deck, lectern, light = false }) {
+// `arch` [x, y, z]: the lit way out behind them, which rims them (libFix3.js, 2).
+export function buildWalkers({ root, keep, c, ax, px, deck, lectern, arch = null, light = false }) {
+  // The file as the room's subject, not holes in it (libFix3.js, 2): a wool
+  // that takes the light, more of the page's, and the arch behind them.
+  const LIT = !lib3Old(2);
+  const robes = LIT ? BRIDGE_READERS.robes : ROBES;
   const group = new THREE.Group();
   group.name = 'bridge-readers';
   root.add(group);
@@ -95,7 +106,14 @@ export function buildWalkers({ root, keep, c, ax, px, deck, lectern, light = fal
 
   const figure = (name, i, book) => {
     const { mat, u } = readerMaterial(keep);
-    const mesh = new THREE.Mesh(keep(readerGeometry({ seed: 3 + i * 13, color: ROBES[(i * 3 + 1) % ROBES.length], book })), mat);
+    const mesh = new THREE.Mesh(keep(readerGeometry({ seed: 3 + i * 13, color: robes[(i * 3 + 1) % robes.length], book })), mat);
+    if (LIT) {
+      u.uLitK.value.set(...BRIDGE_READERS.lit);
+      if (arch) {
+        u.uArch.value.set(...arch, BRIDGE_READERS.arch.k);
+        u.uArchTint.value.set(...BRIDGE_READERS.arch.color, BRIDGE_READERS.arch.reach);
+      }
+    }
     // (the open book's pages, which throw the lamps' light up under the hood)
     if (mesh.geometry.userData.book) u.uBook.value.set(...mesh.geometry.userData.book, 1);
     mesh.name = name;
@@ -141,7 +159,10 @@ export function buildWalkers({ root, keep, c, ax, px, deck, lectern, light = fal
   const plan = (o) => {
     const end = nextEnd(o.s);
     const mid = o.s + R(18, 70);
-    if (!o.book && rng() < 0.35 && mid < end - 12 && inLane(mid) && gaps(o)[1] > 30) {
+    // (nor where the stand's frame would cut them, or its caption lie over
+    // them: someone walking through there is leaving the picture, someone
+    // stopped there is standing half out of it — hudFix3.js, 6)
+    if (!o.book && rng() < 0.35 && mid < end - 12 && inLane(mid) && gaps(o)[1] > 30 && !barred(mid)) {
       o.stopAt = mid;
       o.rest = R(3, 6);
       o.look = 'rail';
@@ -151,6 +172,9 @@ export function buildWalkers({ root, keep, c, ax, px, deck, lectern, light = fal
       o.look = 'on';
     }
   };
+  // (the stretches of the way round a reader is not to stop in: found further
+  // down, once it is known where the stand is and what shape its frame is)
+  let barred = () => false;
   walkers.forEach(plan);
   // Nobody passes, so on a way round with no end the quick ones would close up
   // behind the slowest and the four would go round as one train, stopping and
@@ -199,11 +223,21 @@ export function buildWalkers({ root, keep, c, ax, px, deck, lectern, light = fal
   // reader is arriving and for a little while after: whoever is across an
   // edge walks on out of it, and nobody steps into one. Where the edges fall
   // depends on the screen's shape, so they are found again for each.
+  // The corner the room's caption stands in is kept the same way (hudFix3.js,
+  // 6): the first room's name was set over a reader stopped at the rail there.
+  // It is so many pixels of the screen, so it is found again for each height
+  // of one too.
   let watch = null;            // { eye, look, fov }: the stand, and where it looks
-  let edges = null, edgesFor = 0;
+  let edges = null, edgesFor = 0, edgesHigh = 0;
   const STEP = 0.5;
-  const findEdges = (aspect) => {
-    const cam = new THREE.PerspectiveCamera(watch.fov, aspect, 0.5, 2000);
+  const findEdges = (aspect, high) => {
+    // the caption's corner, in the frame's own measure (-1 to 1 each way)
+    const wide = high * aspect;
+    const corner = !hud3Old(6) && aspect >= 1 && high > 0
+      ? { hi: -1 + (2 * CAPTION.right) / wide, bot: -1 + (2 * CAPTION.foot) / high, top: -1 + (2 * CAPTION.head) / high }
+      : null;
+    // (the lens as this screen has it: a tall one's is opened, phoneFix.js)
+    const cam = new THREE.PerspectiveCamera(tallFov(watch.fov, aspect), aspect, 0.5, 2000);
     cam.position.set(...watch.eye);
     cam.lookAt(...watch.look);
     cam.updateMatrixWorld();
@@ -226,10 +260,13 @@ export function buildWalkers({ root, keep, c, ax, px, deck, lectern, light = fal
       // in the picture at all, and not wholly inside it (with a little to spare)
       const seen = hi > -1.02 && lo < 1.02 && top > -1.02 && bot < 1.02;
       const whole = !behind && lo > -0.96 && hi < 0.96 && bot > -0.96 && top < 0.96;
-      cut[i] = seen && !whole ? 1 : 0;
+      // (or behind the caption)
+      const under = corner && !behind && seen && lo < corner.hi && bot < corner.top && top > corner.bot;
+      cut[i] = (seen && !whole) || under ? 1 : 0;
     }
     return cut;
   };
+  barred = (s) => edges !== null && cutAt(s);
   const cutAt = (s) => edges[Math.floor((((s % LOOP) + LOOP) % LOOP) / STEP) % edges.length] === 1;
   // where, ahead of `s`, the next edge begins (Infinity: none within reach)
   const edgeAhead = (s, reach = 40) => {
@@ -269,7 +306,8 @@ export function buildWalkers({ root, keep, c, ax, px, deck, lectern, light = fal
     last = time;
     if (light || dt === 0) return;
     const keepOut = !vestOld(1) && watch && aspect > 0;
-    if (keepOut && Math.abs(aspect - edgesFor) > 0.005) { edges = findEdges(aspect); edgesFor = aspect; }
+    const high = typeof window !== 'undefined' ? window.innerHeight : 0;
+    if (keepOut && (Math.abs(aspect - edgesFor) > 0.005 || high !== edgesHigh)) { edges = findEdges(aspect, high); edgesFor = aspect; edgesHigh = high; }
     const held = keepOut && guarding(time, eye);
     // Over the map, where a reader is a pixel, whoever stands across an edge
     // is put on past it: then nobody is there when the eye comes down.
@@ -334,5 +372,15 @@ export function buildWalkers({ root, keep, c, ax, px, deck, lectern, light = fal
   const watchFrom = (w) => { watch = w; edgesFor = 0; };
   // (and for a harness: which of them is across an edge of the stand's frame now)
   const across = () => walkers.map((o) => (edges ? cutAt(o.s) : null));
-  return { group, tick, where, watchFrom, across };
+  // (and the stretches of the way round that are kept clear, as [from, to])
+  const cuts = () => {
+    const out = [];
+    for (let i = 0; edges && i < edges.length; i++) {
+      if (!edges[i]) continue;
+      if (out.length && out[out.length - 1][1] === (i - 1) * STEP) out[out.length - 1][1] = i * STEP;
+      else out.push([i * STEP, i * STEP]);
+    }
+    return out;
+  };
+  return { group, tick, where, watchFrom, across, cuts };
 }

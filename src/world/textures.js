@@ -112,8 +112,20 @@ const soil = (g, rnd, size, count, lightChance = 0.35) => {
 // need be the same length. Eight equal courses of four equal blocks, every
 // joint the same dark, read at room distance as brick wallpaper.
 const RHYTHM = [1.3, 0.8, 1.12, 0.78, 1.06, 0.86, 1.22, 0.86];
+// (and for `punched` stone: a wall whose courses are plainly not one height)
+const RHYTHM_MIXED = [1.5, 0.7, 1.1, 0.66, 1.32, 0.8, 0.94, 0.68, 1.46, 0.74, 1.16, 0.84];
 // `spread`: how far a block's tone may stray from `tone`, either way.
-export function ashlar({ size = 1024, seed = 7, courses = 8, blocks = 4, tone = [112, 100, 88], joint = 3, strength = 3.2, spread = 18 } = {}) {
+// `dress`: how the mason left the face. 'cushion' (as it always was): every
+// block bevelled a good way in from its edge and its field scored with a
+// broad chisel at a slant. On the gallery walls that read as wood — stacked
+// timber, bars of chocolate (the review of 2026-10-11, board 3 point 3).
+// 'punched': a narrow arris and the face left from the punch, pecked all
+// over and in no direction; the courses of more than one height, the blocks
+// from a half to nearly two lengths, one in eight a paler stone and one in
+// ten a darker; and lime come out of the bed joints and down the faces under
+// them in pale blooms.
+export function ashlar({ size = 1024, seed = 7, courses = 8, blocks = 4, tone = [112, 100, 88], joint = 3, strength = 3.2, spread = 18, dress = 'cushion' } = {}) {
+  const punched = dress === 'punched';
   const rnd = makeRng(seed);
   const [col, c] = canvas(size);
   const [hei, hg] = canvas(size);
@@ -132,8 +144,9 @@ export function ashlar({ size = 1024, seed = 7, courses = 8, blocks = 4, tone = 
     c.fillRect(rnd() * size, rnd() * size, 2 + rnd() * 12, 2 + rnd() * 8);
   }
   const bw = size / blocks;
-  const rhythm = RHYTHM.slice(0, courses);
-  while (rhythm.length < courses) rhythm.push(RHYTHM[rhythm.length % RHYTHM.length]);
+  const beat = punched ? RHYTHM_MIXED : RHYTHM;
+  const rhythm = beat.slice(0, courses);
+  while (rhythm.length < courses) rhythm.push(beat[rhythm.length % beat.length]);
   const sum = rhythm.reduce((a, b) => a + b, 0);
   // One block, as a mason dresses it: a smooth margin drafted round the face
   // and the field inside it worked with a broad chisel in close parallel
@@ -163,16 +176,40 @@ export function ashlar({ size = 1024, seed = 7, courses = 8, blocks = 4, tone = 
     c.fillStyle = wash;
     c.fillRect(x, y, w, h);
     // chamfered faces: lower toward every edge
-    for (let s = 0; s < 7; s++) {
-      hg.fillStyle = grey(70 + s * 22 + wear * 10);
+    // (punched: an arris, three pixels of it, and the face flat to there)
+    for (let s = 0; s < (punched ? 3 : 7); s++) {
+      hg.fillStyle = grey(punched ? 148 + s * 27 + wear * 10 : 70 + s * 22 + wear * 10);
       hg.fillRect(x + s, y + s, w - s * 2, h - s * 2);
     }
     // the field, tooled: parallel strokes across it inside the drafted margin
-    const m = Math.max(5, Math.min(w, h) * 0.1);
+    const m = punched ? 3 : Math.max(5, Math.min(w, h) * 0.1);
     hg.save();
     hg.beginPath();
     hg.rect(x + m, y + m, w - m * 2, h - m * 2);
     hg.clip();
+    if (punched) {
+      // The punch: a peck at a time, close set, each a small pit with a
+      // bruise of paler stone at its lip; and the face not quite a plane —
+      // a few broad shallow hollows where more came away. No stroke has a
+      // direction, so no light finds a grain in it.
+      for (let k = 0, n = 2 + Math.floor(rnd() * 3); k < n; k++) {
+        const px = x + rnd() * w, py = y + rnd() * h, r = Math.max(w, h) * (0.18 + rnd() * 0.3);
+        const b = hg.createRadialGradient(px, py, 0, px, py, r);
+        b.addColorStop(0, rnd() < 0.5 ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.08)');
+        b.addColorStop(1, 'rgba(0,0,0,0)');
+        hg.fillStyle = b;
+        hg.fillRect(px - r, py - r, r * 2, r * 2);
+      }
+      for (let k = 0, n = Math.round((w * h) / 26); k < n; k++) {
+        const px = x + m + rnd() * (w - m * 2), py = y + m + rnd() * (h - m * 2), s = 1 + rnd() * 2.2, a = 0.05 + rnd() * 0.13;
+        hg.fillStyle = `rgba(0,0,0,${a})`;
+        hg.fillRect(px, py, s, s);
+        if (rnd() < 0.4) {
+          hg.fillStyle = `rgba(255,255,255,${a * 0.6})`;
+          hg.fillRect(px - 1, py - 1, s, 1);
+        }
+      }
+    } else {
     // Short strokes, each the width of the chisel's edge, at random places
     // and lengths but all at the block's one angle, and a stipple between:
     // full-length lines at an even pitch drew a pinstripe that the distance
@@ -191,9 +228,11 @@ export function ashlar({ size = 1024, seed = 7, courses = 8, blocks = 4, tone = 
       hg.fillStyle = rnd() < 0.5 ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)';
       hg.fillRect(x + m + rnd() * (w - m * 2), y + m + rnd() * (h - m * 2), 1 + rnd(), 1 + rnd());
     }
+    }
     hg.restore();
     // the margin a shade paler than the field: it was rubbed smooth
-    c.strokeStyle = 'rgba(236,226,206,0.05)';
+    // (punched stone has none; its arris is only a little dirtier than its face)
+    c.strokeStyle = punched ? 'rgba(24,17,11,0.1)' : 'rgba(236,226,206,0.05)';
     c.lineWidth = m;
     c.strokeRect(x + m / 2, y + m / 2, w - m, h - m);
     for (const g of [c, hg]) g.restore();
@@ -222,7 +261,7 @@ export function ashlar({ size = 1024, seed = 7, courses = 8, blocks = 4, tone = 
     // course where the first began, so it tiles across as well as down.
     const lens = [];
     let run = 0;
-    while (run < size - bw * 0.55) { const w = bw * (0.6 + rnd() * 0.9); lens.push(w); run += w; }
+    while (run < size - bw * 0.55) { const w = bw * (punched ? 0.45 + Math.min(1.6, rnd() * rnd() * 2.4) : 0.6 + rnd() * 0.9); lens.push(w); run += w; }
     lens[lens.length - 1] += size - run;
     let x = rnd() * size;
     for (const w of lens) {
@@ -233,6 +272,9 @@ export function ashlar({ size = 1024, seed = 7, courses = 8, blocks = 4, tone = 
         angle: (rnd() < 0.6 ? 1.15 : rnd() < 0.5 ? Math.PI / 2 : 0.08) + (rnd() - 0.5) * 0.25,
         chips: Array.from({ length: Math.floor(rnd() * rnd() * 5) }, () => [Math.floor(rnd() * 4), 0.08 + rnd() * 0.84, 3 + rnd() * 7]),
       };
+      // (not all from one bed of the quarry: some paler, some darker, by more
+      // than the wall's ordinary spread)
+      if (punched) { const r = rnd(); look.v = look.v * 0.8 + (r < 0.13 ? 1.1 : r > 0.9 ? -0.9 : 0); }
       // a block over the right-hand edge comes back in at the left
       for (const dx of [0, -size]) {
         if (x + dx + w <= 0 || x + dx >= size) continue;
@@ -261,6 +303,33 @@ export function ashlar({ size = 1024, seed = 7, courses = 8, blocks = 4, tone = 
       g.addColorStop(1, 'rgba(0,0,0,0)');
       c.fillStyle = g;
       c.fillRect(x - wd / 2, y + dy, wd, len);
+    }
+  }
+  // Lime, come out of a bed joint with the damp and dried on the faces under
+  // it: a pale bloom hanging from the joint, widest and whitest at the top.
+  if (punched) {
+    let yb = 0;
+    const beds = rhythm.map((r) => (yb += (r / sum) * size));
+    for (let k = 0; k < 22; k++) {
+      const y = beds[Math.floor(rnd() * beds.length)] % size, x = rnd() * size;
+      const wd = 30 + rnd() * 150, drop = 14 + rnd() * 60, a = 0.07 + rnd() * 0.12;
+      for (const dx of [0, -size]) {
+        for (const dy of [0, -size]) {
+          const g = c.createRadialGradient(x + dx, y + dy, 0, x + dx, y + dy, 1);
+          g.addColorStop(0, `rgba(226,220,204,${a})`);
+          g.addColorStop(1, 'rgba(226,220,204,0)');
+          c.save();
+          c.beginPath();
+          c.rect(x + dx - wd, y + dy, wd * 2, drop * 1.2);
+          c.clip();
+          c.translate(x + dx, y + dy);
+          c.scale(wd, drop);
+          c.translate(-(x + dx), -(y + dy));
+          c.fillStyle = g;
+          c.fillRect(x + dx - 1, y + dy - 1, 2, 2);
+          c.restore();
+        }
+      }
     }
   }
   soil(c, rnd, size, 26);

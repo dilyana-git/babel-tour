@@ -5,6 +5,13 @@
 // deeper. Crossing into the garden opens the air back up: a band-passed hush
 // of leaves gusts in while the stone drones recede. Everything stays very
 // quiet: this is atmosphere, not soundtrack.
+//
+// It was the plate tour's, and is the world's now (worldSound.js drives it):
+// the same air and the same root for each room, and three things the world
+// has that the plates had not — a floor that is stone, gravel, grass or
+// timber under the feet (step), a room with walls at some distance (setRoom:
+// the Echo says a footfall again, the Silence is quieter than quiet, the
+// garden has no walls at all), and, at the Pavilion, the qin (pluck).
 
 const NOISE_SECONDS = 8;
 
@@ -66,6 +73,68 @@ function brownNoiseBuffer(ctx) {
 // White noise for the garden's leaves — brown noise has no energy left up
 // where leaf-hiss lives. Same loop taper; the brief dip every eight seconds
 // reads as the wind drawing breath.
+// ── The room ─────────────────────────────────────────────────────────────────
+// What a footfall (and the qin) is heard IN: how much of it comes back from
+// far walls (`hall`, a long dark tail), how much from near ones (`room`, a
+// short one), how much is said again a third of a second later (`slap` — the
+// Echo's flights answering each other), and how far the air and the drone are
+// let down (`quiet`: in the Silence the reader's own steps are what is left).
+// The garden's rooms have a sky over them and nearly nothing comes back.
+const ROOM_AIR = {
+  vestibule: { hall: 0.3, room: 0.3, slap: 0, quiet: 0 },
+  echo: { hall: 0.5, room: 0.15, slap: 0.5, quiet: 0 },
+  silence: { hall: 0, room: 0.2, slap: 0, quiet: 1 },
+  vertigo: { hall: 0.75, room: 0.1, slap: 0.12, quiet: 0.2 },
+  door: { hall: 0.2, room: 0.3, slap: 0, quiet: 0 },
+  fork: { hall: 0, room: 0.04, slap: 0, quiet: 0 },
+  pavilion: { hall: 0, room: 0.1, slap: 0, quiet: 0 },
+  web: { hall: 0, room: 0.06, slap: 0, quiet: 0 },
+};
+
+// A room's answer, made rather than recorded: noise dying away, darker as it
+// dies (stone gives back less of the top each time), a little different in
+// each ear so the tail has width.
+function tailBuffer(ctx, seconds, dark) {
+  const length = Math.floor(ctx.sampleRate * seconds);
+  const buffer = ctx.createBuffer(2, length, ctx.sampleRate);
+  const lead = Math.floor(ctx.sampleRate * 0.012);
+  for (let ch = 0; ch < 2; ch++) {
+    const data = buffer.getChannelData(ch);
+    let held = 0;
+    for (let i = lead; i < length; i++) {
+      const t = (i - lead) / (length - lead);
+      const k = dark + (1 - dark) * (1 - t) ** 2;
+      held += k * ((Math.random() * 2 - 1) - held);
+      data[i] = held * Math.exp(-6.2 * t);
+    }
+  }
+  return buffer;
+}
+
+// One plucked string (Karplus and Strong's): a period of noise, softened —
+// silk under a fingertip, not wire under a pick — going round and losing a
+// little of its top each time. `rate` is what to play it at for the pitch to
+// be exact (the period is a whole number of samples).
+function pluckBuffer(ctx, freq, seconds = 4.5) {
+  const sr = ctx.sampleRate;
+  const period = Math.max(2, Math.round(sr / freq));
+  const length = Math.floor(sr * seconds);
+  const buffer = ctx.createBuffer(1, length, sr);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < period; i++) data[i] = Math.random() * 2 - 1;
+  for (let pass = 0; pass < 3; pass++) {
+    for (let i = 1; i < period; i++) data[i] = 0.5 * (data[i] + data[i - 1]);
+  }
+  // (the note rings about four seconds, whatever its pitch)
+  const keep = Math.exp(Math.log(0.001) / (freq * 4));
+  for (let i = period + 1; i < length; i++) data[i] = 0.5 * (data[i - period] + data[i - period - 1]) * keep;
+  let peak = 0;
+  for (let i = 0; i < length; i++) peak = Math.max(peak, Math.abs(data[i]));
+  const fade = Math.floor(sr * 0.3);
+  for (let i = 0; i < length; i++) data[i] *= (1 / (peak || 1)) * Math.min(1, (length - i) / fade);
+  return { buffer, rate: (freq * period) / sr };
+}
+
 function whiteNoiseBuffer(ctx) {
   const length = ctx.sampleRate * NOISE_SECONDS;
   const buffer = ctx.createBuffer(1, length, ctx.sampleRate);
@@ -90,6 +159,10 @@ export default class AmbientSound {
     this.garden = 0;  // 0 in the library, 1 once through the door
     this.stepFoot = false;   // which foot lands next — alternates per step()
     this.scuffBuffer = null; // white noise shared with the footsteps' scuff
+    this.quiet = 0;          // the room's (ROOM_AIR), and where it has got to
+    this.quietNow = 0;
+    this.room = null;
+    this.plucks = new Map(); // the qin's strings, each made when first played
   }
 
   // Must be called from a user gesture (the entry-veil click).
@@ -123,6 +196,34 @@ export default class AmbientSound {
     this.master.gain.setValueAtTime(0, now);
     this.master.gain.linearRampToValueAtTime(this.muted ? 0 : 1, now + 5);
     this.master.connect(this.dip);
+
+    // The room (setRoom). Footfalls and the qin are said into `stepBus`, which
+    // is heard plain and is also sent to two tails and, in the Echo, round a
+    // delay that says it again, darker and fainter each time.
+    this.stepBus = ctx.createGain();
+    this.stepBus.connect(this.master);
+    const tail = (seconds, dark) => {
+      const send = ctx.createGain();
+      send.gain.value = 0;
+      const verb = ctx.createConvolver();
+      verb.buffer = tailBuffer(ctx, seconds, dark);
+      this.stepBus.connect(send).connect(verb).connect(this.master);
+      return send;
+    };
+    this.hallSend = tail(3.4, 0.08);
+    this.roomSend = tail(0.9, 0.3);
+    this.slapSend = ctx.createGain();
+    this.slapSend.gain.value = 0;
+    const slap = ctx.createDelay(1);
+    slap.delayTime.value = 0.31;
+    const slapDark = ctx.createBiquadFilter();
+    slapDark.type = 'lowpass';
+    slapDark.frequency.value = 1300;
+    const slapAgain = ctx.createGain();
+    slapAgain.gain.value = 0.42;
+    this.stepBus.connect(this.slapSend).connect(slap).connect(slapDark);
+    slapDark.connect(slapAgain).connect(slap);
+    slapDark.connect(this.master);
 
     // Air: looping brown noise, filtered dark, gain slowly breathing via LFO.
     const noise = ctx.createBufferSource();
@@ -207,8 +308,12 @@ export default class AmbientSound {
     const g = this.garden;
     // The library darkens with depth; the garden opens the air back up and
     // trades the stone drones for leaf-hiss.
-    this.noiseFilter.frequency.value = 320 - d * 190 + g * 320;
-    this.droneGain.gain.value = (0.018 + d * 0.014) * (1 - g * 0.55);
+    // (and the Silence lets both down, a little at a time: quieter than quiet)
+    this.quietNow += (this.quiet - this.quietNow) * 0.02;
+    const q = this.quietNow;
+    this.noiseFilter.frequency.value = (320 - d * 190 + g * 320) * (1 - q * 0.35);
+    this.noiseGain.gain.value = 0.05 * (1 - q * 0.6);
+    this.droneGain.gain.value = (0.018 + d * 0.014) * (1 - g * 0.55) * (1 - q * 0.8);
     this.gardenGain.gain.value = g * 0.02;
     this.gustDepth.gain.value = g * 0.007;
   }
@@ -257,6 +362,89 @@ export default class AmbientSound {
     this.droneOsc[1].frequency.value = root * DETUNE;
   }
 
+  // The room the reader stands in (its slug): what their footfalls are heard in.
+  setRoom(slug) {
+    if (!this.ctx || slug === this.room || !ROOM_AIR[slug]) {
+      return;
+    }
+    this.room = slug;
+    const air = ROOM_AIR[slug];
+    const t = this.ctx.currentTime;
+    this.hallSend.gain.setTargetAtTime(air.hall, t, 0.9);
+    this.roomSend.gain.setTargetAtTime(air.room, t, 0.9);
+    this.slapSend.gain.setTargetAtTime(air.slap, t, 0.9);
+    this.quiet = air.quiet;
+  }
+
+  // How far the reader is down among the walls: 0 over the map, where the
+  // Library is heard from above as air and little else, 1 standing in a room.
+  setPresence(eye) {
+    if (!this.ctx) {
+      return;
+    }
+    this.dip.gain.value = 0.35 + 0.65 * Math.min(Math.max(eye, 0), 1);
+  }
+
+  // One note of the qin: a plucked string, soft, slid up into from just under
+  // the note as a finger does on silk (`slide`, in cents), placed a little to
+  // one side (`pan`), `at` seconds from now.
+  pluck(freq, { at = 0, level = 0.02, pan = 0, slide = 0 } = {}) {
+    if (!this.ctx || this.muted) {
+      return;
+    }
+    const ctx = this.ctx;
+    const t = ctx.currentTime + at;
+    let string = this.plucks.get(freq);
+    if (!string) {
+      string = pluckBuffer(ctx, freq);
+      this.plucks.set(freq, string);
+    }
+    const src = ctx.createBufferSource();
+    src.buffer = string.buffer;
+    if (slide) {
+      src.playbackRate.setValueAtTime(string.rate * 2 ** (-slide / 1200), t);
+      src.playbackRate.exponentialRampToValueAtTime(string.rate, t + 0.22);
+    } else {
+      src.playbackRate.setValueAtTime(string.rate, t);
+    }
+    const body = ctx.createBiquadFilter();
+    body.type = 'lowpass';
+    body.frequency.value = 1500 + level * 30000;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(Math.max(level, 0.0002), t + 0.006);
+    const side = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
+    if (side) {
+      side.pan.value = pan;
+      side.connect(this.stepBus);
+    }
+    src.connect(body).connect(g).connect(side ?? this.stepBus);
+    src.start(t);
+    src.stop(t + 4.6);
+  }
+
+  // (DEV: how loud it is at this instant, peak and RMS in dB below full scale —
+  // a headless run cannot listen, but it can read a meter)
+  meter() {
+    if (!this.ctx) {
+      return null;
+    }
+    if (!this.tap) {
+      this.tap = this.ctx.createAnalyser();
+      this.tap.fftSize = 8192;
+      this.dip.connect(this.tap);
+    }
+    const data = new Float32Array(this.tap.fftSize);
+    this.tap.getFloatTimeDomainData(data);
+    let peak = 0, sum = 0;
+    for (const v of data) {
+      peak = Math.max(peak, Math.abs(v));
+      sum += v * v;
+    }
+    const db = (x) => +(20 * Math.log10(Math.max(x, 1e-7))).toFixed(1);
+    return { peak: db(peak), rms: db(Math.sqrt(sum / data.length)), state: this.ctx.state };
+  }
+
   // A single soft footfall on stone: a low, pitch-dropping thump and a brief
   // brush of scuff, both very quiet — felt under the room tone more than heard.
   // Alternating feet land a shade apart (and every step varies a little) so a
@@ -269,7 +457,12 @@ export default class AmbientSound {
   // possible cue that the sound has a person in it, and they cost one node.
   // Kept narrow (the feet are directly below the listener, not out to the side)
   // and slightly varied, so it reads as gait rather than as ping-pong.
-  step(intensity = 1) {
+  //
+  // `surface` is what the foot lands on. Stone is the footfall above. Timber
+  // (the Pavilion's deck and its bridge) knocks, hollow, with the boards'
+  // own note under it; gravel has no thump to speak of, only stones grinding
+  // on each other, two or three grains to a step; grass is hardly a sound.
+  step(intensity = 1, surface = 'stone') {
     if (!this.ctx || this.muted) {
       return;
     }
@@ -277,6 +470,15 @@ export default class AmbientSound {
     const t = ctx.currentTime;
     this.stepFoot = !this.stepFoot;
     const vary = 0.9 + Math.random() * 0.2;
+    const ground = {
+      stone: { thump: 1, f: 1, fall: 0.55, scuff: 1, band: 500, q: 0.9, len: 0.09, grains: 1 },
+      timber: { thump: 1.25, f: 1.75, fall: 0.72, scuff: 0.8, band: 310, q: 5, len: 0.12, grains: 1 },
+      gravel: { thump: 0.3, f: 0.9, fall: 0.6, scuff: 1.5, band: 2900, q: 0.8, len: 0.07, grains: 3 },
+      grass: { thump: 0.22, f: 0.8, fall: 0.6, scuff: 0.55, band: 1100, q: 0.5, len: 0.16, grains: 1 },
+    }[surface] ?? null;
+    if (!ground) {
+      return;
+    }
     // Both halves of the footfall go through one panner, so the thump and its
     // scuff are the same foot in the same place rather than two events that
     // happen to coincide. Older Safari has no StereoPannerNode; there the step
@@ -284,17 +486,17 @@ export default class AmbientSound {
     const foot = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
     if (foot) {
       foot.pan.value = (this.stepFoot ? 1 : -1) * (0.16 + Math.random() * 0.1);
-      foot.connect(this.master);
+      foot.connect(this.stepBus);
     }
-    const out = foot ?? this.master;
+    const out = foot ?? this.stepBus;
 
     const thump = ctx.createOscillator();
     thump.type = 'sine';
-    const f0 = (this.stepFoot ? 84 : 74) * vary;
+    const f0 = (this.stepFoot ? 84 : 74) * vary * ground.f;
     thump.frequency.setValueAtTime(f0, t);
-    thump.frequency.exponentialRampToValueAtTime(f0 * 0.55, t + 0.12);
+    thump.frequency.exponentialRampToValueAtTime(f0 * ground.fall, t + 0.12);
     const tg = ctx.createGain();
-    const peak = 0.016 * intensity * (this.stepFoot ? 1 : 0.85);
+    const peak = 0.016 * intensity * ground.thump * (this.stepFoot ? 1 : 0.85);
     tg.gain.setValueAtTime(0.0001, t);
     tg.gain.exponentialRampToValueAtTime(Math.max(peak, 0.0002), t + 0.012);
     tg.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
@@ -302,20 +504,22 @@ export default class AmbientSound {
     thump.start(t);
     thump.stop(t + 0.22);
 
-    if (this.scuffBuffer) {
+    for (let grain = 0; this.scuffBuffer && grain < ground.grains; grain++) {
+      const at = t + grain * (0.022 + Math.random() * 0.02);
       const scuff = ctx.createBufferSource();
       scuff.buffer = this.scuffBuffer;
       const bp = ctx.createBiquadFilter();
       bp.type = 'bandpass';
-      bp.frequency.value = 500 + Math.random() * 260;
-      bp.Q.value = 0.9;
+      bp.frequency.value = ground.band * (1 + Math.random() * 0.52);
+      bp.Q.value = ground.q;
       const sg = ctx.createGain();
-      sg.gain.setValueAtTime(0.0001, t);
-      sg.gain.exponentialRampToValueAtTime(Math.max(0.006 * intensity, 0.0002), t + 0.008);
-      sg.gain.exponentialRampToValueAtTime(0.0001, t + 0.09);
+      const level = (0.006 * intensity * ground.scuff) / Math.sqrt(ground.grains);
+      sg.gain.setValueAtTime(0.0001, at);
+      sg.gain.exponentialRampToValueAtTime(Math.max(level, 0.0002), at + (surface === 'grass' ? 0.03 : 0.008));
+      sg.gain.exponentialRampToValueAtTime(0.0001, at + ground.len);
       scuff.connect(bp).connect(sg).connect(out);
-      scuff.start(t, Math.random() * (NOISE_SECONDS - 1));
-      scuff.stop(t + 0.12);
+      scuff.start(at, Math.random() * (NOISE_SECONDS - 1));
+      scuff.stop(at + ground.len + 0.03);
     }
   }
 

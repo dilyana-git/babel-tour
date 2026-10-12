@@ -57,8 +57,9 @@ export class Wood {
   }
 
   // `nodes`: [{ p, r }] from the base out. `sides` round. `flare` swells the
-  // foot of a trunk into buttresses.
-  tube(nodes, sides, tint, { flare = 0 } = {}) {
+  // foot of a trunk into buttresses. `ribs` ({ n, deep, spin }): sinews along
+  // it, `n` round, turning about the stem as they go, dark between.
+  tube(nodes, sides, tint, { flare = 0, ribs = null } = {}) {
     const n = nodes.length;
     if (n < 2) return;
     const T = [], N = [];
@@ -90,11 +91,13 @@ export class Wood {
       for (let k = 0; k <= sides; k++) {
         const th = (k / sides) * Math.PI * 2;
         off.copy(N[i]).multiplyScalar(Math.cos(th)).addScaledVector(B, Math.sin(th));
-        const swell = flare && i === 0 ? 1 + flare * (0.6 + 0.4 * Math.cos(th * 5 + 1.3)) : flare && i === 1 ? 1 + flare * 0.25 : 1;
+        const rib = ribs ? Math.cos(ribs.n * th + ribs.spin * run) : 0;
+        const swell = (flare && i === 0 ? 1 + flare * (0.6 + 0.4 * Math.cos(th * 5 + 1.3)) : flare && i === 1 ? 1 + flare * 0.25 : 1) * (1 + (ribs ? ribs.deep * rib : 0));
+        const shade = foot * (ribs ? 0.66 + 0.34 * (0.5 + 0.5 * rib) : 1);
         this.pos.push(p.x + off.x * r * swell, p.y + off.y * r * swell, p.z + off.z * r * swell);
         this.nor.push(off.x, off.y, off.z);
         this.uv.push((k / sides) * around, run / this.scale);
-        this.col.push(tint.r * foot, tint.g * foot, tint.b * foot);
+        this.col.push(tint.r * shade, tint.g * shade, tint.b * shade);
       }
     }
     for (let i = 0; i < n - 1; i++) {

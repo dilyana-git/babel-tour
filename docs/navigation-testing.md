@@ -18,7 +18,7 @@ At that point, frequent fast checks supplement the full major-change gate.
 | `npm run check:navigation:watch:fast` | Watch and rerun fast checks without starting the development server |
 | `npm run check:navigation:smoke` | Entry, combined input/release, walking interruption, and both ending-skip keys |
 | `npm run check:major` | All baseline and acceptance browser scenarios, fast navigation tests, lint and build |
-| `npm run check:project` | The major-change gate followed by retained plate, responsive and balcony checks |
+| `npm run check:project` | The major-change gate (the plate tour's own checks went with it) |
 | `npm run check:navigation:contracts` | Focused acceptance checks for the controls and spiral passage |
 
 For a focused browser case:
@@ -120,18 +120,6 @@ The default browser configuration uses software WebGL. It checks functional
 behavior and movement outcomes, not actual-device visual comfort or rendering
 performance. Hardware frame-time baselines and quantitative acceleration/
 camera-jitter thresholds are a further test layer, not a claim of this suite.
-
-## Other experiences
-
-The default world gate does not cover the retained plate tour or reading
-balcony. `npm run check:legacy` starts its own server for their checks;
-`npm run check:project` combines both gates. Their individual commands remain:
-
-```powershell
-npm run check:selenium -- plates responsive
-# With a Vite server already running:
-node tools/balcony-check.mjs
-```
 
 ## Implementation discipline
 

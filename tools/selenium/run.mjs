@@ -1,10 +1,8 @@
 #!/usr/bin/env node
 import { startApp, startBrowser } from './browser.mjs';
 import world from './world.mjs';
-import plates from './plates.mjs';
-import responsive from './responsive.mjs';
 
-const cases = { world, plates, responsive };
+const cases = { world };
 const selected = process.argv.slice(2);
 for (const name of selected) {
   if (!(name in cases)) throw new Error(`Unknown suite "${name}". Choose: ${Object.keys(cases).join(', ')}`);

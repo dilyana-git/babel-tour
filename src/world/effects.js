@@ -792,8 +792,36 @@ const foliageAlpha = (shader) => shader.fragmentShader
 // `prepassed`: drawn after makeFoliagePrepass has laid the depth, so it
 // writes none of its own — and with no depth to write, a card that fails the
 // depth test is thrown away before its lighting is ever run.
-export function makeFoliageMaterial(map, wind, kinds = 1, { prepassed = false } = {}) {
+//
+// `feather` (gardenFix5.js, 11 — { near, far, wide }): across the garden a
+// crown's outline was the alpha test's own, a hard stair a pixel deep that no
+// filter after it finds on dark leaf against a dark sky. From `near` to `far`
+// units off the cut goes over to a ramp `wide` pixels across, centred on
+// where the cut was (so a crown is no bigger and the sky between its sprays
+// is not filled in): the prepass lays depth only where a spray covers the
+// whole pixel, and the lit pass draws the rest of the ramp by how much of
+// the pixel it covers, over whatever is already behind it. Only with the
+// prepass — the ramp writes no depth, so it never hides the leaf behind it —
+// and the mesh must then be drawn before anything else that blends (its
+// renderOrder). (First tried as a fringe added outside the cut: it filled
+// the gaps in a crown and made the far trees blockier, not softer.)
+const featherCut = (feather, then) => `
+  {
+    // (how fast the alpha falls across a pixel here: the ramp is that many
+    // pixels wide whatever the card's size on the screen)
+    float across = max(fwidth(diffuseColor.a), 1e-4) * ${feather.wide.toFixed(2)}
+      * smoothstep(${feather.near.toFixed(1)}, ${feather.far.toFixed(1)}, 1.0 / gl_FragCoord.w);
+    float cover = clamp((diffuseColor.a - alphaTest) / max(across, 1e-5) + 0.5, 0.0, 1.0);
+    ${then}
+  }`;
+export function makeFoliageMaterial(map, wind, kinds = 1, { prepassed = false, feather = null } = {}) {
   const material = new THREE.MeshStandardMaterial({ map, alphaTest: 0.42, side: THREE.DoubleSide, roughness: 0.86, depthWrite: !prepassed });
+  const soft = prepassed && feather;
+  if (soft) {
+    material.transparent = true;
+    // (one draw, as it was: three would draw a blended two-sided mesh twice)
+    material.forceSinglePass = true;
+  }
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uWind = wind;
     shader.vertexShader = foliageVertex(kinds, true)(shader)
@@ -840,15 +868,21 @@ export function makeFoliageMaterial(map, wind, kinds = 1, { prepassed = false } 
       .replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
         reflectedLight.indirectSpecular *= 0.0;
         reflectedLight.directSpecular *= 0.2;`);
+    if (soft) {
+      shader.fragmentShader = shader.fragmentShader.replace('#include <alphatest_fragment>', featherCut(feather, `
+        if (cover < 0.03) discard;
+        diffuseColor.a = cover;`));
+    }
   };
-  material.customProgramCacheKey = () => `babel-foliage-${kinds}-${prepassed ? 'p' : 's'}`;
+  material.customProgramCacheKey = () => `babel-foliage-${kinds}-${prepassed ? 'p' : 's'}${soft ? `-f${feather.near}-${feather.far}-${feather.wide}` : ''}`;
   return material;
 }
 
 // The depth of the nearest leaf, and nothing else. Pushed back a hair
 // (polygonOffset), so the lit pass that follows passes the depth test on the
 // very card that laid it and on no card behind.
-export function makeFoliagePrepass(map, wind, kinds = 1) {
+// (`feather`: the lit pass's — depth only where a spray covers the whole pixel.)
+export function makeFoliagePrepass(map, wind, kinds = 1, { feather = null } = {}) {
   const material = new THREE.MeshBasicMaterial({
     map, alphaTest: 0.42, side: THREE.DoubleSide, colorWrite: false,
     polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 2,
@@ -857,8 +891,9 @@ export function makeFoliagePrepass(map, wind, kinds = 1) {
     shader.uniforms.uWind = wind;
     shader.vertexShader = foliageVertex(kinds, true)(shader);
     shader.fragmentShader = foliageAlpha(shader);
+    if (feather) shader.fragmentShader = shader.fragmentShader.replace('#include <alphatest_fragment>', featherCut(feather, 'if (cover < 0.999) discard;'));
   };
-  material.customProgramCacheKey = () => `babel-foliage-pre-${kinds}`;
+  material.customProgramCacheKey = () => `babel-foliage-pre-${kinds}${feather ? `-f${feather.near}-${feather.far}-${feather.wide}` : ''}`;
   return material;
 }
 

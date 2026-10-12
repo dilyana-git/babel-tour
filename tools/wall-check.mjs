@@ -97,7 +97,7 @@ const waitFor = async (expr, timeout = 120000) => {
 await waitFor(`document.readyState === 'complete'`, 30000);
 if (!await waitFor(`typeof window.__worldSweep === 'function'`)) {
   console.error('__worldSweep never appeared. The dev hooks are stripped from a production build;'
-    + ' this needs ?dev=1 and the world tour (not ?plates).');
+    + ' this needs ?dev=1.');
   if (!await ev(`document.getElementById('root').innerHTML.length`)) console.error('The page is empty — nothing rendered at all.');
   for (const e of [...new Set(errs)].slice(0, 5)) console.error('   ' + e);
   ws.close(); b.kill(); process.exit(1);

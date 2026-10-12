@@ -68,13 +68,15 @@ const signedArea = (loop) => loop.reduce((s, [x, z], i) => {
 // closed loops of corners with the hedge on the left of the way round (so an
 // outer loop runs counter-clockwise with x right and z up, and a hole the
 // other way). Cut on the rectangles' own edges, so the result is exact.
-export function rectUnionLoops(rects) {
-  const xs = [...new Set(rects.flatMap((r) => [r[0], r[2]]))].sort((a, b) => a - b);
-  const zs = [...new Set(rects.flatMap((r) => [r[1], r[3]]))].sort((a, b) => a - b);
+// `cuts`: rectangles taken out of the union again (a niche clipped into a
+// hedge: gardenFix5.js, 10).
+export function rectUnionLoops(rects, cuts = []) {
+  const xs = [...new Set([...rects, ...cuts].flatMap((r) => [r[0], r[2]]))].sort((a, b) => a - b);
+  const zs = [...new Set([...rects, ...cuts].flatMap((r) => [r[1], r[3]]))].sort((a, b) => a - b);
   const nx = xs.length - 1, nz = zs.length - 1;
   const full = Array.from({ length: nx }, (_, i) => Array.from({ length: nz }, (_, j) => {
     const cx = (xs[i] + xs[i + 1]) / 2, cz = (zs[j] + zs[j + 1]) / 2;
-    return rects.some((r) => cx > r[0] && cx < r[2] && cz > r[1] && cz < r[3]);
+    return rects.some((r) => cx > r[0] && cx < r[2] && cz > r[1] && cz < r[3]) && !cuts.some((r) => cx > r[0] && cx < r[2] && cz > r[1] && cz < r[3]);
   }));
   const filled = (i, j) => i >= 0 && j >= 0 && i < nx && j < nz && full[i][j];
   const next = new Map();

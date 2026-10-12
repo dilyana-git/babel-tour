@@ -132,6 +132,8 @@ const HOLD_S = 0.1;
 // The last wash of light, out from the Vestibule, and the ink letting go.
 const SWEEP_SPEED = 2600;
 const LET_GO_S = 1.5;
+// how old a gallery is when all of it is drawn and its lamp has settled
+const WHOLE = 6;
 
 
 // A soft round light, drawn once and stamped wherever a lamp, a spark or a
@@ -413,7 +415,13 @@ export function startInk(canvas, { reducedMotion = false, devPace = 0 } = {}, em
     const r = stream(300 + k);
     return { x: r(), y: r(), s: 0.5 + r() * 1.2, v: 0.006 + r() * 0.012, a: 0.05 + r() * 0.2, w: r() * 10 };
   });
-  const input = { progress: 0, ready: false, rest: null, shown: false };
+  // `keep`: what the drawing keeps of the galleries off the walk once it has
+  // let go — { lines, dark, lamps }, each 0 to 1 — where the map is to go on
+  // being part drawing (world/mapFix3.js, 2). It then stops as it always did,
+  // on a frame that is no longer blank, and draws that frame again only when
+  // the window changes.
+  const input = { progress: 0, ready: false, rest: null, shown: false, keep: null };
+  let kept = false, goneSaid = false;
   const state = { u: 0, clock: 0 };
   const t0 = performance.now() / 1000;
   let last = t0, inkedAt = -1, shownAt = -1, raf = 0, sentU = -1, stopped = false;
@@ -575,7 +583,14 @@ export function startInk(canvas, { reducedMotion = false, devPace = 0 } = {}, em
     const a = cell.age;
     const fade = still ? smooth(a / 0.7) : 1;
     const boost = 1 + 1.8 * sweep;
-    const ink = cell.ink * fade * (1 - letGo) * boost;
+    const stays = cell.route < 0 ? input.keep : null;
+    // (on a tall screen, more of a gallery's lines is kept where they are
+    // hairlines: a cell small on the screen is drawn 0.6 px wide and holds
+    // half the ink a large one's lines do - world/phoneFix7.js, 4)
+    const hair = stays ? input.rest?.fine : null;
+    const fine = hair ? smooth((hair.over - (cell.scale * 1.1) / dpr) / (hair.over - hair.under)) : 0;
+    const keeps = !stays ? 0 : stays.lines + Math.max(0, hair ? hair.fine - stays.lines : 0) * fine;
+    const ink = cell.ink * fade * (1 - letGo * (1 - keeps)) * boost;
     if (ink <= 0.003) return;
     const trace = still ? 1 : easeOut(a / TRACE);
     const drop = still ? 1 : smoother((a - DROP_AT) / DROP);
@@ -583,7 +598,7 @@ export function startInk(canvas, { reducedMotion = false, devPace = 0 } = {}, em
     const w = Math.max(0.6, Math.min(2.2, cell.scale * 1.1)) * (cell.route >= 0 ? 1.25 : 1);
 
     if (drop > 0) {
-      const dark = drop * fade * (1 - letGo);
+      const dark = drop * fade * (1 - letGo * (1 - (stays?.dark ?? 0)));
       // which walls face the eye, and how squarely; and whether any of their
       // feet would show past the near rim (only low and side-on, early in
       // the opening: then, and only for that gallery, it is clipped to its rim)
@@ -820,16 +835,19 @@ export function startInk(canvas, { reducedMotion = false, devPace = 0 } = {}, em
   // (DEV: where it is drawn, and each second how many frames and the longest gap, in ms)
   const beat = { at: 0, frames: 0, worst: 0, busy: 0, cells: 0 };
   if (import.meta.env.DEV) emit({ where: typeof window === 'undefined' ? 'worker' : 'page' });
-  const frame = () => {
-    if (stopped) return;
-    raf = nextFrame(frame);
+  // (`again`: the one frame of what is kept, drawn off the clock)
+  const frame = (again = false) => {
+    if (again !== true) {
+      if (stopped) return;
+      raf = nextFrame(frame);
+    }
     if (!cells) return;
     const now = performance.now() / 1000;
     // Thirty frames a second; and only a few while the world, under it, draws
     // its own first frames (it is waited on for two of them, and the two
     // share one GPU).
     const hold = input.progress >= 0.99 && !input.ready;
-    if (now - last < (hold ? HOLD_S : FRAME_S)) return;
+    if (again !== true && now - last < (hold ? HOLD_S : FRAME_S)) return;
     if (import.meta.env.DEV) {
       beat.frames += 1;
       beat.worst = Math.max(beat.worst, now - last);
@@ -1003,7 +1021,7 @@ export function startInk(canvas, { reducedMotion = false, devPace = 0 } = {}, em
     g.globalCompositeOperation = 'lighter';
     for (const cell of order) {
       if (cell.route === VERTIGO) continue;
-      const lamp = lampOf(cell, now) * (1 - letGo);
+      const lamp = lampOf(cell, now) * (1 - letGo * (1 - (input.keep?.lamps ?? 0)));
       if (lamp > 0) {
         const k = cell.scale;
         stamp(cell.scr[26], cell.scr[27], 120 * k * (0.55 + 0.45 * Math.min(1.6, lamp)), 0.5 * lamp);
@@ -1041,28 +1059,47 @@ export function startInk(canvas, { reducedMotion = false, devPace = 0 } = {}, em
       beat.busy += performance.now() - now * 1000;
       beat.cells = order.length;
     }
-    if (letGo >= 1) {
-      stopped = true;
+    if (letGo >= 1 && !goneSaid) {
+      goneSaid = true;
       emit({ gone: true });
+    }
+    // (what is kept is every gallery whole: the far ones are still being
+    // drawn when the world is shown, and it does not stop on half of them)
+    if (letGo >= 1 && !stopped && (!input.keep || now - shownAt > 14 || cells.every((c) => c.started && c.age >= WHOLE))) {
+      stopped = true;
+      kept = !!input.keep;
     }
   };
     raf = nextFrame(frame);
   return {
     set(m) {
-      if (m.size && (m.size.width !== W || m.size.height !== H)) {
+      const resized = m.size && (m.size.width !== W || m.size.height !== H);
+      if (resized) {
         W = canvas.width = m.size.width;
         H = canvas.height = m.size.height;
       }
       if (m.size) dpr = m.size.dpr;
       if (m.rest) input.rest = m.rest;
+      if ('keep' in m) input.keep = m.keep;
       if ('progress' in m) input.progress = m.progress;
       if ('ready' in m) input.ready = m.ready;
       if ('shown' in m) input.shown = m.shown;
       if (m.lean) [lean.toX, lean.toY] = m.lean;
       if (!cells && W && input.rest) cells = layCells(seen);
+      // what is kept, in a window that has changed: the galleries that frame
+      // shows, all of them drawn, once
+      if (kept && (resized || m.rest)) {
+        cells = layCells(seen);
+        for (const cell of cells) {
+          cell.started = true;
+          cell.age = 60;
+        }
+        frame(true);
+      }
     },
     stop() {
       stopped = true;
+      kept = false;
       cancelFrame(raf);
     },
   };

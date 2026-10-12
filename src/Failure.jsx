@@ -1,23 +1,18 @@
-import React from 'react';
+import './failure.css';
 
 // ── When the Library cannot be drawn ─────────────────────────────────────────
-// There was no failure path at all. Nothing checked whether the browser could
-// give us a WebGL2 context, nothing caught a throw out of the scene tree, and
-// nothing listened for the context being taken back — while the entry veil let
-// the reader through on a timeout regardless of what was behind it. All three
-// ended the same way: a black rectangle with a working HUD over it, the piece
-// silently insisting that everything was fine.
+// Nothing used to check whether the browser could give us a WebGL2 context, and
+// a machine that could not was shown a black rectangle with a working HUD over
+// it, the piece silently insisting that everything was fine.
 //
 // It is fine for this to be plain. What it must not be is blank.
 
-// A frame of the Vestibule's arch. This is now the only picture of a gallery
-// the piece carries, and the only place one is still warranted: everywhere else
-// the entry veil shows the LIVE room through itself, which it cannot do here —
-// this page exists precisely because there is no live room. The fallback needs
-// no visual language of its own; it is the entry veil with a different last
-// line, and a reader who cannot be shown the diorama is at least shown the
-// picture of it.
-const POSTER = '/overture-poster.jpg';
+// A still of the piece: the Vertigo from its stand, which is also the share
+// card (index.html). This page exists precisely because there is no live room
+// to show, and a reader who cannot be shown the Library is at least shown the
+// picture of it. (It asked for the plate tour's overture poster, which went
+// with the plates: the page stood on its bare ground.)
+const POSTER = '/og-card.jpg';
 
 const FAULTS = {
   // No WebGL2. Checked BEFORE the canvas is mounted, so this is the one failure
@@ -29,8 +24,8 @@ const FAULTS = {
       + 'acceleration has not been switched off.',
     retry: null,
   },
-  // Something threw inside the scene tree — a plate that will not decode, a
-  // shader the driver refuses, a three version disagreeing with itself.
+  // Something threw inside the scene tree — a shader the driver refuses, a
+  // three version disagreeing with itself.
   crash: {
     line: 'The Library could not be assembled.',
     detail: 'Something in the scene failed to build. The console holds what it '
@@ -84,14 +79,13 @@ export function Failure({ kind, onRetry }) {
 // itself is never used, and holding one open would count against the browser's
 // small per-page limit for the renderer that is about to want one.
 //
-// webgl2 specifically, not webgl: the paintings sample an explicit LOD
-// (textureLod, GLSL3) and the slab stacks are built on it, so a context that
-// could only offer WebGL 1 would not fail here — it would fail later, as
+// webgl2 specifically, not webgl: the world's shaders are GLSL3, so a context
+// that could only offer WebGL 1 would not fail here — it would fail later, as
 // compile errors on every surface, which is the same black rectangle by a
 // longer road.
 //
 // Asked once a page: the answer does not change, and every ask made and threw
-// away a context (the map, the world tour and the plate tour each asked).
+// away a context.
 let drawable = null;
 export function canDraw() {
   if (typeof document === 'undefined') return true;
@@ -107,63 +101,4 @@ export function canDraw() {
     drawable = false;
   }
   return drawable;
-}
-
-// One boundary around the scene tree. React unmounts everything up to the
-// nearest boundary when a render throws, and there was none — so a single bad
-// plate took the whole page, HUD and all, down to a white screen with a stack
-// trace in the console.
-//
-// It reports rather than renders: the fallback belongs to Tour, which knows
-// whether the ambience is running and has to stop it. `fallback` is what stands
-// in the tree's place in the meantime (null, for the scene — Tour is about to
-// replace the whole page anyway).
-export class SceneBoundary extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = { failed: false };
-  }
-
-  static getDerivedStateFromError() {
-    return { failed: true };
-  }
-
-  componentDidCatch(error, info) {
-    // The console line IS the deliverable here — this is the one place the
-    // reason survives, and without it the failure is indistinguishable from a
-    // scene that simply never rendered.
-    console.error('[scene] the diorama threw and was taken down:', error,
-      info?.componentStack ?? '');
-    this.props.onError?.(error);
-  }
-
-  render() {
-    return this.state.failed ? (this.props.fallback ?? null) : this.props.children;
-  }
-}
-
-// The same, for ONE gallery's plates. A missing or undecodable image makes
-// useTexture throw out of Suspense, and with a single boundary around the whole
-// tree that costs the reader the entire corridor — eight galleries dark because
-// one .webp 404'd. Here it costs the one gallery, which goes quietly empty
-// while the walk continues through it.
-export class PlateBoundary extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = { failed: false };
-  }
-
-  static getDerivedStateFromError() {
-    return { failed: true };
-  }
-
-  componentDidCatch(error) {
-    console.error('[plate] gallery %s could not be hung (%s) — the corridor '
-      + 'keeps walking through an empty room:', this.props.name ?? '?',
-      error?.message ?? error);
-  }
-
-  render() {
-    return this.state.failed ? null : this.props.children;
-  }
 }

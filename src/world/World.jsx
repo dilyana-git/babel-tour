@@ -45,6 +45,7 @@ import { SanitizeEffect } from './Sanitize';
 import { EdgeAAEffect } from './EdgeAA';
 import { makeSky } from './sky';
 import { TILT_FOV, framePointsOf, restPose } from './plan';
+import { tallFov } from './phoneFix';
 import { prepareEnvironment } from './effects';
 import { probeClearance, probeRay } from './probe';
 import { GLASS } from './mirror';
@@ -52,9 +53,11 @@ import { makeBody, EYE, ROOM_STAND } from './body';
 import { READER_LIT } from './readers';
 import { makeWalkCurve, makeWalkPace, makeGazeTrack, bendPace, viewPace, LOOK_AHEAD, PACE, MOTION_OLD } from './walkPath';
 import { pendingFinale } from './finaleLifecycle';
+import { finaleOld, STEP } from './finaleFix';
 import { WATER } from './water';
 import { DPR_MAX, LIGHT_MESH } from '../capability';
 import Governor from '../Governor';
+import Perf, { PERF } from './Perf';
 
 const Grade = wrapEffect(GradeEffect);
 const Sanitize = wrapEffect(SanitizeEffect);
@@ -707,32 +710,84 @@ const fallMove = (leg, from, to, reverse) => {
 // fall.
 const NORTH = new THREE.Vector3(0, 0, -1);
 // `from`: the rendered eye and gaze when the ending begins. The light and
-// readers play around that spot, and the rise leaves from it too.
-const finaleMove = (world, rest, from = null) => {
+// readers play around that spot, and the rise leaves from it too — but from
+// the corridor outside the court (the stand is there) the reader first takes
+// the step in that the caption says they take, to the mouth of the gate
+// (finaleFix.js, 3: from where they stood the court was a slot between two
+// hedges, and the others gathered behind one of them). `aspect`: the frame's,
+// for where across it the heart is put as they gather.
+const finaleMove = (world, rest, from = null, aspect = 16 / 9) => {
   const f = world.finale;
   const T = f.timeline;
   const st = world.stands[f.room];
   const start = from ?? standPose(st);
-  const inside = start.position.clone();
+  const begun = start.position.clone();
+  const [seatX, seatZ] = f.seat(begun.x, begun.z);
+  const inside = new THREE.Vector3(seatX, begun.y, seatZ);
   const eyeY = inside.y;
+  // Two paces, eased in and out, the eye sinking a little in each.
+  const paces = Math.min(1, begun.distanceTo(inside) / 8);
+  const eyeAt = (t, out) => {
+    if (paces < 0.01) return out.copy(inside);
+    const k = smoother((t - STEP.from) / (STEP.till - STEP.from));
+    out.lerpVectors(begun, inside, k);
+    out.y -= STEP.bob * paces * Math.sin(k * Math.PI * 2) ** 2;
+    return out;
+  };
   const heartAt = new THREE.Vector3(f.heart[0], eyeY + 4, f.heart[1]);
   const heartDown = new THREE.Vector3(f.heart[0], f.ground, f.heart[1]);
   const atHeart = lookQuat(inside, heartAt);
   // Where the eyes go round the court, as headings from where the reader
-  // stops (0 is +x, a quarter turn is +z): the heart, the west gate where two
-  // of the others come in, and the gate behind — each with how far off and how
-  // high to look. Unwound so the head only ever turns the one way.
+  // stops (0 is +x, a quarter turn is +z): the heart, toward the west gate
+  // where two of the others come in, and the gate behind — each with how far
+  // off and how high to look. Unwound so the head only ever turns the one way.
+  // (Toward the west gate, not to it: only until the heart is on the left
+  // third of the frame, the others to its right — or, on a frame too narrow
+  // to hold both, until the gate is well inside it.)
   const heading = ([x, z]) => Math.atan2(z - inside.z, x - inside.x);
+  const reach = Math.tan(THREE.MathUtils.degToRad(tallFov(ROOM_FOV, aspect, 1, ROOM_FOV, FALL_FOV)) / 2) * aspect;
+  let toWest = heading(f.gates.w) - heading(f.heart);
+  while (toWest < 0) toWest += Math.PI * 2;
+  let beside = toWest;
+  if (!finaleOld(3)) {
+    beside = Math.min(toWest, Math.max(Math.atan(-STEP.heart * reach), toWest - Math.atan(STEP.gate * reach)));
+    // ...and none of the others cut by an edge of the frame: a little less of
+    // a turn, or a little more, until each of them is in it or out of it.
+    const half = Math.atan(reach), deg = Math.PI / 180;
+    const clear = (turn) => f.stops.every((p) => {
+      const off = heading(p) - heading(f.heart) - turn;
+      return Math.abs(Math.abs(Math.atan2(Math.sin(off), Math.cos(off))) - half) > STEP.edge * deg;
+    });
+    for (let k = 0; k <= STEP.give * 2 && !clear(beside); k++) {
+      const turn = [beside - k * 0.5 * deg, beside + k * 0.5 * deg].find((a) => a >= 0 && a <= toWest && clear(a));
+      if (turn !== undefined) beside = turn;
+    }
+  }
+  // (finaleFix6.js, 1: the last of them was the one behind, face to face at
+  // arm's length — a hood round a void. In its place, `closeUp`: a, the one
+  // who is the reader come to stand beside them, seen past its shoulder with
+  // the heart still in the frame on the other side; b, the one behind from
+  // further off, book and all; c, nobody: the eye goes slowly on along the
+  // others until the rise.)
+  const cu = f.closeUp;
+  const away = (p) => Math.hypot(p[0] - inside.x, p[1] - inside.z);
+  const last = cu?.kind === 'a' ? { t: 16.6, a: heading(cu.at) - Math.atan(cu.across * reach), r: away(cu.at), y: cu.high, near: true }
+    : cu?.kind === 'b' ? { t: 16.6, a: heading(cu.at), r: away(cu.at), y: eyeY - cu.low }
+      : cu?.kind === 'c' ? { t: T.rise[0], a: heading(f.heart) + beside + cu.drift, r: cu.near, y: eyeY - 3 }
+        : { t: 16.6, a: heading(f.you), r: 29, y: eyeY };
   const marks = [
     { t: 6.8, a: heading(f.heart), r: inside.distanceTo(new THREE.Vector3(f.heart[0], eyeY, f.heart[1])), y: eyeY + 4 },
     { t: 10.4, hold: true },
-    { t: 12.8, a: heading(f.gates.w), r: 40, y: eyeY - 3 },
+    { t: 12.8, a: heading(f.heart) + beside, r: 40, y: eyeY - 3 },
     { t: 14.0, hold: true },
-    { t: 16.6, a: heading(f.you), r: 29, y: eyeY },
+    last,
   ];
   marks.forEach((m, i) => {
     if (m.hold) Object.assign(m, { a: marks[i - 1].a, r: marks[i - 1].r, y: marks[i - 1].y });
-    while (i && m.a < marks[i - 1].a - 1e-6) m.a += Math.PI * 2;
+    // (`near`: by the shorter way round, whichever that is — one who stands
+    // beside the reader is a little further round, or a little less)
+    if (m.near) m.a = marks[i - 1].a + Math.atan2(Math.sin(m.a - marks[i - 1].a), Math.cos(m.a - marks[i - 1].a));
+    while (i && !m.near && m.a < marks[i - 1].a - 1e-6) m.a += Math.PI * 2;
   });
   const aim = new THREE.Vector3();
   const panQ = (t, q) => {
@@ -764,7 +819,7 @@ const finaleMove = (world, rest, from = null) => {
     at(u, out) {
       const t = u * T.end;
       if (t < T.walk) {
-        out.position.copy(inside);
+        eyeAt(t, out.position);
         out.quaternion.slerpQuaternions(start.quaternion, atHeart, smoother(t / T.walk));
         Object.assign(out, { fov: ROOM_FOV, shift: 0, veil: 0, eye: 1, fade: 0, near: 0.5 });
         return u;
@@ -792,8 +847,8 @@ const finaleMove = (world, rest, from = null) => {
 };
 
 // The overlay, as screen pixels for this window and the resting camera.
-const layoutFor = (overlay, width, height, points, reserveLeft) => {
-  const { camera } = restPose(width / height, points, reserveLeft);
+const layoutFor = (overlay, width, height, points, reserveLeft, tall) => {
+  const { camera } = restPose(width / height, points, reserveLeft, tall);
   const v = new THREE.Vector3();
   const px = ([x, y, z]) => {
     v.set(x, y, z).project(camera);
@@ -816,6 +871,9 @@ const layoutFor = (overlay, width, height, points, reserveLeft) => {
     w: width,
     h: height,
     rooms,
+    // (what each room's numeral stands over: its own outline, or the mark the
+    // world gives the map for it — mapFix3.js, 5)
+    marks: rooms.map((poly, i) => (overlay.marks?.[i] ? line(overlay.marks[i]) : poly)),
     labels,
     walk,
     gardenWalk,
@@ -983,6 +1041,10 @@ function WorldContent({ rooms = false, onProgress, onHold, onAssembled, onPlan, 
     (async () => {
       say(0);
       mark('start');
+      // The opening draws in its own worker; hold the hidden canvas while
+      // assembling so empty composer frames do not compete with preparation.
+      holdRef.current?.(true);
+      made.held = true;
       made.painter = takePainter();
       made.painter.done.then(() => mark('painted'));
       made.sky = makeSky();
@@ -1022,11 +1084,6 @@ function WorldContent({ rooms = false, onProgress, onHold, onAssembled, onPlan, 
 
       const materials = startShaders(gl, world.root, camera, scene);
       mark('shaders-started');
-      // No frames while the shaders compile. The canvas is not shown yet, and
-      // every frame's calls queued behind the compiling on the GPU's side and
-      // stood the page still for seconds at a time.
-      holdRef.current?.(true);
-      made.held = true;
       // Meanwhile, up to the GPU with every texture whose pixels are here (the
       // painted ones as they arrive), a slice at a time, rather than all of it
       // in the first frame.
@@ -1095,7 +1152,7 @@ function WorldContent({ rooms = false, onProgress, onHold, onAssembled, onPlan, 
 function LiveWorld({
   world, sky, budgetRef,
   rooms = false, scenes, target = null, vantage = false, finale = null, reducedMotion = false, lookRef, walkRef, fadeRef, aoRef,
-  onReady, onArrive, onSettle, onRoam, onGo, onFinale, onLayout, reserveLeft = false,
+  onReady, onArrive, onSettle, onRoam, onGo, onFinale, onLayout, reserveLeft = false, tall = false, feetRef = null,
 }) {
   const { scene, camera, gl, size } = useThree();
   // The one thing the governor reaches into the built world for (see GIVE).
@@ -1107,8 +1164,8 @@ function LiveWorld({
   // The overlay follows the window.
   useEffect(() => {
     if (!size.width || !size.height) return;
-    onLayout?.(layoutFor(world.overlay, size.width, size.height, framePoints, reserveLeft));
-  }, [size.width, size.height, world, onLayout, framePoints, reserveLeft]);
+    onLayout?.(layoutFor(world.overlay, size.width, size.height, framePoints, reserveLeft, tall));
+  }, [size.width, size.height, world, onLayout, framePoints, reserveLeft, tall]);
 
   const plates = rooms || !scenes ? '' : scenes.map((s) => s.color).join('|');
   useEffect(() => {
@@ -1134,8 +1191,8 @@ function LiveWorld({
   }, [plates, world]);
 
   const rest = useMemo(
-    () => restPose(size.width / Math.max(1, size.height), framePoints, reserveLeft),
-    [size.width, size.height, framePoints, reserveLeft],
+    () => restPose(size.width / Math.max(1, size.height), framePoints, reserveLeft, tall),
+    [size.width, size.height, framePoints, reserveLeft, tall],
   );
 
   // Taken from the prop only when the prop CHANGES. The canvas re-renders this
@@ -2072,7 +2129,7 @@ function LiveWorld({
     window.__worldCamera = camera;
     window.__readerLit = READER_LIT.value;
     // the file on the Vestibule's bridge: where each is, and who is across an edge of its first frame
-    window.__worldWalkers = () => ({ where: world.walkers?.where(), across: world.walkers?.across() });
+    window.__worldWalkers = () => ({ where: world.walkers?.where(), across: world.walkers?.across(), cuts: world.walkers?.cuts() });
     // (and the body's line of sight, which the halos ask: buildWorld's occlude)
     window.__worldSight = (a, b, short = 0) => feel?.sight(new THREE.Vector3(...a), new THREE.Vector3(...b), short);
     // the finale's numbers: how far its light runs, and where the others start
@@ -2296,7 +2353,7 @@ function LiveWorld({
       const was = placeRef.current, walking = bodyRef.current;
       placeRef.current = from;
       bodyRef.current = null;
-      const made = move === 'finale' ? { ...finaleMove(world, rest), to: null } : startMove(to, size.width / Math.max(1, size.height), up, off);
+      const made = move === 'finale' ? { ...finaleMove(world, rest, null, size.width / Math.max(1, size.height)), to: null } : startMove(to, size.width / Math.max(1, size.height), up, off);
       placeRef.current = was;
       bodyRef.current = walking;
       const m = { ...made, distance: 0, speed: 0 };
@@ -2505,7 +2562,7 @@ function LiveWorld({
         const from = { position: camera.position.clone(), quaternion: camera.quaternion.clone() };
         zeroLook();
         moveRef.current = {
-          ...finaleMove(world, rest, from), to: null, from: last,
+          ...finaleMove(world, rest, from, aspect), to: null, from: last,
           travelled: reducedMotion ? 1e9 : 0, distance: 0, speed: 0, arrived: false, started: false,
         };
         bodyRef.current = null;
@@ -2648,7 +2705,9 @@ function LiveWorld({
       scratch.pitch.setFromAxisAngle(LOCAL_X, look.current.pitch);
       camera.quaternion.premultiply(scratch.yaw).multiply(scratch.pitch);
     }
-    camera.fov = pose.fov;
+    // (on a tall screen a room's lens opens, to show more than a slot of it:
+    // phoneFix.js, 8 — but not over the map, nor a lens DEV has set by hand)
+    camera.fov = import.meta.env.DEV && eyeRef.current ? pose.fov : tallFov(pose.fov, size.width / Math.max(1, size.height), pose.eye, ROOM_FOV, FALL_FOV);
     camera.setViewOffset(size.width, size.height, -pose.shift * size.width, 0, size.width, size.height);
     camera.near = pose.near;
     camera.far = rest.distance * 5;
@@ -2673,6 +2732,20 @@ function LiveWorld({
     world.setViewport((size.height * gl.getPixelRatio()) / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)));
 
     const e = pose.eye;
+    // (for the sound, which is the page's — worldSound.js: where the eye is,
+    // which way it faces, how far it is down among the walls, and the body
+    // that can say what the feet are on)
+    if (feetRef?.current) {
+      const f = feetRef.current, m = camera.matrixWorld.elements;
+      f.x = camera.position.x;
+      f.y = camera.position.y - EYE;
+      f.z = camera.position.z;
+      f.fx = -m[8];
+      f.fz = -m[10];
+      f.eye = e;
+      f.feel = feel;
+      f.room = placeRef.current;
+    }
     const garden = THREE.MathUtils.smoothstep((camera.position.x - 720) * 0.889 + 20 - camera.position.z, -60, 80);
     // In the Vertigo the air takes the colour of the light at the bottom of the
     // well, and thins enough to let the eye reach it 450 down.
@@ -2928,6 +3001,8 @@ export default function World(props) {
           for the three things it refuses to do, and ?governor=0 to watch
           without it. */}
       {assembled && <Governor onQuality={onQuality} />}
+      {/* ?wperf: what a frame costs here, written on the page (Perf.jsx) */}
+      {PERF && assembled && <Perf feetRef={props.feetRef} />}
       {/* Multisampling OFF on the composer: on the AMD/D3D11 machine this
           piece is made on, bloom over a multisampled buffer draws nothing at
           all (see Finish.jsx).

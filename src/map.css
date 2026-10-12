@@ -11,18 +11,56 @@
 
    No animation here may touch a property a state rule also sets — an animation
    outranks every declaration (the plumb halo trap). The resting outline
-   breathes by stroke-opacity; the shown state sets opacity. */
+   breathes by stroke-opacity; the shown state sets opacity.
+
+   Every colour, curve and length of time below is one of the few named here
+   (world/hudFix3.js, 4 and 5): the sheet had the one ink at thirteen
+   strengths, ten warm whites and fourteen durations, none of them decisions.
+   - the ink (--ink, index.css) and three steps down from it: what is read
+     second, what only marks, what is barely there;
+   - the gold and the jade, each with the paler one it turns when lit;
+   - three lamp whites, the white of the light itself down to its gold;
+   - three shades of the one dark: a pool's heart, its shoulder, and the halo
+     round a letter; --pool is the corner pool they make, --pool-far the one
+     that holds its dark further out;
+   - what arrives settles long and slow, a lamp coming up; what leaves goes as
+     it gathers speed; and three lengths of time: an answer to the hand, a
+     passage, a settling (a long fade in the finale is two of those). The
+     breathing marks keep their own even breath. */
 
 .entry-map {
   --gold-lit: #e8c35a;
   --jade: #9fc48a;
+  --jade-lit: #cfe8bd;
+  --ink-2: rgba(236, 228, 210, 0.82);
+  --ink-3: rgba(236, 228, 210, 0.6);
+  --ink-4: rgba(236, 228, 210, 0.4);
+  --lamp-1: #fff6e2;
+  --lamp-2: #ffe7b0;
+  --lamp-3: #f3d99a;
+  --ground: #0c0a08;
+  --shade: rgba(8, 6, 5, 0.86);
+  --shade-mid: rgba(8, 6, 5, 0.55);
+  --shade-halo: rgba(6, 5, 4, 0.95);
+  --halo: 0 0 12px var(--shade-halo), 0 0 3px var(--shade-halo);
+  --pool: var(--shade) 0%, var(--shade-mid) 45%, transparent 78%;
+  --pool-far: var(--shade) 0%, var(--shade) 30%, var(--shade-mid) 64%, transparent 92%;
+  --arrive: cubic-bezier(0.2, 0.75, 0.25, 1);
+  --leave: cubic-bezier(0.55, 0, 0.9, 0.45);
+  --t-quick: 200ms;
+  --t: 600ms;
+  --t-slow: 1100ms;
+  /* The kicker's voice (world/hudFix3.js, 2): the title's capitals, small and
+     letterspaced. The mono is the catalogue's, and speaks in the opening. */
+  --sc: 'Cormorant SC', var(--serif);
+  --caps: 600 0.9rem/1 var(--sc);
   position: fixed;
   inset: 0;
   z-index: 60;
   overflow: hidden;
-  background: #0c0a08;
+  background: var(--ground);
   color: var(--ink);
-  transition: opacity 1100ms ease;
+  transition: opacity var(--t-slow) var(--leave);
 }
 
 .entry-map.is-leaving {
@@ -37,14 +75,14 @@
 .entry-map.is-leaving .map-card,
 .entry-map.is-leaving .map-title {
   opacity: 0;
-  transition: opacity 450ms ease;
+  transition: opacity var(--t) var(--leave);
 }
 
 .map-stage {
   position: absolute;
   inset: 0;
   transform-origin: var(--zoom-origin, 50% 50%);
-  transition: transform 1100ms cubic-bezier(0.55, 0, 0.9, 0.45);
+  transition: transform var(--t-slow) var(--leave);
 }
 
 .map-svg {
@@ -62,8 +100,73 @@
   top: 0;
   width: min(1180px, 74vw);
   height: min(680px, 84vh);
-  background: radial-gradient(ellipse 100% 100% at 0% 0%, rgba(8, 6, 5, 0.86) 0%, rgba(8, 6, 5, 0.5) 45%, rgba(8, 6, 5, 0) 78%);
+  background: radial-gradient(ellipse 100% 100% at 0% 0%, var(--pool));
   pointer-events: none;
+}
+
+/* The sound's control (worldSound.js): top right, where nothing else is. As
+   quiet as a mark in a margin until it is pointed at. */
+.map-sound {
+  position: absolute;
+  top: 0.9rem;
+  right: 1.1rem;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--ink-3);
+  cursor: pointer;
+  transition: color var(--t-quick) var(--arrive), opacity var(--t) var(--arrive);
+}
+
+.map-sound svg {
+  width: 22px;
+  height: 16px;
+  overflow: visible;
+  filter: drop-shadow(0 0 4px var(--shade-halo));
+}
+
+.map-sound line {
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform var(--t) var(--arrive);
+}
+
+.map-sound.is-muted {
+  color: var(--ink-4);
+}
+
+.map-sound.is-muted line {
+  transform: scaleY(calc(1.2 / var(--h)));
+}
+
+.map-sound:hover {
+  color: var(--gold-lit);
+}
+
+.map-sound:focus-visible {
+  outline: 2px solid var(--gold-lit);
+  outline-offset: 0;
+}
+
+/* (it keeps out of the ending's film as the film's own control does) */
+.map-sound.is-trace:not(:hover, :focus-visible) {
+  opacity: 0.14;
+  transition: opacity calc(var(--t-slow) * 2) var(--leave);
+}
+
+.entry-map.is-tall .map-sound {
+  top: 0.25rem;
+  right: 0.25rem;
 }
 
 /* --- The route --- */
@@ -99,11 +202,11 @@
   stroke-linejoin: round;
 }
 
-.map-chevrons.is-library { stroke: #f3d99a; }
-.map-chevrons.is-garden { stroke: #d3ecbf; }
+.map-chevrons.is-library { stroke: var(--lamp-3); }
+.map-chevrons.is-garden { stroke: var(--jade-lit); }
 
 .map-route .map-not-taken {
-  stroke: rgba(159, 196, 138, 0.55);
+  stroke: color-mix(in srgb, var(--jade) 55%, transparent);
   stroke-width: 2.6;
   stroke-dasharray: 0.5 8;
   stroke-linecap: round;
@@ -112,28 +215,28 @@
 .map-fall,
 .map-route .map-fall {
   fill: none;
-  stroke: rgba(236, 228, 210, 0.75);
+  stroke: var(--ink-2);
   stroke-width: 2.6;
   stroke-dasharray: 0.5 9;
   stroke-linecap: round;
 }
 
 .map-pit-rim {
-  fill: rgba(10, 8, 6, 0.55);
-  stroke: #e6c77c;
+  fill: var(--shade-mid);
+  stroke: var(--lamp-3);
   stroke-width: 1.6;
 }
 
 .map-pit-spiral {
   fill: none;
-  stroke: #ffe7b0;
+  stroke: var(--lamp-2);
   stroke-width: 1.5;
   stroke-linecap: round;
 }
 
 .map-entrance {
   fill: var(--gold-lit);
-  stroke: rgba(232, 195, 90, 0.35);
+  stroke: color-mix(in srgb, var(--gold-lit) 40%, transparent);
   stroke-width: 4;
   paint-order: stroke;
 }
@@ -153,7 +256,7 @@
 .map-hit {
   fill: var(--accent);
   fill-opacity: 0;
-  transition: fill-opacity 300ms ease;
+  transition: fill-opacity var(--t-quick) var(--arrive);
 }
 
 .map-room:hover .map-hit,
@@ -168,7 +271,10 @@
   stroke-width: 2;
   stroke-linejoin: round;
   opacity: 0;
-  transition: opacity 300ms ease;
+  /* One room is lit at a time. An outline goes out quickly and the next comes
+     up a beat after it: at 300 ms each way, together, a room picked on a phone
+     stood lit beside the one that had been suggested (board 14 · 5). */
+  transition: opacity calc(var(--t-quick) * 0.6) var(--leave);
   pointer-events: none;
 }
 
@@ -178,10 +284,12 @@
 
 .map-room.is-shown .map-outline {
   opacity: 1;
+  transition: opacity var(--t-quick) var(--arrive) calc(var(--t-quick) * 0.6);
 }
 
 .map-room.is-shown .map-outline-glow {
   opacity: 0.2;
+  transition: opacity var(--t-quick) var(--arrive) calc(var(--t-quick) * 0.6);
 }
 
 .map-room.is-resting .map-outline {
@@ -219,16 +327,16 @@
   font-size: 10.5px;
   font-weight: 500;
   letter-spacing: 0.18em;
-  fill: rgba(236, 228, 210, 0.82);
+  fill: var(--ink-2);
   paint-order: stroke;
-  stroke: rgba(6, 5, 4, 0.85);
+  stroke: var(--shade);
   stroke-width: 4px;
   stroke-linejoin: round;
-  transition: fill 300ms ease;
+  transition: fill var(--t-quick) var(--arrive);
 }
 
 .map-label.is-shown {
-  fill: #fff6e2;
+  fill: var(--lamp-1);
 }
 
 .map-label-numeral {
@@ -282,10 +390,10 @@
   text-anchor: middle;
   fill: var(--gold-lit);
   paint-order: stroke;
-  stroke: rgba(6, 5, 4, 0.8);
+  stroke: var(--shade);
   stroke-width: 5px;
   stroke-linejoin: round;
-  transition: fill 300ms ease;
+  transition: fill var(--t-quick) var(--arrive);
 }
 
 .map-numeral.is-garden {
@@ -294,11 +402,11 @@
 
 .map-numeral.is-shown {
   font-size: clamp(26px, 1.9vw, 36px);
-  fill: #f6dc94;
+  fill: var(--lamp-3);
 }
 
 .map-numeral.is-garden.is-shown {
-  fill: #cfe8bd;
+  fill: var(--jade-lit);
 }
 
 /* --- The room's caption ---
@@ -317,7 +425,7 @@
   flex-direction: column;
   align-items: flex-start;
   width: min(23rem, 100%);
-  text-shadow: 0 0 12px rgba(6, 5, 4, 0.95), 0 0 3px rgba(6, 5, 4, 0.9);
+  text-shadow: var(--halo);
 }
 
 .map-card::before {
@@ -326,8 +434,8 @@
   inset: -0.5rem -0.9rem;
   z-index: -1;
   border-radius: 1.6rem;
-  background: rgba(8, 6, 5, 0.8);
-  box-shadow: 0 0 2.2rem 1.5rem rgba(8, 6, 5, 0.8);
+  background: var(--shade);
+  box-shadow: 0 0 2.2rem 1.5rem var(--shade);
   pointer-events: none;
 }
 
@@ -336,8 +444,8 @@
 }
 
 .map-card-kicker {
-  font: 500 0.75rem/1 var(--mono);
-  letter-spacing: 0.18em;
+  font: var(--caps);
+  letter-spacing: 0.2em;
   text-transform: uppercase;
   color: var(--card-accent);
 }
@@ -350,8 +458,8 @@
 
 .map-card-sub {
   margin: 0.05rem 0 0;
-  font: 700 clamp(1.45rem, 1.6vw, 1.85rem) / 1.1 var(--script);
-  color: rgba(236, 228, 210, 0.82);
+  font: italic 500 clamp(1rem, 1.08vw, 1.25rem) / 1.63 var(--serif);
+  color: var(--ink-2);
 }
 
 .map-card-rule {
@@ -365,14 +473,14 @@
 .map-card-summary {
   margin: 0;
   font: 500 clamp(0.98rem, 0.9vw, 1.06rem) / 1.45 var(--serif);
-  color: rgba(236, 228, 210, 0.88);
+  color: var(--ink-2);
   text-wrap: pretty;
 }
 
 .map-card-here {
   margin: 0.6rem 0 0;
-  font: 400 0.75rem/1 var(--mono);
-  letter-spacing: 0.16em;
+  font: var(--caps);
+  letter-spacing: 0.2em;
   text-transform: uppercase;
   color: var(--card-accent);
 }
@@ -388,15 +496,15 @@
   border: 0;
   background: none;
   color: var(--ink);
-  font: 500 0.75rem/1 var(--mono);
-  letter-spacing: 0.16em;
+  font: var(--caps);
+  letter-spacing: 0.2em;
   text-transform: uppercase;
   text-decoration: underline;
   text-decoration-color: var(--card-accent);
   text-decoration-thickness: 1px;
   text-underline-offset: 0.5rem;
   cursor: pointer;
-  transition: color 250ms ease;
+  transition: color var(--t-quick) var(--arrive);
 }
 
 .map-enter:focus-visible {
@@ -421,6 +529,372 @@
 .map-enter:disabled {
   cursor: progress;
   opacity: 0.7;
+}
+
+/* --- The ending (Ending.jsx; world/finaleFix6.js, 3) ---
+   In the caption's place when the film has come down on the map, and in its
+   voice, on its pool of shadow: the walk's last line, set as large as an
+   italic may be under the title's capitals; then the colophon, the quietest
+   words on the sheet; then the ways on. All three are laid out from the first
+   moment and come in where they stand — a fade each, nothing travelling. */
+
+.map-card[hidden] {
+  display: none;
+}
+
+.map-ending {
+  --card-accent: var(--jade);
+  position: relative;
+  isolation: isolate;
+  grid-row: 2;
+  grid-column: 1;
+  box-sizing: border-box;
+  width: min(33rem, 100%);
+  text-shadow: var(--halo);
+  pointer-events: auto;
+}
+
+.map-ending::before {
+  content: '';
+  position: absolute;
+  inset: -0.5rem -0.9rem;
+  z-index: -1;
+  border-radius: 1.6rem;
+  background: var(--shade);
+  box-shadow: 0 0 2.2rem 1.5rem var(--shade);
+  pointer-events: none;
+}
+
+.map-ending-line {
+  margin: 0;
+  animation: map-ending-in calc(var(--t-slow) * 2) var(--t) var(--arrive) backwards;
+}
+
+.map-ending-line p {
+  margin: 0;
+  font: italic 500 clamp(1.8rem, 2.4vw, 2.8rem) / 1.14 var(--serif);
+  color: var(--ink);
+  text-wrap: balance;
+}
+
+.map-ending-line cite {
+  display: block;
+  margin-top: 1rem;
+  font: var(--caps);
+  font-style: normal;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--card-accent);
+}
+
+.map-ending-line cite::before {
+  content: '— ';
+}
+
+@keyframes map-ending-in {
+  from { opacity: 0; }
+}
+
+.map-ending-colophon,
+.map-ending-ways {
+  opacity: 0;
+  transition: opacity calc(var(--t-slow) * 2) var(--arrive);
+}
+
+.map-ending:is(.is-stage-2, .is-stage-3) .map-ending-colophon,
+.map-ending.is-stage-3 .map-ending-ways {
+  opacity: 1;
+}
+
+.map-ending-rule {
+  display: block;
+  width: 2.5rem;
+  height: 1px;
+  margin: 1.5rem 0 0.9rem;
+  background: var(--ink-4);
+}
+
+.map-ending-colophon p {
+  max-width: 31rem;
+  margin: 0;
+  font: 500 clamp(0.95rem, 0.88vw, 1.02rem) / 1.5 var(--serif);
+  color: var(--ink-3);
+  text-wrap: pretty;
+}
+
+.map-ending-colophon p + p {
+  margin-top: 0.45rem;
+}
+
+.map-ending-colophon cite {
+  font-style: italic;
+}
+
+.map-ending-ways {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 2rem;
+  margin-top: 0.9rem;
+}
+
+.map-ending-map {
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--ink-3);
+  font: italic 500 1.15rem/1 var(--serif);
+  cursor: pointer;
+  transition: color var(--t-quick) var(--arrive);
+}
+
+.map-ending-map:hover {
+  color: var(--ink);
+}
+
+.map-ending-map:focus-visible {
+  outline: 2px solid var(--card-accent);
+  outline-offset: 4px;
+}
+
+/* Under the ending the rooms are not there to be chosen: their outlines and
+   numerals go, and the map is the lit walk and nothing else. */
+.entry-map.is-ended .map-svg.is-live:not(.map-dim) {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--t-slow) var(--leave);
+}
+
+/* --- The ending comes in (world/endingIn.js) ---
+   It waited for the film to be done, over a map left bare for the film's last
+   seconds, and then came all at once: shadow, title, author, line and the
+   dimming of the map, one block on one frame. Now it begins as the film's
+   last phase does (.is-landing, set while the room is still stood in) and in
+   turn, each thing where it will stand: the pool of shadow, the hairlines
+   drawn from the left, the title, the author, the walk's last line, where it
+   is from. The lantern is the map's own and is drawn for the camera at rest:
+   it dims the rest of the Library last, and slowly, when the film is done.
+   --in-*: when each begins, from the entrance's first moment. */
+
+.entry-map.is-landing {
+  --in-rule: 300ms;
+  --in-title: 500ms;
+  --in-author: 1400ms;
+  --in-line: 2300ms;
+  --in-cite: 3400ms;
+  --in-long: calc(var(--t-slow) * 2);
+}
+
+/* (the title and its shadow are the map's, and gone while a room is stood in) */
+.entry-map.is-world-tour.is-landing .map-title {
+  opacity: 1;
+  transition: none;
+}
+
+.entry-map.is-in-room.is-landing .map-scrim {
+  opacity: 1;
+  transition: opacity var(--in-long) var(--arrive);
+}
+
+.entry-map.is-landing .map-title-rule {
+  transform-origin: 0 50%;
+  animation: ending-rule-in var(--in-long) var(--in-rule) var(--arrive) backwards;
+}
+
+.entry-map.is-landing .map-title-name + .map-title-rule {
+  animation-delay: calc(var(--in-rule) + var(--t));
+}
+
+.entry-map.is-landing.is-tall .map-title-rule {
+  transform-origin: 50% 50%;
+}
+
+@keyframes ending-rule-in {
+  from {
+    opacity: 0;
+    transform: scaleX(0);
+  }
+}
+
+.entry-map.is-landing .map-title-name {
+  animation: map-ending-in var(--in-long) var(--in-title) var(--arrive) backwards;
+}
+
+.entry-map.is-landing .map-title-line {
+  animation: map-ending-in var(--t-slow) var(--in-author) var(--arrive) backwards;
+}
+
+.entry-map.is-landing .map-ending::before {
+  animation: map-ending-in var(--in-long) var(--in-author) var(--arrive) backwards;
+}
+
+.entry-map.is-landing .map-ending-line {
+  animation: none;
+}
+
+.entry-map.is-landing .map-ending-line p {
+  animation: map-ending-in var(--in-long) var(--in-line) var(--arrive) backwards;
+}
+
+.entry-map.is-landing .map-ending-line cite {
+  animation: map-ending-in var(--t-slow) var(--in-cite) var(--arrive) backwards;
+}
+
+.entry-map.is-world-tour.is-landing.is-ended .map-svg.map-dim,
+.entry-map.is-landing.is-ended .assembly-ink.is-kept {
+  transition: opacity calc(var(--t-slow) * 2.5) ease-in-out;
+}
+
+/* b, found: the line's letters stand in the Library's alphabet until each is
+   found. A letter's place is its own from the start (the true one holds it,
+   unseen, what is turned over lies on it), so nothing reflows. */
+.map-ending-said {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.map-ending-word {
+  white-space: nowrap;
+}
+
+.map-ending-ch {
+  position: relative;
+  display: inline-block;
+  transition: color var(--t-slow) var(--arrive);
+}
+
+.map-ending-ch > :first-child {
+  visibility: hidden;
+}
+
+.map-ending-ch > :last-child {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  color: color-mix(in srgb, var(--gold) 50%, transparent);
+}
+
+.map-ending-ch.is-found > :first-child {
+  visibility: visible;
+}
+
+.map-ending-ch.is-found > :last-child {
+  display: none;
+}
+
+.map-ending-ch.is-new {
+  color: var(--gold-lit);
+  transition: none;
+}
+
+.entry-map[data-endin='b'] {
+  --in-cite: 5300ms;
+}
+
+.entry-map[data-endin='b'] .map-ending-line p {
+  animation-duration: var(--t);
+}
+
+/* c, lit: the light that ran along the walk runs on along the hairlines, and
+   the title and then each word of the line catch it and cool to ink. */
+.entry-map[data-endin='c'] {
+  --in-cite: 3900ms;
+}
+
+.entry-map[data-endin='c'] .map-title-rule {
+  position: relative;
+  animation-name: map-ending-in;
+}
+
+.entry-map[data-endin='c'] .map-title-rule::after {
+  content: '';
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  left: 0;
+  width: 34%;
+  background: linear-gradient(90deg, transparent, var(--gold-lit) 55%, var(--lamp-1) 80%, transparent);
+  opacity: 0;
+  animation: ending-glint calc(var(--t-slow) * 1.6) var(--in-rule) ease-in-out backwards;
+}
+
+.entry-map[data-endin='c'] .map-title-name + .map-title-rule::after {
+  animation-delay: calc(var(--in-rule) + var(--t));
+}
+
+@keyframes ending-glint {
+  0% {
+    opacity: 0;
+    transform: translateX(-100%);
+  }
+
+  18%,
+  70% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateX(300%);
+  }
+}
+
+.entry-map[data-endin='c'] .map-title-name {
+  animation-name: ending-lit;
+  animation-timing-function: ease-out;
+}
+
+.entry-map[data-endin='c'] .map-ending-line p {
+  animation: none;
+}
+
+.entry-map[data-endin='c'] .map-ending-w {
+  animation: ending-lit calc(var(--t-slow) * 1.4) calc(var(--in-line) + var(--i) * 170ms) ease-out backwards;
+}
+
+@keyframes ending-lit {
+  0% {
+    opacity: 0;
+    color: var(--gold-lit);
+  }
+
+  35% {
+    opacity: 1;
+    color: var(--lamp-2);
+    text-shadow: 0 0 18px color-mix(in srgb, var(--gold-lit) 70%, transparent), var(--halo);
+  }
+}
+
+/* d, drawn back: the title settles from a wider setting and the line from a
+   little larger, as the camera does. */
+.entry-map[data-endin='d'] .map-title-name {
+  animation: ending-track calc(var(--t-slow) * 2.5) var(--in-title) cubic-bezier(0.16, 0.6, 0.2, 1) backwards;
+}
+
+@keyframes ending-track {
+  from {
+    opacity: 0;
+    letter-spacing: 0.34em;
+  }
+}
+
+.entry-map[data-endin='d'] .map-ending-line p {
+  transform-origin: 0 60%;
+  animation: ending-settle calc(var(--t-slow) * 2.2) var(--in-line) cubic-bezier(0.16, 0.6, 0.2, 1) backwards;
+}
+
+@keyframes ending-settle {
+  from {
+    opacity: 0;
+    transform: scale(1.045);
+  }
 }
 
 /* --- The title ---
@@ -459,13 +933,13 @@
 }
 
 .map-title {
-  text-shadow: 0 0 16px rgba(6, 5, 4, 0.95);
+  text-shadow: 0 0 16px var(--shade-halo);
 }
 
 .map-title-rule {
   display: block;
   height: 1px;
-  background: linear-gradient(90deg, rgba(236, 228, 210, 0.5), rgba(236, 228, 210, 0.05));
+  background: linear-gradient(90deg, var(--ink-4), transparent);
 }
 
 .map-title-name {
@@ -473,7 +947,7 @@
   font: 500 clamp(1.7rem, 2.45vw, 3rem) / 1 var(--serif);
   letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: #f1ead9;
+  color: var(--ink);
 }
 
 .map-title-line {
@@ -486,7 +960,7 @@
 
 .map-title-eyebrow {
   font: italic 500 1.25rem/1 var(--serif);
-  color: #b3a78c;
+  color: var(--ink-3);
 }
 
 .map-status {
@@ -503,7 +977,22 @@
   animation: entry-breathe 3200ms 1200ms ease-in-out 2;
 }
 
-/* --- Portrait: title, the render whole, key, card --- */
+/* What the room's caption says for it, said to a screen reader alone. */
+.map-status.is-said {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  animation: none;
+}
+
+/* --- Portrait: title, the map on a stage of its own, the caption ---
+   The stage is half the screen (it was a 1440 × 900 strip, 244 px of an
+   844 px phone, with 300 px of nothing under the caption), less on a short
+   screen so that the caption and its Enter still fit under it without a
+   scroll; the map's camera is turned for it (world/plan.js, yawFor). */
 
 .entry-map.is-tall {
   display: flex;
@@ -527,7 +1016,7 @@
 }
 
 .entry-map.is-tall .map-title-rule {
-  background: linear-gradient(90deg, rgba(236, 228, 210, 0), rgba(236, 228, 210, 0.45), rgba(236, 228, 210, 0));
+  background: linear-gradient(90deg, transparent, var(--ink-4), transparent);
 }
 
 .entry-map.is-tall .map-title-name {
@@ -559,7 +1048,25 @@
   order: 1;
   flex: none;
   width: 100%;
-  aspect-ratio: 1440 / 900;
+  height: clamp(15rem, 50vh, calc(100vh - 25rem));
+  height: clamp(15rem, 50svh, calc(100svh - 25rem));
+}
+
+/* The stage's top and foot go into the page's dark instead of ending on a
+   ruled line: the honeycomb (and, while it is drawn, the ink) runs on past
+   them. Under the rooms' outlines and numerals. */
+.entry-map.is-tall .map-stage::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(to bottom, var(--ground), transparent 2.25rem),
+    linear-gradient(to top, var(--ground), transparent 2.25rem);
+  pointer-events: none;
+}
+
+.entry-map.is-tall.is-in-room .map-stage::after {
+  display: none;
 }
 
 .entry-map.is-tall .map-label:not(.is-shown) {
@@ -579,17 +1086,45 @@
 .entry-map.is-tall .map-card {
   order: 2;
   width: auto;
-  margin: 2rem 1rem 1rem;
+  margin: 1.25rem 1rem 1rem;
 }
 
 .entry-map.is-tall .map-card::before {
   display: none;
 }
 
-@media (max-width: 520px) {
-  .map-card-summary {
-    display: none;
-  }
+.entry-map.is-tall .map-ending {
+  order: 2;
+  width: auto;
+  margin: 1.25rem 1rem 1rem;
+}
+
+.entry-map.is-tall .map-ending::before {
+  display: none;
+}
+
+.entry-map.is-tall .map-ending-line p {
+  font-size: clamp(1.45rem, 6.4vw, 1.9rem);
+}
+
+.entry-map.is-tall .map-ending-rule {
+  margin-top: 1.1rem;
+}
+
+/* The ending is longer than a room's caption: the stage gives it the room, so
+   that the way on is on the screen without a scroll. (The stage is changing
+   size at that moment anyway — the film had the whole screen.) */
+.entry-map.is-tall.is-ended .map-stage {
+  height: clamp(13rem, 40vh, calc(100vh - 32rem));
+  height: clamp(13rem, 40svh, calc(100svh - 32rem));
+}
+
+/* The summary is on the phone too (it was hidden under 520 px: kicker, name,
+   subtitle and Enter, and not the sentence that makes a reader want to go
+   in). Three lines of room for it in every caption, so that Enter keeps its
+   place from room to room under a thumb. */
+.entry-map.is-tall .map-card-summary {
+  min-height: 4.35em;
 }
 
 /* --- The live world ----------------------------------------------------------
@@ -601,7 +1136,7 @@
 
 .map-world {
   opacity: 0;
-  transition: opacity 1200ms ease;
+  transition: opacity var(--t-slow) var(--arrive);
 }
 
 .entry-map.is-world .map-world {
@@ -609,7 +1144,7 @@
 }
 
 .map-svg {
-  transition: opacity 700ms ease;
+  transition: opacity var(--t) var(--arrive);
 }
 
 .entry-map.is-flying .map-svg,
@@ -618,7 +1153,7 @@
 .entry-map.is-flying .map-scrim {
   opacity: 0;
   pointer-events: none;
-  transition: opacity 700ms ease;
+  transition: opacity var(--t) var(--leave);
 }
 
 .entry-map.is-flying.is-leaving .map-stage {
@@ -644,12 +1179,24 @@
   height: 100%;
 }
 
+/* Where the drawing stays on over the map (world/mapFix3.js, 2): it is the
+   map's, and goes with it — quickly, as a flight leaves, because it does not
+   move with the world under it. */
+.assembly-ink.is-kept {
+  transition: opacity var(--t) var(--arrive);
+}
+
+.entry-map.is-in-room .assembly-ink.is-kept {
+  opacity: 0;
+  transition: opacity var(--t-quick) var(--leave);
+}
+
 .assembly-epigraph {
   position: relative;
   z-index: 2;
   width: min(27rem, calc(100vw - 5rem));
   pointer-events: none;
-  transition: opacity 600ms ease;
+  transition: opacity var(--t) var(--leave);
   contain: layout style;
 }
 
@@ -662,8 +1209,8 @@
 .assembly-epigraph-in {
   position: relative;
   isolation: isolate;
-  text-shadow: 0 0 12px rgba(6, 5, 4, 0.95), 0 0 3px rgba(6, 5, 4, 0.9);
-  animation: assembly-in 1600ms 250ms ease backwards;
+  text-shadow: var(--halo);
+  animation: assembly-in var(--t-slow) var(--t-quick) var(--arrive) backwards;
 }
 
 .assembly-epigraph-in::before {
@@ -672,8 +1219,8 @@
   inset: -0.5rem -0.9rem;
   z-index: -1;
   border-radius: 1.6rem;
-  background: rgba(8, 6, 5, 0.8);
-  box-shadow: 0 0 2.2rem 1.5rem rgba(8, 6, 5, 0.8);
+  background: var(--shade);
+  box-shadow: 0 0 2.2rem 1.5rem var(--shade);
 }
 
 @keyframes assembly-in {
@@ -695,11 +1242,36 @@
   color: var(--gold-lit);
 }
 
+/* Its two halves (the room, the book): one line, a point between them... */
+.assembly-mark-half + .assembly-mark-half::before {
+  content: ' · ';
+}
+
+/* ...and where a phone's width cut that line off before its page number, two
+   lines — always two there, so nothing under them moves as the numbers turn. */
+@media (max-width: 520px) {
+  .assembly-mark {
+    line-height: 1.5;
+    white-space: normal;
+  }
+
+  .assembly-mark-half {
+    display: block;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .assembly-mark-half + .assembly-mark-half::before {
+    content: none;
+  }
+}
+
 .assembly-line {
   margin: 0.2rem 0 0;
   font: 400 0.8rem/1.8 var(--mono);
   letter-spacing: 0.03em;
-  color: rgba(201, 162, 76, 0.42);
+  color: color-mix(in srgb, var(--gold) 40%, transparent);
 }
 
 .assembly-word {
@@ -711,34 +1283,40 @@
 }
 
 .assembly-ch.is-new {
-  color: #ffe2a6;
+  color: var(--lamp-2);
 }
 
 .assembly-note {
   margin-top: 0.8rem;
   padding-top: 0.62rem;
-  border-top: 1px solid rgba(236, 228, 210, 0.16);
+  border-top: 1px solid color-mix(in srgb, var(--ink) 16%, transparent);
   font: 400 0.75rem/1 var(--mono);
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: #a89c82;
+  color: var(--ink-3);
 }
 
 .assembly-note.is-found {
   color: var(--gold-lit);
 }
 
+/* On a phone it stands in the caption's place too, straight under the stage
+   the ink is drawn on (it was pinned to the foot of the screen, 380 px of
+   nothing between the two: board 14 · 1). It takes no room of its own there —
+   a box of no height, its words hanging from it — so the caption, unseen
+   until the world is shown, lies in the same place and does not move when
+   this is gone. */
 .entry-map.is-tall .assembly-epigraph {
-  position: absolute;
-  top: auto;
-  right: 1rem;
-  bottom: 1.5rem;
-  left: 1rem;
+  top: 1.25rem;
+  order: 2;
+  flex: none;
   width: auto;
+  height: 0;
+  margin: 0 1rem;
 }
 
 .entry-map.is-world-tour .map-svg.is-live {
-  animation: assembly-overlay-in 1000ms 900ms ease backwards;
+  animation: assembly-overlay-in var(--t-slow) var(--t-slow) var(--arrive) backwards;
 }
 
 @keyframes assembly-overlay-in {
@@ -754,7 +1332,7 @@
   position: absolute;
   inset: 0;
   z-index: 3;
-  background: radial-gradient(circle at 50% 50%, #fffaf0 0%, #ffe9bf 45%, #f2c77e 100%);
+  background: radial-gradient(circle at 50% 50%, var(--lamp-1) 0%, var(--lamp-2) 45%, var(--lamp-3) 100%);
   opacity: 0;
   pointer-events: none;
 }
@@ -763,7 +1341,7 @@
 .entry-map.is-world-tour .map-card,
 .entry-map.is-world-tour .map-title,
 .entry-map.is-world-tour .map-scrim {
-  transition: opacity 900ms ease 150ms, border-color 400ms ease;
+  transition: opacity var(--t-slow) var(--arrive) var(--t-quick);
 }
 
 .entry-map.is-assembling .map-card {
@@ -777,7 +1355,7 @@
 .entry-map.is-in-room .map-scrim {
   opacity: 0;
   pointer-events: none;
-  transition: opacity 600ms ease;
+  transition: opacity var(--t) var(--leave);
 }
 
 .entry-map.is-in-room .map-stage {
@@ -805,7 +1383,7 @@
   gap: 1rem 1.5rem;
   padding: 0 2.5rem 2.2rem;
   pointer-events: none;
-  animation: room-hud-in 900ms 150ms ease both;
+  animation: room-hud-in var(--t-slow) var(--t-quick) var(--arrive) both;
 }
 
 .room-hud.is-garden {
@@ -832,7 +1410,7 @@
   box-sizing: border-box;
   width: min(27rem, 100%);
   padding: 0 0 0.2rem 0.2rem;
-  text-shadow: 0 0 12px rgba(6, 5, 4, 0.95), 0 0 3px rgba(6, 5, 4, 0.9);
+  text-shadow: var(--halo);
 }
 
 .room-plate::before {
@@ -840,7 +1418,7 @@
   position: absolute;
   inset: -6rem -9rem -2.2rem -2.5rem;
   z-index: -1;
-  background: radial-gradient(ellipse 100% 100% at 0% 100%, rgba(8, 6, 4, 0.86) 0%, rgba(8, 6, 4, 0.55) 45%, rgba(8, 6, 4, 0) 78%);
+  background: radial-gradient(ellipse 100% 100% at 0% 100%, var(--pool));
   pointer-events: none;
 }
 
@@ -849,12 +1427,45 @@
    out there, and holds more of its dark as far as the words go. */
 .room-hud[data-room='web'] .room-plate::before {
   inset: -7rem -15rem -2.2rem -2.5rem;
-  background: radial-gradient(ellipse 100% 100% at 0% 100%, rgba(8, 6, 4, 0.9) 0%, rgba(8, 6, 4, 0.76) 42%, rgba(8, 6, 4, 0.5) 64%, rgba(8, 6, 4, 0) 92%);
+  background: radial-gradient(ellipse 100% 100% at 0% 100%, var(--pool-far));
+}
+
+/* The subtitle's other ways (world/hudFix3.js, 1; the name's own italic was
+   chosen, and is .room-sub and .map-card-sub): the script it was in, as it
+   was and bold; a chancery hand with real weight; a printer's italic out of
+   an old book. Each as tall on the page as the script was, in a line of the
+   script's height, so nothing round it moves. */
+.entry-map[data-sub='off'] .room-sub {
+  font: 400 clamp(1.6rem, 2.3vw, 2.3rem) / 1.05 var(--script);
+}
+
+.entry-map[data-sub='b'] .room-sub {
+  font: 700 clamp(1.6rem, 2.3vw, 2.3rem) / 1.05 var(--script);
+}
+
+.entry-map:is([data-sub='off'], [data-sub='b']) .map-card-sub {
+  font: 700 clamp(1.45rem, 1.6vw, 1.85rem) / 1.1 var(--script);
+}
+
+.entry-map[data-sub='c'] .room-sub {
+  font: 400 clamp(1rem, 1.42vw, 1.42rem) / 1.7 'Quintessential', var(--serif);
+}
+
+.entry-map[data-sub='c'] .map-card-sub {
+  font: 400 clamp(0.95rem, 1.02vw, 1.18rem) / 1.72 'Quintessential', var(--serif);
+}
+
+.entry-map[data-sub='d'] .room-sub {
+  font: italic 400 clamp(1.05rem, 1.5vw, 1.5rem) / 1.61 'IM Fell DW Pica', var(--serif);
+}
+
+.entry-map[data-sub='d'] .map-card-sub {
+  font: italic 400 clamp(1rem, 1.08vw, 1.25rem) / 1.63 'IM Fell DW Pica', var(--serif);
 }
 
 .room-kicker {
-  font: 500 0.75rem/1 var(--mono);
-  letter-spacing: 0.16em;
+  font: var(--caps);
+  letter-spacing: 0.2em;
   text-transform: uppercase;
   color: var(--card-accent);
 }
@@ -870,17 +1481,20 @@
   outline: none;
 }
 
+/* In the name's own italic, half its size (world/hudFix3.js, 1): it was in a
+   script whose hairlines were a pixel wide over a moving room. The line is as
+   tall as the script's was, so the name stands where it stood. */
 .room-sub {
   margin: 0.45rem 0 0;
-  font: 400 clamp(1.6rem, 2.3vw, 2.3rem) / 1.05 var(--script);
-  color: rgba(236, 228, 210, 0.84);
+  font: italic 500 clamp(1.05rem, 1.5vw, 1.5rem) / 1.61 var(--serif);
+  color: var(--ink-2);
 }
 
 .room-summary {
   min-height: 2.9em;
   margin: 0;
   font: 500 clamp(1.05rem, 1.25vw, 1.2rem) / 1.45 var(--serif);
-  color: rgba(236, 228, 210, 0.9);
+  color: var(--ink-2);
   text-wrap: pretty;
 }
 
@@ -914,7 +1528,7 @@
   /* Hidden, not only clear, once it has gone: still sizing the cell, but not
      there to select or to find on the page. */
   visibility: hidden;
-  transition: opacity 600ms ease, visibility 0s 600ms;
+  transition: opacity var(--t) var(--leave), visibility 0s var(--t);
 }
 
 .room-voice-line::before {
@@ -929,11 +1543,11 @@
 .room-voice-line.is-on {
   opacity: 1;
   visibility: visible;
-  transition: opacity 300ms 350ms ease, visibility 0s;
+  transition: opacity var(--t-quick) var(--arrive) var(--t), visibility 0s;
 }
 
 .room-voice-line.is-on .room-voice-w {
-  animation: room-voice-in 900ms calc(350ms + var(--i) * 45ms) ease both;
+  animation: room-voice-in var(--t-slow) calc(var(--t) + var(--i) * 45ms) var(--arrive) both;
 }
 
 /* A quotation: the book face in italic, in the warmer quill ink the plate
@@ -946,8 +1560,9 @@
 .room-voice-from {
   display: block;
   margin-top: 0.55rem;
-  font: 500 0.75rem/1.2 var(--mono);
-  letter-spacing: 0.16em;
+  font: var(--caps);
+  line-height: 1.2;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
   color: var(--card-accent);
 }
@@ -957,7 +1572,7 @@
 }
 
 .room-voice-line.is-on .room-voice-from {
-  animation: room-voice-in 1200ms calc(650ms + var(--n) * 45ms) ease both;
+  animation: room-voice-in var(--t-slow) calc(var(--t) + var(--t-quick) + var(--n) * 45ms) var(--arrive) both;
 }
 
 @keyframes room-voice-in {
@@ -975,7 +1590,7 @@
   display: flex;
   align-items: last baseline;
   gap: 1.9rem;
-  text-shadow: 0 0 12px rgba(6, 5, 4, 0.95), 0 0 3px rgba(6, 5, 4, 0.9);
+  text-shadow: var(--halo);
 }
 
 .room-nav::before {
@@ -983,7 +1598,7 @@
   position: absolute;
   inset: -5rem -2.5rem -2.2rem -6rem;
   z-index: -1;
-  background: radial-gradient(ellipse 100% 100% at 100% 100%, rgba(8, 6, 4, 0.86) 0%, rgba(8, 6, 4, 0.55) 45%, rgba(8, 6, 4, 0) 78%);
+  background: radial-gradient(ellipse 100% 100% at 100% 100%, var(--pool));
   pointer-events: none;
 }
 
@@ -1003,11 +1618,11 @@
   border: 0;
   border-radius: 6px;
   background: none;
-  color: rgba(236, 228, 210, 0.74);
+  color: var(--ink-2);
   font: italic 500 1.2rem/1 var(--serif);
   white-space: nowrap;
   cursor: pointer;
-  transition: color 250ms ease, opacity 300ms ease;
+  transition: color var(--t-quick) var(--arrive), opacity var(--t-quick) var(--arrive);
 }
 
 .room-step svg {
@@ -1037,7 +1652,21 @@
 .room-step-verb {
   margin-right: -0.4rem;
   font-size: 0.62em;
-  color: rgba(236, 228, 210, 0.72);
+  color: var(--ink-2);
+}
+
+/* The Vertigo is the one room whose brightest place is bottom right: the lit
+   shelves of the pit, under the walk. The corner's pool ran out before it
+   reached "fall into", small and dimmed over lit spines (world/hudFix3.js, 3).
+   There it reaches further left and holds more of its dark as far as the
+   words go, and the verb is in full ink. */
+.entry-map:not([data-hud-old~='3']) .room-hud[data-room='vertigo'] .room-nav::before {
+  inset: -6rem -2.5rem -2.2rem -15rem;
+  background: radial-gradient(ellipse 100% 100% at 100% 100%, var(--pool-far));
+}
+
+.entry-map:not([data-hud-old~='3']) .room-hud[data-room='vertigo'] .room-step-verb {
+  color: var(--ink);
 }
 
 /* "· the ending", after the last way on: it plays the end of the walk. */
@@ -1103,30 +1732,30 @@
   border: 0;
   border-radius: 8px;
   background: none;
-  color: rgba(236, 228, 210, 0.75);
+  color: var(--ink-2);
   cursor: pointer;
-  transition: color 250ms ease, opacity 300ms ease;
+  transition: color var(--t-quick) var(--arrive), opacity var(--t-quick) var(--arrive);
 }
 
 .room-seal {
   width: 110px;
   height: 72px;
   overflow: visible;
-  filter: drop-shadow(0 0 6px rgba(6, 5, 4, 0.9));
+  filter: drop-shadow(0 0 6px var(--shade-halo));
 }
 
 .room-seal-fall {
   fill: none;
-  stroke: rgba(236, 228, 210, 0.4);
+  stroke: var(--ink-4);
   stroke-width: 1.1;
   stroke-dasharray: 1.5 3.5;
 }
 
 .room-cell polygon {
   fill: none;
-  stroke: rgba(236, 228, 210, 0.6);
+  stroke: var(--ink-3);
   stroke-width: 1.2;
-  transition: stroke 250ms ease, fill 400ms ease;
+  transition: stroke var(--t-quick) var(--arrive), fill var(--t) var(--arrive);
 }
 
 .room-cell.is-garden polygon {
@@ -1174,7 +1803,7 @@
 }
 
 .room-map-name {
-  font: 600 0.85rem/1 'Cormorant SC', var(--serif);
+  font: 600 0.85rem/1 var(--sc);
   letter-spacing: 0.2em;
 }
 
@@ -1215,11 +1844,11 @@
   margin: 0;
   padding: 0.3rem 0.6rem;
   font: italic 500 1.12rem/1.3 var(--serif);
-  color: rgba(236, 228, 210, 0.76);
+  color: var(--ink-2);
   text-align: center;
-  text-shadow: 0 0 10px rgba(6, 5, 4, 0.95), 0 0 3px rgba(6, 5, 4, 0.9);
+  text-shadow: var(--halo);
   opacity: 0;
-  transition: opacity 700ms ease;
+  transition: opacity var(--t) var(--leave);
 }
 
 .room-hint::before {
@@ -1227,12 +1856,13 @@
   position: absolute;
   inset: -1.2rem -2.5rem;
   z-index: -1;
-  background: radial-gradient(ellipse 50% 50% at 50% 50%, rgba(8, 6, 4, 0.7) 0%, rgba(8, 6, 4, 0) 100%);
+  background: radial-gradient(ellipse 50% 50% at 50% 50%, var(--shade-mid) 0%, transparent 100%);
   pointer-events: none;
 }
 
 .room-hint.is-shown {
   opacity: 1;
+  transition: opacity var(--t-slow) var(--arrive);
 }
 
 .room-tip {
@@ -1270,7 +1900,7 @@
 }
 
 .room-key kbd {
-  font: 600 1.08rem/1 'Cormorant SC', var(--serif);
+  font: 600 1.08rem/1 var(--sc);
   letter-spacing: 0.1em;
   color: var(--gold-lit);
 }
@@ -1284,16 +1914,16 @@
   width: 56px;
   height: 56px;
   padding: 0;
-  border: 1px solid rgba(236, 228, 210, 0.5);
+  border: 1px solid var(--ink-4);
   border-radius: 50%;
-  background: rgba(10, 8, 6, 0.55);
+  background: var(--shade-mid);
   color: var(--ink);
   pointer-events: auto;
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
-  transition: background 200ms ease, border-color 200ms ease, color 200ms ease;
+  transition: background var(--t-quick) var(--arrive), border-color var(--t-quick) var(--arrive), color var(--t-quick) var(--arrive);
 }
 
 .room-hold svg {
@@ -1308,7 +1938,7 @@
 
 .room-hold.is-held {
   border-color: var(--gold-lit);
-  background: rgba(10, 8, 6, 0.75);
+  background: var(--shade);
   color: var(--gold-lit);
 }
 
@@ -1320,7 +1950,7 @@
 .room-hud.is-finale .room-nav {
   opacity: 0;
   pointer-events: none;
-  transition: opacity 900ms ease;
+  transition: opacity var(--t-slow) var(--leave);
 }
 
 /* ...and in the nav's corner, for the film's whole length, the way out of it
@@ -1337,13 +1967,21 @@
   border: 0;
   border-radius: 6px;
   background: none;
-  color: rgba(236, 228, 210, 0.78);
+  color: var(--ink-2);
   font: italic 500 1.3rem/1 var(--serif);
   white-space: nowrap;
-  text-shadow: 0 0 12px rgba(6, 5, 4, 0.95), 0 0 3px rgba(6, 5, 4, 0.9);
+  text-shadow: var(--halo);
   cursor: pointer;
-  animation: room-skip-in 900ms 600ms ease both;
-  transition: color 250ms ease, opacity 300ms ease;
+  animation: room-skip-in var(--t-slow) var(--t) var(--arrive) backwards;
+  transition: color var(--t-quick) var(--arrive), opacity var(--t) var(--arrive);
+}
+
+/* Nobody has moved for a few seconds (EntryMap, `skipTrace`): it sinks until
+   it is only just there, so the film has its frame to itself — the rise most
+   of all — and comes straight back to the hand. Never while it is focused. */
+.room-skip.is-trace:not(:hover, :focus-visible) {
+  opacity: 0.14;
+  transition: opacity calc(var(--t-slow) * 2) var(--leave);
 }
 
 .room-skip svg {
@@ -1390,12 +2028,12 @@
 .room-hud.is-finale-leave .room-sub,
 .room-hud.is-finale-leave .room-voice-line::before {
   opacity: 0;
-  transition: opacity 1800ms ease;
+  transition: opacity calc(var(--t-slow) * 2) var(--leave);
 }
 
 .room-hud.is-finale-leave .room-plate {
   opacity: 0;
-  transition: opacity 2200ms ease;
+  transition: opacity calc(var(--t-slow) * 2) var(--leave);
 }
 
 .entry-map.is-tall.is-in-room {
@@ -1405,7 +2043,7 @@
 .entry-map.is-tall.is-in-room .map-stage {
   position: absolute;
   inset: 0;
-  aspect-ratio: auto;
+  height: auto;
 }
 
 .entry-map.is-tall .room-hud {
@@ -1427,8 +2065,8 @@
   bottom: 0;
   left: 0;
   z-index: -1;
-  height: calc(100% + 5rem);
-  background: linear-gradient(to top, rgba(8, 6, 5, 0.82) 0%, rgba(8, 6, 5, 0.66) 50%, rgba(8, 6, 5, 0));
+  height: calc(100% + 6rem);
+  background: linear-gradient(to top, var(--shade) 0%, var(--shade) 20%, var(--shade-mid) 72%, transparent);
   pointer-events: none;
 }
 
@@ -1470,6 +2108,153 @@
   width: max-content;
 }
 
+/* --- The phone, in the hand (world/phoneFix7.js) -------------------------------
+   2. The walk's line has the walk button in it. The way on keeps the line
+   above to itself (the Pavilion's, "The Web of Time VIII", runs most of the
+   width); under it, on the bottom edge: the way back, saying only where to,
+   then the button — where a thumb rests, and off the picture, which it stood
+   in the middle of — then the seal. */
+.entry-map.is-tall:not([data-phone-old~='2']) .room-nav {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0 0.75rem;
+}
+
+.entry-map.is-tall:not([data-phone-old~='2']) .room-ways {
+  display: contents;
+}
+
+.entry-map.is-tall:not([data-phone-old~='2']) .room-step {
+  grid-column: 1;
+  justify-self: start;
+}
+
+.entry-map.is-tall:not([data-phone-old~='2']) .room-step.is-on {
+  grid-area: 1 / 1 / auto / -1;
+}
+
+.entry-map.is-tall:not([data-phone-old~='2']) .room-step.is-back {
+  grid-row: 2;
+}
+
+.entry-map.is-tall:not([data-phone-old~='2']) .room-step.is-climb {
+  grid-row: 3;
+}
+
+.entry-map.is-tall:not([data-phone-old~='2']) .room-step-way {
+  display: none;
+}
+
+.entry-map.is-tall:not([data-phone-old~='2']) .room-nav > .room-hold {
+  grid-area: 2 / 2;
+}
+
+.entry-map.is-tall:not([data-phone-old~='2']) .room-map {
+  grid-area: 2 / 3;
+  padding-block: 0;
+}
+
+/* (where the room has a second place to stand, the way to it is a third
+   line, and the button and the seal stand beside the lower two) */
+.entry-map.is-tall:not([data-phone-old~='2']) .room-nav.has-climb > .room-hold {
+  grid-area: 2 / 2 / span 2;
+}
+
+.entry-map.is-tall:not([data-phone-old~='2']) .room-nav.has-climb .room-map {
+  grid-area: 2 / 3 / span 2;
+}
+
+@media (max-width: 374px) {
+  .entry-map.is-tall:not([data-phone-old~='2']) .room-nav {
+    column-gap: 0.4rem;
+  }
+
+  .entry-map.is-tall:not([data-phone-old~='2']) .room-seal {
+    width: 67px;
+    height: 44px;
+  }
+
+  .entry-map.is-tall:not([data-phone-old~='2']) .room-step:not(.is-on) {
+    font-size: 1.1rem;
+  }
+
+  /* (a quotation's source on one line there too) */
+  .entry-map.is-tall:not([data-phone-old~='3']) .room-voice-from {
+    letter-spacing: 0.13em;
+  }
+}
+
+@media (max-width: 340px) {
+  .entry-map.is-tall:not([data-phone-old~='2']) .room-step:not(.is-on) {
+    gap: 0.4rem;
+    font-size: 1rem;
+  }
+
+  .entry-map.is-tall:not([data-phone-old~='2']) .room-nav > .room-hold {
+    width: 50px;
+    height: 50px;
+  }
+}
+
+/* 3. The room's lines, which a phone did not show: each in the caption's own
+   place, standing on the line the subtitle stands on and as tall as it needs
+   to be upward, on a pool of shade of its own (a long quotation stands higher
+   than the shade behind the name does). The name gives way to it and comes
+   back after it; nothing is moved to make the room. */
+.entry-map.is-tall:not([data-phone-old~='3']) .room-summary {
+  position: absolute;
+  right: 0;
+  bottom: 0.2rem;
+  left: 0.2rem;
+  display: block;
+  min-height: 0;
+  margin: 0;
+  pointer-events: none;
+}
+
+.entry-map.is-tall:not([data-phone-old~='3']) .room-voice-line {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  isolation: isolate;
+}
+
+.entry-map.is-tall:not([data-phone-old~='3']) .room-voice-line::after {
+  content: '';
+  position: absolute;
+  inset: -0.7rem -0.5rem -0.4rem;
+  z-index: -1;
+  border-radius: 1.2rem;
+  background: var(--shade-mid);
+  box-shadow: 0 0 1.5rem 1.1rem var(--shade-mid);
+}
+
+.entry-map.is-tall .room-plate {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* The head comes back a beat after a line has gone, as a line comes in a beat
+   after the head has: the dark goes first, both ways. */
+.entry-map.is-tall .room-plate :is(.room-kicker, .room-title, .room-sub) {
+  transition: opacity var(--t-slow) var(--arrive) var(--t);
+}
+
+.entry-map.is-tall .room-plate.is-voiced :is(.room-kicker, .room-title, .room-sub) {
+  opacity: 0;
+  transition: opacity var(--t) var(--leave);
+}
+
+/* 5. A few seconds after arriving the kicker and the subtitle sink away, and
+   the name and the ways are what is left over the room (EntryMap, `headUp`).
+   They keep their places, so the name does not move as they go, or when a
+   touch brings them back. */
+.entry-map.is-tall .room-plate.is-sunk :is(.room-kicker, .room-sub) {
+  opacity: 0;
+  transition: opacity calc(var(--t-slow) * 2) var(--leave);
+}
+
 /* --- Reduced motion ------------------------------------------------------------
    Nothing here travels, pulses or arrives a word at a time: the map does not
    zoom into the room it leaves for, the HUD fades in where it stands, a room's
@@ -1479,6 +2264,14 @@
 @media (prefers-reduced-motion: reduce) {
   .entry-map.is-leaving .map-stage {
     transform: none;
+  }
+
+  /* (the ending's entrance is a row of delays: without motion, none of them) */
+  .entry-map.is-landing :is(.map-title-rule, .map-title-name, .map-title-line, .map-ending-w),
+  .entry-map.is-landing .map-title-rule::after,
+  .entry-map.is-landing .map-ending::before,
+  .entry-map.is-landing .map-ending-line :is(p, cite) {
+    animation: none;
   }
 
   .map-room.is-resting .map-outline,
@@ -1499,4 +2292,18 @@
 
 @keyframes room-hud-fade {
   from { opacity: 0; }
+}
+
+/* --- As it was (world/hudFix3.js: ?whud3=old, or old:2,5) ---------------------
+   2: the kickers and the source in the mono; 5: the browser's own curve. */
+.entry-map[data-hud-old~='2'] :is(.room-kicker, .map-card-kicker, .room-voice-from, .map-card-here, .map-enter) {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+}
+
+.entry-map[data-hud-old~='5'] {
+  --arrive: ease;
+  --leave: ease;
 }

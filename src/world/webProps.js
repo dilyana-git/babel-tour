@@ -156,11 +156,25 @@ export const RINGS = {
 // A band about the origin in the xy plane: its section turned on the lathe,
 // every corner twice (so each face is flat and the eased arris catches the
 // light as a line).
-const bandGeometry = ([ri, ro, h], ease, segments) => {
+// `bead` (gardenFix5.js, 8 — { r, in }): a half-round raised along each edge
+// of each face, so the band has a section and is not a strip.
+const bandGeometry = ([ri, ro, h], ease, segments, bead = null) => {
   const P = [];
   const corner = (r, y) => P.push(new THREE.Vector2(r, y), new THREE.Vector2(r, y));
-  corner(ri, -h + ease); corner(ri + ease, -h); corner(ro - ease, -h); corner(ro, -h + ease);
-  corner(ro, h - ease); corner(ro - ease, h); corner(ri + ease, h); corner(ri, h - ease);
+  // a bead on the face at `y0` (standing `up` from it), its middle at `rc`,
+  // drawn the way the section is being walked (`way`: 1 outward, -1 inward)
+  const round = (rc, y0, up, way) => {
+    if (!bead) return;
+    corner(rc - way * bead.r, y0);
+    for (let k = 1; k < 6; k++) { const t = (Math.PI * k) / 6; P.push(new THREE.Vector2(rc - way * bead.r * Math.cos(t), y0 + up * bead.r * Math.sin(t))); }
+    corner(rc + way * bead.r, y0);
+  };
+  corner(ri, -h + ease); corner(ri + ease, -h);
+  round(ri + (bead?.in ?? 0) + ease, -h, -1, 1); round(ro - (bead?.in ?? 0) - ease, -h, -1, 1);
+  corner(ro - ease, -h); corner(ro, -h + ease);
+  corner(ro, h - ease); corner(ro - ease, h);
+  round(ro - (bead?.in ?? 0) - ease, h, 1, -1); round(ri + (bead?.in ?? 0) + ease, h, 1, -1);
+  corner(ri + ease, h); corner(ri, h - ease);
   P.push(new THREE.Vector2(ri, -h + ease));
   return new THREE.LatheGeometry(P, segments).rotateX(Math.PI / 2);
 };
@@ -184,12 +198,15 @@ const scaleGeometries = ({ band: [, ro, h], n, mid, long, len, wide, in: inset }
   return parts.map((g) => (g.index ? g.toNonIndexed() : g));
 };
 // One ring: { band, scale } — the bronze and the gilt, each one geometry.
-export function graduatedRing(which, merge, opts) {
-  const R = RINGS[which];
+// (`opts.bead`: with a bead at each edge the scale lies between the beads —
+// further in from the rim, its divisions a little shorter.)
+export function graduatedRing(which, merge, opts = {}) {
+  const bead = opts.bead ?? null, room = bead ? bead.in + bead.r + 0.04 : 0;
+  const R = bead ? { ...RINGS[which], in: RINGS[which].in + room, len: RINGS[which].len.map((l) => l * (which === 'equator' ? 0.72 : 0.86)) } : RINGS[which];
   const parts = scaleGeometries(R, RINGS.proud, opts);
   const scale = merge(parts);
   parts.forEach((g) => g.dispose());
-  return { band: bandGeometry(R.band, RINGS.ease, 144), scale };
+  return { band: bandGeometry(R.band, RINGS.ease, 144, bead), scale };
 }
 
 // 7. The night behind the belt. `dir`: the bearing of it in the xz plane (from

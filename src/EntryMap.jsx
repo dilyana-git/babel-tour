@@ -24,7 +24,6 @@
 //               Until the world draws, the overlay waits alone over the dark
 //               in its old 1440 × 900 frame.
 import { Component, Suspense, lazy, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { useProgress } from '@react-three/drei';
 import { NODES } from './catalogue';
 import { canDraw } from './Failure';
 import { COARSE } from './capability';
@@ -34,6 +33,15 @@ import RoomVoice from './RoomVoice';
 import { AssemblyEpigraph, AssemblyInk } from './Assembly';
 import { INK_OFF, INK_PATIENCE_MS } from './ink';
 import { PASSAGES, STORY, VOICES } from './voices';
+import { noteHere, sharedSlug, writeSlug } from './memory';
+import { useWorldSound } from './worldSound';
+import OpenBook, { READ_PREVIEW } from './OpenBook';
+import { LOOK, map3Old } from './world/mapFix3';
+import { HUD_OLD, SUB } from './world/hudFix3';
+import { fin6Old, ENDING, SKIP } from './world/finaleFix6';
+import { ENDIN, ENDIN_LINE, ENDIN_ALONE } from './world/endingIn';
+import { phone7Old, PHONE_OLD, VOICE_PACE, HEAD_MS, MAP_TALL } from './world/phoneFix7';
+import Ending from './Ending';
 import './map.css';
 
 // Fetched as soon as the map is, not once the map has rendered and asked for
@@ -128,6 +136,22 @@ function numeralAt(poly) {
   });
   return [x, (Number.isFinite(top) ? top : b.y0) - NUMERAL_LIFT];
 }
+// ...unless that is inside another room's outline. On a phone, where the map
+// is turned to look along the walk, what lies over the Fork's top edge is the
+// Pavilion's pond, and the Fork's VI stood inside the Pavilion's ring as if
+// it were its number (board 14 · 3: "VI, VII and VIII in one knot"). Such a
+// numeral stands inside its own room instead, `drop` under that edge.
+const insidePoly = ([x, y], poly) => {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [xi, yi] = poly[i], [xj, yj] = poly[j];
+    if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+};
+const numeralsFor = (rooms, drop) => rooms.map(numeralAt).map(([x, y], i) => (
+  rooms.some((poly, k) => k !== i && insidePoly([x, y - 6], poly)) ? [x, y + NUMERAL_LIFT + drop] : [x, y]
+));
 
 // The lantern: the walk's rooms, and the way between them through the
 // Library, are left lit and the rest of the honeycomb is dimmed, so the walk
@@ -183,9 +207,11 @@ const hexAt = ([x, y], r) => [-90, -30, 30, 90, 150, 210]
 const HELD_KEYS = { ArrowLeft: 'left', a: 'left', A: 'left', ArrowRight: 'right', d: 'right', D: 'right', ArrowUp: 'up', ArrowDown: 'down' };
 const STEP_KEYS = { w: 1, W: 1, s: -1, S: -1 };
 const TALL_QUERY = '(max-aspect-ratio: 1/1)';
+// The tab's name on the map; in a room it is the room's, before this.
+const PIECE_TITLE = typeof document !== 'undefined' ? document.title : '';
 
-export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared, onChoose, worldRooms = false }) {
-  const { active, progress } = useProgress();
+export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared, onChoose, worldRooms = false, loading }) {
+  const { active = false, progress = 0 } = loading ?? {};
   const [tall, setTall] = useState(
     () => typeof window !== 'undefined' && window.matchMedia(TALL_QUERY).matches,
   );
@@ -267,6 +293,17 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
   const tipSaid = useRef(false);
   // A finger on the touch walk button (it is the held W of a touch screen).
   const [holding, setHolding] = useState(false);
+  // On a tall screen the caption is one place that says one thing at a time
+  // (world/phoneFix7.js, 3 and 5): the room's name, with its kicker and its
+  // subtitle for a few seconds on arriving (`headUp`) and after a touch
+  // (`woke`); or, in the name's place, one of the room's lines (`voiced`, as
+  // RoomVoice reports it). `afoot`: the reader is walking, and nothing
+  // surfaces. `ask`: a touch on the caption, handed to RoomVoice.
+  const [afoot, setAfoot] = useState(false);
+  const [voiced, setVoiced] = useState(false);
+  const [headUp, setHeadUp] = useState(true);
+  const [woke, setWoke] = useState(0);
+  const [ask, setAsk] = useState({ n: 0, up: null });
   // How tall the room's HUD stands, so the hint can sit above it on a phone.
   const hudRef = useRef(null);
   const [hudHeight, setHudHeight] = useState(0);
@@ -288,6 +325,19 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
   const [finale, setFinale] = useState(null);
   const [finalePhase, setFinalePhase] = useState(null);
   const [ended, setEnded] = useState(false);
+  // The ending, on the map (Ending.jsx; world/finaleFix6.js, 3): 0 not showing,
+  // 1 the last line alone over the lit walk, 2 the colophon under it, 3 the
+  // ways on.
+  const [ending, setEnding] = useState(0);
+  // Its entrance (world/endingIn.js): begun — as the film's last phase begins,
+  // before the film is done — and when, for the colophon to count from.
+  const [landing, setLanding] = useState(false);
+  const landedAt = useRef(0);
+  const againRef = useRef(null);
+  const toRoomsRef = useRef(false);
+  // The way out of the film sunk to a trace: nobody has moved for a while
+  // (world/finaleFix6.js, 5).
+  const [skipTrace, setSkipTrace] = useState(false);
   const last = NODES.length - 1;
   const vantage = place === null ? null : VANTAGES[place] ?? null;
   const moving = finale !== null || target !== place || up !== toUp;
@@ -296,10 +346,27 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
   const onMap = place === null && target === null;
   const mapHidden = worldRooms && !onMap;
   const lookRef = useRef({ yaw: 0, pitch: 0, keys: { left: false, right: false, up: false, down: false } });
+  // The sound (worldSound.js): World says where the eye is and what the feet
+  // are on, each frame, in `feetRef`; the rest is heard from the walk's state.
+  const feetRef = useRef({ x: 0, y: 0, z: 0, fx: 0, fz: -1, eye: 0, feel: null });
+  // A volume taken down and open (OpenBook.jsx): the room it is of, else null.
+  // Not yet taken by hand in the world: ?wread opens the room's for a look.
+  const [reading, setReading] = useState(null);
+  useEffect(() => {
+    if (READ_PREVIEW) setReading(place);
+  }, [place]);
+  const shutBook = useCallback(() => setReading(null), []);
+  const sound = useWorldSound({ on: !!worldRooms, place, target, finale, finalePhase, feetRef });
   const fadeRef = useRef(null);
   const dragRef = useRef(null);
   const settle = useCallback((p, atVantage = false) => {
     setFinale(null);
+    // (in a room again, the ending is over: the map is the map when they come back to it)
+    if (p !== null) {
+      setEnding(0);
+      setLanding(false);
+      landedAt.current = 0;
+    }
     setPlace(p);
     setTarget(p);
     setUp(atVantage);
@@ -335,6 +402,7 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
       walkRef.current.hold = dir;
       walkRef.current.press += 1;
       setWalked(true);
+      setAfoot(true);
       if (!tipSaid.current) {
         tipSaid.current = true;
         setTip(true);
@@ -346,6 +414,7 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
   const send = useCallback((step) => {
     if (place === null || moving) return;
     walkRef.current.hold = 0;
+    setAfoot(false);
     if (place === last && step === 1) {
       setFinale('play');
       return;
@@ -359,16 +428,120 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
   }, [place, moving, up, last]);
   // What World says the heart is doing, and that it is over.
   const onFinale = useCallback((phase) => {
+    // The ending's words begin with the film's last phase, over the map as it
+    // comes to rest (endingIn.js); where the title is not on the screen until
+    // the film is done (a tall one), or the film is skipped, when it is done.
+    const land = () => {
+      if (!landedAt.current) landedAt.current = performance.now();
+      setLanding(true);
+    };
     if (phase === 'done') {
       setEnded(true);
       setFinalePhase(null);
-    } else setFinalePhase(phase);
-  }, []);
+      if (!fin6Old(3)) {
+        if (ENDIN) land();
+        setEnding(1);
+      }
+    } else {
+      setFinalePhase(phase);
+      if (phase === 'leave' && ENDIN && !tall && !fin6Old(3)) land();
+    }
+  }, [tall]);
+  // The ending's three beats, each after the last has been read; a hand on
+  // anything brings what is left of them at once — nobody waits for a button.
+  useEffect(() => {
+    if (ending !== 1 && ending !== 2) return undefined;
+    // (the line is left alone for a while from when it stands whole, which
+    // may be before the film is done or some seconds after)
+    const hold = ENDIN ? Math.max(0, landedAt.current + (reducedMotion ? 0 : ENDIN_LINE) - performance.now()) + ENDIN_ALONE : ENDING.hold;
+    const id = setTimeout(() => setEnding((s) => (s === ending ? s + 1 : s)), ending === 1 ? hold : ENDING.then);
+    const hurry = (e) => {
+      if (e.type === 'keydown' && (e.key === 'Tab' || e.key === 'Shift' || e.altKey || e.ctrlKey || e.metaKey)) return;
+      setEnding((s) => (s > 0 ? 3 : s));
+    };
+    // (not on the frame that brought it: a skip's own click or key is still in the air)
+    const arm = setTimeout(() => {
+      window.addEventListener('pointerdown', hurry);
+      window.addEventListener('keydown', hurry);
+    }, 400);
+    return () => {
+      clearTimeout(id);
+      clearTimeout(arm);
+      window.removeEventListener('pointerdown', hurry);
+      window.removeEventListener('keydown', hurry);
+    };
+  }, [ending]);
+  // The film's one control keeps out of the film: after a few seconds with no
+  // hand on anything it sinks to a trace, and it is back the moment the
+  // pointer moves, a key goes down or the screen is touched.
+  const filming = finale !== null;
+  useEffect(() => {
+    if (!filming || fin6Old(5)) return undefined;
+    let timer = null;
+    const wake = () => {
+      clearTimeout(timer);
+      setSkipTrace(false);
+      timer = setTimeout(() => setSkipTrace(true), SKIP.after);
+    };
+    wake();
+    const heard = ['pointermove', 'pointerdown', 'keydown', 'touchstart'];
+    heard.forEach((type) => window.addEventListener(type, wake, { passive: true }));
+    return () => {
+      clearTimeout(timer);
+      setSkipTrace(false);
+      heard.forEach((type) => window.removeEventListener(type, wake));
+    };
+  }, [filming]);
+  // A room is an address (memory.js): standing in one, the address bar carries
+  // its slug and the tab its name, so the room can be sent to someone; on the
+  // map both are the piece's own again. (Not before the reader has stood
+  // anywhere: a link that named a room keeps naming it while its map is up.)
+  const stoodRef = useRef(false);
+  useEffect(() => {
+    if (!worldRooms) return;
+    if (place === null && !stoodRef.current) return;
+    stoodRef.current = true;
+    const room = place === null ? null : NODES[place];
+    writeSlug(room?.slug ?? null);
+    noteHere(room?.slug ?? null);
+    document.title = room ? `${room.title} — ${PIECE_TITLE.split(' — ')[0]}` : PIECE_TITLE;
+  }, [worldRooms, place]);
+  // (and an address changed by hand, on the map, turns the caption to its room)
+  useEffect(() => {
+    if (!worldRooms) return undefined;
+    const onHash = () => {
+      const at = NODES.findIndex((n) => n.slug === sharedSlug());
+      if (at >= 0 && place === null && target === null) setPicked(at);
+    };
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, [worldRooms, place, target]);
   // Up to the room's vantage, or back down from it.
   const climb = useCallback(() => {
     if (place === null || moving || !VANTAGES[place]) return;
     setToUp((u) => !u);
   }, [place, moving]);
+  // The caption's head, whole: on arriving in a room (or at its vantage) and
+  // after a touch, for a few seconds.
+  useEffect(() => {
+    if (place === null) return undefined;
+    setHeadUp(true);
+    const id = setTimeout(() => setHeadUp(false), HEAD_MS);
+    return () => clearTimeout(id);
+  }, [place, up, woke]);
+  // A touch on the caption (a tall screen's): a line being said gives the
+  // name back, whole; a name standing alone gets its kicker and subtitle
+  // back; and a whole one turns to the room's next line.
+  const turnCaption = () => {
+    if (!tall || moving) return;
+    if (voiced) {
+      setAsk((a) => ({ n: a.n + 1, up: false }));
+      setWoke((n) => n + 1);
+    } else if (!headUp && !phone7Old(5)) {
+      setAsk((a) => ({ n: a.n + 1, up: null }));
+      setWoke((n) => n + 1);
+    } else if (!phone7Old(3)) setAsk((a) => ({ n: a.n + 1, up: true }));
+  };
 
   // The faded map stays mounted for the flight, but its controls belong only
   // to the map. Hand focus over once the new view has finished arriving.
@@ -379,12 +552,19 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
     if (onMap) {
       if (!liveOverlay) return;
       setHot(lastRoomRef.current);
-      roomRefs.current[lastRoomRef.current]?.focus({ preventScroll: true });
+      // (under the ending the rooms are not there to be chosen: its own way
+      // on takes the focus when it comes, below)
+      if (!ending) roomRefs.current[lastRoomRef.current]?.focus({ preventScroll: true });
     } else {
       roomTitleRef.current?.focus({ preventScroll: true });
     }
     focusOnMapRef.current = onMap;
-  }, [worldRooms, place, moving, onMap, liveOverlay]);
+  }, [worldRooms, place, moving, onMap, liveOverlay, ending]);
+  useEffect(() => {
+    if (ending !== 3) return;
+    const at = document.activeElement;
+    if (!at || at === document.body || at.closest?.('[inert]')) againRef.current?.focus({ preventScroll: true });
+  }, [ending]);
 
   // The key caps (`walked`, above, and `idle`). They used to be a strip of five
   // instructions across the top of every room. Now there are three, there when
@@ -554,14 +734,33 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
 
   useEffect(() => {
     const onKey = (e) => {
-      if (e.key !== 'Enter' || !onMap) return;
+      if (e.key !== 'Enter' || !onMap || ending) return;
       if (e.target !== document.body && e.target !== document.documentElement) return;
       // the room the caption is showing, as its own Enter button would
       choose(shown);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [choose, shown, onMap]);
+  }, [choose, shown, onMap, ending]);
+  // The ways on from the ending: the walk again, from its first room; or the
+  // map as it was, a room to choose.
+  const walkAgain = () => {
+    setEnding(0);
+    setLanding(false);
+    choose(0);
+  };
+  const toRooms = () => {
+    toRoomsRef.current = true;
+    setEnding(0);
+    setLanding(false);
+    landedAt.current = 0;
+  };
+  // (the focus goes to the room once the rooms are there to take it)
+  useLayoutEffect(() => {
+    if (ending || !toRoomsRef.current) return;
+    toRoomsRef.current = false;
+    roomRefs.current[lastRoomRef.current]?.focus({ preventScroll: true });
+  }, [ending]);
 
   // Standing in a room, or anywhere along a walk: the arrows and A/D look
   // around, W and S are the walking itself — held, not tapped, so the reader
@@ -579,12 +778,16 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
     const keys = lookRef.current.keys;
     const onUp = (e) => {
       if (HELD_KEYS[e.key]) keys[HELD_KEYS[e.key]] = false;
-      else if (STEP_KEYS[e.key]) walkRef.current.hold = walkRef.current.hold === STEP_KEYS[e.key] ? 0 : walkRef.current.hold;
+      else if (STEP_KEYS[e.key]) {
+        walkRef.current.hold = walkRef.current.hold === STEP_KEYS[e.key] ? 0 : walkRef.current.hold;
+        if (!walkRef.current.hold) setAfoot(false);
+      }
     };
     // Leaving the window drops everything the reader was holding.
     const release = () => {
       Object.keys(keys).forEach((k) => { keys[k] = false; });
       walkRef.current.hold = 0;
+      setAfoot(false);
     };
     window.addEventListener('keyup', onUp);
     window.addEventListener('blur', release);
@@ -624,6 +827,7 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
   // The touch walk button let go of: stand where they are, as letting go of W.
   const standStill = () => {
     if (walkRef.current.hold === 1) walkRef.current.hold = 0;
+    if (!walkRef.current.hold) setAfoot(false);
     setHolding(false);
   };
 
@@ -673,6 +877,13 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
           ? `${invitation} · assembling ${Math.min(99, Math.round(progress))}%`
           // back on the map from the heart of the maze, the walk drawn in light
           : ended ? 'Time forks perpetually toward innumerable futures' : invitation;
+  // Once a room's caption is showing, what the line would say — choose a
+  // room, or that one is opening — the caption's own Enter says, in its own
+  // place; and beside the byline, gold mono capitals after serif italic, it
+  // read as the byline's tail (mapFix3.js, 6). The line is then the byline's
+  // alone. It is still said to a screen reader: only what a reader is waiting
+  // on (the assembly), or is given at the end, is shown.
+  const statusSaid = (!map3Old(6) && (status === invitation || opening !== null)) || ((ending > 0 || landing) && opening === null);
   // Between the Vertigo and the Door the way is not a walk.
   const crossing = (from, to) => (from === libraryMax && to === libraryMax + 1
     ? 'fall'
@@ -840,6 +1051,11 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
   // alone.
   const lantern = layout && lanternFor(layout.rooms, libraryMax + 1);
   const fog = lantern && fogFor(lantern, layout.w, layout.h);
+  // On a tall screen a room is 80 px across and the light cut round the walk
+  // by the room's size was a seam between two darks: it is cut wider there,
+  // and the rest is dimmed a little less (world/phoneFix7.js, 4).
+  const lit = tall && !phone7Old(4) ? MAP_TALL.lantern : 1;
+  const veil = tall && !phone7Old(4) ? Math.min(LOOK?.veil ?? 0.6, MAP_TALL.veil) : LOOK?.veil;
   const lanternOverlay = lantern && (
     <svg
       className="map-svg map-dim is-live"
@@ -855,9 +1071,9 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
           <rect width={layout.w} height={layout.h} fill="#fff" />
           <g filter="url(#map-lantern-soft)" fill="#000" stroke="#000" strokeLinejoin="round" strokeLinecap="round">
             {lantern.library.map((poly, k) => (
-              <polygon key={k} points={toAttr(poly)} strokeWidth={28 * lantern.scale} />
+              <polygon key={k} points={toAttr(poly)} strokeWidth={28 * lantern.scale * lit} />
             ))}
-            <polyline points={toAttr(lantern.way)} fill="none" strokeWidth={64 * lantern.scale} />
+            <polyline points={toAttr(lantern.way)} fill="none" strokeWidth={64 * lantern.scale * lit} />
             <ellipse {...lantern.garden} strokeWidth="0" />
           </g>
         </mask>
@@ -874,10 +1090,11 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
           <stop offset="1" stopColor="#050403" stopOpacity="0" />
         </radialGradient>
       </defs>
-      <rect className="map-dim-veil" width={layout.w} height={layout.h} mask="url(#map-lantern)" />
+      <rect className="map-dim-veil" width={layout.w} height={layout.h} mask="url(#map-lantern)" style={veil !== undefined ? { opacity: veil } : undefined} />
       <rect className="map-fog" width={layout.w} height={layout.h} fill="url(#map-fog)" mask="url(#map-lantern)" />
     </svg>
   );
+  const keepInk = LOOK?.ink ?? null;
   const worldOverlay = layout && (
     <svg
       className="map-svg is-live"
@@ -894,8 +1111,7 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
         </g>
       ))}
       <g className="map-numerals" aria-hidden="true">
-        {layout.rooms.map((poly, i) => {
-          const [x, y] = numeralAt(poly);
+        {numeralsFor(layout.marks ?? layout.rooms, tall ? 19 : 38).map(([x, y], i) => {
           return (
             <text
               key={i}
@@ -911,14 +1127,49 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
     </svg>
   );
 
+  // The touch walk: held down, it is W. On a phone it stands in the walk's
+  // own line at the foot of the screen, between the way back and the seal,
+  // where a thumb rests (`thumb`: world/phoneFix7.js, 2); on a wide touch
+  // screen, under the hint.
+  const thumb = COARSE && tall && !phone7Old(2);
+  const paged = tall && !phone7Old(3);
+  const holdButton = COARSE && (
+    <button
+      type="button"
+      className={`room-hold${holding ? ' is-held' : ''}`}
+      aria-label="Hold to walk"
+      onPointerDown={(e) => {
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
+        e.preventDefault();
+        foot(1);
+        setHolding(true);
+        try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* no live pointer to keep */ }
+      }}
+      onPointerUp={standStill}
+      onPointerCancel={standStill}
+      onLostPointerCapture={standStill}
+      onContextMenu={(e) => e.preventDefault()}
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 19 V5 M6 11 L12 5 L18 11" />
+      </svg>
+    </button>
+  );
+
   return (
     <section
       ref={sectionRef}
       className={`entry-map${tall ? ' is-tall' : ''}${leaving ? ' is-leaving' : ''}`
         + `${liveWorld ? ' is-world' : ''}${flying !== null ? ' is-flying' : ''}`
         + `${worldRooms ? ' is-world-tour' : ''}${worldRooms && !onMap ? ' is-in-room' : ''}`
-        + `${worldRooms && !liveWorld ? ' is-assembling' : ''}`}
+        + `${worldRooms && !liveWorld ? ' is-assembling' : ''}${ending && onMap ? ' is-ended' : ''}`
+        + `${landing ? ' is-landing' : ''}`
+        + `${reading !== null && place !== null ? ' is-reading' : ''}`}
       aria-labelledby={worldRooms && place !== null ? 'room-title' : 'map-title'}
+      data-hud-old={HUD_OLD || undefined}
+      data-sub={SUB || undefined}
+      data-phone-old={PHONE_OLD || undefined}
+      data-endin={(landing && ENDIN) || undefined}
       style={{ '--zoom-origin': origin, '--hud-h': `${hudHeight}px` }}
     >
       <div className="map-stage" ref={stageRef} {...(worldRooms && place !== null ? lookHandlers : {})}>
@@ -944,25 +1195,32 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
                 finale={worldRooms ? finale : null}
                 onFinale={worldRooms ? onFinale : undefined}
                 onLayout={setLayout}
+                tall={tall}
+                feetRef={worldRooms ? feetRef : null}
               />
             </Suspense>
           </WorldBoundary>
         )}
-        {!inkGone && !worldFailed && (
+        {/* (where the drawing stays on over the map, it is over the lantern's
+            dimming, not under it: mapFix3.js, 2) */}
+        {keepInk && liveOverlay && lanternOverlay}
+        {(!inkGone || (keepInk && opens)) && !worldFailed && (
           <AssemblyInk
             driver={inkRef}
             progress={assembled}
             ready={worldReady}
             shown={liveWorld}
             plan={plan}
+            tall={tall}
             reducedMotion={reducedMotion}
+            keep={keepInk}
             onInked={() => setInked(true)}
             onGone={() => setInkGone(true)}
           />
         )}
-        {liveOverlay && lanternOverlay}
+        {!keepInk && liveOverlay && lanternOverlay}
         {worldRooms ? (
-          <div inert={mapHidden} aria-hidden={mapHidden || undefined}>
+          <div inert={mapHidden || ending > 0} aria-hidden={mapHidden || ending > 0 || undefined}>
             {liveOverlay && worldOverlay}
           </div>
         ) : liveOverlay ? worldOverlay : stillOverlay}
@@ -970,6 +1228,30 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
       <div className="world-fade" ref={fadeRef} aria-hidden="true" />
 
       <div className="map-scrim" aria-hidden="true" />
+
+      {worldRooms && reading !== null && place !== null && (
+        <OpenBook slug={NODES[place].slug} index={place} garden={isGarden(place)} onClose={shutBook} />
+      )}
+
+      {/* The sound's one control, in the corner nothing else uses: five
+          strokes of a sounding string, which lie flat when it is stopped.
+          (Sound starts with the reader's first touch of anything.) */}
+      {worldRooms && !sound.off && (
+        <button
+          type="button"
+          className={`map-sound${sound.muted ? ' is-muted' : ''}${skipTrace ? ' is-trace' : ''}`}
+          aria-label="Sound"
+          aria-pressed={!sound.muted}
+          title={sound.muted ? 'Sound is off' : 'Sound is on'}
+          onClick={sound.toggle}
+        >
+          <svg viewBox="0 0 22 16" aria-hidden="true">
+            {[5, 11, 15, 9, 4].map((h, k) => (
+              <line key={k} x1={3 + k * 4} x2={3 + k * 4} y1={8 - h / 2} y2={8 + h / 2} style={{ '--h': h }} />
+            ))}
+          </svg>
+        </button>
+      )}
 
       {/* One column, top left, read downward: the book, then the room. The
           title is set like an inscription over a door — Roman capitals between
@@ -986,13 +1268,16 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
           <span className="map-title-rule" aria-hidden="true" />
           <div className="map-title-line">
             <span className="map-title-eyebrow">Jorge Luis Borges · 1941</span>
-            <span className="map-status" role="status">{status}</span>
+            <span className={`map-status${statusSaid ? ' is-said' : ''}`} role="status">{status}</span>
           </div>
         </header>
 
         {!inkGone && !worldFailed && <AssemblyEpigraph driver={inkRef} reducedMotion={reducedMotion} />}
 
-        <aside ref={cardRef} className={`map-card${isGarden(shown) ? ' is-garden' : ''}`}>
+        {(ending > 0 || landing) && (
+          <Ending stage={Math.max(1, ending)} look={landing ? ENDIN : null} reducedMotion={reducedMotion} againRef={againRef} onAgain={walkAgain} onMap={toRooms} />
+        )}
+        <aside ref={cardRef} className={`map-card${isGarden(shown) ? ' is-garden' : ''}`} hidden={ending > 0 || landing}>
           <div className="map-card-kicker">{`${kindOf(shown)} ${MAP_NUMERAL[shown]} of ${MAP_NUMERAL[NODES.length - 1]}`}</div>
           <h2 className="map-card-title">{node.title}</h2>
           <p className="map-card-sub">{node.subtitle}</p>
@@ -1013,14 +1298,29 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
 
       {worldRooms && place !== null && (
         <div ref={hudRef} data-room={NODES[place].slug} className={`room-hud${isGarden(place) ? ' is-garden' : ''}${moving ? ' is-moving' : ''}${finale !== null ? ` is-finale is-finale-${finalePhase ?? 'walk'}` : ''}`}>
-          <section ref={plateRef} className="room-plate" aria-live="polite" aria-labelledby="room-title">
+          <section
+            ref={plateRef}
+            className={`room-plate${paged && voiced ? ' is-voiced' : ''}${tall && !phone7Old(5) && !headUp ? ' is-sunk' : ''}`}
+            aria-live="polite"
+            aria-labelledby="room-title"
+            onClick={tall ? turnCaption : undefined}
+          >
             <div className="room-kicker">{`${kindOf(place)} ${MAP_NUMERAL[place]} of ${MAP_NUMERAL[NODES.length - 1]}`}</div>
             <h2 ref={roomTitleRef} className="room-title" id="room-title" tabIndex={-1}>{NODES[place].title}</h2>
             <p className="room-sub">{NODES[place].subtitle}</p>
             <p className="sr-only">{voice.said}</p>
-            <RoomVoice room={NODES[place].slug} lines={voice.lines} lead={voice.lead} quotes={voice.quotes} />
+            <RoomVoice
+              room={NODES[place].slug}
+              lines={voice.lines}
+              lead={voice.lead}
+              quotes={voice.quotes}
+              pace={paged ? VOICE_PACE : null}
+              hush={paged && (afoot || holding)}
+              ask={ask}
+              onSpeak={setVoiced}
+            />
           </section>
-          <nav ref={navRef} className="room-nav" aria-label="The walk">
+          <nav ref={navRef} className={`room-nav${vantage ? ' has-climb' : ''}`} aria-label="The walk">
             {/* The walk, in the corner across from the caption and in its
                 voice: the way on large, the way back small under it, and
                 beside them a seal of the eight rooms with this one lit, which
@@ -1033,9 +1333,12 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
             {(() => {
               const backTo = place - 1;
               const onTo = place + 1;
-              const backText = place > 0
-                ? `${crossing(place, backTo) === 'climb' ? 'climb back to' : 'back to'} ${NODES[backTo].title.replace(/^The /, 'the ')}`
-                : 'the way in';
+              // (the way back in two pieces: on a phone it says only where
+              // to — the arrow has said "back" — and leaves the line's middle
+              // to the walk button)
+              const backWay = place > 0 ? (crossing(place, backTo) === 'climb' ? 'climb back to' : 'back to') : '';
+              const backName = place > 0 ? NODES[backTo].title.replace(/^The /, 'the ') : 'the way in';
+              const backText = place > 0 ? `${backWay} ${backName}` : backName;
               const onText = place < last ? stepLabel(place, onTo) : 'Into the heart';
               return (
                 <div className="room-ways">
@@ -1063,7 +1366,10 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
                   >
                     <svg viewBox="0 0 24 10" aria-hidden="true"><path d="M23 5 H2 M6.5 1 Q4 4.2 2 5 Q4 5.8 6.5 9" /></svg>
                     {backTo >= 0 && <span className={`room-step-num${isGarden(backTo) ? ' is-garden' : ''}`}>{MAP_NUMERAL[backTo]}</span>}
-                    <span className="room-step-name">{backText}</span>
+                    <span className="room-step-name">
+                      {backWay && <span className="room-step-way">{`${backWay} `}</span>}
+                      {backName}
+                    </span>
                   </button>
                   {/* Where the room has somewhere else to stand: up to it, and
                       back down. Labelled with the place it goes, like the
@@ -1087,6 +1393,7 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
                 </div>
               );
             })()}
+            {thumb && holdButton}
             {/* The map is a way out of the walk, not a step along it: the
                 seal of the eight rooms, the Library's up its diagonal in gold,
                 the fall, and the garden's in jade. */}
@@ -1124,13 +1431,13 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
             </button>
           </nav>
           {/* While the ending plays, the one thing left to do is to stop
-              watching it: on screen for its whole length, on every device
-              (M and Escape do the same). It ends where the film does, on
-              the map. */}
+              watching it: there for its whole length, on every device (M and
+              Escape do the same), but only a trace of it while nobody moves
+              (`skipTrace`). It ends where the film does, on the map. */}
           {finale !== null && (
             <button
               type="button"
-              className="room-skip"
+              className={`room-skip${skipTrace ? ' is-trace' : ''}`}
               disabled={finale === 'skip'}
               {...actionHandlers(() => setFinale((f) => (f === null ? f : 'skip')))}
             >
@@ -1146,7 +1453,11 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
           way) and the keys that only now apply; and on a touch screen, the
           walking itself, as a button held down like W. */}
       {worldRooms && place !== null && finale === null && (() => {
-        const stage = tip ? 'tip' : !moving && (!walked || idle) ? 'arrive' : null;
+        // (on a phone the sentence goes with the first walk and stays gone:
+        // the button it explains is under the thumb; and it is never up with
+        // one of the room's lines, which can stand as tall as it does)
+        const stage = paged && voiced ? null
+          : tip ? 'tip' : !moving && (!walked || (idle && !thumb)) ? 'arrive' : null;
         return (
           <div
             ref={assistRef}
@@ -1177,28 +1488,7 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
                     </>
                   )}
             </p>
-            {COARSE && (
-              <button
-                type="button"
-                className={`room-hold${holding ? ' is-held' : ''}`}
-                aria-label="Hold to walk"
-                onPointerDown={(e) => {
-                  if (e.pointerType === 'mouse' && e.button !== 0) return;
-                  e.preventDefault();
-                  foot(1);
-                  setHolding(true);
-                  try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* no live pointer to keep */ }
-                }}
-                onPointerUp={standStill}
-                onPointerCancel={standStill}
-                onLostPointerCapture={standStill}
-                onContextMenu={(e) => e.preventDefault()}
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M12 19 V5 M6 11 L12 5 L18 11" />
-                </svg>
-              </button>
-            )}
+            {!thumb && holdButton}
           </div>
         );
       })()}

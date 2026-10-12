@@ -27,6 +27,8 @@
 import * as THREE from 'three';
 import { makeRng } from './textures';
 import { readerGeometry, ROBES, clothShader } from './readers';
+import { finaleOld, FLOOD, RISE, STEP, HOOD } from './finaleFix';
+import { fin6Old, CLOSE, YOU, CAST, HOODED } from './finaleFix6';
 
 const clamp01 = (x) => Math.min(1, Math.max(0, x));
 const smooth = (a, b, x) => { const t = clamp01((x - a) / (b - a)); return t * t * (3 - 2 * t); };
@@ -230,41 +232,73 @@ const floorFragment = /* glsl */ `
 // ── The fireflies it wakes ────────────────────────────────────────────────────
 // Asleep on the ground until the light reaches them; then they rise off it,
 // brightest in the moment it passes, and hang in the corridors. Never less
-// than a pixel and a half, so from the map the maze still sparkles.
+// than a pixel and a half.
+// (finaleFix.js, 2: of one size and one colour, everywhere at once, they were
+// a screensaver. Each is of its own brightness now; the ones over the heart —
+// aRise, their pace — go up in a slow column, opening out as it climbs and
+// thinning at its top, and come round again at its foot; and each is drawn as
+// far out of focus as it is near the eye: close to, a wide dim disc, far off
+// a point.)
 const flyVertex = /* glsl */ `
   uniform float uTime;
   uniform float uScale;
   uniform float uFront;
   uniform float uLevel;
   uniform float uGround;
+  uniform vec2 uHeart;
+  uniform vec4 uColumn;   // its foot and its top above the ground, how far it opens, how much of it fades
+  uniform vec4 uFocus;    // wholly out of focus within, wholly in beyond, how much wider out of it, how much dimmer
+  uniform vec2 uFar;      // how much smaller a far one is drawn, and the largest any is
   attribute float aDist;
   attribute float aPhase;
   attribute float aSize;
+  attribute float aBright;
+  attribute float aRise;
   attribute vec3 aColor;
   varying vec3 vColor;
+  varying float vSoft;
   void main() {
     float behind = uFront - aDist;
     float born = smoothstep(0.0, 34.0, behind);
     vec3 p = position;
-    p.y = mix(uGround + 0.8, position.y, born);
     float t = uTime * 0.7;
-    p += vec3(sin(t * 0.6 + aPhase), sin(t * 0.9 + aPhase * 1.3) * 0.5, cos(t * 0.5 + aPhase)) * 4.0 * born;
+    vec3 sway = vec3(sin(t * 0.6 + aPhase), sin(t * 0.9 + aPhase * 1.3) * 0.5, cos(t * 0.5 + aPhase));
+    float there = 1.0;
+    if (aRise > 0.0) {
+      float span = uColumn.y - uColumn.x;
+      float h = mod(position.y - uGround - uColumn.x + uTime * aRise, span);
+      p.xz = uHeart + (position.xz - uHeart) * (1.0 + uColumn.z * h / span);
+      p.y = uGround + uColumn.x + h;
+      p.xz += sway.xz * 1.5;
+      there = smoothstep(0.0, 7.0, h) * (1.0 - smoothstep(span - uColumn.w, span, h));
+    } else {
+      p += sway * 4.0 * born;
+    }
+    p.y = mix(uGround + 0.8, p.y, born);
     vec4 mv = modelViewMatrix * vec4(p, 1.0);
+    float away = max(1.0, -mv.z);
+    float soft = (1.0 - smoothstep(uFocus.x, uFocus.y, away)) * step(0.001, uFocus.z);
     float e = (behind - 12.0) / 14.0;
     float flash = exp(-e * e);
     float pulse = 0.45 + 0.55 * max(0.0, sin(uTime * 0.95 + aPhase * 3.0));
-    vColor = aColor * (born * pulse * 0.8 + flash * 1.6) * uLevel;
-    gl_PointSize = behind > 0.0 ? clamp(aSize * uScale / max(1.0, -mv.z), 1.5, 48.0) : 0.0;
+    vColor = aColor * (born * pulse * 0.8 * aBright + flash * 1.6) * there * mix(1.0, uFocus.w, soft) * uLevel;
+    vSoft = soft;
+    float px = aSize * uScale / away * (1.0 + uFocus.z * soft * soft) * mix(1.0, uFar.x, smoothstep(uFocus.y, uFocus.y * 3.0, away));
+    gl_PointSize = behind > 0.0 ? clamp(px, 1.5, uFar.y) : 0.0;
     gl_Position = projectionMatrix * mv;
   }
 `;
 const flyFragment = /* glsl */ `
   varying vec3 vColor;
+  varying float vSoft;
   void main() {
     float r = length(gl_PointCoord - 0.5) * 2.0;
     float soft = 1.0 - smoothstep(0.0, 1.0, r);
     float core = 1.0 - smoothstep(0.0, 0.3, r);
-    gl_FragColor = vec4(vColor * (soft * soft * 0.55 + core * 1.3), 1.0);
+    // in focus a point in its glow; out of it a wide even disc, soft at its edge
+    float sharp = soft * soft * 0.55 + core * 1.3;
+    float disc = (1.0 - smoothstep(0.35, 1.0, r)) * 0.8;
+    gl_FragColor = vec4(vColor * mix(sharp, disc, vSoft), 1.0);
   }
 `;
 
@@ -496,20 +530,60 @@ export function buildFinale({
 
   // ── The fireflies ───────────────────────────────────────────────────────
   const flies = [];
-  for (let tries = 0; flies.length < (light ? 380 : 900) && tries < 20000; tries++) {
-    const x = R(field.origin[0], field.origin[0] + field.size[0]), z = R(field.origin[1], field.origin[1] + field.size[1]);
-    if (!field.open(x, z)) continue;
-    flies.push({ x, z, y: ground + 3 + 22 * rng() ** 0.8, d: field.at(x, z) });
-  }
   const flyGeo = keep(new THREE.BufferGeometry());
+  const oldFlood = finaleOld(2);
+  if (oldFlood) {
+    for (let tries = 0; flies.length < (light ? 380 : 900) && tries < 20000; tries++) {
+      const x = R(field.origin[0], field.origin[0] + field.size[0]), z = R(field.origin[1], field.origin[1] + field.size[1]);
+      if (!field.open(x, z)) continue;
+      flies.push({ x, z, y: ground + 3 + 22 * rng() ** 0.8, d: field.at(x, z) });
+    }
+    flyGeo.setAttribute('aPhase', new THREE.Float32BufferAttribute(flies.map(() => R(0, 100)), 1));
+    flyGeo.setAttribute('aSize', new THREE.Float32BufferAttribute(flies.map(() => R(1.8, 3.6)), 1));
+    const tint = ['#fff2a4', '#ffe08a', '#ffd9a0', '#f4ff9c'].map((c) => new THREE.Color(c));
+    flyGeo.setAttribute('aColor', new THREE.Float32BufferAttribute(flies.flatMap(() => tint[Math.floor(rng() * tint.length)].toArray()), 3));
+    flyGeo.setAttribute('aBright', new THREE.Float32BufferAttribute(flies.map(() => 1), 1));
+    flyGeo.setAttribute('aRise', new THREE.Float32BufferAttribute(flies.map(() => 0), 1));
+  } else {
+    // (finaleFix.js, 2) Over the maze's ways, few of them over the court...
+    const which = light ? 1 : 0, C = FLOOD.column;
+    const gold = FLOOD.gold.map((c) => new THREE.Color(c)), straw = FLOOD.straw.map((c) => new THREE.Color(c));
+    const one = (list) => list[Math.floor(rng() * list.length)];
+    const dress = (f, size) => Object.assign(f, {
+      phase: R(0, 100), size: R(...size),
+      bright: FLOOD.bright[0] + (FLOOD.bright[1] - FLOOD.bright[0]) * rng() ** FLOOD.skew,
+      // gold by the heart, paler the further the light has had to come
+      color: one(gold).clone().lerp(one(straw), smooth(FLOOD.warm[0], FLOOD.warm[1], f.d)).toArray(),
+    });
+    for (let tries = 0; flies.length < FLOOD.maze[which] && tries < 20000; tries++) {
+      const x = R(field.origin[0], field.origin[0] + field.size[0]), z = R(field.origin[1], field.origin[1] + field.size[1]);
+      if (!field.open(x, z)) continue;
+      const over = x > courtBox[0] && x < courtBox[2] && z > courtBox[1] && z < courtBox[3];
+      if (over && rng() > FLOOD.court) continue;
+      flies.push(dress({ x, z, y: ground + FLOOD.high[0] + (FLOOD.high[1] - FLOOD.high[0]) * rng() ** 0.9, d: field.at(x, z), rise: 0 }, [1.5, 3.2]));
+    }
+    // ...and the column over the heart: where each is in it when the world
+    // begins is its height here, and it goes up from there and round again.
+    for (let k = 0; k < C.n[which]; k++) {
+      const a = R(0, Math.PI * 2), r = C.r[0] + (C.r[1] - C.r[0]) * rng() ** C.pack;
+      flies.push(dress({ x: heart[0] + Math.cos(a) * r, z: heart[1] + Math.sin(a) * r, y: ground + R(C.foot, C.top), d: r, rise: R(...C.speed) }, [1.1, 2.4]));
+    }
+    flyGeo.setAttribute('aPhase', new THREE.Float32BufferAttribute(flies.map((f) => f.phase), 1));
+    flyGeo.setAttribute('aSize', new THREE.Float32BufferAttribute(flies.map((f) => f.size), 1));
+    flyGeo.setAttribute('aColor', new THREE.Float32BufferAttribute(flies.flatMap((f) => f.color), 3));
+    flyGeo.setAttribute('aBright', new THREE.Float32BufferAttribute(flies.map((f) => f.bright), 1));
+    flyGeo.setAttribute('aRise', new THREE.Float32BufferAttribute(flies.map((f) => f.rise), 1));
+  }
   flyGeo.setAttribute('position', new THREE.Float32BufferAttribute(flies.flatMap((f) => [f.x, f.y, f.z]), 3));
   flyGeo.setAttribute('aDist', new THREE.Float32BufferAttribute(flies.map((f) => f.d), 1));
-  flyGeo.setAttribute('aPhase', new THREE.Float32BufferAttribute(flies.map(() => R(0, 100)), 1));
-  flyGeo.setAttribute('aSize', new THREE.Float32BufferAttribute(flies.map(() => R(1.8, 3.6)), 1));
-  const tint = ['#fff2a4', '#ffe08a', '#ffd9a0', '#f4ff9c'].map((c) => new THREE.Color(c));
-  flyGeo.setAttribute('aColor', new THREE.Float32BufferAttribute(flies.flatMap(() => tint[Math.floor(rng() * tint.length)].toArray()), 3));
   const flyMat = keep(new THREE.ShaderMaterial({
-    uniforms: { uTime: { value: 0 }, uScale: { value: 500 }, uFront: { value: 0 }, uLevel: { value: 1 }, uGround: { value: ground } },
+    uniforms: {
+      uTime: { value: 0 }, uScale: { value: 500 }, uFront: { value: 0 }, uLevel: { value: 1 }, uGround: { value: ground },
+      uHeart: { value: new THREE.Vector2(...heart) },
+      uColumn: { value: new THREE.Vector4(FLOOD.column.foot, FLOOD.column.top, FLOOD.column.flare, FLOOD.column.fade) },
+      uFocus: { value: oldFlood ? new THREE.Vector4(0, 1, 0, 1) : new THREE.Vector4(...FLOOD.near, FLOOD.bokeh, FLOOD.dim) },
+      uFar: { value: oldFlood ? new THREE.Vector2(1, 48) : new THREE.Vector2(FLOOD.far, 110) },
+    },
     vertexShader: flyVertex,
     fragmentShader: flyFragment,
     transparent: true,
@@ -520,7 +594,13 @@ export function buildFinale({
   const fireflies = new THREE.Points(flyGeo, flyMat);
   fireflies.frustumCulled = false;
   fireflies.renderOrder = 6;
+  fireflies.name = 'finale-flies';
   group.add(fireflies);
+  // (finaleFix.js, 5) Over the rise they go out, so that the last of the maze
+  // seen from above is its lit ways and not the glitter over them.
+  const [riseAt] = FINALE.rise;
+  const fliesAt = (t) => (finaleOld(5) ? 1 : 1 - (1 - RISE.rest) * smooth(riseAt + RISE.fade[0], riseAt + RISE.fade[1], t));
+  const fliesLeft = finaleOld(5) ? 1 : RISE.rest;
 
   // ── The thread ──────────────────────────────────────────────────────────
   // It starts where the light leaves the maze, so its distances carry on from
@@ -672,7 +752,11 @@ export function buildFinale({
     return keep(t);
   })();
   const shadowGeo = keep(new THREE.PlaneGeometry(8, 7).rotateX(-Math.PI / 2));
-  const makeOther = (points, when, name, i, book = false) => {
+  // `opt`: `tall` (of the cut they share), `gaze` (where it looks once it has
+  // arrived: so many degrees off the reader; 'heart'; or 'ahead', the way it
+  // came), `page` (its open page a light: finaleFix6.js, 1), `rim` (the heart as a
+  // light along its edges).
+  const makeOther = (points, when, name, i, book = false, opt = {}) => {
     const u = { uReveal: { value: 0 }, uFloor: { value: 0 }, uStride: { value: 0 }, uMove: { value: 0 }, uReach: { value: STRIDE / 2 } };
     // Wool, matt: the shade of the folds is in the vertices, the nap and the
     // fuzz in clothShader. (MeshPhysical's own sheen was tried and is not
@@ -683,7 +767,33 @@ export function buildFinale({
     const mat = keep(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.96, metalness: 0, side: THREE.DoubleSide }));
     mat.onBeforeCompile = otherShader(u);
     mat.customProgramCacheKey = () => 'babel-other';
-    const mesh = new THREE.Mesh(keep(readerGeometry({ seed: 11 + i * 7, color: ROBES[i % ROBES.length], book })), mat);
+    // (finaleFix.js, 4: made to be stood face to face with — `close` — in
+    // woven wool, with a low light in the hood)
+    const near = !finaleOld(4);
+    const geo = readerGeometry({ seed: 11 + i * 7, color: ROBES[i % ROBES.length], book, close: near, ...(opt.cut ?? {}) });
+    const mesh = new THREE.Mesh(keep(geo), mat);
+    if (near) {
+      u.uWool = { value: new THREE.Vector4(...HOOD.weave, HOOD.fleck, HOOD.matt) };
+      u.uHood = { value: new THREE.Vector4(...mesh.geometry.userData.hood, HOOD.lamp.k * (opt.lamp ?? 1)) };
+      u.uHoodTint = { value: new THREE.Vector4(...HOOD.lamp.color, HOOD.lamp.half) };
+      if (opt.cut?.plain) u.uPlain = { value: 1 };
+    }
+    // (the page as a light of its own, and the heart along the cloth's edges;
+    // the hands that hold it a shade darker — beside a lit page, in the
+    // heart's light, they were a mannequin's)
+    if (opt.page && geo.userData.book) {
+      const kinds = geo.attributes.aKind.array, tint = geo.attributes.color.array;
+      for (let k = 0; k < kinds.length; k++) {
+        if (kinds[k] > 4.75 && kinds[k] < 5.15) for (let c = 0; c < 3; c++) tint[k * 3 + c] *= opt.page.hands;
+      }
+      u.uBook = { value: new THREE.Vector4(...geo.userData.book, 1) };
+      u.uPage = { value: new THREE.Vector3(opt.page.glow, opt.page.lamp, opt.side ? opt.page.face : 0) };
+    }
+    if (opt.rim) {
+      u.uArch = { value: new THREE.Vector4(heart[0], ground + 23, heart[1], opt.rim.k) };
+      u.uArchTint = { value: new THREE.Vector4(...opt.rim.color, opt.rim.half) };
+    }
+    if (opt.tall) mesh.scale.setScalar(opt.tall);
     mesh.name = name;
     mesh.visible = false;
     group.add(mesh);
@@ -692,31 +802,85 @@ export function buildFinale({
     })));
     shadow.renderOrder = 3;
     shadow.visible = false;
+    if (opt.tall) shadow.scale.setScalar(opt.tall);
     group.add(shadow);
     const curve = new THREE.CatmullRomCurve3(points.map(([x, z]) => new THREE.Vector3(x, ground, z)), false, 'centripetal');
-    return { mesh, shadow, u, curve, L: curve.getLength(), ...when };
+    return { mesh, shadow, u, curve, L: curve.getLength(), tall: opt.tall ?? 1, gaze: opt.gaze ?? 0, ...when };
   };
-  const others = cast.map(([g, n, s, show, go, arrive], i) => {
+  // (where each of them comes to stand: World.jsx's finaleMove keeps them off the frame's edges)
+  const stops = [];
+  const comeIn = (g, n, stop, show, go, arrive, i, book, opt) => {
     const gate = gates[g];
     const cells = branchFrom(gate.beyond, n);
     const start = cells[cells.length - 1];
-    const stop = radial(gate.a + s * 22 * deg, STOP);
+    stops.push(stop);
     const inward = dirOf(gate.a + Math.PI);
     const pts = [...cells.slice().reverse().map(([c, r]) => cellC(c, r)), [gate.at[0] + inward[0] * 3, gate.at[1] + inward[1] * 3], stop];
     const t0 = within(show, field.at(...cellC(...start)));
+    return makeOther(pts, { show: t0, go: Math.max(go, t0 + 0.5), arrive: Math.max(arrive, t0 + 2.5) }, `finale-other-${i}`, i, book, opt);
+  };
+  // (finaleFix6.js, 4: of one cut and one height, at even intervals round the
+  // court and every one turned to the reader, they were figurines)
+  const others = fin6Old(4)
     // (two of them carrying a book)
-    return makeOther(pts, { show: t0, go: Math.max(go, t0 + 0.5), arrive: Math.max(arrive, t0 + 2.5) }, `finale-other-${i}`, i, i === 1 || i === 5);
-  });
+    ? cast.map(([g, n, s, show, go, arrive], i) => comeIn(g, n, radial(gates[g].a + s * 22 * deg, STOP), show, go, arrive, i, i === 1 || i === 5))
+    : CAST.map(([g, n, round, out, show, go, arrive, opt], i) => comeIn(g, n, radial(round * deg, out), show, go, arrive, i, !!opt.book, opt));
+  // (One more sat among them on a stool, the Silence's reader: the user did not
+  // like it — 2026-10-12, "drop that" — and it is gone.)
   // ...and the one who stands where the reader came in: a few paces up the
   // corridor from where they stood at the gate looking in, come a step
   // nearer, and still. (On the very spot, it stood so near that it filled
   // the gate.)
+  // (finaleFix.js, 3: `seat` — where the film is watched from, for a reader
+  // who was standing at [x, z] when it began: where they were, unless that
+  // was out in the corridor the walk comes in by, short of the gate; then as
+  // far in as its mouth. And this one stands as near behind the seat as it
+  // stood behind the stand.)
   const toGate = [inside[0] - stand.eye[0], inside[1] - stand.eye[2]];
   const gl = Math.hypot(...toGate);
-  const youAt = [stand.eye[0] - (toGate[0] / gl) * 8, stand.eye[2] - (toGate[1] / gl) * 8];
+  const seat = (x, z) => {
+    if (finaleOld(3)) return [x, z];
+    const dx = x - heart[0], dz = z - heart[1];
+    const short = -(dx * toGate[0] + dz * toGate[1]) / gl, aside = Math.abs(dx * toGate[1] - dz * toGate[0]) / gl;
+    if (short <= STEP.to || aside > STEP.aside) return [x, z];
+    return [x + (toGate[0] / gl) * (short - STEP.to), z + (toGate[1] / gl) * (short - STEP.to)];
+  };
+  const seated = seat(stand.eye[0], stand.eye[2]);
+  // (finaleFix6.js, HOODED: `back` — how far behind the seat it comes to stand; it was 6)
+  const youBack = HOODED ? HOODED.back : 6;
+  const youAt = [seated[0] - (toGate[0] / gl) * (youBack + 2), seated[1] - (toGate[1] / gl) * (youBack + 2)];
   const youTo = [youAt[0] + (toGate[0] / gl) * 2, youAt[1] + (toGate[1] / gl) * 2];
-  // (and a book: the reader's own)
-  others.push(makeOther([[youAt[0] - (toGate[0] / gl) * 2, youAt[1] - (toGate[1] / gl) * 2], youTo], { show: 13.9, go: 14.6, arrive: 16.0 }, 'finale-you', others.length, true));
+  // (finaleFix6.js, 1: face to face at arm's length, that one was a hood round
+  // a void. `closeUp`: what World.jsx's finaleMove is to look at instead.)
+  const ahead = [toGate[0] / gl, toGate[1] / gl];
+  const you = { show: 13.9, go: 14.6, arrive: 16.0 };
+  let closeUp = null;
+  if (CLOSE === 'a') {
+    // Beside the reader and a little ahead, having come in after them: looking
+    // where they look, the book open in its hands. Seen past its shoulder.
+    const A = YOU.a, th = Math.atan2(ahead[1], ahead[0]) + A.round * deg;
+    const at = [seated[0] + Math.cos(th) * A.out, seated[1] + Math.sin(th) * A.out];
+    // (it faces the heart, turned a little toward the reader, and takes its
+    // last step that way)
+    const face = Math.atan2(heart[1] - at[1], heart[0] - at[0]) - A.turn * deg;
+    others.push(makeOther([[at[0] - Math.cos(face) * A.step, at[1] - Math.sin(face) * A.step], at], you, 'finale-you', others.length, true,
+      { gaze: 'ahead', page: YOU.page, rim: A.rim, side: true, lamp: 0 }));
+    closeUp = { kind: 'a', at, out: A.out, across: A.across, high: ground + A.high };
+  } else if (CLOSE === 'b') {
+    // Where it stood, but further back: the hood, the shoulders, and the book
+    // it is the light of.
+    const B = YOU.b, at = [seated[0] - ahead[0] * B.behind, seated[1] - ahead[1] * B.behind];
+    others.push(makeOther([[at[0] - ahead[0] * 2, at[1] - ahead[1] * 2], at], you, 'finale-you', others.length, true,
+      { page: YOU.page, lamp: B.lamp }));
+    closeUp = { kind: 'b', at, out: B.behind, low: B.low };
+  } else {
+    // (and a book: the reader's own)
+    // (finaleFix6.js, HOODED: who it is that stands there)
+    others.push(makeOther([[youAt[0] - (toGate[0] / gl) * 2, youAt[1] - (toGate[1] / gl) * 2], youTo], you, 'finale-you', fin6Old(4) ? others.length : others.length + 1, HOODED ? HOODED.book : true,
+      HOODED ? { cut: HOODED.cut, lamp: HOODED.lamp } : {}));
+    // c: it stands behind the reader as it did, and is not turned to
+    if (CLOSE === 'c') closeUp = { kind: 'c', drift: YOU.c.drift * deg, near: YOU.c.near };
+  }
 
   const lookAt = new THREE.Vector3();
   const hideOther = (o) => {
@@ -729,6 +893,8 @@ export function buildFinale({
     mesh.visible = reveal > 0.001;
     o.shadow.visible = mesh.visible;
     if (!mesh.visible) return;
+    // (only as dark as they are there: it comes up with them out of the light)
+    o.shadow.material.opacity = 0.62 * smooth(0.3, 1, reveal);
     const w = clamp01((t - o.go) / (o.arrive - o.go));
     // gathering the step and putting it down, as the reader does: a steady
     // pace between an easing-in over the first sixth and out over the last
@@ -736,19 +902,21 @@ export function buildFinale({
     const s = clamp01(w < A ? (v * w * w) / (2 * A) : w > 1 - A ? 1 - (v * (1 - w) ** 2) / (2 * A) : v * (w - A / 2));
     const p = o.curve.getPointAt(s);
     const moving = w > 0 && w < 1 ? smooth(0, 0.12, w) * smooth(0, 0.15, 1 - w) : 0;
-    const stride = ((s * o.L) / STRIDE) * Math.PI;
+    // (a taller one's stride is longer by as much)
+    const stride = ((s * o.L) / (STRIDE * o.tall)) * Math.PI;
     const bob = (Math.sin(stride) ** 2 - 0.5) * 0.3 * moving;
     o.u.uStride.value = stride;
     o.u.uMove.value = moving;
     mesh.position.set(p.x, p.y + bob, p.z);
     o.shadow.position.set(p.x, ground + 0.8, p.z);
-    // (only as dark as they are there: it comes up with them out of the light)
-    o.shadow.material.opacity = 0.62 * smooth(0.3, 1, reveal);
-    // along the way while walking; round to the reader once there
+    // along the way while walking; round to the reader once there — or to
+    // the armillary, or not round at all (`gaze`)
     const tangent = o.curve.getTangentAt(Math.min(0.999, s));
     lookAt.set(p.x + tangent.x, p.y, p.z + tangent.z);
     const face = Math.atan2(lookAt.x - p.x, lookAt.z - p.z);
-    const toReader = Math.atan2(reader.x - p.x, reader.z - p.z);
+    const toReader = o.gaze === 'ahead' ? face
+      : o.gaze === 'heart' ? Math.atan2(heart[0] - p.x, heart[1] - p.z)
+        : Math.atan2(reader.x - p.x, reader.z - p.z) + o.gaze * deg;
     let turn = toReader - face;
     turn = Math.atan2(Math.sin(turn), Math.cos(turn));
     // (the stoop is in the figure; this is only leaning into the step)
@@ -776,9 +944,11 @@ export function buildFinale({
     flyMat.uniforms.uFront.value = maze;
     threads.forEach((t) => { t.material.uniforms.uFront.value = walk; });
   };
-  const setLevel = (level) => {
+  // `left`: how much of that the fireflies have (fliesAt)
+  const setLevel = (level, left = 1) => {
     floorMat.uniforms.uLevel.value = level;
-    flyMat.uniforms.uLevel.value = level;
+    flyMat.uniforms.uLevel.value = level * left;
+    fireflies.visible = level * left > 0.001;
     threads.forEach((t) => { t.material.uniforms.uLevel.value = level; });
   };
   const camPos = new THREE.Vector3();
@@ -828,7 +998,7 @@ export function buildFinale({
       const t = Math.min(film, FINALE.end);
       if (t >= FINALE.end) done = true;
       group.visible = true;
-      setLevel(1);
+      setLevel(1, fliesAt(t));
       setFront(mazeFront(t), walkFront(t));
       placeHeads(walkFront(t), camera, 1);
       for (const o of others) placeOther(o, t, smooth(o.show, o.show + 1.4, t));
@@ -846,7 +1016,7 @@ export function buildFinale({
       heads.forEach((h) => { h.s.visible = false; });
       return;
     }
-    setLevel(level);
+    setLevel(level, fliesLeft);
     setFront(1e5, 1e5);
     placeHeads(1e5, camera, level);
     for (const o of others) placeOther(o, FINALE.end, level);
@@ -902,6 +1072,10 @@ export function buildFinale({
     ground,
     gates: Object.fromEntries(Object.entries(gates).map(([k, g]) => [k, g.at])),
     you: youTo,
+    // what the eye is given in place of the close-up (finaleFix6.js, 1), or null
+    closeUp,
+    seat,
+    stops,
     update,
     tick,
     setViewport,
@@ -909,7 +1083,7 @@ export function buildFinale({
     get done() { return done; },
     // for a harness: where the others are headed, how far the light has to go
     debug: () => ({
-      far: field.far, mouth, walkEnd, sideEnd, vmax: +vmax.toFixed(1),
+      far: field.far, mouth, walkEnd, sideEnd, vmax: +vmax.toFixed(1), heart, ground, seat: seated,
       others: others.map((o) => ({ name: o.mesh.name, show: o.show, go: o.go, arrive: o.arrive, L: +o.L.toFixed(1), from: o.curve.points[0].toArray().map((x) => +x.toFixed(1)) })),
     }),
   };

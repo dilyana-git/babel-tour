@@ -5,68 +5,53 @@ description: Build, launch, and headlessly drive the babel-tour app to verify ch
 
 # Verifying babel-tour changes
 
+The piece is the world tour (`src/WorldTour.jsx` → `EntryMap.jsx` → `src/world`).
+The Midjourney plate tour was removed on 2026-10-12; nothing below applies to it.
+
 ## Build / lint
 ```powershell
 Set-Location babel-tour
-npx oxlint src          # pre-existing warning: exhaustive-deps on the tick effect — ignore
+npx oxlint src          # pre-existing warnings: exhaustive-deps in EntryMap — ignore
 npx vite build          # chunk-size warning is pre-existing
 ```
+The navigation gate (`check:major`, `check:navigation*`) is paused: see AGENTS.md.
 
 ## Launch
 The user often already has `vite` running on port 5173 — it binds **IPv6 `::1` only**,
-so probe `http://localhost:5173/` (NOT `127.0.0.1`). If nothing is listening, start
-`npx vite --port 5173 --strictPort` in the background from `babel-tour/`.
-
-`?dev=1` (dev builds only) skips the entry veil, marks the tour as entered, opens the
-garden door, and settles the camera at the vortex (deepest library gallery). It also
-exposes `window.__setDive(el)` to freeze the dive at any progress.
-
-### Looking at a transition (the rites of passage)
-Each of the seven crossings has its own rite (see `src/rites.js`). A rite only exists
-while a plate is dissolving — about a second and a half of a seven-second crossing —
-so it cannot be caught by walking, least of all headlessly. Park inside one instead:
-
-- `window.__rite(c, p)` — freeze crossing `c` (indexed by the chapter it departs
-  from) at progress `p`, 0 at the room you are leaving, 1 at the one you are entering.
-  Teleports, so nothing has to ease. Logs which rite it landed in.
-- `window.__rites(0)` / `window.__rites(1)` — every crossing back on the plain
-  depth-melt, and back on again. **Always shoot the A/B pair from the SAME browser
-  session**: swiftshader's exposure and unsharp differ enough between runs that a
-  rite compared against a control shot from another session tells you nothing.
-- `window.__climb(el)` — freeze the climb (the dive mirrored, garden → library) the
-  way `__setDive` freezes the fall.
-
-Judge a rite at `p` ≈ 0.2–0.45. By 0.5 the departing plate is largely gone under any
-threshold and both shots look the same.
+and other apps share that port. Never stop a server by port number. Start your own on
+another port with its own `cacheDir` and `hmr: false`, check the page `<title>` says
+"La Biblioteca de Babel", and stop only the PID you started.
 
 ## Drive headlessly (zero-dep CDP)
-Node 24 has global `WebSocket` — no puppeteer needed. Spawn Edge:
-`msedge.exe --headless=new --remote-debugging-port=9333 --enable-unsafe-swiftshader
---use-gl=angle --use-angle=swiftshader --user-data-dir=<ABSOLUTE tmp path> --no-first-run about:blank`
-(relative `--user-data-dir` makes the browser die silently — always absolute).
+Node 24 has global `WebSocket` — no puppeteer needed. Spawn Edge with a real GPU:
+`msedge.exe --headless=new --remote-debugging-port=<n> --use-angle=d3d11
+--ignore-gpu-blocklist --user-data-dir=<ABSOLUTE tmp path> --no-first-run about:blank`
+(a relative `--user-data-dir` makes the browser die silently). Keep the profile
+directory between runs: a cold profile draws no frames for the first run.
 
-Then: GET `/json/version` → browser ws → `Target.createTarget{url}` (no width/height),
-`Target.attachToTarget{flatten:true}`, `Emulation.setDeviceMetricsOverride`,
-**wait ~13s** for WebGL textures under swiftshader, `Page.captureScreenshot`.
+Then: GET `/json/version` → browser ws → `Target.createTarget`, `Target.attachToTarget
+{flatten:true}`, `Emulation.setDeviceMetricsOverride` (`mobile: true` plus
+`Emulation.setTouchEmulationEnabled` for a phone), `Page.navigate`, wait for
+`window.__worldJump && document.querySelector('.entry-map.is-world')`, then
+`Page.captureScreenshot`.
 
-Input works through CDP and reaches the app's window/pointer handlers:
-- `Input.dispatchKeyEvent` (`rawKeyDown`+`keyUp`, `modifiers: 8` = Shift)
-- `Input.dispatchMouseEvent` pressed → ~14 moved steps → released simulates a drag
+Dev hooks (dev builds only, set by `World.jsx`):
+- `__worldJump(i)` — stand in room `i` (0-7) at once; `__worldJump(i, true)` at its vantage.
+- `__worldLook(yaw, pitch)` — turn the head at a stand.
+- `__worldScrub(t)` — hold a leg or the finale at a point; `null` lets it run.
+- `__worldSim({...})` — walk a move on a fixed clock, without waiting on frames.
+- `__worldBench(n)` — milliseconds per frame of the scene alone, drawn `n` times.
 
-Give eased camera state ~2s to settle before each screenshot. A known-good driver
-script pattern is in the session scratchpads as `look.mjs` (spawn, ws send/await,
-key/drag/shot helpers).
+Input reaches the app through CDP: `Input.dispatchKeyEvent`, `Input.dispatchMouseEvent`
+(pressed → moved steps → released is a drag) and `Input.dispatchTouchEvent`
+(`touchStart` … `touchEnd`; a synthetic `PointerEvent` has no live pointer and cannot
+be captured, so test the touch walk button with real touch events).
 
 ## Gotchas
-- The headless clock is unreliable for pacing — under swiftshader the rAF-driven
-  sim runs ~10× slow, so chapter crossings that take ~7s on real hardware barely
-  move in a 10s headless wait. Do NOT diagnose "navigation broken" from a stale
-  `DEPTH n/4` label alone; read `window.__nav()` (dev+?dev only — returns
-  `{target, descent, immT, diving}`) to see whether the *target* moved. For the
-  dive use the frozen-progress hook `window.__setDive(el)`.
-- Navigation state to eyeball in shots: `DEPTH n/4` label, progress bar, chapter card
-  title — these confirm whether an input walked, dove, or only moved the gaze.
-- Depth/layering regressions to look for in shots: bright fragments floating
-  detached over dark voids = the next chapter's near band poking through this
-  chapter's far band (the DEPTH_SPREAD interleave ceiling — see the constant's
-  comment).
+- The harness usually emulates `prefers-reduced-motion`, under which a walked leg is a
+  cut and the finale is skipped. Drop the emulation to see either; flights then take
+  a minute or more headless.
+- Kill Edge by its `--remote-debugging-port` in the command line: the launched
+  process exits and the browser outlives it, leaving the profile locked.
+- Old looks sit behind `?w…=old[:n]` flags, one module per design board
+  (`src/world/*Fix*.js`). Shoot the A/B pair in the same session.

@@ -98,8 +98,10 @@ const mix3 = (a, b, k) => [a[0] + b[0] * k, a[1] + b[1] * k, a[2] + b[2] * k];
 // The roof over `at` ([x, z]). Returns { tiles, under }: the tiled top (for
 // `roofTiles`' texture) and the soffit and eave board under it; and `tips`,
 // where each corner's scroll ends.
-export function tiledRoof({ at, kind = 'grey', light = false }) {
-  const tiles = gather(), under = gather(), tips = [];
+// `bronze` (gardenFix5.js, 6): the hips' curled ends past the eave as a mesh
+// of their own (`horns`), for another metal than the tile's.
+export function tiledRoof({ at, kind = 'grey', light = false, bronze = false }) {
+  const tiles = gather(), under = gather(), horns = gather(), tips = [];
   const rolled = kind !== 'bark';
   const hash = (i, j, k) => { const x = Math.sin(i * 127.1 + j * 311.7 + k * 74.7) * 43758.5453; return x - Math.floor(x); };
   ROOF_TIERS.forEach((t, ti) => {
@@ -226,7 +228,7 @@ export function tiledRoof({ at, kind = 'grey', light = false }) {
           line.push({ o: q, y: roofProfile(t, q) + sweep(t, 0, q) + t.hip * 0.45, rad: t.hip });
         }
         // past the eave: the horn, rising as it goes, thinner; then the scroll
-        const tipY = line[line.length - 1].y, HORN = light ? 4 : 7;
+        const tipY = line[line.length - 1].y, HORN = light ? 4 : 7, eaveAt = line.length - 1;
         for (let i = 1; i <= HORN; i++) {
           const tau = i / HORN;
           line.push({ o: rE + 2.9 * tau - 0.8 * tau * tau, y: tipY + 2.3 * tau ** 1.8, rad: t.hip * (1 - 0.55 * tau) });
@@ -252,11 +254,11 @@ export function tiledRoof({ at, kind = 'grey', light = false }) {
             return { p: mix3(centre, nn, pt.rad), n: nn, t: [0.61 + 0.18 * (h / RAD), run / (TILE.len * 4)] };
           });
         });
-        for (let i = 0; i < rings.length - 1; i++) for (let h = 0; h < RAD; h++) tiles.quad(rings[i][h], rings[i][h + 1], rings[i + 1][h + 1], rings[i + 1][h]);
+        for (let i = 0; i < rings.length - 1; i++) for (let h = 0; h < RAD; h++) (bronze && i >= eaveAt - 2 ? horns : tiles).quad(rings[i][h], rings[i][h + 1], rings[i + 1][h + 1], rings[i + 1][h]);
       }
     }
   });
-  return { tiles: tiles.geometry(), under: under.geometry(), tips };
+  return { tiles: tiles.geometry(), under: under.geometry(), horns: bronze ? horns.geometry() : null, tips };
 }
 
 // The tiles' texture, for `tiledRoof`'s uv: five columns — three of pans side

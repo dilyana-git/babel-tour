@@ -33,7 +33,7 @@ const result = {
   scope: { suite, filter: filter ?? null, fullBaseline: !filter && ['baseline', 'all'].includes(suite) },
   method: `Real browser input; dev clock accelerated 12×, raster DPR 0.5; ${graphics} graphics profile; geometry sweep separate from input journeys.`,
   limitations: [`Headless Edge; requested ${graphics} graphics profile.`, 'No real-device performance or visual-quality claim.',
-    'Default world tour; retained plate tour and balcony use their separate checks.'],
+    'Default world tour.'],
   scenarios: catalogue.map(({ id, name, suite }) => ({ id, name, suite, status: selectedIds.has(id) ? 'not run' : 'not selected' })),
   trace: [], errors: [], browserLog: [],
 };

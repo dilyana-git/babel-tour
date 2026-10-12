@@ -39,29 +39,10 @@ The fall lasts **7.2 seconds** and plays to completion once committed; reduced
 motion skips its animation. From the Door, **Climb · The Vertigo** reverses
 the passage and returns to the upper staircase.
 
-The Midjourney plate tour is set aside, not deleted: open the page with
-`?plates` to walk it (everything below about plates, depth maps and the
-balcony belongs to that tour).
-
-## The reading balcony
-
-Choose **explore balcony** in the tour controls to enter a small, walkable 3D
-library overlooking the existing Vestibule artwork. The stone floor, columns,
-balustrade, shelves, lantern and reading stand are geometry; the immense library
-beyond the railing remains a painted backdrop. This is a single-room prototype.
-
-- **WASD** walks and strafes; **drag** or **arrow keys** look around.
-- **Enable mouse look** captures the pointer. Escape releases it; Escape again
-  returns to the tour. Movement has a fixed eye height and solid boundaries.
-- Approach the book beyond the right column and press **E**, or use its prompt,
-  to open it. Approach the rear entrance and press **E** to return.
-- On touch, hold the directional buttons to walk and drag the scene to look.
-- **Return to tour** restores your position. Automatic drift pauses on entry.
-
-The balcony loads on demand and adds no external models or runtime dependencies.
-With Vite running, `node tools/balcony-check.mjs` checks collision, browser input,
-the book and entrance, focus restoration, and touch layout and gestures. It saves
-screenshots under `.ux-review/balcony/`.
+The Midjourney plate tour and its reading balcony, which the piece began as,
+were removed on 2026-10-12 (their artwork had already gone). They are in git
+history: the last commit holding the art is the parent of `391c5fe`, and the
+last holding the tour's source is `e50afe9`.
 
 ## Checks
 
@@ -104,7 +85,7 @@ while verification was in progress; a stale result cannot pass the gate.
 Travel uses a 12× development clock and DPR 0.5 for practical software rendering;
 basic held-key movement is checked at normal speed; stopping/travel use the faster clock. No jump/scrub/stroll hook
 completes an input journey. These are navigation checks, not performance or
-visual-quality benchmarks, and do not cover the separate plate tour/balcony.
+visual-quality benchmarks.
 
 `.github/workflows/navigation.yml` runs the same major-change gate only when
 started manually from GitHub Actions and uploads the evidence. Automatic
@@ -121,31 +102,20 @@ provides the watcher without a persistent Vite session. Stop with Ctrl+C;
 an active browser run finishes and cleans up before the watcher exits.
 
 ```powershell
-npm run check:walk       # needs the dev server; teleports through all eight
-                         # galleries and fails on anything thrown
 npm run check:walls       # needs the dev server; walks every leg of the world
                           # tour and fails where it passes through the stone
 npm run check:governor    # the frame-rate rule, handed numbers directly
-npm run verify:assets     # every plate and depth map a walk can ask for — and
-                          # every finished plate the catalogue never hung
-npm run review:ux         # needs the dev server; the heuristic UX pass below
 npm run review:world-ux   # default world: mobile map, entry timing, return path
-npm run check:selenium    # starts Vite and Edge; world, plates, viewport checks
+npm run check:selenium    # starts Vite and Edge; entering and leaving the world tour
 ```
 
 The Selenium suite runs in headless Microsoft Edge and starts its own Vite server.
-It checks entering and leaving the world tour, plate controls and navigation,
-and essential layout at 390, 768, and 1440 CSS pixels. Run one part while
-working with `npm run check:selenium -- world`, `-- plates`, or `-- responsive`.
+It checks entering and leaving the world tour.
 Set `BABEL_TEST_URL` to test an already running server. Selenium Manager finds
 the matching Edge driver on the first run (which may require network access);
 on an offline machine, set `EDGE_DRIVER_PATH` to an installed `msedgedriver`.
 The exit code is nonzero on failure, so the command also works in a precommit
 hook or CI job.
-
-`check:walk` is the one to run after moving code between modules. A free
-variable is a runtime error, so the build, the bundler and oxlint are all blind
-to it; only something that walks the tour can see it.
 
 `review:world-ux` runs a repeatable mobile first-use audit of the default world
 tour and writes timing, layout, and development ideas to
@@ -162,12 +132,6 @@ and then went through — and, under that, every wall in the world missing its
 inner face, so a gallery was see-through from inside it. A still screenshot
 shows neither, and nothing that only reads the source can.
 
-`verify:assets` earns its place for the second half of its job. It reports art
-that is *finished* — colour plate, depth map and baked backdrop all present —
-but that no node hangs. That is not a failure and it does not fail the run, but
-it is the one thing about this project that has gone wrong silently more than
-once: work that was completed and then simply never put in the piece.
-
 ## Deploying
 
 ```powershell
@@ -176,14 +140,14 @@ npm run check:deploy
 ```
 
 Upload the contents of `dist/` to the **site root** on a static host. The build
-is currently around **50 MB**, mostly WebP plates and depth maps. Its asset URLs
-begin with `/`, so serving it from a subdirectory needs a Vite `base` setting
-and an updated build. `check:deploy` lints the source, verifies art references,
-checks the frame-rate governor, builds the site, and checks the output for
-missing art and stray video. Run the browser checks above against the intended
-source before publishing. A Git-based deployment must include the new `src/`,
-`tools/`, and artwork files in a commit; an uncommitted working tree is not what
-the host will build.
+is a few megabytes of script and two images; the world is built in the
+browser, not shipped as art. Its asset URLs begin with `/`, so serving it from
+a subdirectory needs a Vite `base` setting and an updated build. `check:deploy`
+lints the source, checks the frame-rate governor, builds the site, and checks
+the output for missing files and stray video. Run the browser checks above
+against the intended source before publishing. A Git-based deployment must
+include the new `src/` and `tools/` files in a commit; an uncommitted working
+tree is not what the host will build.
 
 ### The video that used to be here
 
@@ -192,50 +156,25 @@ render of itself while the reader stood in front of it, and there was a 5.7 MB
 film behind the title card. All of it is gone from the piece.
 
 The local video archive, raw source artwork, unused painting drafts and old
-video color diagnostics have been removed. `public/nodes/` contains the art
-used by the retained plate tour and reading balcony. The offline processing
-scripts have been retired; the original garden design brief remains in
-`GARDEN.md`.
+video color diagnostics have been removed, and the plates themselves went with
+the plate tour. The offline processing scripts have been retired.
 
 Nothing in `src/` names a `.mp4`. Putting the clips back is not a flag flip; it
 means restoring the delivery table, the wake/replay loop, and the live half of
 the painting shader from git history.
 
-## Automated UI/UX review
-
-With the Vite app running on `localhost:5173`, run:
-
-```powershell
-npm run review:ux
-```
-
-The review agent opens a headless Chromium browser, clicks through the entry,
-help, audio, autoplay and chapter controls, checks keyboard navigation, repeats
-the layout check at 390 px, and writes screenshots plus prioritized feedback to
-`.ux-review/latest/report.md`. It uses the browser's DevTools protocol directly,
-so it adds no runtime or test dependency.
-
-Options:
-
-```powershell
-npm run review:ux -- --url http://localhost:5173 --out .ux-review/my-run
-npm run review:ux -- --browser "C:\path\to\chrome.exe" --no-mobile
-```
-
-Start the app first with `npm run dev`. The agent exits with a clear message if
-the target is not reachable. Its report is a repeatable heuristic review; use it
-alongside manual visual, assistive-technology, and user testing.
-
-Note that its screenshots are captured through the DevTools protocol and can
-tile or crop the canvas; judge framing from a purpose-made capture, not from
-those files.
-
 ## Query flags
 
 ```
-?variant=<fragment>   pin one painting by filename fragment; a pinned session
-                      never restocks and leaves no marks on the saved walk
-?node=<slug>&?ch=<n>  land on a gallery by name or by index (dev builds)
+#<slug>               a room as an address (#vestibule … #web): written while
+                      the reader stands in a room, read once at load — the map
+                      opens with that room lit and offered first
+?wsound=off           no sound at all (it otherwise starts with the first touch;
+                      the strokes top right stop and start it)
+?wread                open the volume of the room stood in (the open book, not
+                      yet taken by hand in the world: src/OpenBook.jsx)
+?wperf                write what a frame costs, once a second, top left: median
+                      milliseconds, pixel ratio, triangles, draw calls, passes
 ?coarse=1 ?thrift=1   force the touch / low-power mesh
 ?dpr=<n> ?governor=0  pin the pixel ratio, or watch the governor without it acting
 ```

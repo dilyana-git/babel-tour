@@ -8,9 +8,8 @@
 // old librarian's solitude, the Vertigo the sphere and the circular book.
 //
 // Quoted from the Labyrinths translations (James E. Irby for the Library,
-// Donald A. Yates for the garden), the same ones the folio lines in
-// catalogue.js come from. Written down from memory: proof them against the
-// book before anyone else reads them. A leading or trailing ellipsis marks a
+// Donald A. Yates for the garden). Written down from memory: proof them
+// against the book before anyone else reads them. A leading or trailing ellipsis marks a
 // sentence entered or left partway.
 //
 // Keep a line under about 170 characters. The caption stacks every line a

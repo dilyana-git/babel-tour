@@ -24,10 +24,17 @@
 // in one frame (?wglass=0: none — every glass holds its first image).
 import * as THREE from 'three';
 import { vestOld } from './vestFix';
+import { lib3Old, GLASS3 } from './libFix3';
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 export const GLASS = {
-  quality: 0.6,   // the reflection's height, as a fraction of the glass's on the screen
+  // The reflection's height, as a fraction of the glass's on the screen, and
+  // the least it is drawn at. (0.6 and 96 until 2026-10-11: from a stand a
+  // glass was drawn some fifty pixels wide and stretched over four times
+  // that, and what it showed was a smear with one bright blob in it —
+  // libFix3.js, 5. The cost of a glass is the room's geometry, not its pixels.)
+  quality: lib3Old(5) ? 0.6 : GLASS3.quality,
+  least: lib3Old(5) ? 96 : GLASS3.least,
   reach: 175,     // drawn live only for a reader this near (a gallery is 173 across)
   // The most glasses drawn in one frame. A drawing of the world costs the same
   // whatever size it is drawn at (a glass is a few thousand pixels; the cost is
@@ -377,6 +384,7 @@ const fragmentShader = /* glsl */ `
   uniform vec2 uTexel;
   uniform float uSeed;
   uniform float uAged;   // 1: the silvering of 2026-10-08 (vestFix.js, point 4)
+  uniform float uPlate;  // 1: the plate of 2026-10-11 (libFix3.js, point 5)
   varying vec2 vLocal;
 
   float mHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
@@ -413,9 +421,15 @@ const fragmentShader = /* glsl */ `
     uv += vec2(-out2.x / (2.0 * hw), out2.y / H) * bev * 0.7 + wob;
     vec2 lo = uTexel, hi = 1.0 - uTexel;
     vec2 o = uTexel * (uAged > 0.5 ? 0.35 : 0.6);
-    vec3 refl = 0.25 * (
-      texture2D(uMap, clamp(uv + vec2(o.x, o.y), lo, hi)).rgb + texture2D(uMap, clamp(uv + vec2(-o.x, o.y), lo, hi)).rgb +
-      texture2D(uMap, clamp(uv + vec2(o.x, -o.y), lo, hi)).rgb + texture2D(uMap, clamp(uv - o, lo, hi)).rgb);
+    vec3 refl;
+    if (uPlate > 0.5) {
+      // sharp where it reflects: the room as the glass has it, not softened
+      refl = texture2D(uMap, clamp(uv, lo, hi)).rgb;
+    } else {
+      refl = 0.25 * (
+        texture2D(uMap, clamp(uv + vec2(o.x, o.y), lo, hi)).rgb + texture2D(uMap, clamp(uv + vec2(-o.x, o.y), lo, hi)).rgb +
+        texture2D(uMap, clamp(uv + vec2(o.x, -o.y), lo, hi)).rgb + texture2D(uMap, clamp(uv - o, lo, hi)).rgb);
+    }
 
     // The silvering: warm, a little short of white, and going — in clouds
     // that gather toward the edges, and in a scatter of foxing spots.
@@ -444,6 +458,17 @@ const fragmentShader = /* glsl */ `
       loss = clamp(rot * 0.7 + spots, 0.0, 1.0);
       silver = mix(0.84, 0.16, loss) * (0.95 + 0.05 * cloud);
       tint = mix(vec3(0.94, 0.84, 0.68), vec3(0.62, 0.45, 0.28), clamp(spots, 0.0, 1.0));
+      if (uPlate > 0.5) {
+        // Old plate: dark, a little green in the glass itself, and foxed in
+        // from the frame — the open middle keeps its silver and shows the
+        // room plainly, only dimmer and cooler than the room is.
+        rim = 1.0 - smoothstep(0.0, 5.2, d);
+        rot = smoothstep(0.6, 0.86, cloud * 0.5 + rim * 0.72);
+        spots = smoothstep(0.58, 0.74, fox) * (0.03 + 0.97 * rim) * 0.8 + 0.3 * rim * rim;
+        loss = clamp(rot * 0.75 + spots, 0.0, 1.0);
+        silver = mix(${GLASS3.silver.toFixed(2)}, 0.12, loss) * (0.95 + 0.05 * cloud);
+        tint = mix(vec3(${GLASS3.tint.map((x) => x.toFixed(2)).join(', ')}), vec3(0.5, 0.39, 0.25), clamp(spots, 0.0, 1.0));
+      }
       float peak = max(refl.r, max(refl.g, refl.b));
       refl /= 1.0 + 0.2 * peak;
     }
@@ -489,6 +514,7 @@ export function makeMirrors({ root, keep, light = false }) {
         uTexel: { value: new THREE.Vector2(1 / 16, 1 / 16) },
         uSeed: { value: mirrors.length * 7.31 + 2.2 },
         uAged: { value: vestOld(4) ? 0 : 1 },
+        uPlate: { value: vestOld(4) || lib3Old(5) ? 0 : 1 },
       },
       vertexShader,
       fragmentShader,
@@ -531,7 +557,7 @@ export function makeMirrors({ root, keep, light = false }) {
   // glass as through a window.
   const draw = (m, renderer, scene, camera, px, hide, aim) => {
     const quality = GLASS.quality * (light ? 0.75 : 1);
-    const h = Math.min(1024, Math.max(96, Math.round((px * quality) / 32) * 32));
+    const h = Math.min(1024, Math.max(GLASS.least, Math.round((px * quality) / 32) * 32));
     const w = Math.max(32, Math.round((h * 2 * m.hw) / m.H));
     if (m.size[0] !== w || m.size[1] !== h) {
       m.target.setSize(w, h);
