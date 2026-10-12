@@ -52,6 +52,22 @@ six minutes a page load) and writes PNGs to `.ux-review/shots/`. `--help`
 lists its options. Look at every picture before reporting a visual change
 done. The `verify` skill has more.
 
+## Where the world is built
+
+`src/world/buildWorld.js` runs the world's sections in order (assembleWorld).
+Each room is a file in `src/world/rooms/` (vestibule, echo, silence, vertigo,
+door, garden, fork, web); what they share — materials, the honeycomb, the
+shelves, the grounds, the light, the walk — is in `src/world/build/`. Each
+section is a function that takes `ctx` (what the sections before it made)
+and returns what later sections need. Everything is laid out from one random
+stream (`rnd`) in that order: a change that adds or removes a draw, or moves a
+section, moves everything after it. Use a stream of your own (`makeRng`) for
+anything new.
+
+To prove a refactor changes nothing, compare scene fingerprints before and
+after (`npm run shot -- --fingerprint`, then `--compare=a.json,b.json`; see
+`tools/shot.mjs`).
+
 ## Variants of a look
 
 When a design question is answered with options (`?w…=a|b|c` flags, an `old`
