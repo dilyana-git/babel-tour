@@ -21,6 +21,14 @@
 // error or a console error, e.g. a shader that does not compile).
 //
 // It prints each file it wrote and any console errors the page logged.
+//
+// For a refactor that should change nothing: --fingerprint writes, instead of
+// pictures, <name>-fingerprint.json — a hash of every object in the built
+// scene (its geometry, transform and materials, each material's shader patch
+// and program key) and of every shader program the scene compiles to — and
+// --compare=a.json,b.json (no browser) says what differs between two of them.
+// Transforms of things that move on their own (readers, water, lights) differ
+// between any two loads; geometry, materials and shaders should not.
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer as netServer } from 'node:net';
@@ -44,6 +52,11 @@ const FRAMES = Number(args.frames ?? 30);
 const SETTLE = Number(args.settle ?? 1500);
 const GPU = args.gpu ? true : args.software ? false : process.platform !== 'linux';
 const pause = (ms) => new Promise((r) => setTimeout(r, ms));
+
+if (typeof args.compare === 'string') {
+  const [a, b] = args.compare.split(',').map((f) => JSON.parse(readFileSync(f, 'utf8')));
+  process.exit(compare(a, b));
+}
 
 // ── the browser ─────────────────────────────────────────────────────────────
 function findBrowser() {
@@ -90,7 +103,15 @@ async function startBrowser() {
   if (!existsSync(portFile)) { child.kill(); throw new Error('The browser did not open its debugging port.'); }
   const [port, path] = readFileSync(portFile, 'utf8').trim().split('\n');
   const cdp = await connect(`ws://127.0.0.1:${port}${path}`);
-  return { cdp, close: async () => { await cdp.send('Browser.close').catch(() => {}); cdp.ws.close(); setTimeout(() => child.kill(), 2000).unref(); } };
+  // (closed and waited for: the next run cannot open the profile while it is in use)
+  const exited = new Promise((ok) => child.once('exit', ok));
+  return { cdp, close: async () => {
+    await cdp.send('Browser.close').catch(() => {});
+    cdp.ws.close();
+    if (await Promise.race([exited.then(() => true), pause(10000).then(() => false)])) return;
+    child.kill();
+    await Promise.race([exited, pause(5000)]);
+  } };
 }
 
 // A DevTools Protocol client on Node's own WebSocket: send(method, params,
@@ -166,6 +187,7 @@ async function run() {
       };
       await page('Runtime.enable');
       await page('Page.enable');
+      if (args.fingerprint) await page('Page.addScriptToEvaluateOnNewDocument', { source: CAPTURE_SHADERS });
       await page('Emulation.setDeviceMetricsOverride', { width: W, height: H, deviceScaleFactor: 1, mobile: W < 600 });
       if (W < 600) await page('Emulation.setTouchEmulationEnabled', { enabled: true });
       await page('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: args.motion ? 'no-preference' : 'reduce' }] });
@@ -178,6 +200,14 @@ async function run() {
       if (!ready) throw new Error('The world never finished building (5 min).');
       const frames = () => evaluate(`new Promise((ok) => { let n = ${FRAMES}; const f = () => (--n > 0 ? requestAnimationFrame(f) : ok(true)); requestAnimationFrame(f); })`);
       await frames();
+      if (args.fingerprint) {
+        const file = join(OUT, `${[args.name, tag].filter(Boolean).join('-') || 'world'}-fingerprint.json`);
+        writeFileSync(file, JSON.stringify(await evaluate(FINGERPRINT)));
+        written.push(file);
+        console.log(file);
+        await cdp.send('Target.closeTarget', { targetId });
+        continue;
+      }
       for (const room of rooms) {
         if (room !== null) await evaluate(`window.__worldJump(${room}, ${!!args.up})`);
         if (typeof args.look === 'string') await evaluate(`window.__worldLook(${args.look})`);
@@ -205,3 +235,75 @@ async function run() {
 }
 
 run().then((code) => process.exit(code), (e) => { console.error(e.message); process.exit(1); });
+
+// ── fingerprints ────────────────────────────────────────────────────────────
+// (in the page, before it loads: every shader source the GL is handed)
+const CAPTURE_SHADERS = `(() => {
+  const seen = window.__shaderSources = new Set();
+  for (const C of [window.WebGLRenderingContext, window.WebGL2RenderingContext]) {
+    if (!C) continue;
+    const was = C.prototype.shaderSource;
+    C.prototype.shaderSource = function (sh, src) { seen.add(src); return was.call(this, sh, src); };
+  }
+})();`;
+
+// (in the page, once the world is up)
+const FINGERPRINT = `(async () => {
+  const scene = window.__worldScene, camera = window.__worldCamera;
+  const fnv = (bytes, h = 2166136261) => { for (let i = 0; i < bytes.length; i++) { h ^= bytes[i]; h = Math.imul(h, 16777619) >>> 0; } return h; };
+  const str = (s) => fnv(new TextEncoder().encode(String(s))).toString(16);
+  const arr = (a) => fnv(new Uint8Array(a.buffer, a.byteOffset, a.byteLength)).toString(16);
+  const geo = (g) => !g ? null : str(Object.entries(g.attributes).map(([k, a]) => k + a.itemSize + ':' + arr(a.array)).join('|')
+    + (g.index ? 'i' + arr(g.index.array) : '') + JSON.stringify(g.groups) + JSON.stringify(g.drawRange));
+  const val = (v) => v === null || v === undefined ? v : v.isTexture ? ['tex', v.image?.width, v.image?.height, v.repeat?.toArray(), v.offset?.toArray(), v.wrapS, v.wrapT, v.colorSpace]
+    : v.isColor ? v.getHexString() : v.toArray ? v.toArray().map((x) => +(+x).toFixed(5)) : typeof v === 'function' ? str(v.toString()) : typeof v === 'number' ? +v.toFixed(5) : v;
+  const mat = (m) => {
+    const o = {};
+    for (const k of Object.keys(m).sort()) {
+      if (k === 'uuid' || k === 'id' || k === 'version' || k.startsWith('_') || k === 'userData') continue;
+      const v = m[k];
+      o[k] = k === 'uniforms' ? Object.fromEntries(Object.entries(v).map(([n, u]) => [n, Array.isArray(u.value) ? u.value.map(val) : val(u.value)])) : val(v);
+    }
+    o.programKey = m.customProgramCacheKey ? m.customProgramCacheKey() : null;
+    return str(JSON.stringify(o));
+  };
+  const objects = [];
+  const walk = (o, path) => {
+    const mats = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
+    objects.push({ path, type: o.type, visible: o.visible,
+      matrix: str(o.matrix.elements.map((x) => x.toFixed(3)).join(',')),
+      geometry: geo(o.geometry), materials: mats.map(mat),
+      instances: o.isInstancedMesh ? arr(o.instanceMatrix.array.subarray(0, o.count * 16)) + ':' + o.count : null,
+      light: o.isLight ? str(JSON.stringify([o.color?.getHexString(), o.distance, o.decay, o.angle, o.castShadow])) : null });
+    o.children.forEach((c, i) => walk(c, path + '/' + (c.name || c.type) + '#' + i));
+  };
+  walk(scene, 'scene');
+  // every program the scene compiles to, visible or not
+  const renderer = await new Promise((ok) => { const was = scene.onBeforeRender; scene.onBeforeRender = (r, ...rest) => { scene.onBeforeRender = was; was?.(r, ...rest); ok(r); }; });
+  const hidden = []; scene.traverse((o) => { if (!o.visible) { hidden.push(o); o.visible = true; } });
+  try { renderer.compile(scene, camera); } finally { hidden.forEach((o) => { o.visible = false; }); }
+  const shaders = [...window.__shaderSources].map(str).sort();
+  return { objects, shaders };
+})()`;
+
+function compare(a, b) {
+  const byPath = (f) => new Map(f.objects.map((o) => [o.path, o]));
+  const A = byPath(a), B = byPath(b);
+  const diff = { geometry: [], materials: [], instances: [], light: [], visible: [], type: [], matrix: [] };
+  const only = [[...A.keys()].filter((k) => !B.has(k)), [...B.keys()].filter((k) => !A.has(k))];
+  for (const [path, x] of A) {
+    const y = B.get(path);
+    if (!y) continue;
+    for (const k of Object.keys(diff)) if (JSON.stringify(x[k]) !== JSON.stringify(y[k])) diff[k].push(path);
+  }
+  const sa = new Set(a.shaders), sb = new Set(b.shaders);
+  const shaders = [a.shaders.filter((h) => !sb.has(h)).length, b.shaders.filter((h) => !sa.has(h)).length];
+  console.log(`objects: ${A.size} / ${B.size}; only in the first: ${only[0].length}; only in the second: ${only[1].length}`);
+  for (const [k, list] of Object.entries(diff)) console.log(`${k} differs: ${list.length}${list.length ? `\n  ${list.slice(0, 12).join('\n  ')}${list.length > 12 ? '\n  …' : ''}` : ''}`);
+  console.log(`shader programs: ${a.shaders.length} / ${b.shaders.length}; only in the first: ${shaders[0]}; only in the second: ${shaders[1]}`);
+  for (const l of only) if (l.length) console.log(`  ${l.slice(0, 12).join('\n  ')}`);
+  const same = !only[0].length && !only[1].length && !shaders[0] && !shaders[1]
+    && ['geometry', 'materials', 'instances', 'type'].every((k) => !diff[k].length);
+  console.log(same ? 'SAME (geometry, materials, shaders)' : 'DIFFERENT');
+  return same ? 0 : 1;
+}
