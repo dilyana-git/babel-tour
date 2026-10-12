@@ -53,6 +53,7 @@ import { garden5Old, SIGN, signPostGeometry, signBoardGeometry, paintSignName, s
 import { mapOld, PIT_FADE, RIM_WARM } from './mapFix';
 import { map3Old, QUIET, LOOK, GARDEN_MAP } from './mapFix3';
 import { map4Old, ROUTE_LIGHT } from './mapFix4';
+import { map5Old } from './mapFix5';
 import { lib3Old, STRING, COLOUR, ECHO_STONE } from './libFix3';
 import { doorPropsOld, STAND as DOOR_STAND, SPILL as DOOR_SPILL, SIDE_LAMP as DOOR_SIDE_LAMP, LADDER_U as DOOR_LADDER_U, CANDLES as DOOR_CANDLES, candleWax, splayedBook, tentBook } from './doorProps';
 import { doorOld, FALLEN as DOOR_FALLEN_HEAPS, DUST as DOOR_DUST, SHAFT_K, LANTERN_HALO, CRACKS as DOOR_CRACK_STYLE, LAMP_Y as DOOR_LAMP_Y, revealShade } from './doorFix';
@@ -754,6 +755,11 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
   // is showing — 1 over it, 0 among the walls (setVeil).
   const RIM = !mapOld(8);
   const mapWarm = { value: 1 };
+  // (from each room's own inner wall: the Echo's stands further out, so its
+  // coping is that much further out too — `echoDeep`, set once the rooms are
+  // laid out — and its worked stone stops under the wall tops; mapFix5.js, 1)
+  const ECHO_TOPS = !map5Old(1);
+  let echoDeep = 0;
   // And the stone of every cell that is not a room of the walk, quiet over the
   // map (mapFix3.js, 3): `quiet` stone loses its blocks, its relief and some
   // of its light out past the walk's rooms, and `sink` stone — the balustrades
@@ -932,6 +938,7 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
           float stoneWork = 0.0;
           ${worked ? `
           stoneWork = uWorkAt.z > 0.0 ? smoothstep(uWorkAt.z + 10.0, uWorkAt.z - 2.0, distance(vStoneW.xz, uWorkAt.xy)) : 0.0;
+          ${ECHO_TOPS ? `stoneWork *= 1.0 - smoothstep(${(MASS_H - 1).toFixed(1)}, ${(MASS_H - 0.2).toFixed(1)}, vStoneW.y);` : ''}
           if (stoneWork > 0.0) {
             float workA = stoneNoise3(vStoneW * 0.11 + 3.1), workB = stoneNoise3(vStoneW * 0.62 + 9.2);
             float workUp = max(0.0, 1.0 - vStoneSide - vStoneDown);
@@ -994,7 +1001,9 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
             for (int i = 0; i < ${bounceRooms.value.length}; i++) {
               vec2 d = vStoneW.xz - uBounceRooms[i].xy;
               float hex = max(abs(d.y), max(abs(dot(d, vec2(0.8660254, 0.5))), abs(dot(d, vec2(-0.8660254, 0.5)))));
-              rim = max(rim, smoothstep(${RIM_WARM.outer.toFixed(1)}, ${RIM_WARM.inner.toFixed(1)}, hex));
+              // (the Echo's inner wall further out, its outer edge where every cell's is)
+              float rimIn = ${RIM_WARM.inner.toFixed(1)}${ECHO_TOPS ? ` + (i == 1 ? ${echoDeep.toFixed(2)} : 0.0)` : ''};
+              rim = max(rim, smoothstep(${RIM_WARM.outer.toFixed(1)}, rimIn, hex));
             }
             totalEmissiveRadiance += diffuseColor.rgb * vec3(${RIM_WARM.color.map((x) => x.toFixed(2)).join(', ')})
               * ${RIM_WARM.k.toFixed(3)} * rim * uMapWarm * smoothstep(${(MASS_H - 14).toFixed(1)}, ${(MASS_H - 2).toFixed(1)}, vStoneW.y);
@@ -2097,6 +2106,7 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
   bounceRooms.value = [[0, 0, 1], [1, -1, 0.8], [2, -2, 0.25], [3, -3, 0.5], [4, -4, 0.7]]
     .map(([i, j, k]) => { const q = cellC(i, j); return new THREE.Vector3(q[0], q[1], k); });
   workAt.value.set(ECHO_C[0], ECHO_C[1], ECHO_STONE.reach + ECHO_R - 112);
+  echoDeep = deepAt(ECHO_C);
   // the wells of the three rooms that have one (hexagons: the flat radius of
   // `shaft` below), and the Vertigo's round pit
   wells.value = [[0, 0, 48, 1], [1, -1, 38, 1], [2, -2, 40, 1], [3, -3, 68, 0]]
