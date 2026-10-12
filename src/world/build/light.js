@@ -169,7 +169,7 @@ export function buildLight(ctx) {
 export function buildUnexplored(ctx) {
   const { add, dist, keep, paint, shaftMaterial, bounceRooms, mapWarm, ROUTE_ON, ROUTE_TINT,
     walkNearGlsl, M, root, flatPlane, cells, inFrame, routeCenters, hallMid, distantReaders, PIT,
-    pitCarved, J, POND, PV, PATHS, beltGroup } = ctx;
+    pitCarved, J, POND, PV, PATHS, beltGroup, water } = ctx;
   // ── The unexplored ────────────────────────────────────────────────────────
   const VEIL = { x0: -900, z0: -1200, w: 3400, h: 2900, scale: 0.28 };
   const veilCanvas = paint(Math.round(VEIL.w * VEIL.scale), Math.round(VEIL.h * VEIL.scale), (g, w, h) => {
@@ -209,9 +209,9 @@ export function buildUnexplored(ctx) {
   // dark as the lawn (mapFix3.js, 4). None of its lamps is among the few the
   // map's light pool carries. So over the map it is given what the rooms have,
   // as light laid on it and gone by the time a flight comes down among it
-  // (setVeil): the pavilion's lamplight pooled on the water and the bridge
-  // round it, the moon's road across the pond, the wisteria's violet along the
-  // pergola, and the stone lanterns' amber.
+  // (setVeil): the pavilion's lamplight glittering on the water round its foot
+  // (the water's own: water.js, setMapGlow), the moon's road across the pond,
+  // the wisteria's violet along the pergola, and the stone lanterns' amber.
   const gardenGlows = [];
   if (!map3Old(4)) {
     const rngG = makeRng(1104), gr = (a, b) => a + (b - a) * rngG();
@@ -236,9 +236,7 @@ export function buildUnexplored(ctx) {
       g.fillStyle = grd;
       g.fillRect(0, 0, w, h);
     });
-    // the pavilion's lamplight, on the water and the bridge's deck (under the
-    // roof, which hides the middle of it)
-    glow(pool('255,160,84', [[0, 1], [0.5, 0.82], [0.66, 0.4], [0.84, 0.1], [1, 0]]), PV, [GARDEN_MAP.pavilion.r * 2, GARDEN_MAP.pavilion.r * 2], WATER_Y + 2.4, GARDEN_MAP.pavilion.k);
+    water.setMapGlow({ at: PV, ...GARDEN_MAP.pavilion });
     // the moon on the pond: a wash of it over the whole water, and its road —
     // broken lengths of silver, lying across the way the map looks
     glow(paint(256, 196, (g, w, h) => {
@@ -298,6 +296,7 @@ export function buildUnexplored(ctx) {
       m.material.opacity = m.userData.k * amount;
       m.visible = amount > 0.01;
     }
+    water.map(map3Old(4) ? 0 : amount);
     // (and what is there only over the map: mapFix.js, 7 and 8)
     mapWarm.value = amount;
     // (and the belt of cedars, drawn down out of the map's way: webProps.js, 2)

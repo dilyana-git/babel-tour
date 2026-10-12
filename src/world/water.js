@@ -191,6 +191,14 @@ export function makeWater({ mirror = true } = {}) {
     uShatterAt: { value: new THREE.Vector4(0, -1e6, 0, 0) },
     uShatterRing: { value: new THREE.Vector4(WATER.glowFrom, WATER.glowFade, WATER.glowLean[0], WATER.glowLean[1]) },
     uShatterColor: { value: new THREE.Color('#ff5a2e') },
+    // Over the map (setMapGlow): the lit Pavilion on the water round its foot.
+    // `uMapGlowAt`: its middle (x, z), the foot's reach from it, and the fade
+    // past that; `uMapGlow`: how much of the map is showing, how strong, and
+    // the lean (slope) a facet must have toward it to begin to take it and to
+    // take all of it.
+    uMapGlowAt: { value: new THREE.Vector4(0, 0, 1, 1) },
+    uMapGlow: { value: new THREE.Vector4(0, 0, 0, 1) },
+    uMapGlowColor: { value: new THREE.Color() },
   };
 
   const common = /* glsl */ `
@@ -221,6 +229,9 @@ export function makeWater({ mirror = true } = {}) {
     uniform vec4 uShatterAt;
     uniform vec4 uShatterRing;
     uniform vec3 uShatterColor;
+    uniform vec4 uMapGlowAt;
+    uniform vec4 uMapGlow;
+    uniform vec3 uMapGlowColor;
     varying vec4 vMirrorUv;
 
     // What a reflected ray finds. Not the scene environment — that is a
@@ -405,7 +416,19 @@ export function makeWater({ mirror = true } = {}) {
           }
           vec3 wGlint = wLit * wF;
           wGlint /= 1.0 + max(max(wGlint.r, wGlint.g), wGlint.b) / uKnee;
-          totalEmissiveRadiance += wGlint + wSky * mix(uSky, 1.0, wMir) * wF;`)
+          totalEmissiveRadiance += wGlint + wSky * mix(uSky, 1.0, wMir) * wF;
+          // Over the map, the lit Pavilion on the water: hottest at its foot,
+          // gone a few strides out, and only on the facets of the chop that
+          // lean toward it, so it glitters and moves instead of lying on the
+          // pond as a lit disc. (Seen from above, Fresnel leaves the lamps'
+          // own reflections next to nothing.)
+          if (uMapGlow.x > 0.0) {
+            vec2 toG = uMapGlowAt.xy - vWPos.xz;
+            float dG = max(length(toG), 1e-3);
+            float gRing = exp(-max(dG - uMapGlowAt.z, 0.0) / uMapGlowAt.w);
+            float gLean = smoothstep(uMapGlow.z, uMapGlow.w, dot(-wSlope, toG / dG));
+            totalEmissiveRadiance += uMapGlowColor * (uMapGlow.x * uMapGlow.y * gRing * gLean);
+          }`)
         // ── DEV: what this surface is actually made of ───────────────────
         // window.__water({ debug: n }). Half a dozen terms land on one pixel of
         // water and several of them are warm and broad, so "it looks wrong" is
@@ -601,9 +624,19 @@ export function makeWater({ mirror = true } = {}) {
     shared.uShatterColor.value.set(color);
   };
 
+  // The lit Pavilion's light on the water as the map sees it (above): where it
+  // stands and how it falls off, how strong and what colour; and `map(amount)`
+  // how much of the map is showing.
+  const setMapGlow = ({ at: [x, z], foot, fade, k, lean, color }) => {
+    shared.uMapGlowAt.value.set(x, z, foot, fade);
+    shared.uMapGlow.value.set(shared.uMapGlow.value.x, k, lean[0], lean[1]);
+    shared.uMapGlowColor.value.set(color);
+  };
+  const map = (amount) => { shared.uMapGlow.value.x = amount; };
+
   const dispose = () => { target?.dispose(); };
 
   // (DEV: where the lamps it was handed are, for __water's report)
   const list = () => lamps.map((l) => [+l.p.x.toFixed(1), +l.p.y.toFixed(1), +l.p.z.toFixed(1), +l.power.toFixed(2)]);
-  return { material, surface, reflect, addLamp, setGlow, setViewport, tick, redial, dispose, count: () => lamps.length, list };
+  return { material, surface, reflect, addLamp, setGlow, setMapGlow, map, setViewport, tick, redial, dispose, count: () => lamps.length, list };
 }
