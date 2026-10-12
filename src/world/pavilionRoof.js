@@ -66,17 +66,19 @@ export const roofTop = (t, a, r) => {
   return roofProfile(t, q) + sweep(t, u, q);
 };
 
-// A mesh gathered a triangle at a time, each corner { p, n, t } — wound to
-// agree with the normals it is given.
+// A mesh gathered a triangle at a time, each corner { p, n, t, f } — wound to
+// agree with the normals it is given. `f` (the normal `n` if not given) is the
+// roof's slope under the corner, without the roll it may be on (`aFlat`: see
+// roofFar).
 const gather = () => {
-  const pos = [], nor = [], uv = [];
+  const pos = [], nor = [], uv = [], flat = [];
   const tri = (a, b, c) => {
     const ux = b.p[0] - a.p[0], uy = b.p[1] - a.p[1], uz = b.p[2] - a.p[2];
     const vx = c.p[0] - a.p[0], vy = c.p[1] - a.p[1], vz = c.p[2] - a.p[2];
     const fx = uy * vz - uz * vy, fy = uz * vx - ux * vz, fz = ux * vy - uy * vx;
     if (fx * fx + fy * fy + fz * fz < 1e-12) return;
     const flip = fx * (a.n[0] + b.n[0] + c.n[0]) + fy * (a.n[1] + b.n[1] + c.n[1]) + fz * (a.n[2] + b.n[2] + c.n[2]) < 0;
-    for (const v of flip ? [a, c, b] : [a, b, c]) { pos.push(...v.p); nor.push(...v.n); uv.push(...v.t); }
+    for (const v of flip ? [a, c, b] : [a, b, c]) { pos.push(...v.p); nor.push(...v.n); uv.push(...v.t); flat.push(...(v.f ?? v.n)); }
   };
   return {
     tri,
@@ -86,6 +88,7 @@ const gather = () => {
       g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
       g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
       g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+      g.setAttribute('aFlat', new THREE.Float32BufferAttribute(flat, 3));
       g.computeBoundingSphere();
       return g;
     },
@@ -168,6 +171,7 @@ export function tiledRoof({ at, kind = 'grey', light = false, bronze = false }) 
               p: [c[0] + (S[0] * cs + nn[0] * sn) * rad, c[1] + (S[1] * cs + nn[1] * sn) * rad, c[2] + (S[2] * cs + nn[2] * sn) * rad],
               n: norm([S[0] * cs + nn[0] * sn, S[1] * cs + nn[1] * sn, S[2] * cs + nn[2] * sn]),
               t: [0.61 + 0.18 * (h / TH), v],
+              f: nn,
             };
           });
         };
@@ -185,17 +189,17 @@ export function tiledRoof({ at, kind = 'grey', light = false, bronze = false }) 
           // the tile-end: a round face on the roll's end, looking out
           const c = W(w, rE), nn = N(w, rE), outw = norm(cross(S, nn)), o = outw[0] * OUT[0] + outw[2] * OUT[2] < 0 ? -1 : 1;
           const face = [outw[0] * o, outw[1] * o, outw[2] * o], R = TILE.roll * 1.12;
-          const mid = { p: mix3(mix3(c, nn, R * 0.25), face, 0.12), n: face, t: [0.9, 0.5] };
+          const mid = { p: mix3(mix3(c, nn, R * 0.25), face, 0.12), n: face, t: [0.9, 0.5], f: nn };
           const rim = Array.from({ length: 11 }, (_, h) => {
             const th = (h / 10) * Math.PI * 2;
-            return { p: mix3(mix3(mid.p, S, Math.cos(th) * R), nn, Math.sin(th) * R), n: face, t: [0.9 + 0.085 * Math.cos(th), 0.5 + 0.085 * Math.sin(th)] };
+            return { p: mix3(mix3(mid.p, S, Math.cos(th) * R), nn, Math.sin(th) * R), n: face, t: [0.9 + 0.085 * Math.cos(th), 0.5 + 0.085 * Math.sin(th)], f: nn };
           });
           for (let h = 0; h < 10; h++) tiles.tri(mid, rim[h], rim[h + 1]);
           // and the drip tile between this roll and the next: a tongue hung from the pan's edge
           if (j < lines.length - 1) {
             const wa = w + TILE.roll * 1.1, wb = lines[j + 1] - TILE.roll * 1.1, wm = (wa + wb) / 2;
             const pa = W(wa, rE, 0.1), pb = W(wb, rE, 0.1), pm = mix3(W(wm, rE, 1.15), face, 0.15);
-            tiles.tri({ p: pa, n: face, t: [0.03, 0.03] }, { p: pb, n: face, t: [0.17, 0.03] }, { p: pm, n: face, t: [0.1, 0.2] });
+            tiles.tri({ p: pa, n: face, t: [0.03, 0.03], f: nn }, { p: pb, n: face, t: [0.17, 0.03], f: nn }, { p: pm, n: face, t: [0.1, 0.2], f: nn });
           }
         });
       }
@@ -251,7 +255,7 @@ export function tiledRoof({ at, kind = 'grey', light = false, bronze = false }) 
           return Array.from({ length: RAD + 1 }, (_, h) => {
             const th = (h / RAD) * Math.PI * 2, cs = Math.cos(th), sn = Math.sin(th);
             const nn = [up[0] * cs + b[0] * sn, up[1] * cs + b[1] * sn, up[2] * cs + b[2] * sn];
-            return { p: mix3(centre, nn, pt.rad), n: nn, t: [0.61 + 0.18 * (h / RAD), run / (TILE.len * 4)] };
+            return { p: mix3(centre, nn, pt.rad), n: nn, t: [0.61 + 0.18 * (h / RAD), run / (TILE.len * 4)], f: up };
           });
         });
         for (let i = 0; i < rings.length - 1; i++) for (let h = 0; h < RAD; h++) (bronze && i >= eaveAt - 2 ? horns : tiles).quad(rings[i][h], rings[i][h + 1], rings[i + 1][h + 1], rings[i + 1][h]);
@@ -355,3 +359,40 @@ export const ROOF_SURFACE = {
   green: { roughness: 0.5, sky: 0.45, direct: 0.8 },
   bark: { roughness: 0.96, sky: 0.15, direct: 0.3 },
 };
+
+// Far off, a roll is narrower than a pixel, and the rolls and pans in their
+// rows (pale and dark, lit and turned away) beat against the pixels as moiré.
+// From `near` units off the tiles' shading goes over to the slope's under them
+// (`aFlat`) and their colour to the tile's mean, all of it by `far`: from the
+// Fork the roof is still tile, from the map one tiled surface.
+export const ROOF_FAR = { near: 260, far: 480 };
+export function roofFar(mat) {
+  const inner = mat.onBeforeCompile, key = mat.customProgramCacheKey;
+  mat.onBeforeCompile = (sh, renderer) => {
+    inner?.(sh, renderer);
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', `#include <common>
+        attribute vec3 aFlat;
+        varying vec3 vRoofFlat;`)
+      .replace('#include <beginnormal_vertex>', `#include <beginnormal_vertex>
+        vRoofFlat = normalMatrix * aFlat;`);
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', `#include <common>
+        varying vec3 vRoofFlat;`)
+      .replace('#include <map_fragment>', `#include <map_fragment>
+        float roofFar = smoothstep(${ROOF_FAR.near.toFixed(1)}, ${ROOF_FAR.far.toFixed(1)}, length(vViewPosition));
+        #ifdef USE_MAP
+          diffuseColor.rgb *= mix(vec3(1.0), texture2D(map, vMapUv, 12.0).rgb / max(sampledDiffuseColor.rgb, vec3(0.02)), roofFar);
+        #endif`)
+      .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+        {
+          vec3 roofFlat = normalize(vRoofFlat);
+          #ifdef DOUBLE_SIDED
+            roofFlat *= faceDirection;
+          #endif
+          normal = normalize(mix(normal, roofFlat, roofFar));
+        }`);
+  };
+  mat.customProgramCacheKey = () => `${key.call(mat)}-roof-far`;
+  return mat;
+}
