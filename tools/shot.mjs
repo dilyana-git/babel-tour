@@ -256,16 +256,19 @@ const FINGERPRINT = `(async () => {
   const geo = (g) => !g ? null : str(Object.entries(g.attributes).map(([k, a]) => k + a.itemSize + ':' + arr(a.array)).join('|')
     + (g.index ? 'i' + arr(g.index.array) : '') + JSON.stringify(g.groups) + JSON.stringify(g.drawRange));
   const val = (v) => v === null || v === undefined ? v : v.isTexture ? ['tex', v.image?.width, v.image?.height, v.repeat?.toArray(), v.offset?.toArray(), v.wrapS, v.wrapT, v.colorSpace]
-    : v.isColor ? v.getHexString() : v.toArray ? v.toArray().map((x) => +(+x).toFixed(5)) : typeof v === 'function' ? str(v.toString()) : typeof v === 'number' ? +v.toFixed(5) : v;
+    : v.isColor ? v.getHexString() : v.toArray ? v.toArray().map((x) => +(+x).toFixed(5)) : typeof v === 'number' ? +v.toFixed(5) : v;
+  // (its data, and apart from it the code it carries: a shader patch's source
+  // text changes with a comment, what it compiles to is in \`shaders\`)
   const mat = (m) => {
-    const o = {};
+    const o = {}, code = {};
     for (const k of Object.keys(m).sort()) {
       if (k === 'uuid' || k === 'id' || k === 'version' || k.startsWith('_') || k === 'userData') continue;
       const v = m[k];
+      if (typeof v === 'function') { code[k] = str(v.toString()); continue; }
       o[k] = k === 'uniforms' ? Object.fromEntries(Object.entries(v).map(([n, u]) => [n, Array.isArray(u.value) ? u.value.map(val) : val(u.value)])) : val(v);
     }
-    o.programKey = m.customProgramCacheKey ? m.customProgramCacheKey() : null;
-    return str(JSON.stringify(o));
+    code.programKey = m.customProgramCacheKey ? m.customProgramCacheKey() : null;
+    return str(JSON.stringify(o)) + '/' + str(JSON.stringify(code));
   };
   const objects = [];
   const walk = (o, path) => {
@@ -289,12 +292,15 @@ const FINGERPRINT = `(async () => {
 function compare(a, b) {
   const byPath = (f) => new Map(f.objects.map((o) => [o.path, o]));
   const A = byPath(a), B = byPath(b);
-  const diff = { geometry: [], materials: [], instances: [], light: [], visible: [], type: [], matrix: [] };
+  const diff = { geometry: [], materials: [], 'material code': [], instances: [], light: [], visible: [], type: [], matrix: [] };
   const only = [[...A.keys()].filter((k) => !B.has(k)), [...B.keys()].filter((k) => !A.has(k))];
   for (const [path, x] of A) {
     const y = B.get(path);
     if (!y) continue;
-    for (const k of Object.keys(diff)) if (JSON.stringify(x[k]) !== JSON.stringify(y[k])) diff[k].push(path);
+    for (const k of Object.keys(diff)) {
+      const part = (o) => (k === 'materials' ? o.materials.map((h) => h.split('/')[0]) : k === 'material code' ? o.materials.map((h) => h.split('/')[1]) : o[k]);
+      if (JSON.stringify(part(x)) !== JSON.stringify(part(y))) diff[k].push(path);
+    }
   }
   const sa = new Set(a.shaders), sb = new Set(b.shaders);
   const shaders = [a.shaders.filter((h) => !sb.has(h)).length, b.shaders.filter((h) => !sa.has(h)).length];
