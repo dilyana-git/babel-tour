@@ -55,11 +55,11 @@ export function buildLight(ctx) {
   // ?wlampshadow=1: the first two of them cast shadows — the rails, the
   // balusters, the readers and the stairs laid across the lamplight on the
   // stone. A lamp never moves, so its shadow would be drawn ONCE, when it is
-  // handed to a light, and kept (World.jsx renders shadows only when asked;
-  // see takeShadowRequest). Off unless asked for: two shadowed point lights
-  // put a cube-map lookup for each into every lit material, and on the AMD
-  // integrated GPU this piece is made on, ANGLE's shader compiler never came
-  // back from the programs that made — the frame stopped dead (2026-09-27).
+  // handed to a light, and kept (World.jsx renders shadows only when asked; see
+  // takeShadowRequest). Off unless asked for: two shadowed point lights put a
+  // cube-map lookup for each into every lit material, and on the AMD integrated
+  // GPU this piece is made on, ANGLE's shader compiler does not come back from
+  // the programs that makes — the frame stops dead.
   const LAMP_SHADOWS = !light && typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('wlampshadow') === '1';
   let shadowRequest = false;
   const lightPool = Array.from({ length: POOL }, (_, i) => {
@@ -111,16 +111,15 @@ export function buildLight(ctx) {
     // (the light at the bottom of the Vertigo is 450 down: never among the
     // nearest, and the whole of the well's colour)
     const owns = (w) => (w.column && (w.column[0] - eye.x) ** 2 + (w.column[1] - eye.z) ** 2 < w.column[2] ** 2 ? 1 : 0);
-    // A lamp already lit keeps its place until another is CLEARLY nearer. Sorted
-    // on raw distance, two lamps a reader walks between swap back and forth
-    // across the tie, and a whole gallery's light flickers with their footsteps.
-    // Only the slots inside the budget count for any of this. A slot the
-    // governor has switched off still REMEMBERS the lamp it was lighting, and
-    // if that memory is allowed to count as "held" then no live slot will ever
-    // take that lamp on — it simply goes dark and stays dark. (That is exactly
-    // what happened the first time the budget came down mid-walk: the garden
-    // lost the light under its armillary and never got it back.) A slot that
-    // falls outside the budget fades out like any other and then lets go.
+    // A lamp already lit keeps its place until another is CLEARLY nearer.
+    // Sorted on raw distance, two lamps a reader walks between swap back and
+    // forth across the tie, and a whole gallery's light flickers with their
+    // footsteps. Only the slots inside the budget count for any of this. A slot
+    // the governor has switched off still REMEMBERS the lamp it was lighting,
+    // and if that memory is allowed to count as "held" then no live slot will
+    // ever take that lamp on — it simply goes dark and stays dark (the garden's
+    // armillary, when the budget comes down mid-walk). A slot that falls
+    // outside the budget fades out like any other and then lets go.
     const live = lightPool.slice(0, budget);
     const lit = new Set(live.filter((s) => s.level > 0.05).map((s) => s.wish));
     const rank = (w) => Math.min(near2(w, eye), far ? near2(w, far) : Infinity) * (lit.has(w) ? 0.55 : 1);
@@ -203,16 +202,16 @@ export function buildUnexplored(ctx) {
 
   // ── The garden, seen from the map ─────────────────────────────────────────
   // On the ground it is the most coloured place in the piece — red lacquer,
-  // violet wisteria, amber lanterns, a blue roof under the moon. From the map
-  // it was navy on black: the pavilion a grey disc, the pergola a dark mat of
-  // leaves (the racemes hang under it), the lanterns four dim dots, and the
-  // pond, which takes the sky only at a grazing angle, as dark as the lawn
-  // (mapFix3.js, 4). None of its lamps is among the few the map's light pool
-  // carries. So over the map it is given what the rooms have, as light laid
-  // on it and gone by the time a flight comes down among it (setVeil): the
-  // pavilion's lamplight pooled on the water and the bridge round it, the
-  // moon's road across the pond, the wisteria's violet along the pergola, and
-  // the stone lanterns' amber.
+  // violet wisteria, amber lanterns, a blue roof under the moon. From the map,
+  // by its own light, it is navy on black: the pavilion a grey disc, the
+  // pergola a dark mat of leaves (the racemes hang under it), the lanterns four
+  // dim dots, and the pond, which takes the sky only at a grazing angle, as
+  // dark as the lawn (mapFix3.js, 4). None of its lamps is among the few the
+  // map's light pool carries. So over the map it is given what the rooms have,
+  // as light laid on it and gone by the time a flight comes down among it
+  // (setVeil): the pavilion's lamplight pooled on the water and the bridge
+  // round it, the moon's road across the pond, the wisteria's violet along the
+  // pergola, and the stone lanterns' amber.
   const gardenGlows = [];
   if (!map3Old(4)) {
     const rngG = makeRng(1104), gr = (a, b) => a + (b - a) * rngG();
@@ -270,7 +269,7 @@ export function buildUnexplored(ctx) {
       }
     }), POND.c, [POND.rx * 2, POND.rz * 2], WATER_Y + 0.45, GARDEN_MAP.moon.k);
     // the wisteria: its racemes hang under the pergola's rafters, and from
-    // above there was only the mat of leaves over them
+    // above there is only the mat of leaves over them
     {
       const a = PATHS[0].pts[0], L = dist(a, J), t = [(J[0] - a[0]) / L, (J[1] - a[1]) / L];
       const [z0, z1] = GARDEN_MAP.wisteria.along, mid = add(a, t, (z0 + z1) / 2);
@@ -350,8 +349,8 @@ export function buildUnexplored(ctx) {
   };
   if (!mapOld(7)) [M.step, M.shelf, M.shelfLip, M.floor, M.inlay, pitCarved].forEach((m) => m && pitFade(m));
   // And the tops of the bookcases, which stand to the head of the wall: from
-  // the map each was a pale band inside its cell's rim, timber gone grey under
-  // the moon, and the brightest cold thing left once the coping round it had
+  // the map each would be a pale band inside its cell's rim, timber gone grey
+  // under the moon, the brightest cold thing left once the coping round it has
   // the lamps' light (mapFix4.js, 2). They take it too. (Chained on, as the
   // pit's is.)
   const routeLit = (mat) => {

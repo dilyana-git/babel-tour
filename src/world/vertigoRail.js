@@ -148,7 +148,7 @@ const members = (runs, mouldGeo, iron, wood) => {
 // edge, `at(t)` the rail's line, `tread(t)` and `base(t)` (the top of the open
 // string the bars stand on) at a fraction t of the way down, in `runs`
 // between the gap where the rail has gone. `head`: the newel's place at the
-// stair's head. The rest are buildWorld's.
+// stair's head. The rest are rooms/vertigo.js's.
 export function buildVertigoRail({ level, corners, toHead = true, floor, helix, head, newBatch, M, instances, mouldGeo }) {
   const iron = newBatch(M.iron), wood = newBatch(M.shelf);
   const flat = measure(level.map(([x, z]) => ({ x, z, base: floor, top: floor + H, level: true })));

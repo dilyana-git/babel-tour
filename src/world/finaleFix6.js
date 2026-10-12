@@ -1,30 +1,7 @@
-// The ending, reviewed 2026-10-11 (board 6 of the third audit; the numbers are
-// the board's own). The film has the right shape — gather, recognise, rise —
-// and the rise (2) is kept as it was. What was not right:
-// 1 the close-up was the weakest image, at the film's peak: for several
-//   seconds a smooth orange hood round a black void with a chin in it, a hand's
-//   breadth from the lens. Three ways out of it, all built (CLOSE, below):
-//   (the user chose a, 2026-10-12; b and c are kept behind ?wfinclose)
-//   a never head-on — the one who is the reader comes to stand beside them, a
-//     little ahead, looking where they look, the page lit in its hands and the
-//     face only the hood's edge against the heart's light;
-//   b the angle kept, from further off, so that the book is in the frame and
-//     it is the page that lights the mouth and the jaw from below;
-//   c cut — the eye stays on the others gathered, and rises from there.
-// 3 there was no ending: the film came down on the map, with the card it had
-//   before ("Enter The Web of Time") and one small status line. Now the lit
-//   walk is held under one line; then a quiet colophon; then "Walk it again"
-//   (EntryMap.jsx, map.css).
-// 4 the others were figurines: robes of one cut and one height, set at even
-//   intervals round the court, every one turned to the reader. They are of
-//   different heights now and stand where people stand, nearer and further;
-//   one reads on and does not look up; one is turned to the armillary, its
-//   back to the reader (finale.js). (One more was the reader who had stopped
-//   on the Silence's terrace, sitting on the same stool: not liked, 2026-10-12,
-//   and taken out.)
-// 5 "Skip to the map" stood in the corner of every frame for thirty-four
-//   seconds, the rise included. It sinks to a trace after three, and comes
-//   back when the pointer moves or the screen is touched (EntryMap.jsx).
+// The ending, reviewed 2026-10-11 (audit III, board 6): the close-up (1,
+// CLOSE below: the user chose a), the ending on the map (3), the others (4),
+// the skip button (5).
+// What each point was, and why: docs/design-history.md.
 //
 // ?wfin6=old puts all of them back as they were; ?wfin6=old:1,4 only those.
 // ?wfinclose=a|b|c: which way out of the close-up (1).

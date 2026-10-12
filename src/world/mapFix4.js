@@ -1,15 +1,6 @@
-// What the design board on the opening and the map (2026-10-12, audit IV,
-// board 1) marked, where it is in the world — the points by the board's own
-// numbers:
-// 2  the paving was neutral grey, and most of the picture. The wall tops
-//    between and round the cells take about two fifths of the frame, and what
-//    lit them along the walk was the map's moon alone — a cool grey-white on
-//    pale stone — while every lamp inside the rooms is warm: "moonlit
-//    concrete" before "library". Over the map the light that falls on the
-//    wall tops is the lamps' own colour, and less of it, so the lit rooms
-//    are the brightest things on the page. It is the colour of the light on
-//    that stone (buildWorld.js, stoneShade): the moon is as it was on the
-//    garden and down in the rooms, and nothing is laid over the picture.
+// The opening and the map (2026-10-12, audit IV, board 1): the light on the
+// wall tops over the map, the lamps' colour (2).
+// What each point was, and why: docs/design-history.md.
 //
 // ?wmap4=old puts it back as it was; ?wmap4=old:2 only that point.
 const Q = typeof location !== 'undefined' ? new URLSearchParams(location.search) : new URLSearchParams();

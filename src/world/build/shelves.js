@@ -166,8 +166,8 @@ export function buildBooks(ctx) {
       // rest of the Library, seen only from over the walls, a shelf is its
       // painted row of them (bookRows), a stretch of the strip.
       const real = detail >= 2;
-      // The case's back, brought forward to stand behind the books: a giant
-      // folio was 9 deep, a real one is 3.
+      // The case's back, brought forward to stand behind the books: a real
+      // folio is 3 deep.
       if (real) LB.shelfBack.add(boxGeo(on(s0, CASE_BACK - 0.5), on(s1, CASE_BACK - 0.5), yTop - yBottom, 1, yBottom));
       const spin = Math.atan2(inward[0], inward[1]);
       const paintedBay = (tier, sy, clear, ua, ub, target = LB.bookRows) => {
@@ -365,16 +365,16 @@ export function buildBooks(ctx) {
         }
       }
     }
-    // A plinth on the floor — with a ledge at hand height to lay a book open on,
-    // and a raised panel in each bay — and a stepped cornice along the top.
+    // A plinth on the floor — with a ledge at hand height to lay a book open
+    // on, and a raised panel in each bay — and a stepped cornice along the top.
     //
-    // One top at the height the books stand on, never two or three. The
-    // lowest shelf board, the plinth and the ledge all used to end level
-    // there, and since each piece of wood took its own stretch of grain the
-    // three fought for every pixel of it: streaks of one board's figure and
-    // another's that reshuffled with every step. So the lowest tier has no
-    // board (the plinth is its shelf; 2.4 tall at least, so it holds all the
-    // board did), and under a ledge the plinth stops at the ledge's foot.
+    // One top at the height the books stand on, never two or three. If the
+    // lowest shelf board, the plinth and the ledge all end level there, each
+    // piece of wood takes its own stretch of grain and the three fight for
+    // every pixel of it: streaks of one board's figure and another's that
+    // reshuffle with every step. So the lowest tier has no board (the plinth is
+    // its shelf; 2.4 tall at least, so it holds all a board would), and under a
+    // ledge the plinth stops at the ledge's foot.
     const ledge = detail >= 1 && from === 0;
     const plinthH = yBottom > 12 ? 2.4 : ledge ? 3.2 : 4;
     LB.shelf.add(boxGeo(on(s0 - 1.5, 7), on(s1 + 1.5, 7), plinthH, 14, yBottom - (yBottom > 12 ? 2.4 : 4)));
@@ -550,12 +550,10 @@ export function buildFurniture(ctx) {
     g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.divideScalar(L)));
     return g.translate(a[0], a[1], a[2]);
   };
-  // A bow-back Windsor, the chair a reading room actually had: a thick
-  // rounded seat, four splayed legs turned with a ring where an H of turned
-  // stretchers enters them, and a bent hoop raked back over seven spindles.
-  // (It was a box on four sticks with a ladder of two rails for a back, and
-  // a hand's breadth taller than a chair.) Built facing -z, the way the old
-  // one sat; a unit is 9.4 cm, so the seat is at 45 cm and the hoop at 95.
+  // A bow-back Windsor, the chair a reading room actually had: a thick rounded
+  // seat, four splayed legs turned with a ring where an H of turned stretchers
+  // enters them, and a bent hoop raked back over seven spindles. Built facing
+  // -z; a unit is 9.4 cm, so the seat is at 45 cm and the hoop at 95.
   const windsorChair = () => {
     const SEAT = 4.8, parts = [];
     // The seat: a D, straight sides and front and a round back, its edge
@@ -607,16 +605,13 @@ export function buildFurniture(ctx) {
     }
     return parts.map((g) => g.rotateY(Math.PI));
   };
-  // A table against the cases with its lamp, an open book, a closed one with
-  // a smaller one on it, a stack on the floor by the leg and the chair pushed
-  // back from it. `lit`: in the Silence the lamp is out and the chair was
-  // left turned away.
+  // A table against the cases with its lamp, an open book, a closed one with a
+  // smaller one on it, a stack on the floor by the leg and the chair pushed
+  // back from it. `lit`: in the Silence the lamp is out and the chair was left
+  // turned away.
   //
-  // The books are the size of books a person reads at a table: folios of
-  // 35-46 cm. (They were drawn at the shelves' size, and the shelves are
-  // eleven metres of giants: the shut one was 80 cm long, the stack on the
-  // floor was a metre wide and stood higher than the table, and it stood
-  // round the table's leg.)
+  // The books are the size of books a person reads at a table: folios of 35-46
+  // cm.
   const readingCorner = (c, k, u0, { lit = true } = {}) => {
     const { on, turn } = alongWall(c, k);
     const TOP = 6 + 7.6, Z = 22;
@@ -631,11 +626,10 @@ export function buildFurniture(ctx) {
       LB.shelf.add(turned(TLEG, [q[0], 6, q[1]], [q[0], KNEE, q[1]], 12));
       LB.shelf.add(placed(new THREE.BoxGeometry(0.9, TOP - 0.7 - KNEE, 0.9), q, (KNEE + TOP - 0.7) / 2, turn));
     }
-    // the lamp: a brass foot and stem, and an amber shade with the bulb
-    // glowing through it — light at the height of a reader's hands, which
-    // nothing else in the Library gave. A desk lamp's size, 50 cm with a 36 cm
-    // shade: once the books were cut to the size of books it had become the
-    // biggest thing on the table.
+    // the lamp: a brass foot and stem, and an amber shade with the bulb glowing
+    // through it — light at the height of a reader's hands, which nothing else
+    // in the Library gives. A desk lamp's size, 50 cm with a 36 cm shade, so
+    // that it is not the biggest thing on the table.
     const lp = on(u0 + 5, Z - 1.5);
     LB.bronze.add(placed(new THREE.CylinderGeometry(1.05, 1.25, 0.32, 18), lp, TOP + 0.16));
     LB.bronze.add(placed(new THREE.CylinderGeometry(0.15, 0.15, 4.3, 8), lp, TOP + 2.45));
@@ -673,12 +667,11 @@ export function buildFurniture(ctx) {
     const cp = on(u0 - 3.5, Z + 8), ct = turn + (lit ? 0.35 : 1.1);
     for (const g of windsorChair()) LB.shelf.add(placed(g, cp, 6, ct));
   };
-  // A reader standing far off in a gallery the walk only looks into. They
-  // were a robe turned on a lathe — a profile spun round an axis, wide at the
-  // hem and pointed at the hood — and from anywhere near that was a pawn, the
-  // same from every side, with no shoulders and no arms. They are the walking
-  // readers' own figure now (readers.js), cut coarser than a near one needs
-  // and all gathered into one mesh once the galleries are built (below).
+  // A reader standing far off in a gallery the walk only looks into: the
+  // walking readers' own figure (readers.js), cut coarser than a near one needs
+  // and all gathered into one mesh once the galleries are built (below). (Not a
+  // robe turned on a lathe: from anywhere near, that is a pawn, the same from
+  // every side, with no shoulders and no arms.)
   const distantReaders = [];
   const figure = (p, y) => {
     distantReaders.push({ p, y, ry: rr(0, Math.PI * 2) });
@@ -695,9 +688,9 @@ export function buildFurniture(ctx) {
   // units of where a reader stands that becomes a hundred-unit disc of light in
   // FRONT of the room, and the gallery goes milky. Lamps near a stand turn it down.
   const lamp = (p, { y = LAMP_Y, light: power = 0, priority = 0, color = '#ffb466', strength = 1, pool = 0.3, poolSize = 200, poolY = 6.6, poolAt = p, r = 9, beam = true, out = false, haze = 1, chain = Infinity, link = 1 } = {}) => {
-    // One opal globe, the size the bright core used to be. There is no clear
-    // shell round it any more: a lit globe is the light (makeLampGlobeMaterial),
-    // a dead one is the same globe in cold, dull glass.
+    // One opal globe, with no clear shell round it: a lit globe is the light
+    // (makeLampGlobeMaterial), a dead one is the same globe in cold, dull
+    // glass.
     const G = r * 0.55;
     (out ? deadGlobes : globes).push({ p: [p[0], y, p[1]], s: [G, G, G], ...(out ? {} : { color: '#fff3e2', k: 0.45 + strength * 0.5 }) });
     // The fitting sits ON the globe, outside it: a collar gripping its neck, a
@@ -711,10 +704,10 @@ export function buildFurniture(ctx) {
     // `chain`: how far up the links are drawn before the dark is left to say
     // the rest. A lamp in a gallery hangs from the top of the wall and its
     // whole chain is part of the room. A lamp hung in the Vertigo's well hangs
-    // four hundred units down, and drawing every link of that put a black cable
-    // from the top of the frame to the bottom across the one thing the room is
-    // for — the look down the funnel. The chain still rises out of the light;
-    // it just stops being drawn once there is nothing left to light it.
+    // four hundred units down, and drawing every link of that puts a black
+    // cable from the top of the frame to the bottom across the one thing the
+    // room is for — the look down the funnel. The chain still rises out of the
+    // light; it just stops being drawn once there is nothing left to light it.
     const chainTop = Math.min(MASS_H + 40, y + G * 1.58 + chain);
     for (let cy = y + G * 1.58, k = 0; cy < chainTop; cy += 1.55 * link, k++) {
       links.push({ p: [p[0], cy, p[1]], rot: [0, k % 2 ? Math.PI / 2 : 0, 0], s: [link, link, link] });
@@ -737,12 +730,11 @@ export function buildFurniture(ctx) {
   };
 
   // ── Light from far down the Vestibule's well ─────────────────────────────
-  // From the stand, under the bridge, the well was a flat black slab beside
-  // it: nothing said it went down. Now its walls are lit from somewhere far
-  // below, warmly and faintly — none at the lip, more the further down the
-  // eye goes — so the dark under the bridge reads as depth (review
-  // 2026-10-08, point 7; ?wvest=old:7). A sheet of lit air laid just inside
-  // the liner, as the light columns are: no lamp, nothing to cost.
+  // Its walls are lit from somewhere far below, warmly and faintly — none at
+  // the lip, more the further down the eye goes — so the dark under the bridge
+  // reads as depth and not as a flat black slab beside it (vestFix.js, 7;
+  // ?wvest=old:7). A sheet of lit air laid just inside the liner, as the light
+  // columns are: no lamp, nothing to cost.
   const wellGlowMat = keep(new THREE.ShaderMaterial({
     uniforms: { uColor: { value: new THREE.Color('#ff9d58') }, uStrength: { value: 0.24 } },
     vertexShader: /* glsl */ `
@@ -815,13 +807,11 @@ export function buildFurniture(ctx) {
   // `cut`: how much shorter the hallway is at its -n and +n ends, where the
   // room there (the Echo) stands further out into its walls.
   const archivoltGeo = keep(new THREE.TorusGeometry(ARCH_R + 1.6, 1.6, 8, 28, Math.PI));
-  // The ring as it would be built: thirteen voussoirs, each cut to the
-  // arch's centre, the keystone longer and standing out further,
-  // set a little proud of the wall on a bed of mortar that shows in their
-  // joints. (It was a smooth round moulding with a box for a keystone; with
-  // the wall's blocks a torso high every face of every arch looked the same —
-  // review 2026-10-08, point 5; ?wvest=old:5 puts the moulding back.) Built in
-  // the arch's own frame, x across, y up, z out of the face: `z0`..`z1`.
+  // The ring as it would be built: thirteen voussoirs, each cut to the arch's
+  // centre, the keystone longer and standing out further, set a little proud of
+  // the wall on a bed of mortar that shows in their joints (vestFix.js, 5;
+  // ?wvest=old:5 puts the old smooth moulding back). Built in the arch's own
+  // frame, x across, y up, z out of the face: `z0`..`z1`.
   const VOUSSOIRS = 13, V_DEEP = 3.4, V_JOINT = 0.012;
   const ringBlock = (a0, a1, ri, ro, z0, z1) => {
     const at = (a, r) => [Math.cos(a) * r, ARCH_SPRING + Math.sin(a) * r];
@@ -840,8 +830,8 @@ export function buildFurniture(ctx) {
       const a0 = (Math.PI * k) / VOUSSOIRS, a1 = (Math.PI * (k + 1)) / VOUSSOIRS;
       // the stone, a hair under the soffit (never in its plane) and clear of its neighbours
       stones.push(ringBlock(a0 + V_JOINT, a1 - V_JOINT, ARCH_R - 0.06, ARCH_R + (key ? V_DEEP + 1.3 : V_DEEP), zFace - 0.05, zFace + (key ? 0.95 : 0.6)));
-      // and the mortar behind it, set back from its face, filling its joints
-      // (a piece to each stone: cut by the quarter, its straight edges were
+      // and the mortar behind it, set back from its face, filling its joints (a
+      // piece to each stone: cut by the quarter, its straight edges would be
       // two dark beams across the opening)
       beds.push(ringBlock(a0, a1, ARCH_R - 0.03, ARCH_R + V_DEEP - 0.1, zFace - 0.05, zFace + 0.42));
     }
@@ -930,10 +920,9 @@ export function buildFurniture(ctx) {
     LB.floor.add(slabGeo(hexPts(c, RC), shaft ? [hexPts(c, shaft + 0.5)] : [], 6, 0));
     // A floor with a plan to it: a band of darker stone along the foot of the
     // cases with a brass fillet on its inner edge, and a ring of the pale stone
-    // round the lip of the well. One grid from wall to well said nothing about
-    // where the room's edge was, or its middle.
-    // (the band follows the cases out in a wider room; the ring round the
-    // well stays with the well)
+    // round the lip of the well. One grid from wall to well says nothing about
+    // where the room's edge is, or its middle. (the band follows the cases out
+    // in a wider room; the ring round the well stays with the well)
     const rim = rimAt(c), wider = rim - R;
     if (lit) {
       LB.floorBand.add(slabGeo(hexPts(c, 83.8 + wider), [hexPts(c, 72.4 + wider)], 0.1, 6));
@@ -982,17 +971,11 @@ export function buildFurniture(ctx) {
       const inward = [-e.n[0], -e.n[1]];
       if (halls.includes(k)) {
         // "In the hallway there is a mirror, which faithfully duplicates all
-        // appearances." It was a slab: 44 tall, the whole length of the
-        // passage, standing out from the wall and running through the jambs of
-        // both doorways — from either room the way through looked half walled
-        // up by something black. Now it is a glass hung ON the wall, in a
-        // frame, stopping short of both openings so each doorway keeps its
-        // jambs and reads as a door.
-        // (2026-10-06: it still read as a blackboard — a panel of rough metal
-        // showing a blur of the environment and nothing of the room — and the
-        // Library's mirrors hang now as pier glasses either side of a
-        // gallery's way out, below. The stream is drawn here exactly as it
-        // was; ?wglass=old hangs these again.)
+        // appearances." With ?wglass=old, a glass hung ON the hallway's wall,
+        // in a frame, stopping short of both openings so each doorway keeps its
+        // jambs and reads as a door. Otherwise the Library's mirrors hang as
+        // pier glasses either side of a gallery's way out (below). The stream
+        // is drawn here either way.
         if (k === 5 && (lit || (framed && rnd() < 0.4) || cell.k === WAY_IN.to) && GLASS_OLD) {
           const on = (along, z) => add(add(e.mi, e.n, along), e.t, z);
           // (from this room's face to the next one's, a hallway into the Echo
@@ -1021,13 +1004,13 @@ export function buildFurniture(ctx) {
             deep.forEach((g) => LB.giltDeep.add(g));
           }
         }
-        // A string course over the Vestibule's way out (libFix3.js, 6): the
-        // wall over the arch was flat block going to black, the top third of
-        // the room's first frame. A moulded course in the pale stone three
-        // units over the keystone, from corner case to corner case — a bed
-        // fillet, a cove, a fascia and a weathered top — and a lamp-rail lying
-        // on its ledge, out of sight from the floor, washing the stone over it
-        // as the cases' rails wash their top shelves.
+        // A string course over the Vestibule's way out (libFix3.js, 6), or the
+        // wall over the arch is flat block going to black, the top third of the
+        // room's first frame. A moulded course in the pale stone three units
+        // over the keystone, from corner case to corner case — a bed fillet, a
+        // cove, a fascia and a weathered top — and a lamp-rail lying on its
+        // ledge, out of sight from the floor, washing the stone over it as the
+        // cases' rails wash their top shelves.
         if (k === 5 && lit && room === 0 && !lib3Old(6)) {
           const p = STRING.proud, y = STRING.y;
           const half = [[1.0, 0, true], [1.0, 0.5, true], [1.2, 0.85], [1.6, 1.4], [p, 1.9, true], [p, 3.3, true], [1.1, 4.0, true]];
@@ -1036,11 +1019,10 @@ export function buildFurniture(ctx) {
           stringWash.a.value.set(e.mi[0], e.mi[1], y + 4, STRING.glow);
           stringWash.b.value.set(e.t[0], e.t[1], rimAt(c) / 2, 0);
         }
-        // Books over the Echo's ways out (echoFix.js, 7). The room is named
-        // for repetition, and through the upper arcade every bay showed
-        // shelves but these two, which were bare ashlar from the arch to the
-        // cornice. The top tier runs right across over the arch (its apex is
-        // at 76, the tier begins at 94); the two below it stand on the piers
+        // Books over the Echo's ways out (echoFix.js, 7): the room is named for
+        // repetition, and through the upper arcade every bay shows shelves,
+        // these two too. The top tier runs right across over the arch (its apex
+        // is at 76, the tier begins at 94); the two below it stand on the piers
         // either side, over the pier glasses (whose heads are under 50), from
         // the corner to a few units clear of the arch's voussoirs. Drawing
         // nothing from the world's stream (`stream: 0`): the books are the
@@ -1073,14 +1055,13 @@ export function buildFurniture(ctx) {
         // (the Vestibule's well rail is laid with its bridge, as one run
         // round each half of the well: vestibuleBridge.js)
       } else if (lit && room === 1 && ECHO_KERB) {
-        // The Echo's well is the one its bridge stands over, and the bronze
-        // rail round it ran under both flights' arches a hand's breadth
-        // below their soffits: a turned rail of another metal and another
-        // shape, at the height of a parapet, under the stone one — "like a
-        // bridge over a bridge" (2026-10-07). So a kerb instead, in the
-        // balustrades' stone: a plinth, a plain die and a rounded coping,
-        // 46 cm high, the well's lip and no kind of rail. (Carved stone,
-        // not a stair: body.js takes no step up onto it, and no crest.)
+        // The Echo's well is the one its bridge stands over: a bronze rail
+        // round it would run under both flights' arches a hand's breadth below
+        // their soffits, a turned rail of another metal and another shape under
+        // the stone one. So a kerb instead, in the balustrades' stone: a
+        // plinth, a plain die and a rounded coping, 46 cm high, the well's lip
+        // and no kind of rail. (Carved stone, not a stair: body.js takes no
+        // step up onto it, and no crest.)
         const ring = hexPts(c, shaft + 1.4), mid = lerp2(ring[5], ring[0], 0.5);
         const loop = [mid, ...ring, mid].map(([x, z]) => [x, 6, z]);
         const box = (half, y0, y1) => [[-half, y0, true], [half, y0, true], [half, y1, true], [-half, y1, true]];
@@ -1091,18 +1072,18 @@ export function buildFurniture(ctx) {
         // a turned bronze balustrade round the well: base, balusters, rail
         LB.bronze.add(slabGeo(hexPts(c, shaft + 2.8), [hexPts(c, shaft)], 1.4, 6));
         LB.bronze.add(slabGeo(hexPts(c, shaft + 2.4), [hexPts(c, shaft + 0.4)], 0.7, 7.4));
-        // The rail was three flat rings stacked into a plank, the nearest and
-        // largest thing in most frames and the least interesting. Now a bead,
-        // a neck, and a rounded handrail on them, rubbed bright on top where
-        // hands have gone round it — six straight lengths, their joints closed
-        // by a knuckle of the same section, and in the Vestibule (the one well
-        // no stair crosses at a corner) a newel standing on each corner.
+        // The rail: a bead, a neck, and a rounded handrail on them, rubbed
+        // bright on top where hands have gone round it — six straight lengths,
+        // their joints closed by a knuckle of the same section, and in the
+        // Vestibule (the one well no stair crosses at a corner) a newel
+        // standing on each corner.
         //
-        // And LOW. "The ventilation shafts are surrounded by very low railings",
-        // Borges says, and at a man's hip the rail stood across the lower third
-        // of every stand's view, two paces away and the largest thing in it.
-        // At a reader's knee (the handrail tops at 12.5, 60 cm up) it lies along
-        // the bottom edge of the frame and the room has its floor again.
+        // And LOW. "The ventilation shafts are surrounded by very low
+        // railings", Borges says, and at a man's hip the rail would stand
+        // across the lower third of every stand's view, two paces away and the
+        // largest thing in it. At a reader's knee (the handrail tops at 12.5,
+        // 60 cm up) it lies along the bottom edge of the frame and the room has
+        // its floor.
         LB.bronzeDim.add(slabGeo(hexPts(c, shaft + 2.9), [hexPts(c, shaft - 0.1)], 0.6, 10.5));
         {
           const corners = hexPts(c, shaft + 1.4);
@@ -1111,8 +1092,8 @@ export function buildFurniture(ctx) {
             LB.bronzeWorn.add(placed(new THREE.SphereGeometry(1.3, 18, 12).scale(1, 0.6, 1), q, 11.8));
             if (room === 0) {
               LB.bronzeDim.add(placed(new THREE.CylinderGeometry(0.95, 1.25, 5.4, 14), q, 6 + 2.7));
-              // capped low and moulded: the ball it wore was the nearest,
-              // brightest round thing in the Vestibule's first frame
+              // capped low and moulded: a ball would be the nearest, brightest
+              // round thing in the Vestibule's first frame
               LB.bronzeWorn.add(placed(new THREE.CylinderGeometry(1.15, 0.95, 0.55, 16), q, 12.75));
               LB.bronzeWorn.add(placed(new THREE.SphereGeometry(0.62, 14, 8).scale(1, 0.55, 1), q, 13.1));
             }
@@ -1121,11 +1102,11 @@ export function buildFurniture(ctx) {
         const ringPts = hexPts(c, shaft + 1.4);
         ringPts.forEach((q, k) => {
           // One baluster every 6.4 rather than every 4.2. At the tighter
-          // spacing the rail round the well was a picket fence: from a
-          // reader's eye the turned shafts closed up into a solid bronze band
-          // across the bottom of the frame, and the floor and the well behind
-          // it were both lost. Spaced out you see between them, and the room
-          // keeps its floor.
+          // spacing the rail round the well is a picket fence: from a reader's
+          // eye the turned shafts close up into a solid bronze band across the
+          // bottom of the frame, and the floor and the well behind it are both
+          // lost. Spaced out you see between them, and the room keeps its
+          // floor.
           const next = ringPts[(k + 1) % 6], n = Math.floor(dist(q, next) / 6.4);
           for (let s = 0; s < n; s++) {
             const b = lerp2(q, next, (s + 0.5) / n);
@@ -1148,8 +1129,9 @@ export function buildFurniture(ctx) {
       if (rnd() < 0.3) figure(add(c, dir(rr(0, 360)), shaft + 12), 6);
     }
     if (lit) {
-      // Dust, not a snowstorm. At 26 a gallery of it read as sparkle rather than
-      // air — and the eye goes to whatever moves, which was the wrong thing.
+      // Dust, not a snowstorm. At 26 a gallery of it reads as sparkle rather
+      // than air — and the eye goes to whatever moves, which is the wrong
+      // thing.
       for (let s = 0; s < (light ? 6 : 14); s++) {
         const p = add(c, dir(rr(0, 360)), rr(0, R * 0.8));
         dust.push({ p: [p[0], rr(12, MASS_H - 10), p[1]], s: Array(3).fill(rr(0.4, 0.9)), color: '#ffdca8', k: rr(0.16, 0.4), phase: rr(0, 100) });

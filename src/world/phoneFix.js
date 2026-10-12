@@ -1,21 +1,6 @@
-// What the design board on the phone (2026-10-09, board 14, "In the hand")
-// marked REFINE, where it is in the world and its camera — the points by the
-// board's own numbers (the rest of that board is the page's: EntryMap.jsx,
-// Assembly.jsx and map.css, under `.is-tall`):
-// 3  the map was a thumbnail. Its stage was a 1440 × 900 strip (244 px tall
-//    on a 390 × 844 screen) and the walk lay nearly flat across it, so the
-//    width was all it used: rooms 46 px across, the garden's three in one
-//    knot. The stage is half the screen now (map.css), and on it the map's
-//    camera is turned to look along the walk (plan.js, yawFor), which then
-//    climbs from the bottom left corner to the garden in the top right and is
-//    fitted to the stage's diagonal: half as large again.
-// 8  standing in a room, a tall screen saw a slot of it. The lens is set by
-//    its height (58°), so upright a phone was given 29° across where a
-//    laptop has 89°: in the Pavilion, two columns and the lantern, and none
-//    of the water or the bridge that make it the Pavilion. A tall screen's
-//    lens opens until it sees TALL_VIEW.across from side to side (and no
-//    wider than TALL_VIEW.most from top to bottom) — the step back the board
-//    asked for, taken with the lens, since behind most stands there is a wall.
+// The phone, in the world and its camera (2026-10-09, board 14): the map's
+// stage (3) and a tall screen's lens (8).
+// What each point was, and why: docs/design-history.md.
 //
 // ?wphone=old puts both back as they were; ?wphone=old:3 only that one.
 const Q = typeof location !== 'undefined' ? new URLSearchParams(location.search) : new URLSearchParams();

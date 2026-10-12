@@ -23,9 +23,8 @@ export function buildVestibule(ctx) {
     // "A bridge of stone carries a file of readers across the dark on its own
     // arch" — so it has one. A segmental arch springing off the lip of the well
     // at ±44, two courses thick at the crown and eight at the springing, with
-    // the deck laid over it. It was a flat slab 110 long and 6 thick, and being
-    // the first thing seen in the first room it was a quarter of the frame of
-    // untextured brown.
+    // the deck laid over it. The first thing seen in the first room: as a flat
+    // slab it would be a quarter of the frame of untextured brown.
     const soffit = [];
     for (let k = 0; k <= 26; k++) {
       const u = 44 - (k / 26) * 88;
@@ -74,32 +73,32 @@ export function buildVestibule(ctx) {
       for (let u = -52; u <= 52; u += 13) {
         const q = add(add(c, ax, u), px, side * 8);
         LB.bronze.add(placed(new THREE.CylinderGeometry(0.55, 0.7, 8.4, 8), q, 16.2));
-        // A ball only where the rail ends. One on every post was a row of
-        // knobs along the bridge, a toy's rail; between, a collar where the
-        // rail passes over the post.
+        // A ball only where the rail ends. One on every post is a row of knobs
+        // along the bridge, a toy's rail; between, a collar where the rail
+        // passes over the post.
         if (Math.abs(u) === 52) LB.bronze.add(placed(new THREE.SphereGeometry(0.95, 10, 8), q, 20.6));
         else LB.bronze.add(placed(new THREE.CylinderGeometry(0.85, 0.85, 0.5, 10), q, 19.1));
       }
     }
-    // A FILE of readers, not a queue. Seven at thirteen apart stood shoulder to
+    // A FILE of readers, not a queue. Seven at thirteen apart stand shoulder to
     // shoulder across the whole width of the frame — a row of near-identical
     // dark blobs with no gap to see the bridge, the arch or the far side
-    // through. Four, spread down the length of it, read as people crossing:
-    // the eye gets between them, and the bridge gets to be a bridge. They
-    // walk it now (walkers.js, built under the lectern below). Their old
-    // places' draws stay: the world's random stream is shared, and everything
-    // built after this would otherwise be shuffled.
+    // through. Four, spread down the length of it, read as people crossing: the
+    // eye gets between them, and the bridge gets to be a bridge. They walk it
+    // (walkers.js, built under the lectern below). The draws of the places they
+    // once stood in are still made: the world's random stream is shared, and
+    // everything built after this would otherwise be shuffled.
     for (let k = 0; k < 4; k++) { rr(-2, 2); rr(-1.2, 1.2); rr(0, Math.PI * 2); }
     // Low, and only these two: "two lamps keep the gap they cross". Hung at
-    // lamp height with the rest they lit the whole hexagon evenly and the room
-    // became the same room as the Echo — these sit just above the readers'
-    // heads, so the bridge is an island of light and the gallery falls away.
-    // (their pools laid on the floor, as the reading corner's is: at the
-    // default 6.6 they drew a pale sock round the foot of every leg in the room)
-    // (their halos turned down as the lamps by the other stands are: at the
-    // full 111 units across, the near one's laid a pale band down the whole
+    // lamp height with the rest they would light the whole hexagon evenly and
+    // the room would be the same room as the Echo — these sit just above the
+    // readers' heads, so the bridge is an island of light and the gallery falls
+    // away. (their pools laid on the floor, as the reading corner's is: at the
+    // default 6.6 they draw a pale sock round the foot of every leg in the
+    // room) (their halos turned down as the lamps by the other stands are: at
+    // the full 111 units across, the near one's lays a pale band down the whole
     // bay of shelves behind it, from the top of the frame to the rail, which
-    // read as a smear on the lens — review 2026-10-08, point 6)
+    // reads as a smear on the lens — vestFix.js, 6)
     const BRIDGE_HAZE = vestOld(6) ? 1 : 0.45;
     lamp(add(c, ax, -64), { y: 42, light: 9000, priority: 8, strength: 1.3, pool: 0.42, poolSize: 150, poolY: 6.15, haze: BRIDGE_HAZE });
     lamp(add(c, ax, 64), { y: 42, light: 9000, priority: 5, strength: 1.3, pool: 0.42, poolSize: 150, poolY: 6.15, haze: BRIDGE_HAZE });
@@ -131,11 +130,11 @@ export function buildVestibule(ctx) {
       });
     }
     // The card catalogue, at the other end of the wall with the reading table:
-    // six drawers across and seven high, each the size a drawer of index
-    // cards is (15 × 11 cm), with a brass frame for its card and a pull under
-    // it, the case on a stand with the reference slide drawn out. (It had
-    // four drawers across and six high, 26 cm wide, with 10 cm labels: from
-    // the floor it read as a chest of drawers, and the labels as pale tiles.)
+    // six drawers across and seven high, each the size a drawer of index cards
+    // is (15 × 11 cm), with a brass frame for its card and a pull under it, the
+    // case on a stand with the reference slide drawn out. (Fewer, bigger
+    // drawers with big labels read from the floor as a chest of drawers, and
+    // the labels as pale tiles.)
     {
       const { on, turn } = alongWall(c, 4);
       const COLS = 6, ROWS = 7, DW = 1.6, DH = 1.15, ST = 0.12, SIDE = 0.3, DP = 5, LEGS = 2.2;
@@ -200,13 +199,13 @@ export function buildVestibule(ctx) {
       const vrr = (a, b) => a + (b - a) * vr();
       const Y0 = MASS_H + CAP;
       // Nine turns, each 38 high and 12% narrower than the last: from the wall
-      // tops to a throat a third as wide, 340 up. SEG treads to a turn.
-      // Every turn is the turn below it made smaller: 12% narrower, 12% lower,
-      // its shelves, books, rail and lamps all 12% smaller. So the turns do
-      // not stop — they close in on a point 290 up, books to the last of them,
-      // the way a picture of a library inside a picture of that library does.
-      // (Built at one size and faded into black, the top of it was a dark lid,
-      // and the reader could see where the library ended.)
+      // tops to a throat a third as wide, 340 up. SEG treads to a turn. Every
+      // turn is the turn below it made smaller: 12% narrower, 12% lower, its
+      // shelves, books, rail and lamps all 12% smaller. So the turns do not
+      // stop — they close in on a point 290 up, books to the last of them, the
+      // way a picture of a library inside a picture of that library does.
+      // (Built at one size and faded into black, the top of it would be a dark
+      // lid, and the reader could see where the library ends.)
       const TURNS = light ? 11 : 18, SEG = light ? 24 : 36, PITCH = 38, R0 = 97, SHRINK = 0.88;
       const SHELF = 8, WALK = 10, TREAD = 2.6;
       const N = TURNS * SEG, LN = -Math.log(SHRINK);
@@ -302,7 +301,7 @@ export function buildVestibule(ctx) {
         const along = new THREE.Vector3().crossVectors(UP, inn).normalize();
         const rows = [[y + 1.8 * f, PH * 0.5 - 2.6 * f], [y + PH * 0.5 + 1.4 * f, PH * 0.5 - TREAD * f - 4.8 * f]];
         // In the first turn the tread climbs away from the wall tops, and the
-        // bookcase under it — down to the stone — was a bare dark board as
+        // bookcase under it — down to the stone — would be a bare dark board as
         // tall as the whole bay by the end of the turn. It gets shelves too.
         if (i < SEG) {
           const under = y - 6 * f - Y0;
@@ -314,19 +313,19 @@ export function buildVestibule(ctx) {
         }
         for (const [yb, room] of rows) {
           if (!BOOKS_GIANT) {
-            // Real books (2026-10-06): a giant's shelf here is three or four
-            // of quartos, each a painted row of them (bookRows) set down
-            // whole. Seen from the floor, a hundred and more below, a book is
-            // a pixel or two across; boxes for them all were tens of thousands.
+            // Real books: a giant's shelf here is three or four of quartos,
+            // each a painted row of them (bookRows) set down whole. Seen from
+            // the floor, a hundred and more below, a book is a pixel or two
+            // across; boxes for them all would be tens of thousands.
             const n = Math.max(1, Math.round(room / (4.1 * f))), pitch = room / n, rf = r - 7.4 * f, wr = chord(rf) * 0.97;
             for (let j = 0; j < n; j++) {
               const sy = yb + j * pitch, clear = pitch - (j < n - 1 ? 0.4 * f : 0);
               if (j > 0) put('wood', at(r - (SHELF / 2) * f, a, sy - 0.2 * f), inn, [chord(r), 0.4 * f, SHELF * f], tint('#4a3526', k), order + 0.001);
               const { top: vt, base: vb } = rowV[BOOK_ROWS.variants + Math.floor(vr() * BOOK_ROWS.variants)];
               const from = inn.clone().multiplyScalar(vrr(28, 60)).add(new THREE.Vector3(vrr(-12, 12), -vrr(8, 30), vrr(-12, 12)));
-              // (twice the fade the boxes took: the boxes' labels, lift and
-              // gilt in the books' shader carried them, and the bare paint at
-              // the same fade read as half as bright)
+              // (twice the fade boxes would take: their labels, lift and gilt
+              // in the books' shader carry them, and the bare paint at the same
+              // fade reads as half as bright)
               put('rows', at(rf, a, sy + clear / 2), inn, [wr, clear, 1], tint('#ffffff', 2.2 * k * vrr(0.9, 1.1)), order + 0.003 + j * 0.0004, { from });
               pieces.rows[pieces.rows.length - 1].row = [vr(), wr / BOOK_ROWS.length, vb, vt];
             }

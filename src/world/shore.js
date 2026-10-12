@@ -6,7 +6,7 @@
 //     ground at 4), cut to an ellipse: the gravel ran under it, and its edge
 //     stood up out of the path as a step of black glass;
 //   - round it, a stone at every other point of that ellipse, each the same
-//     smooth icosahedron (buildWorld's stoneGeo) squashed and darkened, so
+//     smooth icosahedron (stoneGeo, build/materials.js) squashed and darkened, so
 //     they lay on the water like beans;
 //   - the bridge came down onto two boxes of the paving's ashlar, a joint of
 //     it drawn across them as if they were a little wall.
@@ -868,7 +868,7 @@ export function guardStones({ a, t, n, stepHalf, stepU, ground, clear, seed = 92
 // turned every way, and no one projection could lay it on them all), and wet
 // from the water up: dark and glossy under a line the ripples keep moving, a
 // hand's breadth over the still water, and green-brown below it. Only round
-// the pond (`pond`: c, rx, rz and its wobble, as buildWorld cuts the water)
+// the pond (`pond`: c, rx, rz and its wobble, as rooms/fork.js cuts the water)
 // — a stone on the lawn stands lower than the water does. Instanced or not.
 // `lite`: the pebbles — one look at the grain, from above, and no relief of
 // its own (they are a few centimetres across, and there are a thousand).
@@ -910,7 +910,7 @@ export function shoreRockLit(mat, { waterY, pond, tile = ROCK_TILE, lite = false
         vec3 shP = vShW * ${(1 / tile).toFixed(5)};
         ${lite ? 'vec4 shC = texture2D(map, shP.xz + shP.y * 0.37);' : 'vec4 shC = texture2D(map, shP.zy) * shB.x + texture2D(map, shP.xz) * shB.y + texture2D(map, shP.xy) * shB.z;'}
         diffuseColor *= shC;
-        // how far out of the pond's outline, in units (its wobble as buildWorld cuts it)
+        // how far out of the pond's outline, in units (its wobble as rooms/fork.js cuts it)
         vec2 shE = (vShW.xz - uShorePond.xy) / uShorePond.zw;
         float shA = atan(shE.y, shE.x);
         float shOut = (length(shE) / (1.0 + sin(shA * 3.0 + 1.0) * 0.04 + sin(shA * 7.0) * 0.02) - 1.0) * 0.5 * (uShorePond.z + uShorePond.w);

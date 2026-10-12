@@ -1,49 +1,8 @@
-// The garden's props, reviewed 2026-10-11 (board 5 of the third audit; the
-// numbers are the board's own). The Fork and the Pavilion are the two best
-// arrivals in the piece (1, kept), and what was left was a handful of things
-// that had not caught up with their neighbours:
-// 3 the signpost stood at the centre of the Fork's composition and was the
-//   least made thing in it, a square black stick with two boards: it is the
-//   pergola's timber now, turned — a foot, a shaft that swells and tapers, a
-//   collar under each board, an onion cap — its boards weathered grey, housed
-//   through the post, their names cut into them and gilt in the cut; and it
-//   takes the light of the lantern on its own arm (`signLit`).
-// 4 the wisteria's trunk was a grey ribbon, smooth, of one width from the
-//   plinth to the beam: three stems now, unequal, sinewed, roped on each
-//   other, turning on each other faster as they climb; thick at the foot and
-//   a third of that at the head; grey-brown, not grey.
-// 5 the grass round the lanterns was single pale blades scattered on dark
-//   ground, needles: the blades stand in clumps (thick here, bare there),
-//   each broader and bent over, their tips a mid green and not a pale one;
-//   and under them a mown sward the lantern's light falls on (`swardLit`).
-// 6 the curled ends of the Pavilion's hips were the roll tiles' pale grey
-//   against dark tile and the night, horns: dark bronze, and the gold finial
-//   is the roof's one bright note.
-// 7 "over black water a single pavilion burns warm", and the water round it
-//   gave nothing back. From the bridge every lantern's mirror image falls
-//   below the frame (the eye is too high over the water for anything taller
-//   than a rail to show in it), so what the frame can have is what a painter
-//   gives it: the lit Pavilion lying on the water round its own foot, on
-//   every facet of the chop that leans toward it — the lacquer's red, the
-//   lanterns' orange — and thinning with distance (water.js, `glow`). The
-//   lamps are also reflected a second time off a steeper chop (`shatter`),
-//   which from this stand gives a few glints by the bridge and no more.
-//   From the Fork the same glow lies under the Pavilion as its reflection.
-// 8 the armillary's plinth stood in its own lamp's shadow — the light is
-//   over its head — and so took only the sky: smooth blue-grey, with gold
-//   bands. It takes the paving's light back off the floor now, is the
-//   paving's stone with the lanterns' weather on it (grain, damp at the
-//   foot, streaks under every moulding, lichen, moss), and its two gilt
-//   bands are dulled; and the rings have a section: a bead at each edge of
-//   each face, the scale cut between them.
-// 10 the Web of Time's stand had a blank leaf wall on either hand: a niche is
-//   clipped into each, with a small iron lantern hung in it on a crook, lit —
-//   the pair of them a gate before the court — and in the wider one a stone
-//   seat beside its lantern.
-// 11 the trees across the garden had hard, stepped outlines: beyond `FEATHER`
-//   units a spray's cut edge is a ramp a couple of pixels across (effects.js,
-//   `feather`). The trees' crowns only: a willow's hanging strands are drawn
-//   in one pass, writing their own depth, and are left as they were.
+// The garden's props, reviewed 2026-10-11 (audit III, board 5): the signpost
+// (3), the wisteria's trunk (4), the grass round the lanterns (5), the
+// Pavilion's hip ends (6), the water round the Pavilion (7), the armillary's
+// plinth (8), the niches by the Web's stand (10), the trees' outlines (11).
+// What each point was, and why: docs/design-history.md.
 //
 // ?wgarden5=old puts all of them back as they were; ?wgarden5=old:3,8 only those.
 import * as THREE from 'three';

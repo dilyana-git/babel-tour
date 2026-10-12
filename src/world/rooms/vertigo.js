@@ -101,13 +101,14 @@ export function buildVertigo(ctx) {
     // (0.5, under the pools' plane at 6.6: see the rings round the wells)
     LB.inlay.add(slabGeo(circlePts(c, rMouth + 17, 80), [circlePts(c, rMouth + 14.5, 80)], 0.5, 6));
     // Pale vellum and calf near the rim, dark leather down the throat, so the
-    // funnel falls away in value before any lamp says how deep it is. Chosen
-    // by where a book stands rather than drawn: every draw here belongs to the
-    // garden (see `resume`), and the draws the old colours made are still made.
+    // funnel falls away in value before any lamp says how deep it is. Chosen by
+    // where a book stands rather than drawn: every draw here belongs to the
+    // garden (see `resume`), and the draws the first colours made are still
+    // made.
     //
-    // Pushed further than it was: more vellum at the rim and black sooner,
-    // so the fall in value is the first thing the funnel says — and then,
-    // in the last turns, the books warmed again by the light they stand over.
+    // More vellum at the rim and black soon, so the fall in value is the first
+    // thing the funnel says — and then, in the last turns, the books warmed
+    // again by the light they stand over.
     const warmed = new THREE.Color(), litFrom = new THREE.Color('#c88a4c');
     const funnelColor = (p, y) => {
       const h = Math.abs(Math.sin(p[0] * 12.9898 + p[1] * 78.233 + y * 3.137) * 43758.5453) % 1;
@@ -125,13 +126,12 @@ export function buildVertigo(ctx) {
       const glow = Math.min(1, Math.max(0, (-250 - y) / 180));
       return glow > 0 ? `#${warmed.set(hex).lerp(litFrom, 0.38 * glow * glow).getHexString()}` : hex;
     };
-    // Real books round the rings (2026-10-06): the giants here were 12-18
-    // tall and 9 deep. A ring is shelved bay by bay, from bearing `from` to
-    // `to` (degrees), in sets of a binding's volumes standing on `sy` with
-    // `clear` over them, their spines a finger's breadth behind the shelf's
-    // face at radius `rf`; coloured where a set starts, as the giants were
-    // where they stood. On a stream of their own: every draw on the world's
-    // here belongs to the garden (see `resume`).
+    // Real books round the rings, not giants 12-18 tall and 9 deep. A ring is
+    // shelved bay by bay, from bearing `from` to `to` (degrees), in sets of a
+    // binding's volumes standing on `sy` with `clear` over them, their spines a
+    // finger's breadth behind the shelf's face at radius `rf`; coloured where a
+    // set starts, as the giants were where they stood. On a stream of their
+    // own: every draw on the world's here belongs to the garden (see `resume`).
     const vr = makeRng(0x7e5d1);
     const shelveRing = (t, sy, clear, rf, from, to, wall) => {
       const S = SHELVES[t], within = ([lo, hi]) => lo + (hi - lo) * vr();
@@ -243,16 +243,16 @@ export function buildVertigo(ctx) {
     // Below the floor the pit narrows 460 down to a throat of light, lined the
     // whole way with shelves set back into its stone. The stair winds down the
     // face of them on a carved carriage bracketed into the wall, its open side
-    // railed in bronze — but for the one place, a few steps down, where the rail
-    // has given way and the fall begins (and, since 2026-10-08, the same place
-    // on every turn below it: spiral.js GAPS). Lamps hang in the well at every depth,
-    // so that looking down there is something to measure the drop by, and loose
-    // pages turn slowly all the way down it. (A smooth brown cone with a disc of
-    // light at the bottom had nothing in it to say how far down the light was.)
+    // railed in bronze — but for the one place, a few steps down, where the
+    // rail has given way and the fall begins (and the same place on every turn
+    // below it: spiral.js GAPS). Lamps hang in the well at every depth, so that
+    // looking down there is something to measure the drop by, and loose pages
+    // turn slowly all the way down it. (A smooth brown cone with a disc of
+    // light at the bottom has nothing in it to say how far down the light is.)
     //
-    // All of this draws on the world's random stream far more than the plainer
-    // funnel did, and the garden is laid out from that same stream: `resume`
-    // puts the stream back where the old funnel left it (see the end).
+    // All of this draws on the world's random stream far more than a plain
+    // funnel, and the garden is laid out from that same stream: `resume` puts
+    // the stream back where the first funnel left it (see the end).
     const resume = stream.seed;
     const { depth: DEPTH, neck: NECK, drop: DROP, steps: STEPS, turns: TURNS } = SPIRAL;
     const RECESS = 12;
@@ -322,11 +322,11 @@ export function buildVertigo(ctx) {
         if (clear && rnd() > 0.035) {
           const hh = rr(11, k === 0 ? 13 : 17.5), p = add(c, dir(a), rs);
           const tip = rnd() < 0.05 ? rr(-0.25, 0.25) : 0, color = pick(BOOKS) && funnelColor(p, y), shade = rr(0.7, 1.05);
-          // On the four shelves nearest the head of the stair, shelved by
-          // hand: one taken out here and there, others leaning into the room
-          // it left, some pushed to the back. Every book stood upright at one
-          // depth read as rings of bricks. Decided by where the book stands —
-          // the draws above are the garden's (see `resume`), all still made.
+          // On the four shelves nearest the head of the stair, shelved by hand:
+          // one taken out here and there, others leaning into the room it left,
+          // some pushed to the back. Every book stood upright at one depth
+          // reads as rings of bricks. Decided by where the book stands — the
+          // draws above are the garden's (see `resume`), all still made.
           const h = k < 4 ? Math.abs(Math.sin(p[0] * 39.346 + p[1] * 11.135 + y * 7.11) * 24634.6345) % 1 : 1;
           if (h >= 0.06 && BOOKS_GIANT) {
             const lean = h < 0.2 ? (h < 0.13 ? 1 : -1) * (0.1 + 0.14 * ((h * 53) % 1)) : tip;
@@ -337,12 +337,12 @@ export function buildVertigo(ctx) {
         u += w + rr(0.12, 0.8);
       }
       if (BOOKS_GIANT) continue;
-      // Real books: four shelves of quartos to the giants' one, each a
-      // little wider round than the one below it as the funnel opens upward,
-      // between the uprights. Boxes in the seven rings the stair's head looks
-      // across and down into; deeper, where the funnel is only ever looked
-      // down into from far above, painted, and taken down in value and warmed
-      // by the light below as the giants' colours were.
+      // Real books: four shelves of quartos to a giant's one, each a little
+      // wider round than the one below it as the funnel opens upward, between
+      // the uprights. Boxes in the seven rings the stair's head looks across
+      // and down into; deeper, where the funnel is only ever looked down into
+      // from far above, painted, and taken down in value and warmed by the
+      // light below as the giants' colours were.
       const wall = shelvedWalls.n++;
       const T = 1, n2 = light ? 40 : 80;
       shelvesOf(T, y).forEach(({ y: sy, clear }, j) => {
@@ -370,7 +370,8 @@ export function buildVertigo(ctx) {
       LB.step.add(placed(new THREE.BoxGeometry(w, 3, Math.max(1.5, len)), add(c, dir(a), rf - w / 2 - 1), y, -a * deg));
       if (s % Math.round(STEPS / 12) === 5) {
         const la = a + 1, lp = add(c, dir(la), rf - 3.4), stem = add(c, dir(la), rf - 0.9);
-        // a small lantern on a wall bracket (lampPass.js; ?wlampsoff=sconce: as it was)
+        // a small lantern on a wall bracket (lampPass.js; ?wlampsoff=sconce:
+        // without it)
         const trial = LAMPS.sconce && stairSconce({ wall: add(c, dir(la), rf - 0.6), ry: (180 - la) * deg, y });
         if (trial) {
           trial.bronze.forEach((g) => LB.bronze.add(g));
@@ -390,13 +391,14 @@ export function buildVertigo(ctx) {
         // the feet; set back beside the wall string they can be passed.
         const bp = add(c, dir(a + rr(-1, 1)), rf - 1.6 * (1 - t * 0.35)), yaw = -a * deg + rr(-0.35, 0.35);
         // (folios of 47-66 cm by 34-43, 10-18 thick, as the giants were; at
-        // their real size since 2026-10-06, the draws as they were)
+        // their real size, the draws as the giants' were)
         const pk = BOOKS_GIANT ? 1 : 0.42, pl = BOOKS_GIANT ? 1 : 0.76;
         for (let n = 0, top = y + 1.5, count = 1 + Math.floor(rnd() * 3); n < count; n++) {
           const th = rr(1.1, 1.9) * pk;
           books.push({ p: [bp[0], top + th / 2, bp[1]], rot: [0, yaw + rr(-0.2, 0.2), Math.PI / 2], s: [th, rr(5, 7) * (1 - t * 0.3) * pl, rr(3.6, 4.6) * pl],
-            // lying down, a book shows its cover in the bindings' dark side tone:
-            // shelf leather there read as a hole in the stair, so paler calf
+            // lying down, a book shows its cover in the bindings' dark side
+            // tone: shelf leather there reads as a hole in the stair, so paler
+            // calf
             color: pick(['#8a6a48', '#7a5c40', '#6e5a44', '#5f6452', '#7a4a3a']), k: rr(0.9, 1.2) });
           top += th;
         }
@@ -456,7 +458,7 @@ export function buildVertigo(ctx) {
     };
     carved.add(sweep(carriage, 0, 1, true));
     // A roll moulding along the top of the open string and a fillet under it:
-    // the edge the eye crosses first, looking down, was a plain square arris.
+    // the edge the eye crosses first, looking down, is no plain square arris.
     const roll = (t) => {
       const y = yAt(t) + 2.3, rc = inner(t) - 1.25;
       return Array.from({ length: 10 }, (_, k) => [rc + Math.cos((k * Math.PI) / 5) * 1.15, y + Math.sin((k * Math.PI) / 5) * 1.0]);
@@ -482,14 +484,14 @@ export function buildVertigo(ctx) {
         carved.add(new THREE.BoxGeometry(wide, h, depth).rotateY(facing(a)).translate(p[0], y + top - h / 2, p[1]));
       }
     }
-    // The stair's head (2026-10-07: "the staircase has a weird hole that
-    // makes it look unsafe"). The stair's first tread begins at 166.5°, but
-    // the rim round the mouth stopped at 153°: for a stride beside the newel
-    // the floor just ended over the drop, nothing to stand on, nothing to
-    // hold. The floor now runs on over the pit to the first tread as a
-    // landing, carried on the stair's own carriage swept back level under it,
-    // and the rim turns in along the landing's end and runs on along its open
-    // edge to the newel. (?wvland=old: the head as it was.)
+    // The stair's head. The stair's first tread begins at 166.5°, but the rim
+    // round the mouth stops at 153°: for a stride beside the newel the floor
+    // would just end over the drop, nothing to stand on, nothing to hold ("the
+    // staircase has a weird hole that makes it look unsafe"). The floor runs on
+    // over the pit to the first tread as a landing, carried on the stair's own
+    // carriage swept back level under it, and the rim turns in along the
+    // landing's end and runs on along its open edge to the newel. (?wvland=old:
+    // no landing.)
     const LAND0 = 153;   // where the rim stops: a corner of the floor's 80-sided hole
     const beside = (a, r, off) => add(add(c, dir(a), r), dir(a + 90), off);
     if (!VLAND_OLD) {
@@ -593,10 +595,10 @@ export function buildVertigo(ctx) {
     const hanging = light
       ? [[20, 30, -80, 7], [290, 14, -270, 5]]
       : [[20, 30, -70, 7], [140, 22, -170, 6], [290, 14, -270, 5], [65, 9, -345, 3.5]];
-    // (The nearest a step down from the rest — the brightest thing in the
-    // frame should be the light at the bottom — and all of them on a chain
-    // of half the gauge: from the stand the old one was the heaviest line in
-    // the picture, cutting it from the corner to the middle.)
+    // (The nearest a step down from the rest — the brightest thing in the frame
+    // should be the light at the bottom — and all of them on a chain of half
+    // the gauge: from the stand a heavy one is the heaviest line in the
+    // picture, cutting it from the corner to the middle.)
     hanging.forEach(([b, off, y, r], i) => lamp(add(c, dir(b), off), {
       y, r, light: i === 0 ? 4800 : 4200, priority: -1, strength: i === 0 ? 0.85 : 1.1, pool: 0, beam: false, chain: 52, link: 0.55,
     }));
@@ -619,13 +621,13 @@ export function buildVertigo(ctx) {
     pitCore.position.set(c[0], 7 - DEPTH, c[1]);
     root.add(pitCore);
     // The light is never reached on foot. Walked down toward it, the disc in
-    // the throat keeps 420 below the eye (`tick`) — and since 2026-10-08 the
-    // rest of the light goes down with it, the hot core, the glow over it,
-    // the column standing up from it and the light it throws: before, only
-    // the disc went, and a reader walking on down the endless turns passed
-    // the glow, hanging in the well at the depth the light had been, and
-    // looked back up at it. However far down they walk, the light below
-    // looks as it did from the stair's head. (?wbrink=old: as it was.)
+    // the throat keeps 420 below the eye (`tick`) — and the rest of the light
+    // goes down with it, the hot core, the glow over it, the column standing up
+    // from it and the light it throws: if only the disc went, a reader walking
+    // on down the endless turns would pass the glow, hanging in the well at the
+    // depth the light had been, and look back up at it. However far down they
+    // walk, the light below looks as it did from the stair's head.
+    // (?wbrink=old: only the disc.)
     const sink = BRINK_OLD ? null : { halos: [], shaft: null, glow: null, wish: null };
     if (sink) {
       sink.glow = new THREE.InstancedMesh(keep(new THREE.SphereGeometry(1, 16, 12)), M.glow, 1);
@@ -667,7 +669,7 @@ export function buildVertigo(ctx) {
     {
       // A page, not a card: printed, curled at its corner as well as across,
       // and lit through — paper this thin holds the lamp's light in it. As a
-      // plain pale quad it was the brightest thing in the well and read as a
+      // plain pale quad it is the brightest thing in the well and reads as a
       // sticker on the frame.
       const leaf = keep(new THREE.PlaneGeometry(4.2, 5.6, 8, 4));
       const lp = leaf.attributes.position;
@@ -704,14 +706,12 @@ export function buildVertigo(ctx) {
         g.fillStyle = 'rgba(52,38,24,0.6)';
         g.fillRect(w / 2 - 6, h - 22, 12, 3);
       }), [1, 1]);
-      // Twenty-two, not forty-four. Loose pages are a lovely idea and at that
-      // count they were a blizzard: white flecks over every part of the frame,
-      // so the well had no quiet anywhere in it.
-      //
-      // And seven, not twenty-two: fewer, half as large again, falling and
-      // turning at a little over half the pace — a page drifting down, not
-      // flecks of white crossing the frame. (Twenty-two are still drawn from
-      // the stream: the garden is laid out from it, see `resume`.)
+      // Seven: fewer, half as large again, falling and turning at a little over
+      // half the pace — a page drifting down, not flecks of white crossing the
+      // frame. At forty-four loose pages are a blizzard, white flecks over
+      // every part of the frame, and the well has no quiet anywhere in it.
+      // (Twenty-two are still drawn from the stream: the garden is laid out
+      // from it, see `resume`.)
       const pages = Array.from({ length: light ? 10 : 22 }, () => ({
         phase: rnd(), frac: rr(0.25, 0.85), spin: rr(0.12, 0.3) * (rnd() < 0.5 ? -1 : 1), fall: rr(5, 9), a0: rr(0, Math.PI * 2), tumble: rr(0.6, 1.4),
       })).slice(0, light ? 4 : 7).map((pg) => ({ ...pg, spin: pg.spin * 0.6, fall: pg.fall * 0.55, tumble: pg.tumble * 0.55 }));

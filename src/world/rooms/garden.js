@@ -83,8 +83,8 @@ export function buildGarden(ctx) {
   };
   // A clipped finial (forkProps.js, 6): a drum of the same hedge, domed by the
   // shears, grown through a hedge's line at `p` and standing `up` over its top
-  // `H`. From across the garden a hedge was one level stripe of black from
-  // edge to edge of the frame; these are what stands out of it.
+  // `H`. From across the garden a hedge is one level stripe of black from edge
+  // to edge of the frame; these are what stands out of it.
   const finial = (p, { r, up }, ground, H, seed) => {
     if (propsOld(6)) return;
     plantHedge([[[p[0] - r, p[1] - r], [p[0] + r, p[1] - r], [p[0] + r, p[1] + r], [p[0] - r, p[1] + r]]], {
@@ -122,27 +122,20 @@ export function buildGarden(ctx) {
   const lineDist = (p, pts) => Math.min(...pts.slice(1).map((b, i) => segDist(p, pts[i], b)));
   const pathDist = (p) => Math.min(...PATHS.map((path) => lineDist(p, path.pts)));
   // ── The road not taken, taken ────────────────────────────────────────────
-  // It used to fade out across the lawn to the north-west and lead nowhere: a
-  // reader walking it on their own came out on bare grass under the Library's
-  // blank outer wall. Then it bent round the north of the pond and came down
-  // to the far shore, where a second, shorter bridge went out to the
-  // Pavilion's north bay. (PATHS keeps the oldest road: the world's stream was
-  // spent along it, and still is — the trees, the rocks and the mist stand
-  // where they stood, and what a newer road would have stood on is taken up
-  // off it.)
+  // The Fork parts the two ways a reader has: the Pavilion straight on, and to
+  // the right of it, clear of the pergola's last post, the road to the Heart,
+  // down to where the way from the water turns into the maze, under the two
+  // lanterns that stand there facing it. And the bridge's foot has its own way
+  // on along the shore (SHORE_WAY). Whichever way the reader takes at the Fork,
+  // the Heart is where it goes.
   //
-  // Round the pond, it set off from the Fork through the pergola's last post
-  // (the pergola runs on to three paces short of the Fork's stone) and went to
-  // the Pavilion, where the other way already goes — while from the Pavilion to
-  // the maze there was no way at all, only lawn between the bridge's foot and a
-  // path that began in the bank. Now the Fork parts the two ways a reader
-  // has: the Pavilion straight on, and to the right of it, clear of the post,
-  // the road to the Heart, down to where the way from the water turns into the
-  // maze, under the two lanterns that stand there facing it. And the bridge's
-  // foot has its own way on along the shore (SHORE_WAY). Whichever way the
-  // reader takes at the Fork, the Heart is where it goes. (?wfork=old: the road
-  // round the pond, and no way along the shore. The second bridge stays, and
-  // comes down onto a landing of its own.)
+  // PATHS keeps the first road, which faded out across the lawn to the
+  // north-west and led nowhere: the world's stream was spent along it, and
+  // still is — the trees, the rocks and the mist stand where they stood, and
+  // what a newer road would have stood on is taken up off it. (?wfork=old: the
+  // road round the north of the pond to a second, shorter bridge into the
+  // Pavilion's north bay, and no way along the shore. The second bridge stays,
+  // and comes down onto a landing of its own.)
   const N_SHORE = [1310, 10];
   const NORTH_BRIDGE = PAVILION_NORTH_BRIDGE;
   const NORTH_OPEN = !paintings || FORK_OLD;
@@ -157,8 +150,8 @@ export function buildGarden(ctx) {
   // from the last leg of the way to the bridge, round the abutment and along
   // the shore, into the way to the maze where it leaves the water
   const SHORE_WAY = FORK_OLD ? null : wayThrough([[1228, 206], [1242, 211], [1262, 213], [1290, 218], [1314, 220]], 14);
-  // and where the road no longer comes to it, the second bridge's foot stands
-  // on gravel all the same: a few paces of it, out past the step to the lawn
+  // and where the road does not come to it, the second bridge's foot stands on
+  // gravel all the same: a few paces of it, out past the step to the lawn
   const LANDING = FORK_OLD || !NORTH_OPEN ? null : (() => {
     const axis = unit2(N_SHORE, NORTH_BRIDGE[1]);
     return { pts: [add(N_SHORE, axis, -3), add(N_SHORE, axis, -14)], w: 16 };
@@ -173,16 +166,17 @@ export function buildGarden(ctx) {
   const onNorthBridge = (p, m = 0) => NORTH_BRIDGE.slice(1).some((b, i) => segDist(p, NORTH_BRIDGE[i], b) < 13 + m);
   // And the lawn beyond the dressed garden closed off by a hedge, from the
   // Library's wall west of the Fork round the north of the road and the pond
-  // and down past the maze to its wall again: outside it there was nothing but
-  // grass going on into the dark, and a reader could walk out into it. (Both
-  // ends stand in the Library's stone. The trees beyond it are the skyline
-  // they always were.)
+  // and down past the maze to its wall again: without it there is nothing
+  // outside but grass going on into the dark, and a reader could walk out into
+  // it. (Both ends stand in the Library's stone. The trees beyond it are the
+  // skyline they always were.)
   const BOUNDARY = [[865, 140], [985, 70], [1030, -20], [1100, -80], [1210, -102], [1310, -92], [1400, -58],
     [1468, 12], [1490, 120], [1482, 232], [1470, 330], [1472, 470], [1455, 572], [1262, 592]];
   const boundaryDist = (p) => Math.min(...BOUNDARY.slice(1).map((b, i) => segDist(p, BOUNDARY[i], b)));
 
   for (const path of PATHS) {
-    // (the old road not taken: its draws, and nothing laid — ROAD is laid below)
+    // (the first road not taken: its draws, and nothing laid — ROAD is laid
+    // below)
     const old = path === PATHS[3], edging = old ? [] : rocks;
     path.pts.forEach((p, i) => {
       if (!old) GB.gravel.add(slabGeo(circlePts(p, path.w / 2, 20), [], 1.2, 4));
@@ -195,7 +189,7 @@ export function buildGarden(ctx) {
           if (path.fading && rnd() < 0.5) continue;
           const rp = add(add(a, t, u + rr(-2, 2)), n, side * (path.w / 2 + rr(0, 1.5)));
           const stone = { p: [rp[0], 5, rp[1]], rot: rot3(), s: [rr(1.2, 2.3), rr(0.8, 1.6), rr(1.2, 2.3)], color: pick(['#5f5b55', '#4e4b46', '#6b665f']) };
-          // (in groups since 2026-10-09, laid below: these draws spent as they were)
+          // (in groups, laid below: these draws spent as they always were)
           if (forkOld(4)) edging.push(stone);
         }
       }
@@ -209,7 +203,7 @@ export function buildGarden(ctx) {
   const edgeOk = (way) => (p, r) => [...PATHS.slice(0, 3), ...WAYS].every((o) => o === way || lineDist(p, o.pts) > o.w / 2 + r * 0.5) && offPond(p);
   if (!forkOld(4)) PATHS.slice(0, 3).forEach((path, i) => rocks.push(...edgeStones(path.pts, path.w, 9161 + i * 6, { ok: edgeOk(path) })));
 
-  // The road not taken, laid: gravel the width of the old one, edged with
+  // The road not taken, laid: gravel the width of the first one, edged with
   // stones as it was (half of them gone, a way less walked), from a stream of
   // its own — and the way along the shore beside it, edged all along as the
   // walked ways are, from another. Neither leaves a stone lying on another
@@ -255,12 +249,12 @@ export function buildGarden(ctx) {
 export function buildForkRaked(ctx) {
   const { light, add, lerp2, unit2, dist, wornRibbon, GB, rocks, J, PATHS, lineDist, ROAD } = ctx;
   // ── The fork, raked ──────────────────────────────────────────────────────
-  // "Every path taken at once" — and the gravel was one flat grey, nothing at
-  // the reader's feet saying that the way divides. So it is raked, as a
-  // temple garden's gravel is: grooves running the length of each way, and
-  // where the ways part, a flat stone with the grooves going round it in
-  // rings and leaving by every road at once. A groove is a dark furrow with
-  // the gravel it threw up pale beside it.
+  // "Every path taken at once" — and in one flat grey nothing at the reader's
+  // feet says that the way divides. So the gravel is raked, as a temple
+  // garden's is: grooves running the length of each way, and where the ways
+  // part, a flat stone with the grooves going round it in rings and leaving by
+  // every road at once. A groove is a dark furrow with the gravel it threw up
+  // pale beside it.
   {
     const TOP = 5.2, R0 = 9.6;   // the gravel's top (slabGeo above), the rings' reach
     // (only the stretches of it `keep` keeps: a groove stops where it would
@@ -301,11 +295,11 @@ export function buildForkRaked(ctx) {
       const n = Math.ceil(dist(pts[i - 1], p) / 1.5);
       return Array.from({ length: n }, (_, k) => lerp2(pts[i - 1], p, (k + 1) / n));
     });
-    // The road to the Heart leaves the way to the bridge at a narrower angle
-    // than the old road did, and their gravels run together for a few paces
-    // past the rings: there its grooves give way to the bridge way's, and it
-    // peels off that way's edge rather than crossing it. It is raked to where
-    // it meets the way from the water, as far as the old road was raked.
+    // The road to the Heart leaves the way to the bridge at a narrow angle, and
+    // their gravels run together for a few paces past the rings: there its
+    // grooves give way to the bridge way's, and it peels off that way's edge
+    // rather than crossing it. It is raked to where it meets the way from the
+    // water.
     const offWays = (ways) => (p) => ways.every((o) => lineDist(p, o.pts) > o.w / 2 - 0.3);
     const raked = [[PATHS[0].pts, PATHS[0].w], [PATHS[1].pts, PATHS[1].w], FORK_OLD
       ? [ROAD.ctrl.slice(0, 3), ROAD.w]
@@ -324,9 +318,9 @@ export function buildForkRaked(ctx) {
         for (let o = -(w / 2 - 2.2); o <= w / 2 - 2.2 + 1e-6; o += 1.25) furrow(way, o, keep);
         return;
       }
-      // Ruled, they read as a crossing: in passes of a four-tined rake now,
-      // each pass wandering and the passes drifting apart and together, and a
-      // furrow broken where a stone sits and here and there scuffed out.
+      // Ruled, they read as a crossing: in passes of a four-tined rake, each
+      // pass wandering and the passes drifting apart and together, and a furrow
+      // broken where a stone sits and here and there scuffed out.
       const way = fine(fromStone(pts));
       for (let k = 0, o = -(w / 2 - 2.2); o <= w / 2 - 2.2 + 1e-6; o += 1.25, k++) {
         const kk = k, o0 = o, scuffs = rakeScuffs(kk, wi, 600);
@@ -347,13 +341,13 @@ export function buildForkRaked(ctx) {
       // the stone the ways part at, low and flat: stepped on, never stepped round
       GB.stone.add(new THREE.CylinderGeometry(2.3, 2.5, 0.7, 20).scale(1, 1, 0.82).rotateY(0.4).translate(J[0], TOP + 0.2, J[1]));
     } else {
-      // (forkProps.js, 3: that was a sawn disc with a groove ruled across it —
-      // a puck. A stone now, the garden's granite (shore.js): wider than it
-      // is tall, most of it in the ground, cleft and worn and lichened, its
-      // top level enough to stand on and no higher over the gravel than a
-      // foot goes up without thinking. And the rake goes round the stone it
-      // has, not round a compass point: the first ring a hand off its outline,
-      // each one rounder, the last the circle the ways' furrows start from.)
+      // (forkProps.js, 3: a stone, not a sawn disc with a groove ruled across
+      // it — the garden's granite (shore.js): wider than it is tall, most of it
+      // in the ground, cleft and worn and lichened, its top level enough to
+      // stand on and no higher over the gravel than a foot goes up without
+      // thinking. And the rake goes round the stone it has, not round a compass
+      // point: the first ring a hand off its outline, each one rounder, the
+      // last the circle the ways' furrows start from.)
       const g = gardenRock({ ...FORK_STONE.rock, flatTop: true, detail: light ? 12 : 22 });
       g.computeBoundingBox();
       g.rotateY(FORK_STONE.turn).translate(J[0], TOP + FORK_STONE.proud - g.boundingBox.max.y, J[1]);
@@ -390,19 +384,17 @@ export function buildPergola(ctx) {
     hangs, ivyLeaves, vineLeaves, ivyWood, trialPaper, glows, GB, foliage, LEAF, J, PATHS, standing } = ctx;
   // ── The wisteria pergola, hung with lanterns ─────────────────────────────
   // What the arch opens onto, and what walks the reader from it to the Fork.
-  // It was six-sided posts, square beams and a flat card of leaves laid over
-  // the top — the rough frame that stood in the old breach as the Door's only
-  // arch. Now joinery: each post an octagon on a stone base, a bearing block
-  // on its head, a tie beam across with its ends cut to a cloud, curved
-  // braces up to the beam and along to the purlins, rafters across the top
-  // and battens along them — and the wisteria not painted on a card but
-  // hanging, a raceme at a time, from the rafters it has taken over, with the
-  // old vines it climbed by twisted up four of the posts. Four paper lanterns
-  // in the bays, ribbed and capped.
+  // Joinery: each post an octagon on a stone base, a bearing block on its head,
+  // a tie beam across with its ends cut to a cloud, curved braces up to the
+  // beam and along to the purlins, rafters across the top and battens along
+  // them — and the wisteria not painted on a card but hanging, a raceme at a
+  // time, from the rafters it has taken over, with the old vines it climbed by
+  // twisted up four of the posts. Four paper lanterns in the bays, ribbed and
+  // capped.
   //
   // Laid out in its own frame — x across, y up, z along from the Door toward
-  // the Fork — and set on the path here. None of it draws on the world's
-  // stream but the four halos, which always did.
+  // the Fork — and set on the path here. None of it draws on the world's stream
+  // but the four halos, which always did.
   {
     const a = PATHS[0].pts[0], b = J, L = dist(a, b);
     const t = [(b[0] - a[0]) / L, (b[1] - a[1]) / L];
@@ -419,13 +411,11 @@ export function buildPergola(ctx) {
     const alongZ = (pts, z0, w) => new THREE.ExtrudeGeometry(new THREE.Shape(pts.map(([x, y]) => new THREE.Vector2(x, y))), { depth: w, bevelEnabled: false, curveSegments: 1 }).translate(0, 0, z0);
     const alongX = (pts, x0, w) => alongZ(pts.map(([u, y]) => [-u, y]), 0, w).rotateY(Math.PI / 2).translate(x0, 0, 0);
     const pr = makeRng(6606), within = (lo, hi) => lo + (hi - lo) * pr();
-    // Four frames. A fifth stood three paces short of the Fork's stone, and from
-    // where the reader stops at the Fork its left post stood exactly in front
-    // of the stone lantern beyond it (they were at one bearing from there, to
-    // within a fraction of a degree); and it was the post the road not taken
-    // went through, and the one turned out of the stand's frame because it read
-    // as a tree trunk. So the pergola ends a bay sooner, and the Fork is open
-    // ground. (?wpergola=old)
+    // Four frames, so the Fork is open ground. A fifth would stand three paces
+    // short of the Fork's stone, and from where the reader stops at the Fork
+    // its left post would stand exactly in front of the stone lantern beyond it
+    // (at one bearing from there, to within a fraction of a degree), and read
+    // as a tree trunk. (?wpergola=old)
     const Z0 = 40, BAY = 22, FRAMES = [0, 1, 2, 3, 4].map((k) => Z0 + k * BAY).filter((z) => z < L + 1).slice(0, PERGOLA_OLD ? 5 : 4);
     const POST = 17, SPAN = 25, GROUND = 5.2;
     const TIE = [39.4, 42.8], PURLIN = [TIE[1], TIE[1] + 2.6], RAFTER = [PURLIN[1], PURLIN[1] + 1.3];
@@ -526,7 +516,7 @@ export function buildPergola(ctx) {
         const vine = twineWisteria({
           x, z, postR: 1.5, plinthR: 2.5, ground: GROUND, foot: { r: 1.95, y: GROUND + 3.3 }, top: TIE[0] - 1.8, turns,
           endAngle: Math.atan2(dz * 1.1, sx * 2.0), over,
-          // (gardenFix5.js, 4: it was a grey ribbon of one width)
+          // (gardenFix5.js, 4: not a grey ribbon of one width)
           rope: garden5Old(4) ? null : VINE,
         }, vr);
         vine.strands.forEach((st, k) => {
@@ -631,16 +621,14 @@ export function buildLanterns(ctx) {
   // Tōrō of the Kasuga kind: a six-sided foot under a ring of lotus petals
   // turned down; a round post with a knot at its middle; a platform on petals
   // turned up; the fire box, a paper window front and back and the sun and the
-  // moon cut through two more of its sides; a wide six-sided roof whose
-  // corners curl up like young fern; and the jewel on top. They were a box, a
-  // post and a pyramid, with a glowing egg sitting ON the roof and nothing but
-  // air where the fire belongs — a lamp turned inside out. The light is inside
-  // now, behind paper, and falls first on the lantern's own stone (flameLit).
+  // moon cut through two more of its sides; a wide six-sided roof whose corners
+  // curl up like young fern; and the jewel on top. The light is inside, behind
+  // paper, and falls first on the lantern's own stone (flameLit).
   //
   // Each is built about its own axis (y is the world's) with face 0 of every
   // hexagon at 30° and a corner at 0°, as three's six-sided cylinders have
-  // them, then turned and set down. None of it draws on the world's stream
-  // but the halo and the pool, which always did.
+  // them, then turned and set down. None of it draws on the world's stream but
+  // the halo and the pool, which always did.
   const HEX = Math.PI / 3;
   const V2 = (x, y) => new THREE.Vector2(x, y);
   // A sheet of quads from fn(u, v) → [x, y, z], u and v 0 to 1; `flip` turns it over.
@@ -729,9 +717,9 @@ export function buildLanterns(ctx) {
     }
     return geos;
   };
-  // Its hips: a rolled ridge down each, and at each corner the fern — a
-  // scroll rising off the tip and rolling back in on itself, tighter as it
-  // goes (a ring of even radius left a hole through it and read as a handle).
+  // Its hips: a rolled ridge down each, and at each corner the fern — a scroll
+  // rising off the tip and rolling back in on itself, tighter as it goes (a
+  // ring of even radius leaves a hole through it and reads as a handle).
   const roofCorners = ({ R, y0, T, H, lift, top }, rho, tube, ridge) => {
     const geos = [];
     for (let k = 0; k < 6; k++) {

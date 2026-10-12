@@ -427,7 +427,7 @@ export function flagstones({ size = 1024, seed = 19, rows = 4, cols = 3 } = {}) 
 // floats directly (`normalsFromField`).
 //
 // The roughness map carries two more things in its spare channels, for the
-// floor's shader (`paveShade` in buildWorld): red is which slab a pixel belongs
+// floor's shader (`paveShade`, build/materials.js): red is which slab a pixel belongs
 // to (one of sixteen) and blue says whether that slab began a canvas to the
 // left (0), here (128) or to the right (255) — a slab runs on over the canvas's
 // edge and comes back in at the other — so the shader can tell every slab of
@@ -438,7 +438,7 @@ export function flagstones({ size = 1024, seed = 19, rows = 4, cols = 3 } = {}) 
 // tiles across), started where its joints fall farthest from those of the
 // courses either side: a cross joint carried through two courses is a crack
 // waiting to happen, and no mason lays one. Shared by the painter and by the
-// Door's moss (buildWorld), which grows in these joints.
+// Door's moss (rooms/door.js), which grows in these joints.
 const PAVE_RHYTHM = [1.16, 0.84, 1.04, 0.92, 1.1];
 export function pavingLayout({ size = 1024, seed = 19, courses = 4 } = {}) {
   const rnd = makeRng(seed * 31 + 7);
@@ -1870,7 +1870,7 @@ export function shelfEdge({ w = 128, h = 64 } = {}) {
 // The far galleries' shelves are only ever seen from over the walls (the map,
 // the rise at the end of the walk), and at their real size a book there is a
 // pixel or two across: their spines are painted, a strip of them per size of
-// book, and each shelf shows a stretch of its strip (buildWorld's shelfWall)
+// book, and each shelf shows a stretch of its strip (shelfWall, build/shelves.js)
 // instead of a box for every one of them. `rows`: each size's heights, widths
 // and the room over it on its shelf, in units; `unit` pixels to a unit, along
 // the shelf and up it; `variants` strips of each size; `length` units along.
@@ -1912,7 +1912,7 @@ export function bookRows({ rows, unit = 12, variants = 2, length = 128, palette,
       dark.addColorStop(1, '#1b130c');
       c.fillStyle = dark;
       c.fillRect(0, top, W, h);
-      // in runs, as the near shelves are (buildWorld's newRun)
+      // in runs, as the near shelves are (newRun, build/shelves.js)
       let x = rnd() * 3, run = 0, B = null, kind = 'plain', hex = '#6f4c31', bh = 0, bw = 0;
       for (;;) {
         if (run <= 0) {

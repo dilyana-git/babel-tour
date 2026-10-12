@@ -14,41 +14,38 @@ import { WOOD_OLD } from '../woodGrain';
 import { rubbleLayout } from '../rubble';
 
 export const FRAME = [1440, 900];
-// The palette (see World.jsx): the stone was a warm greige that stayed brown
-// in the lamp's light and out of it. It is a neutral limestone grey now, so the
-// lamps are what make it warm. (A cool sage was tried first and read, with the
-// rest of that cut, as a filter.) ?wpal=old for the stone as it was.
+// The palette (see World.jsx): the stone a neutral limestone grey, so the lamps
+// are what make it warm. ?wpal=old for the warm greige it replaced.
 export const OLD_PALETTE = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('wpal') === 'old';
-// The Library's floor as it was before 2026-10-06 — twelve slabs of one size
-// in a brick bond (`flagstones`) — not the pavement (`paving`) that replaced it.
+// ?wfloor=old: the Library's old floor — twelve slabs of one size in a brick
+// bond (`flagstones`) — not the pavement (`paving`).
 export const FLOOR_OLD = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('wfloor') === 'old';
-// ?wcrack=old: the Door's cracks as they were before 2026-10-07 — dark strips
-// laid on the pavement, a pale lip beside each and knobs of moss along them —
-// not the cracks painted into it (cracks.js). (With the old floor, the old
-// cracks: the painted ones follow the pavement's joints.)
+// ?wcrack=old: the Door's old cracks — dark strips laid on the pavement, a pale
+// lip beside each and knobs of moss along them — not the cracks painted into it
+// (cracks.js). (With the old floor, the old cracks: the painted ones follow the
+// pavement's joints.)
 export const CRACK_OLD = FLOOR_OLD || (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('wcrack') === 'old');
-// ?wrubble=old: what came down with the Door's wall as it was before
-// 2026-10-07 (boxes with a dented end and one twenty-faced chip, turned every
-// way) — not the stones of rubble.js and the shade at their feet.
+// ?wrubble=old: the old rubble from the Door's wall (boxes with a dented end
+// and one twenty-faced chip, turned every way) — not the stones of rubble.js
+// and the shade at their feet.
 export const RUBBLE_OLD = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('wrubble') === 'old';
-// ?wshore=old: the pond's edge as it was before 2026-10-07 — the water cut to
-// an ellipse over the lawn with a smooth stone at every other point of it,
-// and the Pavilion's bridge coming down onto two boxes of ashlar — not the
-// bank, the set stones and the granite pier and step of shore.js.
+// ?wshore=old: the pond's old edge — the water cut to an ellipse over the lawn
+// with a smooth stone at every other point of it, and the Pavilion's bridge
+// coming down onto two boxes of ashlar — not the bank, the set stones and the
+// granite pier and step of shore.js.
 export const SHORE_OLD = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('wshore') === 'old';
 export const stoneTint = (was, now) => (OLD_PALETTE ? was : now);
 // The light on the wall tops and the rims' warm bounce over the map, as the
 // map's look has them (mapFix6.js).
 export const ROUTE_LIGHT = { ...ROUTE_BASE, ...TONE.route };
 export const RIM_WARM = { ...RIM_BASE, ...TONE.rim };
-// ?wivy=old: the Door's ivy as it was before 2026-10-09 — cards of painted
-// green blots on the arch's garden face and the passage walls — and the
-// pergola's vines as one plain tube of timber, not the grown ivy and twined,
-// barked, leaved wisteria of ivy.js.
+// ?wivy=old: the Door's old ivy — cards of painted green blots on the arch's
+// garden face and the passage walls — and the pergola's vines as one plain tube
+// of timber, not the grown ivy and twined, barked, leaved wisteria of ivy.js.
 export const IVY_OLD = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('wivy') === 'old';
-// ?wglare=old: the lamps and the moon's shaft as they were before 2026-09-26 —
-// halos sized in the room, and light columns that stay whole with the eye
-// inside them (the milky Echo crossing), to compare against.
+// ?wglare=old: the lamps and the moon's shaft as they first were — halos sized
+// in the room, and light columns that stay whole with the eye inside them — to
+// compare against.
 export const OLD_GLARE = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('wglare') === 'old';
 // ?wglass=old: the Borges mirrors back in the hallways as they were (metal
 // panels that read as blackboards), and no pier glasses (mirror.js).
@@ -56,19 +53,19 @@ export const GLASS_OLD = typeof window !== 'undefined' && new URLSearchParams(wi
 // ?wtree=pine (DEV): every tree in the garden grown as the one kind, to judge
 // it; ?wtree=none, no trees at all, to measure what they cost (__worldBench).
 export const ONE_TREE = import.meta.env?.DEV && typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('wtree') : null;
-// ?whedge=bare (DEV): the hedges without their sprigs; ?whedge=none, no hedges;
-// ?whedge=gloss, the body's full lamp gloss as it was before 2026-09-28
-// at all — what they cost, and what the sprigs do for the silhouette.
+// ?whedge=bare (DEV): the hedges without their sprigs; ?whedge=none, no hedges
+// at all; ?whedge=gloss, the body's full lamp gloss — what they cost, and what
+// the sprigs do for the silhouette.
 export const HEDGE_DIAL = import.meta.env?.DEV && typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('whedge') : null;
 // ?wbound=0: without the hedge that closes the garden (for weighing what it costs)
 export const NO_BOUND = import.meta.env?.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('wbound') === '0';
-// ?wfork=old: the garden's ways as they were before 2026-10-07 — the road not
-// taken leaving the Fork through the pergola's last post and going round the
-// north of the pond to the second bridge, and only lawn between the Pavilion's
-// bridge and the way to the maze.
+// ?wfork=old: the garden's old ways — the road not taken leaving the Fork
+// through the pergola's last post and going round the north of the pond to the
+// second bridge, and only lawn between the Pavilion's bridge and the way to the
+// maze.
 export const FORK_OLD = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('wfork') === 'old';
-// ?wpergola=old: the pergola as it was before 2026-10-07, five frames running on
-// to three paces short of the Fork's stone, a lantern in each of four bays.
+// ?wpergola=old: the old pergola, five frames running on to three paces short
+// of the Fork's stone, a lantern in each of four bays.
 export const PERGOLA_OLD = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('wpergola') === 'old';
 export const MASS_H = 120;   // how tall the galleries' walls stand
 export const CAP = 3;        // the pale stone laid on top of them
@@ -88,13 +85,12 @@ export const deg = Math.PI / 180;
 // over the top tier at FRIEZE_Y.
 export const TIER_H = 21, TIER_BASE = 10, TIERS = 5;
 export const FRIEZE_Y = 111.5;
-// Those were giants: folios of 1.6-1.8 m, taller than the readers walking
-// past them, a shelf to a tier. A tier is now a bay of real shelves — three
-// of folios at the foot, four of quartos, five each of octavos and of the
-// small books at the top — and its books are the size books are: a folio
-// 38-50 cm, a quarto 28-37, an octavo 21-27 (a unit is 9.4 cm). Thin boards
-// between the tier's own heavy ones, and a back to the case 4.6 deep, not
-// the 12 a giant folio needed. (?wbookscale=old for the giants.)
+// A tier is a bay of real shelves — three of folios at the foot, four of
+// quartos, five each of octavos and of the small books at the top — and its
+// books are the size books are: a folio 38-50 cm, a quarto 28-37, an octavo
+// 21-27 (a unit is 9.4 cm). Thin boards between the tier's own heavy ones, and
+// a back to the case 4.6 deep. (?wbookscale=old for the giant folios of 1.6-1.8
+// m, a shelf to a tier.)
 export const SHELVES = [
   { n: 3, h: [4.0, 5.3], w: [0.5, 0.95], d: [3.0, 3.5] },
   { n: 4, h: [3.0, 3.9], w: [0.4, 0.78], d: [2.3, 2.8] },
@@ -150,8 +146,8 @@ export const BOOK_ROWS = {
 // (dir 150) from its middle, which is assembleWorld's GATE, worked out again
 // here from the honeycomb's numbers because the painting begins before the
 // world is built (assembleWorld checks that the two agree).
-// (since 2026-10-09 in two heaps under the breach, wedged and bedded in the
-// floor: doorFix.js, 2; ?wdoorfix=old:2 for the six spread over the floor)
+// (in two heaps under the breach, wedged and bedded in the floor: doorFix.js,
+// 2; ?wdoorfix=old:2 for the six spread over the floor)
 export const DOOR_FALLEN = doorOld(2)
   ? [[-42, 31, 11, 5.4, 7], [-24, 38, 8, 4.4, 6], [40, 38, 10, 5, 7.5], [47, 50, 7, 4, 5.5], [-50, 46, 6, 3.4, 5], [25, 46, 6.5, 3.6, 5]]
   : DOOR_FALLEN_HEAPS;
@@ -190,21 +186,20 @@ export const PORTAL_FRAME = {
 // in textures.js and what it is asked for. None of them draws on the world's
 // own stream, so where and when they are painted changes nothing they show.
 export const PAINTED = {
-  // the floor: a mason's pavement (`paving`, 2026-10-06) or the tiles it replaced
+  // the floor: a mason's pavement (`paving`), or the old tiles (?wfloor=old)
   flag: FLOOR_OLD ? ['flagstones'] : ['paving'],
   ...(CRACK_OLD ? {} : { cracks: ['floorCracks', DOOR_CRACKS] }),
-  // Twelve courses to the tile, not eight: a course about 30 cm, a block
-  // about 70 cm long, each a little further from the next in tone. At eight
-  // they were a torso high, and over an arch every block looked the same;
-  // at sixteen (22 cm) the wall read as small brick, not dressed stone
-  // (the review of 2026-10-08, point 5; ?wvest=old:5 lays the old).
-  // (dressed with the punch, in courses and blocks of more than one size, with
-  // lime under its joints: libFix3.js, 3 — it had read as stacked timber)
+  // Twelve courses to the tile: a course about 30 cm, a block about 70 cm long,
+  // each a little further from the next in tone. At eight a course is a torso
+  // high, and over an arch every block looks the same; at sixteen (22 cm) the
+  // wall reads as small brick, not dressed stone (vestFix.js, 5; ?wvest=old:5
+  // lays the old). Dressed with the punch, in courses and blocks of more than
+  // one size, with lime under its joints: libFix3.js, 3.
   wall: vestOld(5) ? ['ashlar'] : ['ashlar', { courses: 12, blocks: 5, spread: 24, ...(lib3Old(3) ? {} : { dress: 'punched', spread: 26 }) }],
   // the caps' pale stone; the Door's dressed faces are the same stone, laid smaller
   pale: ['ashlar', { seed: 9, courses: 4, blocks: 2, tone: [158, 150, 136], strength: 2 }],
-  // The wood: boards sawn from the log, grain along u (`timber`, 2026-10-05),
-  // or the striped walnut it replaced (?wwood=old, see woodGrain.js).
+  // The wood: boards sawn from the log, grain along u (`timber`), or the
+  // striped walnut (?wwood=old, see woodGrain.js).
   wood: WOOD_OLD ? ['walnut'] : ['timber'],
   timber: WOOD_OLD ? ['walnut', { seed: 23, tone: CEDAR }] : ['timber', { seed: 23, tone: CEDAR_WOOD, ring: 9, knots: 2 }],
   // the bindings, lettered (spineAtlas2 and its titles) unless ?wbook says

@@ -1,24 +1,7 @@
-// The Fork's arrival frame, reviewed 2026-10-09 (the numbered points on the
-// review board): 1 the room named for a choice showed no choice — the stand
-// was eight paces short of the stone the ways part at, which lay under the
-// reader's feet, and it looked down the way to the bridge, which runs on the
-// pergola's own line; it stands back at the pergola's end now and a little
-// left, and looks across the stone at both ways leaving it, the Pavilion
-// under the moon down the one and the lanterns of the maze's mouth down the
-// other (and the moon, 6, is whole in the sky, not cut by the frame's top);
-// 2 the raked gravel was ruled white stripes, evenly spaced, at a hard
-// contrast — a crossing or a record's grooves: the furrows are much fainter
-// now, run in passes of a rake that wander and drift apart, and break where
-// a stone sits; 3 the waymark was the largest thing in the frame, a pale
-// stone pillar dead ahead, its boards blank (their names faced into the
-// wood): a slim post of weathered timber now, out on the lawn between the
-// ways where they have parted, its boards' names facing out; 4 the
-// stones along the ways were beads on a string, one size every seven paces
-// — they are set in groups now, a big one with smaller ones against it, gaps
-// between, some sunk to half their height; 7 the pebbled bank round the pond
-// was one even pale stroke — it comes and goes and widens and narrows.
-// (The copy — "the pale gravel divides and divides again" — is left as it
-// was: from the stand it is true now.)
+// The Fork's arrival frame, reviewed 2026-10-09: the stand (1), the raked
+// gravel (2), the waymark (3), the stones along the ways (4), the pebbled
+// bank (7).
+// What each point was, and why: docs/design-history.md.
 //
 // ?wforkfix=old puts all of them back as they were; ?wforkfix=old:2,4 only those.
 import { makeRng } from './textures';

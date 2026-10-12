@@ -2,7 +2,7 @@
 // How the walk ends. It used to end a step short of a plinth in a corridor of
 // the maze, facing a turning gold armillary the size of a desk toy, and a
 // button that said "The end of the walk" and did nothing. Now the heart is a
-// court (buildWorld cuts it out of the maze), and stepping into it is the last
+// court (rooms/web.js cuts it out of the maze), and stepping into it is the last
 // thing the reader does:
 //
 //   the heart catches   the armillary spins up and flares, and its light runs

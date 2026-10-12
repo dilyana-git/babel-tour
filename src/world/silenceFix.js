@@ -1,16 +1,7 @@
-// The Silence's arrival frame, reviewed 2026-10-09 (the numbered points on the
-// review board): 1 the reader's hood no longer over the lamp — the lamp hung a
-// body-width to the side, so the head is drawn against its glow and not on
-// it; 2 the reader lit from below by the lamp's own pool on the terrace, so
-// the one figure is not the darkest thing in the frame and the balusters stand
-// out against it; 3 the dead globes smoked and dulled, no longer clear
-// bubbles, and two of them hung out of the stand's frame; 4 the arches under
-// the flights lit from below, so their voussoirs — what the stand sees of the
-// stair under the terrace — read course by course instead of going to black;
-// 5 the moonlit sky between the posts on
-// the Vertigo's far crown, seen through the hallway, closed behind them.
-// (6, the key-cap hint over the cornice, went with the hint's move to the
-// foot of the frame; 9, the copy, is in catalogue.js.)
+// The Silence's arrival frame, reviewed 2026-10-09: the lamp beside the
+// reader's hood (1), the reader lit from below (2), the dead globes (3), the
+// arches under the flights (4), the sky through the hallway (5).
+// What each point was, and why: docs/design-history.md.
 //
 // ?wsilfix=old puts all of them back as they were; ?wsilfix=old:2,4 only
 // those.

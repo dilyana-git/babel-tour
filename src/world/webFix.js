@@ -1,24 +1,6 @@
-// The Web of Time's arrival frame, reviewed 2026-10-09 (the numbered points on
-// the review board): 2 over the hedges, the top half of the frame was a wall
-// of the Library's blue-grey ashlar — the honeycomb's garden faces stand three
-// paces behind the maze's far hedge and ten metres tall, so the heart of a
-// garden maze read as a walled yard: a belt of cedars is planted between the
-// maze and the garden's hedge now, two and three deep, tall enough that from
-// the stand their spires are the skyline and the stone is behind them;
-// 3 the summary says that in every direction you are already walking, and no
-// way left the court in view — its fourth gate is straight behind the
-// armillary, and the hedges round it read as solid blocks: the court's south
-// rim is opened a cell to the left of the armillary, onto a straight run of
-// hedge two cells long that goes away from the lamp into the dark;
-// 5 the fireflies were few and large and steady, dust on the lens: all of
-// them are flown now and more besides, half the size, and each one flashes on
-// its own beat and goes dark between, the way a firefly does (effects.js,
-// makeSparkles `blink`); 7 the pedestal was three plain cylinders under a
-// richly made sphere: a carved stand now — a stepped plinth, a moulded base,
-// a shaft reeded at foot and head with two rings of gilt capitals between,
-// and an ovolo capital under a square-edged abacus. The sentence is the one
-// the map says at the end; 6 is in EntryMap.jsx (the way on says it is the
-// ending, and the film has a Skip on screen for its whole length).
+// The Web of Time's arrival frame, reviewed 2026-10-09: the belt of cedars
+// (2), the way out of the court (3), the fireflies (5), the pedestal (7).
+// What each point was, and why: docs/design-history.md.
 //
 // ?wwebfix=old puts all of them back as they were; ?wwebfix=old:2,5 only those.
 import * as THREE from 'three';
@@ -46,7 +28,7 @@ export const SCREEN = {
   step: webPropsOld(2) ? [0.75, 1.3] : BELT.step,
 };
 // And the stone they stand in front of, let fall into the night (the mass's
-// `weather` shading, buildWorld.js): by `k` south of z[0]..z[1] and east of
+// `weather` shading, build/materials.js): by `k` south of z[0]..z[1] and east of
 // x[0]..x[1] — behind the maze from the court, and clear of the Door's cell
 // and of every room on the walk. (The heart's own falloff already takes
 // most of the near walls; the far block at z 673 was out of its reach.)
@@ -99,7 +81,7 @@ export function screenPlaces(rng, MZ, ok, walled = null) {
 // units on, the way read as an alcove, lit at its end; it runs into the dark
 // now. (The lawn out there was always walked on; the garden's hedge closes it.)
 export const GATE = { col: qn('wwgcol', 5), run: 2, through: !webOld(3) && Q.get('wwgthrough') !== '0', lane: [0.55, 5] };
-// `set(c, r, d, v)` and `reachable()` are the court's own (buildWorld.js).
+// `set(c, r, d, v)` and `reachable()` are the court's own (rooms/web.js).
 export function openGate(grid, COURT, set, reachable) {
   const c = GATE.col, rows = grid.length;
   let r = COURT.r1;

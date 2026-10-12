@@ -54,9 +54,9 @@ export function buildArch(ctx) {
   {
     const e = edgeFrame(DOOR, 5);
     // Boulders at the foot of the wall on the garden side, either side of the
-    // arch. (They were the fallen wall, lying in the breach; the draws are the
-    // world's stream's, so they are all still made, and only where the stone
-    // is laid has changed.)
+    // arch. (The draws are those of the fallen wall that once lay in the
+    // breach: the world's stream's, so they are all still made, and only where
+    // the stone is laid differs.)
     for (let s = 0; s < 60; s++) {
       const out = rr(-6, 40), along = rr(-46, 46);
       if (Math.abs(along) < 13) continue; // a way through, for the walk
@@ -66,13 +66,13 @@ export function buildArch(ctx) {
     }
     // What fell when the stone that walled the arch up gave way ("between two
     // shelves the stone gives way"), lying where it came down. Without it the
-    // Door's pavement was forty per cent of the frame with nothing whatever on
+    // Door's pavement is forty per cent of the frame with nothing whatever on
     // it.
     //
-    // It was then a hundred-odd chips of one size spread evenly over the lot,
-    // which read as confetti. Those draws are still made (the garden is laid
-    // out from the same stream) and thrown away; what the floor gets instead
-    // is below, from a stream of its own.
+    // The draws of a hundred-odd chips of one size spread evenly over the lot —
+    // confetti — are still made (the garden is laid out from the same stream)
+    // and thrown away; what the floor gets instead is below, from a stream of
+    // its own.
     const ghostRubble = [];
     for (let k = 0; k < (light ? 40 : 110); k++) {
       // Nothing big close to where the reader stands: a chunk of wall at eye
@@ -143,13 +143,12 @@ export function buildArch(ctx) {
       // where they fell among the rubble, one of them open on its face. (Off
       // the way through, where the walk goes.)
       const fallen = [[-27, 24, 0.4, 0.12], [-19, 33, 2.1, -0.08], [-33, 40, 1.2, 0.2], [21, 27, 2.6, -0.15], [30, 36, 0.9, 0.1]];
-      // (folios, 41-47 cm, since 2026-10-06: they were 90 cm-1.2 m across)
+      // (folios, 41-47 cm, not giants of 90 cm-1.2 m)
       const fk = BOOKS_GIANT ? 1 : 0.46;
-      // (They lay shut, plain and dark, and from the stand read as tiles. One
-      // of the shut ones is in vellum now; and where a giant's two boards lay
-      // nearly flat on their face, a dark slab, a folio lies splayed open on
-      // its back with its leaves lifting, and another has fallen open on its
-      // face, a tent with its lettered spine up: doorProps.js, 5.)
+      // (Shut, plain and dark, from the stand they read as tiles. So one of the
+      // shut ones is in vellum; and a folio lies splayed open on its back with
+      // its leaves lifting, and another has fallen open on its face, a tent
+      // with its lettered spine up: doorProps.js, 5.)
       const strewn = !doorPropsOld(5);
       fallen.forEach(([along, into, yaw, tilt], i) => {
         const q = at(along, into), th = (1.7 + (i % 3) * 0.4) * (BOOKS_GIANT ? 1 : 0.36);
@@ -180,15 +179,15 @@ export function buildArch(ctx) {
         petals.push({ p: [q[0], 6.16 + pr() * 0.05, q[1]], rot: [(pr() - 0.5) * 0.3, pr() * 6.28, (pr() - 0.5) * 0.3], s: Array(3).fill(0.7 + pr() * 0.6), color: ['#d8cbe8', '#c3b2da', '#e6dcef'][Math.floor(pr() * 3)] });
       }
     }
-    // and the cracks it ran through the pavement, spreading from the gap.
-    // Since 2026-10-07 they are painted into the floor itself (cracks.js, read
-    // by paveShade), breaking slab by slab, from the breach and from under the
-    // blocks that fell. What is laid here is what they were before (?wcrack=old):
-    // a dark groove flush with the paving, a lip the moon catches on its side
-    // toward the breach, each crack narrowing as it runs out, and moss in the
-    // widest — still strips laid on the floor, crossing its joints as if they
-    // were not there. Their draws are the world's stream's, and the garden is
-    // laid out from the stream after them, so they are made either way.
+    // and the cracks it ran through the pavement, spreading from the gap. They
+    // are painted into the floor itself (cracks.js, read by paveShade),
+    // breaking slab by slab, from the breach and from under the blocks that
+    // fell. What is laid here is the old kind (?wcrack=old): a dark groove
+    // flush with the paving, a lip the moon catches on its side toward the
+    // breach, each crack narrowing as it runs out, and moss in the widest —
+    // strips laid on the floor, crossing its joints as if they were not there.
+    // Their draws are the world's stream's, and the garden is laid out from the
+    // stream after them, so they are made either way.
     for (let k = 0; k < 9; k++) {
       let q = add(GATE, e.n, -rr(4, 14)), a = 150 + rr(-58, 58);
       for (let seg = 0; seg < 5 + Math.floor(rnd() * 4); seg++) {
@@ -210,11 +209,11 @@ export function buildArch(ctx) {
     // ── One volume was a gate ─────────────────────────────────────────────
     // The title of the room: the way out of the Library is a bookcase. It hung
     // at the garden end of the arch's passage, closing it to twice a reader's
-    // height, and it has swung back into the passage and stands folded
-    // against its left side, its shelves still full and turned to whoever goes
-    // through. (Anywhere out in the opening, or at the arch's full height,
-    // from the room it stood across the arch as a dark post.) It stands clear
-    // of the plinth and the impost that run along the reveal.
+    // height, and it has swung back into the passage and stands folded against
+    // its left side, its shelves still full and turned to whoever goes through.
+    // (Anywhere out in the opening, or at the arch's full height, from the room
+    // it would stand across the arch as a dark post.) It stands clear of the
+    // plinth and the impost that run along the reveal.
     {
       // The leaf it replaces drew its books from the world's stream, and the
       // garden is laid out from the stream after it: the same draws, thrown away.
@@ -237,8 +236,8 @@ export function buildArch(ctx) {
       piece(x0, x1 + 0.45, H - 1.6, H, z0 - 0.15, z1 + 0.15);   // the rail over the head, moulded
       piece(x0, x1 + 0.7, H - 2.2, H - 1.6, z0 + 1.2, z1 - 1.2);
       piece(x0, x1 + 0.3, Y0, Y0 + 1.8, z0 + 1.2, z1 - 1.2);    // the plinth
-      // (two shelves of giants 85 cm-1.2 m tall until 2026-10-06; six of
-      // quartos now, ?wbookscale=old for the two)
+      // (six shelves of quartos; ?wbookscale=old for two of giants 85 cm-1.2 m
+      // tall)
       const shelves = BOOKS_GIANT ? [Y0 + 1.8, 20.4] : Array.from({ length: 6 }, (_, j) => Y0 + 1.8 + (j * (H - 2.2 - Y0 - 1.8)) / 6);
       const spines = 30 * deg;   // a book's spine faces +x in this frame
       shelves.forEach((y, i) => {
@@ -462,10 +461,10 @@ export function buildArch(ctx) {
         put(new THREE.TubeGeometry(arm, 12, 0.24, 6, false));
         flames.push([c[0], 25.6, c[1], 2.2 + ((k * 7) % 3) * 0.55]);
       }
-      // (They were five clean cylinders of a size. Burnt down now, each as far
-      // as it has, its crown melted and its wax run down it and onto the pan,
-      // a glow round each flame — its own sprite: `halo()` draws on the world's
-      // stream — and the flames moving a little: doorProps.js, 4.)
+      // (Burnt down, each as far as it has, its crown melted and its wax run
+      // down it and onto the pan, a glow round each flame — its own sprite:
+      // `halo()` draws on the world's stream — and the flames moving a little:
+      // doorProps.js, 4.)
       const worn = !doorPropsOld(4), cr = makeRng(side < 0 ? 4411 : 4412);
       flames.forEach(([x, y, z, h0], fi) => {
         put(L([[0, y - 0.4], [0.95, y - 0.35], [1.0, y - 0.15], [0.45, y], [0, y]], 14).translate(x, 0, z));
@@ -495,31 +494,31 @@ export function buildArch(ctx) {
           }
         } else glows.push({ p: [at[0] + x, y + h + 0.55, at[1] + z], s: [0.3, 0.62, 0.3], color: '#ffc47a', k: 1.5 });
       });
-      // (theirs to keep from anywhere in the room: the stand is further back
-      // since 2026-10-10 — doorProps.js, 1 — and from there two lamps out in the
-      // Vertigo were nearer than these, and the arch stood unlit)
+      // (theirs to keep from anywhere in the room: from the stand, further back
+      // — doorProps.js, 1 — two lamps out in the Vertigo would be nearer than
+      // these, and the arch would stand unlit)
       point(at, 27, '#ffb466', 2600, 5, null, doorPropsOld(1) ? null : [DOOR[0], DOOR[1], R]);
       if (worn) candleLights.push({ wish: lightWishes.at(-1), base: lightWishes.at(-1).intensity, phase: side < 0 ? 0.7 : 3.9 });
     }
-    // Hung to the left of the arch rather than in front of it, where it stood
-    // across the springing, and high, level with the head of the hood: from
-    // there its light rakes across the orders and the gable, and every roll,
-    // hollow and foil reads by it. (Hung at the springing it lit the jambs,
-    // and the carving over the arch was one flat tone.)
-    // (no beam: its cone was a hard pale wedge down the cases to the left of
-    // the arch, and the breach is the one shaft of light this room wants)
-    // (lower since 2026-10-09: at 82 the frame's top edge cut its globe in half — doorFix.js, 8)
-    // (a smaller globe burning lower since 2026-10-10, so the doorway and not
-    // the lamp is what the eye goes to; its light is what it was — doorProps.js, 7)
+    // Hung to the left of the arch rather than in front of it, across the
+    // springing, and high, level with the head of the hood: from there its
+    // light rakes across the orders and the gable, and every roll, hollow and
+    // foil reads by it. (Hung at the springing it lights the jambs, and the
+    // carving over the arch is one flat tone.) (no beam: its cone is a hard
+    // pale wedge down the cases to the left of the arch, and the breach is the
+    // one shaft of light this room wants) (low enough that the frame's top edge
+    // does not cut its globe in half — doorFix.js, 8) (a small globe burning
+    // low, so the doorway and not the lamp is what the eye goes to —
+    // doorProps.js, 7)
     lamp(inPortal(-44, 38), {
       y: doorOld(8) ? 82 : DOOR_LAMP_Y, light: 5200, priority: 4, poolSize: 150, beam: false,
       pool: doorPropsOld(2) ? 0.2 : DOOR_SPILL.warm.side,
       ...(doorPropsOld(7) ? { strength: 1.05, haze: 0.6 } : DOOR_SIDE_LAMP),
     });
-    // The garden's light: a lamp outside the arch and its pool on the floor.
-    // (The pool was a hundred and fifty wide and laid 22 into the room, and
-    // the lamp, which no wall stops, hung close outside: the whole pavement
-    // was olive. A tongue now, in the passage and a slab beyond — doorProps.js, 2)
+    // The garden's light: a lamp outside the arch and its pool on the floor, a
+    // tongue in the passage and a slab beyond (doorProps.js, 2: a wide pool
+    // laid into the room, and a lamp that no wall stops hung close outside,
+    // turn the whole pavement olive).
     if (doorPropsOld(2)) {
       point(add(GATE, e.n, 14), 40, '#8ff0d4', 3800, 9);
       decal(add(GATE, e.n, -22), 150, 140, '#7ee8c8', 0.17);

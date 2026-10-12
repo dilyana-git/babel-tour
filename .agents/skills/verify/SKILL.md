@@ -47,7 +47,7 @@ you have looked at it.
 - Reduced motion is emulated (the opening and the flights are cuts);
   `--motion` turns that off, and then flights take a minute or more headless.
 - `--strict` exits 1 on a page error or a console error, such as a shader
-  that does not compile: use it after touching GLSL in `buildWorld.js`.
+  that does not compile: use it after touching GLSL in `src/world/build/` or `src/world/rooms/`.
 
 Comparing two looks: shoot them in **one** `--ab` call, not two runs.
 Software WebGL's exposure differs enough between sessions to fake a

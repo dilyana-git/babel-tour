@@ -1,14 +1,7 @@
-// The Echo's arrival frame, reviewed 2026-10-08 (the numbered points on the
-// review board): 1 the stand a few strides further in, so the two column
-// shafts frame the stair instead of walling a quarter of the frame off; 2 the
-// stair read by its values — the nosing the palest line, the riser a shade
-// under the tread, a string run up both flanks; 3 carved keystones over the
-// arches instead of the bronze roundels that hung over them like knockers;
-// 4 the moon's column of light begun above the lower storey's cornice, its
-// edge warmed; 5 (the bright sliver between two balusters, which is the
-// Silence's lamp seen through the hallway — moved out of line by 1); 6 the
-// drum's ashlar coursed finer as it rises and no longer one tile repeated;
-// 7 books over the ways out, so every bay of the upper storey shows shelves.
+// The Echo's arrival frame, reviewed 2026-10-08: the stand, the stair's
+// values, the keystones, the moon's column, the drum's coursing, books over
+// the ways out.
+// What each point was, and why: docs/design-history.md.
 //
 // ?wechofix=old puts all of them back as they were; ?wechofix=old:3,6 only
 // those. (?wecho=old is the flights' old tread, and is its own.)

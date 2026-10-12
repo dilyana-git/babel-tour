@@ -1,23 +1,6 @@
-// The Pavilion's arrival frame, reviewed 2026-10-09 (the numbered points on the
-// review board): 8 the roof's underside filled the top third of the frame —
-// the stand was most of the way along the bridge, under the eave's reach, and
-// looked level at the deck; it stands back on the bridge's first run now,
-// near the shore, and looks up a little, so the roof is a silhouette against
-// the sky with its finial whole, and (5) the eight paper lanterns along the
-// eave are all inside the frame, where two were cut by its edges; 2 under the
-// eave the bracket sets read as stacked lumber — two tiers of plain boxes
-// over every column, the rafters and two purlins at one radius run through
-// them, and a bright gilt cube on the front of each: one clean set to a
-// column now (block, arm, block, arm, in a stepped cross, the arms' ends
-// rounded off underneath the way a bracket arm's are), the arms laid along
-// the beams they carry, and a small cap of dark bronze where the gilt was;
-// 3 the rail posts' finials were eggs, and the nearest, out of focus at the
-// bottom of the frame, an acorn: small lotus buds, petals carved in; 4 the
-// willows' whips shimmered as vertical scan lines (three hair-fine whips to a
-// card, under a pixel across from the bridge, alpha-tested): one or two
-// broader strands to a card, thinning to the tip, and a card keeps its
-// coverage as its texture shrinks; 6 the copy promised music in a world that
-// has no sound — it speaks of the qin on the table instead (catalogue.js).
+// The Pavilion's arrival frame, reviewed 2026-10-09: the stand (8, 5), the
+// bracket sets (2), the rail finials (3), the willows' whips (4).
+// What each point was, and why: docs/design-history.md.
 //
 // ?wpavfix=old puts all of them back as they were; ?wpavfix=old:2,4 only those.
 import * as THREE from 'three';

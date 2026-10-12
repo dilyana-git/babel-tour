@@ -1,28 +1,7 @@
-// The Door, design audit II's board 9 (2026-10-10) — the numbered points:
-// 1 the gable's apex touched the frame's top edge and its finial was cut off:
-//   the stand is further back and looks higher, so the whole gable, its
-//   finial and a strip of the night over the wall are in the frame;
-// 2 the pavement had gone olive-green right across the room — the garden's
-//   light was a pool a hundred and fifty units wide laid 22 into the room and
-//   a green lamp outside the arch that no wall stopped — it is a tongue now,
-//   in the passage and a slab or so beyond the jambs, and the near floor has
-//   the lamps' warmth;
-// 3 (the lit seam along the right-hand case's foot was the floor's brass
-//   fillet: auditFix.js, 1);
-// 4 the candles were clean cylinders: they have burnt down unevenly, with a
-//   melted crown, runs of wax down their sides and on the pans, a soft halo
-//   round each flame, the flames' light on the piers behind, and a flicker;
-// 5 the fallen books lay shut, plain and dark, and read as tiles: one lies
-//   splayed open with its pale leaves lifting, one has fallen open on its
-//   face with its lettered spine up, and one of the shut ones is in vellum;
-// 7 the lamp to the left of the portal hung large and bright and took the eye
-//   from the doorway: a smaller globe, burning lower, with less halo — its
-//   light on the carving is what it was;
-// 8 the fallen blocks had rounded arrises all round, like foam: where a block
-//   broke fresh its arrises are sharp now, and only its old faces are worn
-//   (rubble.js, `crisp`);
-// 9 the ladder was cut by the frame's right edge: it stands further along
-//   its rail.
+// The Door, audit II's board 9 (2026-10-10): the stand (1, 9), the garden's
+// light on the pavement (2), the candles (4), the fallen books (5), the lamp
+// left of the portal (7), the fallen blocks' arrises (8).
+// What each point was, and why: docs/design-history.md.
 //
 // ?wdoorprops=old puts all of them back as they were; ?wdoorprops=old:2,7 only those.
 import * as THREE from 'three';

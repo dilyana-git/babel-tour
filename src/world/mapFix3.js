@@ -1,34 +1,7 @@
-// What the design board on the opening and the map (2026-10-11, audit III,
-// board 1) marked FIX and REFINE — the points by the board's own numbers:
-// 2  the hand-over was a let-down: a gold drawing, made by a hand, turned into
-//    neutral grey masonry round black pits, and that is the picture the reader
-//    comes back to after every room. The board asked for options first, and
-//    there were three, each a set of the same three dials (LOOKS, below): what
-//    is left of the ink once the stone is under it, how warm and how dark the
-//    stone of the unwalked cells is, and how far the lantern dims them. The
-//    user chose a: the ink never fully leaves — the unwalked cells stay as
-//    a faint drawing over darker stone.
-// 3  sixty cells competed with eight. Every cell had the same coping, the same
-//    balustrade and the same contrast as the rooms of the walk, and the
-//    coping's blocks repeated at a size that read as a tiled texture. Over
-//    the map, the stone of every cell that is not a room of the walk loses its
-//    blocks (it is drawn in the stone's one mean colour), its relief and some
-//    of its light, and its balustrade is let down into the coping.
-// 4  the garden had no colour from above: the most coloured place in the piece
-//    was navy on black, its pavilion a grey disc. Over the map it is given
-//    what it has on the ground — a warm pool at the pavilion, the pergola's
-//    violet, the lanterns' amber, moonlight on the pond (buildWorld.js,
-//    "The garden, seen from the map").
-// 5  the numerals sat off their rooms: VI on black water left of the pond, VIII
-//    at the maze's mouth with the court it names lit a long way under it. The
-//    garden's places give the map a mark to set their numeral over (overlay
-//    `marks`): the fork itself, and the court. (A hairline ring round each
-//    of the garden's places at rest was tried with it, and taken out the same
-//    day: circles drawn on the garden, the user did not like them.)
-// 6  two voices shared a line: the byline in serif italic and "CHOOSE A ROOM
-//    TO BEGIN" in gold mono capitals, so the instruction read as the byline's
-//    tail. The caption's own "Enter The Vestibule" gives the instruction:
-//    once a caption is showing, the line is the byline's alone (EntryMap.jsx).
+// The opening and the map (2026-10-11, audit III, board 1): the hand-over (2,
+// LOOKS below: the user chose a), the unwalked cells' stone (3), the garden's
+// colour from above (4), the numerals' marks (5), the byline's line (6).
+// What each point was, and why: docs/design-history.md.
 //
 // ?wmap3=old puts all of them back as they were; ?wmap3=old:3,5 only those.
 // ?wmapink=b|c puts one of the other two hand-overs (2) in a's place; `off`

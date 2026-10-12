@@ -10,11 +10,11 @@
 // `target` says where the camera should be: null for the map, or a room. The
 // camera gets there by the way the place allows:
 //   map → room    a flight down through the open roof to where a reader stands
-//   room → room   a walk (buildWorld's `legs`) through the hallway, over the
+//   room → room   a walk (build/walk.js's `legs`) through the hallway, over the
 //                 Echo's stair, along the pergola, across the bridge, into the
 //                 maze — or, between the Vertigo and the Door, the fall down the
 //                 funnel into light (and the climb back out of it)
-//   inside a room a climb to its vantage and back down (`vantage`, buildWorld's
+//   inside a room a climb to its vantage and back down (`vantage`, build/walk.js's
 //                 VANTAGES: the crown of the Echo's crossing)
 //   room → map    the flight back up
 // and says so with onSettle(room, atVantage). While standing, `lookRef` turns
@@ -82,7 +82,7 @@ const EdgeAA = wrapEffect(EdgeAAEffect);
 // Indoors nothing casts blue; the warmth has to come from the lamps and the
 // dark stays the dark. ?wpal=old prints the old way, for comparison.
 const OLD_PALETTE = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('wpal') === 'old';
-// ?wlight=old: the hard lamplight of before 2026-10-01 (see buildWorld's
+// ?wlight=old: the hard lamplight of before 2026-10-01 (see build/materials.js's
 // LAMP_DECAY) — and with it the lower fill and the brighter print it was
 // graded under. (The print came down twice that day, 1.2 → 1.1 with the
 // softer lamps and → 1.0 when the reader asked for it dimmer still.)
@@ -198,7 +198,7 @@ const ROOM = (() => {
 // opens onto the Echo. ?wdoor=0 walks into the bare hexagon behind it instead.
 const DOORS = typeof window === 'undefined' || new URLSearchParams(window.location.search).get('wdoor') !== '0';
 // ── The way, by default ──────────────────────────────────────────────────────
-// Holding W, the reader is walked along the piece's own way (buildWorld's
+// Holding W, the reader is walked along the piece's own way (build/walk.js's
 // `legs`, as the buttons walk it) for as long as they do not deliberately
 // leave it: the feet stay on its centreline, and the head remains free.
 // Release W, look elsewhere and press W again to choose another course, or
@@ -262,7 +262,7 @@ const GAZE_STEER = typeof window === 'undefined' || new URLSearchParams(window.l
 const GAZE_DWELL = 0.6;
 const GAZE_SETTLED = 0.35;   // rad/s: a head turning slower than this has settled
 const GAZE_MAX = THREE.MathUtils.degToRad(110);
-// The way, shown (buildWorld's `setWay`): the worn stone a few strides on
+// The way, shown (build/materials.js's `setWay`): the worn stone a few strides on
 // lights while the reader walks the way, a little less while they stand on it
 // (W walks on) or at a stand facing the way on, and fades as they leave it.
 const WAY_WALKING = 1, WAY_WAITING = 0.5, WAY_EASE = 0.5;
@@ -362,7 +362,7 @@ const standPose = (stand) => {
 };
 
 // Where the reader is standing in room i: the one place the walk puts them, or —
-// once they have climbed to it — the room's vantage (buildWorld's VANTAGES: the
+// once they have climbed to it — the room's vantage (build/walk.js's VANTAGES: the
 // Echo's crossing). A room without one has nowhere else to be.
 const spotAt = (world, i, up) => (up && world.stands[i].vantage) || world.stands[i];
 const vantageAt = (world, i) => (i === null ? null : world.stands[i].vantage ?? null);
@@ -703,7 +703,7 @@ const fallMove = (leg, from, to, reverse) => {
   };
 };
 
-// The heart of the maze (buildWorld's `finale`, finale.js): the way on from the
+// The heart of the maze (build/walk.js's `finale`, finale.js): the way on from the
 // last room, and the one move nobody walks back along. A look round from where
 // the reader stands as the heart catches and the others come in,
 // ending on the one standing in the gate the reader came in by; then up out of

@@ -26,27 +26,24 @@ export function buildFork(ctx) {
   // VI — the Fork: where the road divides, a stone waymark with a board for each
   // way (with `paintings`, a painted screen facing the pergola).
   if (!paintings) {
-    // The waymark stands dead centre of the Fork's view and was the palest
-    // thing in the garden: a bare post with two boards. It carries the lantern
-    // now — a fork in a path at night is somewhere someone hung a light.
+    // The waymark stands dead centre of the Fork's view; bare, a post with two
+    // boards, it is the palest thing in the garden. It carries the lantern — a
+    // fork in a path at night is somewhere someone hung a light.
     //
-    // And it said nothing: a plain square pillar under a pyramid, with two
-    // blank boards. Now a post that tapers, a moulded cap and a knob on its
-    // roof; and boards shaped to point, with the ways cut into them and
+    // And it says something: a post that tapers, a moulded cap and a knob on
+    // its roof; and boards shaped to point, with the ways cut into them and
     // gilded — THE PAVILION, and under it THE HEART, which is beyond it — and
     // one board newer and paler than the rest, pointing down the road not
     // taken, with nothing written on it. (Since the road not taken goes to the
     // Heart, THE HEART points down it, toward the maze's mouth, and there is no
     // third way to leave blank: ?wfork=old for the three boards.)
     //
-    // (2026-10-09, forkFix.js 3: that pillar was the biggest and palest thing
-    // in the Fork's frame, dead ahead, and its boards were blank from both
-    // sides — the names faced into the wood. A slim post of weathered timber
-    // now, standing back in the lawn between the ways, the names facing out.)
+    // (forkFix.js, 3: a slim post of weathered timber, standing back in the
+    // lawn between the ways, the names facing out — not the biggest and palest
+    // thing in the Fork's frame, dead ahead.)
     const slim = !forkOld(3);
-    // (gardenFix5.js, 3: that post was a square black stick. Turned now, in
-    // the pergola's timber, under an onion cap; its boards weathered, housed
-    // through it, their names cut in.)
+    // (gardenFix5.js, 3: turned, in the pergola's timber, under an onion cap;
+    // its boards weathered, housed through it, their names cut in)
     const turned = slim && !garden5Old(3);
     const at = slim ? add(J, dir(WAYMARK.bearing), WAYMARK.dist) : add(J, dir(279), 30);
     standing.push({ p: at, r: slim ? 2.6 : 4 });
@@ -112,8 +109,8 @@ export function buildFork(ctx) {
         const q = turned ? add(add(at, t, 1.15 + (L - 1.2) / 2), n, side * (SIGN.thick / 2 + 0.02)) : add(add(at, t, b0 + L / 2), n, side * 0.3);
         plate.position.set(q[0], y, q[1]);
         // (each plate faces OUT of its side of the board: turned the other way,
-        // as they were till forkFix.js 3, both faced into the wood and neither
-        // side of a board showed its name)
+        // with ?wforkfix=old:3, both face into the wood and neither side of a
+        // board shows its name)
         plate.rotation.y = (side > 0) === slim ? -a * deg : -a * deg + Math.PI;
         plate.name = 'waymark-name';
         root.add(plate);
@@ -121,7 +118,6 @@ export function buildFork(ctx) {
     });
     // An iron bracket off the post, braced, and hung from it a tsuri-dōrō: a
     // six-sided iron lantern, a lattice round paper, under a roof of its own.
-    // It was two gilt discs with a glowing egg between them.
     const arm = dir(slim ? WAYMARK.arm : 196), a0 = slim ? 0.5 : 1.6;
     GB.iron.add(boxGeo(add(at, arm, a0), add(at, arm, a0 + 6.4), 0.5, 0.5, 24.4));
     {
@@ -135,7 +131,7 @@ export function buildFork(ctx) {
       lawnLamps.push({ p: lp, y: 20.6, ...LAWN.waymark });
       signLamp.value.set(lp[0], 20.6, lp[1], SIGN.lamp);
       halo(lp, 20.6, 16, '#ffbc70', 0.14, lampHaloTex);
-      // (900 when it was an egg of light: it blew the post beside it out to white)
+      // (not 900: that blows the post beside it out to white)
       point(lp, 20.4, '#ffb866', 180, 4);
       decal(lp, 62, 62, '#ffb462', 0.11 * POOL_DIAL, 5.3, 0.12);
     }
@@ -181,10 +177,10 @@ export function buildFork(ctx) {
     });
     const inPond = (p, m = 1) => ((p[0] - c[0]) / (rx * m)) ** 2 + ((p[1] - c[1]) / (rz * m)) ** 2 < 1;
     const nearBridge = (p) => BRIDGE.slice(1).some((b, i) => segDist(p, BRIDGE[i], b) < 13);
-    // The pads, flowers and fish used to be drawn here from the world's stream,
-    // and the Pavilion, the mist and the maze are laid out from what they left
-    // of it. They have a stream of their own now; this spends the world's
-    // exactly as they did, so the maze is still the maze it was.
+    // The Pavilion, the mist and the maze are laid out from what the pads,
+    // flowers and fish once left of the world's stream. Those have a stream of
+    // their own; this spends the world's exactly as they did, so the maze stays
+    // the maze it is.
     {
       let pads = 0;
       for (let s = 0; s < 300 && pads < 20; s++) {
@@ -278,8 +274,8 @@ export function buildFork(ctx) {
     // the balustrade is the bay the bridge actually arrives at.
     const DECK = 12, HEAD = 46, R_COL = 26;
     // (pavilionProps.js, 13: gilt on every column, under every lantern and on
-    // the table's lamp, with the finial, was a casino's. The small fittings
-    // are bronze; the one bright gold thing here is the finial.)
+    // the table's lamp, with the finial, is a casino's. The small fittings are
+    // bronze; the one bright gold thing here is the finial.)
     const FITTING = pavPropsOld(13) ? GB.gold : GB.pavBronze;
     const RAIL_WORN = !pavPropsOld(10);
     const bay = (k) => 22.5 + k * 45;
@@ -293,13 +289,13 @@ export function buildFork(ctx) {
     );
     // Both tiers of roof are lathes turned from one curve — flat at the eave,
     // lifting to the ridge — and `soffit` IS that curve. Everything that has to
-    // fit under the roof asks it where the roof is rather than guessing, which
-    // is how the old rafters came to hang five units below it in open air.
-    // (forkProps.js, 2: that curve was a dome's — level at the top, steepest
-    // at the eave — and the roof it made was a conservatory's. The roof is
-    // tiled now, pavilionRoof.js, on a hollow curve with its corners swept
-    // up, and `soffit` asks that roof where it is: `a`, the bearing, because
-    // a facet between two hips is lower at its middle than a lathe's ring.)
+    // fit under the roof asks it where the roof is rather than guessing.
+    // (forkProps.js, 2: with ?wprops=old:2 that curve is a dome's — level at
+    // the top, steepest at the eave — and the roof it makes is a
+    // conservatory's. The roof is tiled, pavilionRoof.js, on a hollow curve
+    // with its corners swept up, and `soffit` asks that roof where it is: `a`,
+    // the bearing, because a facet between two hips is lower at its middle than
+    // a lathe's ring.)
     const ROOF_OLD = propsOld(2);
     const TIERS = ROOF_OLD ? [{ r: 52, h: 17, y: 44 }, { r: 29, h: 15, y: 58 }]
       : ROOF_TIERS.map((t) => ({ ...t, h: roofProfile(t, 0) - t.y }));
@@ -320,8 +316,7 @@ export function buildFork(ctx) {
 
     // ── Columns, balustrade, and the seat along it ────────────────────────
     // The bay the bridge lands in is left open — worked out from where the
-    // bridge actually ends rather than written down, because it was written
-    // down once and it was the wrong bay.
+    // bridge actually ends rather than written down.
     const arrivalOf = (BR) => {
       const end = BR[BR.length - 1];
       return Math.floor((((Math.atan2(end[1] - PV[1], end[0] - PV[0]) / deg) + 337.5 + 360) % 360) / 45);
@@ -417,14 +412,14 @@ export function buildFork(ctx) {
       GB.gold.add(inBay(a, 8.3, 0, HEAD + 5.3, 0.9, 1.7, 2.8));
     };
     // Over the columns only. With a cluster over the middle of every bay too,
-    // seen from below on the bridge the sixteen ran into one another and the
-    // band under the eave was a heap of loose blocks; eight, one to a column,
-    // repeat, and repetition is what makes joinery read as made. (With the
-    // room that leaves, each tier's arms reach further along the eave.)
-    // (2026-10-09, pavilionFix.js 2: from the bridge those two tiers of plain
-    // boxes, the rafters and a second purlin running through them, and a gilt
-    // cube on the front of each, read as stacked lumber. One set to a column
-    // now, block and arm in a stepped cross, its arms along the beams.)
+    // seen from below on the bridge the sixteen run into one another and the
+    // band under the eave is a heap of loose blocks; eight, one to a column,
+    // repeat, and repetition is what makes joinery read as made. (With the room
+    // that leaves, each tier's arms reach further along the eave.)
+    // (pavilionFix.js, 2: one set to a column, block and arm in a stepped
+    // cross, its arms along the beams; ?wpavfix=old:2 for the two tiers of
+    // plain boxes with a gilt cube on each, which from the bridge read as
+    // stacked lumber.)
     const PAV_BRACKETS = !pavOld(2);
     if (PAV_BRACKETS) {
       // (pavilionProps.js, 3: the arms eased and painted)
@@ -440,9 +435,8 @@ export function buildFork(ctx) {
       }
       [...set.arms, ...set.blocks, ...set.caps, ...set.chalk, ...set.green].forEach((g) => g.dispose());
     } else for (let k = 0; k < 8; k++) dougong(bay(k));
-    // the purlin the brackets were put there to hold, and the beam behind them
-    // (each on the top blocks of the sets now, where they had floated a little
-    // over them and the purlin sat inside the ring of rafter purlins below)
+    // the purlin the brackets are there to hold, and the beam behind them (each
+    // on the top blocks of the sets)
     for (let k = 0; k < 8; k++) {
       const out = PAV_BRACKETS ? R_COL + BRACKET.purlinOut : 33;
       GB.wood.add(boxGeo(on(bay(k), out), on(bay(k + 1), out), 1.7, 2.0, HEAD + (PAV_BRACKETS ? BRACKET.purlinY : 6.6)));
@@ -491,8 +485,8 @@ export function buildFork(ctx) {
       const a = bay(k), lp = on(a, 52);
       // A paper lantern at the eave: lacquered cap and base round the light —
       // small, and burning low. As big as a head and nearly as bright as the
-      // lamp on the table they were eight lamps against its one, and "a single
-      // pavilion burns warm" is a building lit from inside.
+      // lamp on the table they would be eight lamps against its one, and "a
+      // single pavilion burns warm" is a building lit from inside.
       FITTING.add(placed(new THREE.CylinderGeometry(0.18, 0.18, 2.6, 6), lp, 45.8));
       if (LAMPS.paper) trialEaves.push({ p: [lp[0], 42.8, lp[1]], s: [1.15, 1.5, 1.15], color: '#ffb070', k: 0.6 });
       else glows.push({ p: [lp[0], 42.8, lp[1]], s: [1.15, 1.5, 1.15], color: '#ff8a3e', k: 0.5 });
@@ -517,8 +511,8 @@ export function buildFork(ctx) {
       // between the two tiers, the short wall the upper one stands on.
       const kind = ROOF_KIND, surface = ROOF_SURFACE[kind];
       const roofMat = skyDull(Std({ map: tex(roofTiles(kind), [1, 1]), roughness: surface.roughness, side: THREE.DoubleSide }), surface.sky, surface.direct);
-      // (gardenFix5.js, 6: the hips' curled ends were the rolls' pale grey
-      // on the night, horns — dark bronze now)
+      // (gardenFix5.js, 6: the hips' curled ends in dark bronze — in the rolls'
+      // pale grey, on the night, they are horns)
       const roof = tiledRoof({ at: PV, kind, light, bronze: !garden5Old(6) });
       const hornMat = roof.horns ? skyDull(Std({ color: HORN.color, roughness: HORN.roughness, metalness: HORN.metalness, side: THREE.DoubleSide }), HORN.sky) : null;
       for (const [geo, material] of [[roof.tiles, roofMat], [roof.under, underside], ...(roof.horns ? [[roof.horns, hornMat]] : [])]) {
@@ -608,18 +602,17 @@ export function buildFork(ctx) {
     // and NO pool of light on the ground. Every other lamp in the world lays
     // one — light scattered back off stone or gravel — but the ground under
     // this one is the pond, and water does not scatter light back, it reflects
-    // it. A 210-by-190 additive quad of warm haze at y 6.9 is the whole reason
-    // the pond read as a lawn: it lay over the water edge to edge, above it and
-    // brighter than anything in it, and no amount of work on the surface
-    // underneath could be seen through it. What a lamp does to this water is
-    // the broken column it lays down towards the eye, and that is the water's
-    // own business now (water.js).
+    // it. A 210-by-190 additive quad of warm haze at y 6.9 makes the pond read
+    // as a lawn: it lies over the water edge to edge, above it and brighter
+    // than anything in it, and nothing on the surface underneath can be seen
+    // through it. What a lamp does to this water is the broken column it lays
+    // down towards the eye, and that is the water's own business (water.js).
     if (!paintings) {
       // ── The lamp at the heart of it ─────────────────────────────────────
       // "Where the lamp keeps every future." A low table on four legs with an
       // apron between them, and a standing lantern on it: a base, four corner
       // posts, a cap, and the light held inside a frame rather than loose in
-      // the air the way it was.
+      // the air.
       const TT = DECK + 6.6;
       for (let i = 0; i < 4; i++) {
         const q = add(PV, dir(45 + i * 90), 4.6);
@@ -630,11 +623,11 @@ export function buildFork(ctx) {
       }
       GB.wood.add(placed(new THREE.CylinderGeometry(8.0, 7.4, 1.3, 16), PV, TT + 0.65));
       // The table's shade. A lamp stood on a table lights the room above it;
-      // the floor round the table is in the table's own shadow, out to about
-      // 8 × 12.2 / 4.3 ≈ 23 (its top's radius, by the lamp's height over the
-      // floor and over the top). The lamps cast no shadows here, so the
-      // brightest thing on the deck was the floor directly UNDER the table, a
-      // cream disc round its foot (2026-10-05). Laid as a shade, not drawn as a
+      // the floor round the table is in the table's own shadow, out to about 8
+      // × 12.2 / 4.3 ≈ 23 (its top's radius, by the lamp's height over the
+      // floor and over the top). The lamps cast no shadows here, so without
+      // this the brightest thing on the deck is the floor directly UNDER the
+      // table, a cream disc round its foot. Laid as a shade, not drawn as a
       // shadow: a flat core and a penumbra as wide as the lantern is, and not
       // black, because the deck and the columns light it back a little.
       const shadeTex = tex(paint(128, 128, (g) => {
@@ -678,15 +671,15 @@ export function buildFork(ctx) {
       // and its light laid on the black water under the pavilion (water.js)
       waterLamps.push({ p: [PV[0], TT + 5.6, PV[1]], color: '#ffc884', k: 1.2 });
       // "Its music seems to arrive from all your lives at once" — and nothing
-      // in it could make a sound. (Nor can the world: it has none. The copy
-      // speaks of the qin waiting instead, since pavilionFix.js 6.) A guqin on the table beside the lamp, on the
-      // side the bridge comes from: a long zither in black lacquer, seven silk
-      // strings, the thirteen studs of mother-of-pearl along its near edge; on
-      // the boards before it, the cushion someone sits on to play it.
-      // (pavilionProps.js, 4: from the stand that was a board with a pale
-      // stripe. A qin's outline and arched top, its strings and studs where
-      // a qin's are, the head out over the table's edge with its pegs and
-      // tassels, and a cloth under its tail let down over the rim.)
+      // in it can make a sound. (Nor can the world: it has none. The copy
+      // speaks of the qin waiting instead: pavilionFix.js, 6.) A guqin on the
+      // table beside the lamp, on the side the bridge comes from: a long zither
+      // in black lacquer, seven silk strings, the thirteen studs of
+      // mother-of-pearl along its near edge; on the boards before it, the
+      // cushion someone sits on to play it. (pavilionProps.js, 4: a qin's
+      // outline and arched top, its strings and studs where a qin's are, the
+      // head out over the table's edge with its pegs and tassels, and a cloth
+      // under its tail let down over the rim.)
       if (!pavPropsOld(4)) {
         const toBridge = 127, a = (toBridge - 90) * deg;
         // `OUT` from the table's middle to the qin's line (clear of the lamp's
@@ -844,8 +837,8 @@ export function buildFork(ctx) {
           steps.add(slabGeo(quad(RW - 0.6, -7.2, -3.6), [], 2.2, TOP - 3.9));
         } else {
           // (shore.js) a pier of coursed granite under the deck's end, on the
-          // footprint and to the top of the slab it replaces, and one broad
-          // stone to step up from, its top where the old step's was
+          // footprint and to the top of the slab it stands for, and one broad
+          // stone to step up from, its top where that slab's step was
           const foot = bridgeFoot({
             a: r.a, t: r.t, n: r.n, half: HW + 0.6, pier: [-4.2, 2.5], pierTop: TOP - 1.9,
             step: { u0: -7.2, u1: -3.6, half: RW - 0.6, top: TOP - 1.7 }, floor: 5.2,
@@ -873,10 +866,10 @@ export function buildFork(ctx) {
         const ang = -Math.atan2(v[1], v[0]);
         if (RAIL_WORN) GB.railWorn.add(wornPost(q, TOP, 1.4, 4.4, ang));
         else GB.lacquer.add(placed(new THREE.BoxGeometry(1.4, 4.4, 1.4), q, TOP + 2.2, ang));
-        // A capped head, not a brass knob: the walk goes along this rail and
-        // a gilt ball on every post came past the eye like a row of melons.
-        // (And not a squat pyramid either, which was the nearest, heaviest
-        // shape in the Pavilion's frame: a small lacquered bud on a collar.)
+        // A capped head, not a brass knob: the walk goes along this rail and a
+        // gilt ball on every post comes past the eye like a row of melons. (And
+        // not a squat pyramid either, which is the nearest, heaviest shape in
+        // the Pavilion's frame: a small lacquered bud on a collar.)
         FITTING.add(placed(new THREE.CylinderGeometry(0.85, 0.85, 0.22, 8), q, 13.95));
         GB.lacquer.add(placed(new THREE.CylinderGeometry(0.42, 0.62, 0.35, 10), q, 14.25));
         // (and not an egg, which the nearest, out of focus at the frame's

@@ -50,11 +50,12 @@ export function buildStands(ctx) {
   const unit = (a, b) => { const L = dist(a, b) || 1; return [(b[0] - a[0]) / L, (b[1] - a[1]) / L]; };
   const eye = (p, ground) => [p[0], ground + EYE, p[1]];
   const way = (ground, pts) => pts.map((p) => eye(p, ground));
-  // a line that keeps to its corners (the bridge, the maze) instead of cutting them
-  // (never further along a side than half of it: the way into the maze ends
-  // three units past its last corner, and four along it from that corner was a
-  // point BEYOND the end — the walk overshot its stand by a pace and came back,
-  // and the eyes, which look along the way, turned right round in one frame)
+  // a line that keeps to its corners (the bridge, the maze) instead of cutting
+  // them (never further along a side than half of it: the way into the maze
+  // ends three units past its last corner, and four along it from that corner
+  // is a point BEYOND the end — the walk would overshoot its stand by a pace
+  // and come back, and the eyes, which look along the way, turn right round in
+  // one frame)
   const hug = (ground, pts, r = 3) => pts.flatMap((p, i) => (i === 0 || i === pts.length - 1
     ? [eye(p, ground)]
     : [eye(add(p, unit(p, pts[i - 1]), Math.min(r, dist(p, pts[i - 1]) / 2)), ground), eye(p, ground), eye(add(p, unit(p, pts[i + 1]), Math.min(r, dist(p, pts[i + 1]) / 2)), ground)]));
@@ -83,8 +84,7 @@ export function buildStands(ctx) {
     // (the Echo's a few strides in from the aisle's middle: echoFix.js, 1)
     vestibuleMiddle(150), echoOld(1) ? echoMiddle(180) : ring(C1, 180, ECHO_STAND_R), silenceMiddle(90), null,
     // The Web of Time: in the corridor a few paces short of the court's gate,
-    // looking in at the heart. (It stood 22 from the heart, and the heart was a
-    // corridor; the step into the court is the finale's.)
+    // looking in at the heart. (The step into the court is the finale's.)
     // (the Fork's back at the pergola's end and a little left, where both ways
     // can be seen leaving the stone: forkFix.js, 1)
     // (the Door's further back, so the gable's finial is in the frame: doorProps.js, 1)
@@ -97,18 +97,15 @@ export function buildStands(ctx) {
   // side: the second leg walks it, and the climb to the crossing is its first
   // half.
   //
-  // It used to leave out the ends. The climb went from the floor straight to
-  // the third tread (and through a point at floor height INSIDE the first
-  // two), so the eye rose ten units — about a metre — at 50 degrees in a
-  // stride, where the stair itself is 17; coming down from the crossing, that
-  // was the reader dropping off the bottom of the flight. And the walk on to
-  // the Silence left the flight by its SIDE, over the parapet, and fell twelve
-  // units to the floor beside it: "like I am jumping, not walking". Both ends
-  // are walked tread by tread now. The first riser is the one tall step there
-  // is (5 units off the floor, where the rest are 2.4), so the end treads are
-  // stood on towards their upper riser, spreading it over the most ground.
-  // (Read off the flight itself, so a re-cut stair — ECHO_FLIGHT — is walked
-  // as it is built.)
+  // Both ends are walked tread by tread. Leave them out and the climb from the
+  // floor to the third tread raises the eye ten units — about a metre — at 50
+  // degrees in a stride, where the stair itself is 17, and coming down from the
+  // crossing the reader drops off the bottom of the flight; a walk that leaves
+  // the flight by its SIDE, over the parapet, falls twelve units to the floor
+  // beside it. The first riser is the one tall step there is (5 units off the
+  // floor, where the rest are 2.4), so the end treads are stood on towards
+  // their upper riser, spreading it over the most ground. (Read off the flight
+  // itself, so a re-cut stair — ECHO_FLIGHT — is walked as it is built.)
   const echoFlight = flightProfile(ECHO_FLIGHT);
   const { run: ECHO_RUN, span: ECHO_SPAN, steps: ECHO_STEPS } = echoFlight.dims;
   const echoStair = [];
@@ -116,10 +113,10 @@ export function buildStands(ctx) {
     const at0 = s === 0 ? ECHO_RUN - 2.5 : s === ECHO_STEPS - 1 ? 2.5 : ECHO_RUN / 2 - 0.3;
     echoStair.push(eye(add(C1, dir(0), -ECHO_SPAN + s * ECHO_RUN + at0), echoFlight.stepTop(s)));
   }
-  // The floor just short of the first nosing. The stand is back from the foot
-  // now, and without this the eye began to rise the moment it left the stand,
-  // up a ramp that is not there. (Only where the foot IS in front of the
-  // stand: on the old tread it was behind it, and the walk set off backwards.)
+  // The floor just short of the first nosing. The stand is back from the foot,
+  // and without this the eye would begin to rise the moment it left the stand,
+  // up a ramp that is not there. (Only where the foot IS in front of the stand:
+  // with the old tread, ?wecho=old, it is behind it.)
   const footU = -ECHO_SPAN - 1.5;
   const echoFoot = footU > spot[1][0] - C1[0] + 1 ? [eye(add(C1, dir(0), footU), FLOOR)] : [];
   return { EYE, FLOOR, GRAVEL, DECK, MAZE, C0, C1, C2, ring, vestibuleMiddle, echoMiddle,
@@ -168,23 +165,16 @@ export function buildCrossing(ctx) {
       const e = onStair(0.06), n = onStair(0.072), yaw = Math.atan2(n[2] - e[2], n[0] - e[0]) + STAND_TURN * deg, p = STAND_PITCH * deg;
       return [e[0] + Math.cos(yaw) * Math.cos(p) * 40, e[1] + Math.sin(p) * 40, e[2] + Math.sin(yaw) * Math.cos(p) * 40];
     })() },
-    // Up at the arch, gable and pinnacles and all: level, the frame stopped at
-    // the springing of its hood and the carving above it was cut off.
+    // Up at the arch, gable and pinnacles and all: level, the frame stops at
+    // the springing of its hood and cuts off the carving above it.
     { eye: eye(spot[4], FLOOR), look: at(add(GATE, dir(330), 40), doorPropsOld(1) ? 45 : DOOR_STAND.lookY) },
     // at the end of the pergola, the waymark ahead where the gravel divides —
-    // turned a few degrees right of it, so the pergola's last post is out of
-    // the frame (it stood down the whole left edge, the nearest, darkest
-    // thing in it, and read as a tree trunk; since 2026-10-07 the pergola
-    // ends a bay short of here and that post is gone, but the turn still
-    // keeps the waymark off the middle)
+    // turned a few degrees right of it, to keep the waymark off the middle.
     //
-    // It showed no fork: the stone the ways part at was eight paces off,
-    // under the frame's bottom edge, and the look was down the way to the
-    // bridge — which runs on the pergola's own line — with the road to the
-    // Heart out of the frame to the right. Back from the stone and a little
-    // left, both ways leave it across the frame now: to the Pavilion, under
-    // the moon, and to the maze's mouth and its two lanterns. (Level enough
-    // that the moon over the Pavilion is whole: forkFix.js, 1 and 6.)
+    // Back from the stone the ways part at and a little left, so that both ways
+    // leave it across the frame: to the Pavilion, under the moon, and to the
+    // maze's mouth and its two lanterns. (Level enough that the moon over the
+    // Pavilion is whole: forkFix.js, 1 and 6.)
     { eye: eye(spot[5], GRAVEL), look: forkOld(1) ? at(turnAbout(spot[5], add(J, dir(285), 30), 7), 13)
       : at(add(spot[5], dir(FORK_STAND.yaw), 40 * Math.cos(FORK_STAND.pitch * deg)), GRAVEL + EYE + 40 * Math.sin(FORK_STAND.pitch * deg)) },
     // on the bridge, the whole pavilion across the water — the roof's eave a
@@ -209,13 +199,12 @@ export function buildCrossing(ctx) {
     eye(add(N_SHORE, northAxis, -3.6), 6.7),
     eye(N_SHORE, DECK),
   ];
-  // The way on from the Pavilion went through the room, out over its second
-  // bridge to the landing that bridge comes down on — a few paces of gravel
-  // and a hedge — turned round there, and came all the way back before it set
-  // off for the maze: twenty-five seconds of a fifty-six second walk spent
-  // going to a dead end and returning from it. It goes in, once round the
-  // table, and out again by the bridge it came over; the second bridge is
-  // there to be found. (?wpavway=old: over it and back.)
+  // The way on from the Pavilion goes in, once round the table, and out again
+  // by the bridge it came over; the second bridge is there to be found. Out
+  // over it to the landing it comes down on — a few paces of gravel and a hedge
+  // — and back would be twenty-five seconds of a fifty-six second walk spent
+  // going to a dead end and returning from it. (?wpavway=old: over it and
+  // back.)
   const pavilionThrough = paintings ? [] : Q.get('wpavway') !== 'old' ? [
     ...pavilionVisit,
     ...pavilionRound(pavilionVisit.at(-1), EYE).slice(1),
@@ -278,16 +267,16 @@ export function buildCrossing(ctx) {
       // Through the room and onto its other bridge, with continuous guidance.
       ...(paintings ? hug(DECK, [spot[6], BRIDGE[1], SHORE]) : pavilionThrough),
       ...bridgeEntry.slice(0, -1).reverse(),
-      // Off the deck by its steps and round onto the shore. The way used to
-      // turn straight back from the deck's end toward the maze, which floated
-      // the eye out over the bridge's rail and the strip of water beside it;
-      // a reader walking it on their own feet (World.jsx's free walk follows
-      // this way by default) stood at the rail and could go no further.
-      // (Out onto the middle of the shore's own gravel, SHORE_WAY, and round
-      // with it: that way ran a pace and a half from the end of the bridge's
-      // stone step, whose corner a reader's foot came up onto and stood on —
-      // "on a crest" — and went no further; and it met the way to the maze at
-      // a right angle and more, walked at a crawl. ?wshoreway=old)
+      // Off the deck by its steps and round onto the shore. Turned straight
+      // back from the deck's end toward the maze, the way would float the eye
+      // out over the bridge's rail and the strip of water beside it, and a
+      // reader walking it on their own feet (World.jsx's free walk follows this
+      // way by default) would stand at the rail and go no further. (Not out
+      // onto the middle of the shore's own gravel, SHORE_WAY, and round with
+      // it: that way runs a pace and a half from the end of the bridge's stone
+      // step, whose corner a reader's foot comes up onto and stands on, and it
+      // meets the way to the maze at a right angle and more, walked at a crawl.
+      // ?wshoreway=old)
       ...(SHORE_WALK_OLD
         ? way(GRAVEL, [[1231, 203], [1239, 208.5], [1256, 208], [1290, 216], ...PATHS[2].pts.slice(0, -1)])
         : way(GRAVEL, [[1227.5, 204.5], [1231, 208.5], [1238, 211], [1262, 213], [1290, 218], [1302, 220.5], [1310, 228], [1311.6, 240], PATHS[2].pts[1]])),
@@ -364,9 +353,9 @@ export function buildWaterView(ctx) {
       return 1 / (1 + (flat * flat + (g.p[1] - 6.5) ** 2) * 0.00045);
     }));
     // One lamp, once. The Pavilion's table lamp is both a glow and a water
-    // lamp, and handed over as both it laid a column twice as bright as any
-    // other lamp's — a sheet of gold on the water in front of the Fork's
-    // stand (2026-10-05). The stronger of the two stands for it.
+    // lamp, and handed over as both it would lay a column twice as bright as
+    // any other lamp's — a sheet of gold on the water in front of the Fork's
+    // stand. The stronger of the two stands for it.
     const one = [];
     for (const g of [...glows, ...waterLamps]) {
       const twin = one.find((o) => Math.hypot(o.p[0] - g.p[0], o.p[1] - g.p[1], o.p[2] - g.p[2]) < 1);
@@ -480,14 +469,14 @@ export function buildEnding(ctx) {
     }
     for (const h of hazeMats) h.mat.uniforms.uStrength.value = h.base * k;
   };
-  // How much of its haze the room through the Vestibule's way in is drawn
-  // with, for a reader whose eye is at `eye`. Through the arch the Echo was
-  // the brightest and the greyest thing in the Vestibule's first frame: its
-  // moon shaft and its fog, seen down the length of the room, lifted its
-  // blacks to milk. Seen from across the room it keeps half of them; walking
-  // up to the arch it gets them all back, so that by the step through — where
-  // the doorway has to be the room itself — it is the room itself (review
-  // 2026-10-08, point 3; ?wvest=old:3).
+  // How much of its haze the room through the Vestibule's way in is drawn with,
+  // for a reader whose eye is at `eye`. With all of it, through the arch the
+  // Echo is the brightest and the greyest thing in the Vestibule's first frame:
+  // its moon shaft and its fog, seen down the length of the room, lift its
+  // blacks to milk. Seen from across the room it keeps half of them; walking up
+  // to the arch it gets them all back, so that by the step through — where the
+  // doorway has to be the room itself — it is the room itself (vestFix.js, 3;
+  // ?wvest=old:3).
   const portalThin = (eye) => {
     if (vestOld(3) || !eye || !doorways.length) return 1;
     const at = doorways[0].at;
@@ -511,14 +500,14 @@ export function buildEnding(ctx) {
   let eyeAmount = 0;
   // ── A halo hidden by what stands in front of its lamp ───────────────────────
   // A halo is drawn with depthTest off, so that it lies over the stone its lamp
-  // lights; and so a lamp behind a column, a wall or a flight of stairs laid
-  // its glow over them as if nothing were there. Each halo in front of the eye
-  // is asked whether its lamp can be seen — one line a frame, to its middle and
-  // then either side of it in turn, so a post takes a third of it and not all —
-  // four halos a frame, and none again from where the eye already asked them
-  // all three; each fades to what can be seen (`seen`). A line costs a fifth of
-  // a millisecond here. `sight`: the body's line of sight (body.js), handed in
-  // by World.jsx. ?wlampsoff=occlude: as it was.
+  // lights; and so a lamp behind a column, a wall or a flight of stairs would
+  // lay its glow over them as if nothing were there. Each halo in front of the
+  // eye is asked whether its lamp can be seen — one line a frame, to its middle
+  // and then either side of it in turn, so a post takes a third of it and not
+  // all — four halos a frame, and none again from where the eye already asked
+  // them all three; each fades to what can be seen (`seen`). A line costs a
+  // fifth of a millisecond here. `sight`: the body's line of sight (body.js),
+  // handed in by World.jsx. ?wlampsoff=occlude: no halo hidden.
   let sight = null;
   const setSight = (fn) => { sight = LAMPS.occlude ? fn : null; };
   let seenNext = 0, seenT = -1;
@@ -592,9 +581,9 @@ export function buildEnding(ctx) {
       beltLight.uBackGround.value.copy(hemi.groundColor).multiplyScalar(hemi.intensity);
       beltLight.uBackFill.value.setRGB(...BELT.fill).multiplyScalar(root.parent?.environmentIntensity ?? 1);
     }
-    // A lamp breathes; it does not flicker. The fast terms in both of these —
-    // 11 and 6 radians a second, about two a second — were what read as
-    // blinking, and a pool of light on stone has no business doing that.
+    // A lamp breathes; it does not flicker. Fast terms — 11 and 6 radians a
+    // second, about two a second — read as blinking, and a pool of light on
+    // stone has no business doing that.
     for (const p of pools) {
       const n = Math.sin(t * 1.15 + p.phase) * 0.6 + Math.sin(t * 2.6 + p.phase * 1.7) * 0.4;
       p.mat.opacity = p.base * (1 + n * p.amount * 0.55);

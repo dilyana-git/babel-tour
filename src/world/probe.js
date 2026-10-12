@@ -5,7 +5,7 @@
 //
 // It stands where the camera stands and feels outward in a fan of rays. For
 // each it takes the first solid face:
-//   · how far, and what it belongs to (the batch names of buildWorld.js)
+//   · how far, and what it belongs to (the batch names of build/honeycomb.js's `LB`)
 //   · whether that face is turned AWAY from the eye, which on closed geometry
 //     means the eye is already inside the thing
 // Lit air, halos, stars, pools and the veil are not solids and are skipped —

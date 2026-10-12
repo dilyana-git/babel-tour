@@ -27,13 +27,13 @@ export function buildHoneycomb(ctx) {
   const cellC = (i, j) => [O[0] + i * E0[0] + j * E1[0], O[1] + i * E0[1] + j * E1[1]];
   // The Echo is wider than the other galleries. With its colonnade out at 62
   // (clear of the stair coping) the aisle between a column's plinth and the
-  // bookcases was under a metre, and the reader squeezed past every pier.
-  // Growing R for every room moves every cell and the garden with them (see
-  // the honeycomb's spacing above), so only this room grows, into its own
-  // walls: they stand 25 deep on each side of a hallway, and the Echo takes
-  // ten of its twenty-five. Every cell stays where it was, and so does every
-  // other room; the hallways into the Echo are shorter by what it took.
-  // ?wechoroom=old is the Echo at 100 again; ?wechor dials it.
+  // bookcases would be under a metre at the others' size, and the reader would
+  // squeeze past every pier. Growing R for every room moves every cell and the
+  // garden with them (see the honeycomb's spacing above), so only this room
+  // grows, into its own walls: they stand 25 deep on each side of a hallway,
+  // and the Echo takes ten of its twenty-five. Every cell stays where it is,
+  // and so does every other room; the hallways into the Echo are shorter by
+  // what it took. ?wechoroom=old is the Echo at 100; ?wechor dials it.
   const ECHO_R = qNum('wechor', Q.get('wechoroom') === 'old' ? R : 112), ECHO_A = (ECHO_R * Math.sqrt(3)) / 2;
   const ECHO_C = cellC(1, -1);
   // a room's rim, centre to corner, and how much nearer the cell's edge its
@@ -94,16 +94,15 @@ export function buildHoneycomb(ctx) {
   // ── Stone balustrades ──
   // What a stone bridge carries over the dark: a plinth, turned stone
   // balusters, a moulded handrail, and a pedestal wherever the run starts,
-  // stops or is met by another. The Vestibule's bridge had two bronze pipes
-  // on round posts and the flights a thin rod over metal spindles — a ship's
-  // rail and an office stair's, in rooms of ashlar, Doric columns and walnut.
-  // It all goes in the stone of the coping it stands on, in batches of its
-  // own: `balustrade` is not one of body.js's STAIRS, so no tall step is ever
-  // taken up onto it, as none was onto the bronze. ?wrail=old is the bronze.
+  // stops or is met by another. Not bronze: pipes on round posts and a rod over
+  // spindles are a ship's rail and an office stair's, in rooms of ashlar, Doric
+  // columns and walnut. It all goes in the stone of the coping it stands on, in
+  // batches of its own: `balustrade` is not one of body.js's STAIRS, so no tall
+  // step is ever taken up onto it. ?wrail=old is the bronze.
   const RAIL_OLD = Q.get('wrail') === 'old';
   // The Vestibule's bridge level with the floor, the well's rail run round it
-  // (vestibuleBridge.js, 2026-10-06). ?wbridge=old: the raised bridge with the
-  // stone balustrade above, ?wrail=old the bronze before that.
+  // (vestibuleBridge.js). ?wbridge=old: the raised bridge with the stone
+  // balustrade above, ?wrail=old the bronze before that.
   const BRIDGE_LEVEL = !RAIL_OLD && Q.get('wbridge') !== 'old';
   // The Echo's flights without their string course, flank and arch one face
   // (?wline=old: the string), and its well ringed by a low stone kerb rather
@@ -389,11 +388,11 @@ export function buildFlightDressing(ctx) {
     const shorn = Math.min(from > 0 ? stepTop(from) + 0.6 : Infinity,
       to < steps ? stepTop(to - 1) + 0.6 : Infinity);
     const deck = (u) => Math.min(pitch(u), shorn);
-    // Everything on the flank is set off the deck line and RAKES with it —
-    // the parapet, its coping, the string under it, the top of the arch ring.
-    // Stepping the kerb with the treads instead (which is how this was built)
-    // leaves a sawtooth of bare stone between it and every raking member, and
-    // the foot of the stair came out looking like a slipped wall.
+    // Everything on the flank is set off the deck line and RAKES with it — the
+    // parapet, its coping, the string under it, the top of the arch ring.
+    // Stepping the kerb with the treads instead leaves a sawtooth of bare stone
+    // between it and every raking member, and the foot of the stair looks like
+    // a slipped wall.
     //
     // The pitch line kinks over the crown, so a member drawn from end to end
     // has to be given those corners or it cuts across the top of the flight.
@@ -401,35 +400,35 @@ export function buildFlightDressing(ctx) {
     const rake = (dy, a = u0, b = u1) => [a, ...kinks.filter((k) => k > a + 1e-6 && k < b - 1e-6), b]
       .map((u) => [u, deck(u) + dy]);
     const bandPts = (lo, hi, a, b) => [...rake(hi, a, b), ...rake(lo, a, b).reverse()];
-    // Over the crossing the parapet comes DOWN. The other flight's deck
-    // arrives there, and a kerb standing across it is a kerb across the way
-    // off — from the crown the landing was a lattice of four little walls with
-    // the reader penned in the middle of it. Only the stone above the deck
-    // goes; what is under it belongs to the arch and stays.
-    // `gap` is one span for both flanks, or a function of the flank (-1, 1)
-    // where the two differ — two flights meeting at a landing at 60 degrees
-    // bury the inner flank in each other three times as far as the outer one.
-    // A span may run off either end of the flight; it is clipped to it.
+    // Over the crossing the parapet comes DOWN. The other flight's deck arrives
+    // there, and a kerb standing across it is a kerb across the way off — from
+    // the crown the landing would be a lattice of four little walls with the
+    // reader penned in the middle of it. Only the stone above the deck goes;
+    // what is under it belongs to the arch and stays. `gap` is one span for
+    // both flanks, or a function of the flank (-1, 1) where the two differ —
+    // two flights meeting at a landing at 60 degrees bury the inner flank in
+    // each other three times as far as the outer one. A span may run off either
+    // end of the flight; it is clipped to it.
     const HIGH = 1.6, FLUSH = -0.45;
     // ── where another flight crosses this one ──
-    // `cross` is a flight crossing this one at its middle, the same width
-    // (the Echo's two): { c, ang, f, half }, `half` the half-width of its
-    // treads. Each flight's flank ran straight on through the other, and the
-    // flank is set off the PITCH line, which rakes through the nosings and so
-    // stands a whole riser over the back of every tread. Under the crown that
-    // is buried; one tread down it is not. The parapet "flush" with the pitch
-    // line, the string and corona, the keystone all stood up out of the other
-    // flight's lower treads as slabs and sloping kerbs lying across its stair,
-    // up to three units proud ("this weird shape", 2026-10-06). So, crossed:
+    // `cross` is a flight crossing this one at its middle, the same width (the
+    // Echo's two): { c, ang, f, half }, `half` the half-width of its treads.
+    // The flank is set off the PITCH line, which rakes through the nosings and
+    // so stands a whole riser over the back of every tread: under the crown
+    // that is buried, one tread down it is not, and run straight on through the
+    // other flight the parapet, the string and corona and the keystone would
+    // stand up out of its lower treads as slabs and sloping kerbs lying across
+    // its stair, up to three units proud. So, crossed:
+    //
     //   - no member of the flank stands higher than the other flight's tread
     //     where it passes under it (`crossTop`, `roof`, `cutTo`);
     //   - over the crossing the flank comes down to its own TREADS, not to the
     //     pitch line, so the landing is stone flush to the outer face;
     //   - the parapet opens only where the other's deck really comes in, a
     //     different stretch on each flank, and the two balustrades meet at a
-    //     newel at each of the four corners (the old one span for both left
-    //     each flank open over the well for ten units past the other flight).
-    // ?wcross=old is the crossing as it was.
+    //     newel at each of the four corners (one span for both would leave each
+    //     flank open over the well for ten units past the other flight).
+    // ?wcross=old is the old crossing.
     const crossTop = (p) => {
       if (!cross) return Infinity;
       const a = dir(cross.ang), n = dir(cross.ang + 90), d = [p[0] - cross.c[0], p[1] - cross.c[1]];
@@ -477,13 +476,12 @@ export function buildFlightDressing(ctx) {
       // A point in a straight run says nothing, so it goes — but straight
       // measured from the last point KEPT, not from its neighbours. Sampled a
       // thousandth apart, every point of a curve lies "in line" with the two
-      // either side of it, and tested that way the whole soffit went, point
-      // by point, and its two ends were joined by a chord: the arch's backing
-      // course and the flank over it hung down across the opening under both
-      // flights as one flat wall, from the crossing nearly to the floor ("the
-      // two bridge parts do not mesh together", 2026-10-06). A point goes
-      // only if every point dropped since the last one kept still lies within
-      // a hundredth of the line that stands for them.
+      // either side of it; tested that way the whole soffit would go, point by
+      // point, its two ends joined by a chord, and the arch's backing course
+      // and the flank over it would hang down across the opening under both
+      // flights as one flat wall. A point goes only if every point dropped
+      // since the last one kept still lies within a hundredth of the line that
+      // stands for them.
       const lean = (line) => {
         const out = [line[0]];
         let k = 0;
@@ -527,12 +525,11 @@ export function buildFlightDressing(ctx) {
     // The order IS the hierarchy: courses recessed, the arch ring proud of
     // them, the string and the capping over the kerb proudest of all.
     const FACE = halfW + 0.8, COURSE = 0.3, RING = 0.78, BACK = 0.28, MOULD = 0.82, CORONA = 1.15;
-    // (`face`: the stone of the flanks — kerb, ring, abutments, string,
-    // coping — where `stone` is the nosings', which are walked on and so a
-    // stair to body.js. The Echo's flanks are the flights' own stone: the
-    // caps' ashlar, laid in world units, ran ONE bed joint dead level across
-    // both flights at the same height, and with the darker block over it that
-    // was the line that cut the bridge in two, 2026-10-07)
+    // (`face`: the stone of the flanks — kerb, ring, abutments, string, coping
+    // — where `stone` is the nosings', which are walked on and so a stair to
+    // body.js. The Echo's flanks are the flights' own stone: the caps' ashlar,
+    // laid in world units, would run ONE bed joint dead level across both
+    // flights at the same height, a line cutting the bridge in two)
     const FLOOR_Y = 6;
     const band = (pts, z0, z1, side) => face.add(profileGeo(pts, z1 - z0, spot(0, (side * (z0 + z1)) / 2), ang));
     // a member right across the flight, from `top` down to `bot`: in two
@@ -560,12 +557,12 @@ export function buildFlightDressing(ctx) {
     // so the lip throws a line of shadow the length of the flight instead of
     // reading as another square edge.
     //
-    // And a stair is read by its values, not its shape: the lip pale, the
-    // riser under it dark, the tread between. Cut from the treads' own stone
-    // and lit by lamps that cast no shadow, all three were one flat brown and
-    // the flight was a stack of slabs. So the lip is the parapet's paler
-    // stone, the riser is laid in the shadow the lip would throw, and each
-    // tread is walked paler down its middle where feet have gone.
+    // And a stair is read by its values, not its shape: the lip pale, the riser
+    // under it dark, the tread between. Cut from the treads' own stone and lit
+    // by lamps that cast no shadow, all three would be one flat brown and the
+    // flight a stack of slabs. So the lip is the parapet's paler stone, the
+    // riser is laid in the shadow the lip would throw, and each tread is walked
+    // paler down its middle where feet have gone.
     const TREAD_W = 2 * (halfW - 0.8);
     for (let k = from; k <= to; k++) {
       const e = -span + k * run;
@@ -599,9 +596,9 @@ export function buildFlightDressing(ctx) {
       const LIFT = stepTop(Math.min(to - 1, from + 1)) - stepTop(from) || 2.4;
       const IN = halfW - 0.8, D = 0.3;
       for (const side of [-1, 1]) {
-        // One plain band, a hair proud of the flank. (With a fillet along its
-        // top it was a second bright line beside the coping, and from the
-        // stand the flank read as three rails running down to the floor;
+        // One plain band, a hair proud of the flank. (Not with a fillet along
+        // its top: that is a second bright line beside the coping, and from the
+        // stand the flank reads as three rails running down to the floor.
         // ?wechofix=old:2 is without any string.)
         const parts = [[-LIFT - 1.1, 0.6, D]];
         for (const [lo, hi, depth] of parts) {
@@ -716,11 +713,12 @@ export function buildFlightDressing(ctx) {
     }
 
     // ── the springers ──
-    // Where the arch comes down to the floor the ring simply dived into it,
-    // and the coursed abutment beside it read as a different building. A
-    // skewback block at each springing, standing out past everything around
-    // it, is what the two are jointed by — and it says where the span begins,
-    // which from the floor is the one thing about this stair worth knowing.
+    // Without them, where the arch comes down to the floor the ring simply
+    // dives into it, and the coursed abutment beside it reads as a different
+    // building. A skewback block at each springing, standing out past
+    // everything around it, is what the two are jointed by — and it says where
+    // the span begins, which from the floor is the one thing about this stair
+    // worth knowing.
     for (const side of [-1, 1]) {
       for (const e of [-spring, spring]) {
         if (e < u0 + 1 || e > u1 - 1) continue;
@@ -742,13 +740,12 @@ export function buildFlightDressing(ctx) {
       // the pitch line, that is, which is not below the treads: crossed, it is
       // cut down to them.)
       const g = gapOf(side);
-      // `plane` (the Echo): no string. Its corona's shadow ran the length of
-      // the flight just under the deck, on top of the arch ring, and cut the
-      // bridge in two along it — a balustraded wall standing on an arch, "a
-      // large line that splits the bridge in two horizontally" (2026-10-07).
-      // Instead the flank comes out flush with the ring's face from the ring
-      // to the coping, so arch and parapet are one face of one stone, broken
-      // only by the keystone and the springers. (?wline=old: the string.)
+      // `plane` (the Echo): no string. Its corona's shadow would run the length
+      // of the flight just under the deck, on top of the arch ring, and cut the
+      // bridge in two along it — a balustraded wall standing on an arch.
+      // Instead the flank comes out flush with the ring's face from the ring to
+      // the coping, so arch and parapet are one face of one stone, broken only
+      // by the keystone and the springers. (?wline=old: the string.)
       if (plane) {
         for (const pts of cutTo(parapetTop(side), rake(-2.6), roof(side * FACE, side * (FACE + RING), g))) band(pts, FACE, FACE + RING, side);
       } else {
@@ -771,12 +768,11 @@ export function buildFlightDressing(ctx) {
     }
 
     // ── the parapet's joints ──
-    // The parapet and its coping were each one smooth stone the length of the
-    // flight: from the foot of it, a plain plane along the side of the frame.
-    // Cut into blocks a little over a stride long, joint by joint, inside face
-    // and out, it is built.
-    // (Not on the Echo's flanks — `plane` — whose stone has joints of its
-    // own; these were black slits through them, read as cracks.)
+    // The parapet and its coping are cut into blocks a little over a stride
+    // long, joint by joint, inside face and out: as one smooth stone the length
+    // of the flight, from its foot either is a plain plane along the side of
+    // the frame. (Not on the Echo's flanks — `plane` — whose stone has joints
+    // of its own; these would be black slits through them, read as cracks.)
     for (const side of plane ? [] : [-1, 1]) {
       const g = gapOf(side);
       for (let u = u0 + 3.6; u < u1 - 1.5; u += 7.2) {
@@ -813,8 +809,8 @@ export function buildFlightDressing(ctx) {
       LB.bronze.add(placed(new THREE.CylinderGeometry(0.72, 0.72, 0.42, 12), q, y + 1.56));
       LB.bronze.add(placed(new THREE.CylinderGeometry(0.44, 0.58, 4.9, 12), q, y + 4.22));
       LB.bronze.add(placed(new THREE.CylinderGeometry(0.78, 0.52, 0.7, 12), q, y + 7.02));
-      // a plain turned cap: the ball and spike it had were the sharpest,
-      // brightest thing in the Echo's frame, and pulled the eye off the arches
+      // a plain turned cap: a ball and spike are the sharpest, brightest thing
+      // in the Echo's frame, and pull the eye off the arches
       LB.bronze.add(placed(new THREE.CylinderGeometry(0.62, 0.8, 0.32, 14), q, y + 7.53));
       LB.bronze.add(placed(new THREE.SphereGeometry(0.5, 14, 8).scale(1, 0.62, 1), q, y + 7.75));
     };
@@ -823,10 +819,9 @@ export function buildFlightDressing(ctx) {
     // stone floor, where a kerb is all it wants; and it is how a bridge reads
     // anyway, solid parapet on the approaches and balusters over the arch.
     //
-    // (A rail carried out to the feet was also one the walk went through: when
-    // the feet stood within a stride of the bookcases and a reader got on and
-    // off over the parapet, check:walls measured the old thin one at 0.7 from
-    // the eye on the way out, and at 1.1 from it on the way in.)
+    // (A rail carried out to the feet would also be one the walk goes through:
+    // a reader gets on and off within a stride of the bookcases, over the
+    // parapet.)
     const END = 5.5;
     const R0 = Math.max(u0 + END, -spring + 3), R1 = Math.min(u1 - END, spring - 3);
     for (const side of [-1, 1]) {
@@ -869,10 +864,10 @@ export function buildFlightDressing(ctx) {
     // ── the corners ──
     // Where two flights' balustrades meet, each parapet and coping ends square
     // under the newel they share, and on the side a reader stands the corner
-    // between the two ends was left open: a bite out of the wall the height
-    // of the kerb, three units deep at the sharp corners. Filled to where the
-    // two inner faces meet, they meet in one mitre. (One flight lays them,
-    // with the newels.)
+    // between the two ends would be left open: a bite out of the wall the
+    // height of the kerb, three units deep at the sharp corners. Filled to
+    // where the two inner faces meet, they meet in one mitre. (One flight lays
+    // them, with the newels.)
     if (cross && gapNewels) {
       const oa = dir(cross.ang), on = dir(cross.ang + 90);
       // where p + s·d crosses q + r·e
@@ -960,11 +955,11 @@ export function buildFlightDressing(ctx) {
     portalCarve: new Batch(doorOld(3) ? M.carve : keep(revealShade(stoneShade(M.carve.clone()), PORTAL_FRAME, PORTAL, 'carve'))),
     portalDressed: new Batch(doorOld(3) ? M.dressed : keep(revealShade(stoneShade(M.dressed.clone(), { weather: true }), PORTAL_FRAME, PORTAL, 'dressed')), P),
     // The Echo's flights' flanks, in the stone the flights themselves are cut
-    // from (their steps and the arch under them): one stone, its joints
-    // running every way, so no single course runs level across both flights.
-    // Its own batch, because body.js reads `step` as a stair and a flank is not
-    // one. (It was the carving's limestone, jointless, and on a face this big
-    // its soft mottle read as glossed plaster, 2026-10-07.)
+    // from (their steps and the arch under them): one stone, its joints running
+    // every way, so no single course runs level across both flights. Its own
+    // batch, because body.js reads `step` as a stair and a flank is not one.
+    // (Not the carving's jointless limestone: on a face this big its soft
+    // mottle reads as glossed plaster.)
     flank: new Batch(M.step, P),
     // (the Echo's: echoFix.js, 2 and 6)
     nosing: new Batch(M.nosing, P), riserSoft: new Batch(M.riserSoft, { cast: false, receive: false }), drum: new Batch(M.drum, P),

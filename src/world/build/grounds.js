@@ -27,14 +27,14 @@ export function buildTrees(ctx) {
   // ── Trees (trees.js) ──────────────────────────────────────────────────────
   // (the cedars behind the maze, in a group of their own: webProps.js, 2)
   let beltGroup = null;
-  // Where they stand is where they always stood — drawn from the world's
-  // stream, which this still spends to the draw exactly as it did, so the
-  // shrubs, the mist and everything after are where they were. What each tree
-  // IS comes from a stream of its own, and from where it stands: willows and
-  // black pines on the pond's far bank, leaning out to the water; maples and
-  // pines in the middle ground the walk looks across; cherries where the old
-  // ones were in blossom; and beyond, broad trees and the tall cedars that
-  // make the skyline. A tree never walked near is grown without twigs.
+  // Where they stand is drawn from the world's stream, which this spends to the
+  // draw exactly as the first trees did, so the shrubs, the mist and everything
+  // after keep their places. What each tree IS comes from a stream of its own,
+  // and from where it stands: willows and black pines on the pond's far bank,
+  // leaning out to the water; maples and pines in the middle ground the walk
+  // looks across; cherries where the old ones were in blossom; and beyond,
+  // broad trees and the tall cedars that make the skyline. A tree never walked
+  // near is grown without twigs.
   {
     const blocked = (p, m = 0) => !inGarden(p)
       || pathDist(p) < 24 + m
@@ -134,21 +134,20 @@ export function buildTrees(ctx) {
       if (gone) g.dispose();
       else woodChunks.get(key).push(g);
 
-      // (forkProps.js, 7: a cherry in flower at night. Its sprays were the
-      // palest pink in the garden and lit all round, and from across the
-      // water each tree was a puff of the one saturated colour in the frame.
-      // Greyer now and deeper; a third of its sprays left off, so the dark
-      // limbs show through; and a spray under the crown's middle is in the
-      // crown's own shade — the moon is on its top. No draws are spent on
-      // any of it: the stream does not move.)
+      // (forkProps.js, 7: a cherry in flower at night. Lit all round in the
+      // palest pink, from across the water each tree is a puff of the one
+      // saturated colour in the frame; so greyer and deeper, a third of its
+      // sprays left off, so the dark limbs show through, and a spray under the
+      // crown's middle in the crown's own shade — the moon is on its top. No
+      // draws are spent on any of it: the stream does not move.)
       const night = species === 'cherry' && !propsOld(7);
       const palette = species === 'maple' && tr() < 0.2 ? TINT.mapleTurning : night ? BLOSSOM_NIGHT.tints : TINT[species];
       const base = new THREE.Color(tpick(palette));
-      // (A weeping willow has more sprays than the willow it was, and every
-      // spray stood up draws its tint from the trees' stream: that stream is
-      // spent on the sprays it HAD, to the draw, and the ones it has take
-      // theirs from its own. Drawn for the new ones, every tree after the
-      // first willow was another tree.)
+      // (A weeping willow has more sprays than the plain willow whose draws it
+      // takes, and every spray stood up draws its tint from the trees' stream:
+      // that stream is spent on the plain willow's sprays, to the draw, and the
+      // weeping one's take theirs from its own. Drawn for the new ones, every
+      // tree after the first willow would be another tree.)
       for (const sp of grown.was ?? []) {
         const at = [sp.p[0] + p[0], sp.p[1] + GROUND_T, sp.p[2] + p[1]];
         if (walkDist([at[0], at[2]]) < 8 + sp.s[0] * 0.5 && at[1] - sp.s[1] * 0.5 < 30) continue;
@@ -188,8 +187,8 @@ export function buildTrees(ctx) {
     }
     // Behind the maze, a belt of cedars (webFix.js, 2). The Library's garden
     // faces stand three paces past the maze's far hedge and ten metres tall,
-    // and from the heart they were the top half of the frame: a garden maze
-    // in a walled yard. Two and three deep, the back rows taller, their
+    // and from the heart, bare, they are the top half of the frame: a garden
+    // maze in a walled yard. Two and three deep, the back rows taller, their
     // spires are the skyline from the court and the stone is behind them.
     // (Their own stream: nothing above moves.)
     if (!webOld(2) && !paintings) {
@@ -314,12 +313,12 @@ export function buildMist(ctx) {
       map: radialTex, color: '#9fc0d8', transparent: true, opacity: 0.055,
       blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, side: THREE.DoubleSide,
     }));
-    // And out of the Library. A sheet laid on the lawn beside the Door reached
-    // in over the breach, and from inside the gallery its far edge met the
-    // walls at eye height: a razor-straight line across both walls of shelves,
-    // milky above and clear below. Over any room on the walk the mist thins to
-    // nothing — in the shader, so every sheet keeps the size and place the
-    // garden was composed with.
+    // And out of the Library. A sheet laid on the lawn beside the Door reaches
+    // in over the breach, and from inside the gallery its far edge would meet
+    // the walls at eye height: a razor-straight line across both walls of
+    // shelves, milky above and clear below. So over any room on the walk the
+    // mist thins to nothing — in the shader, so every sheet keeps the size and
+    // place the garden was composed with.
     {
       const rooms = cells.filter((cl) => cl.room !== undefined).map((cl) => new THREE.Vector2(cl.c[0], cl.c[1]));
       mistMat.onBeforeCompile = (sh) => {
@@ -355,11 +354,11 @@ export function buildMist(ctx) {
     }
   }
 
-  // The garden's stones half sunk in the ground, the way a set stone sits;
-  // and round the pond, set as stones are set — a big one and two smaller
-  // beside it, then a gap of low ones — rather than one of a size every few
-  // paces. (Same places, same draws: only the size each is given.)
-  // (And paler: the near-black greys they were given read as holes at night.)
+  // The garden's stones half sunk in the ground, the way a set stone sits; and
+  // round the pond, set as stones are set — a big one and two smaller beside
+  // it, then a gap of low ones — rather than one of a size every few paces.
+  // (The draws of stones of one size: only the size each is given differs.)
+  // (And pale: near-black greys read as holes at night.)
   const BANK = [1.3, 0.85, 0.6, 0.42, 0.34];
   const granite = new THREE.Color('#aaa293'), stoneTone = new THREE.Color(), paleStone = new THREE.Color('#ece6da');
   // Nothing left lying in the road not taken, the way along the shore or
@@ -411,8 +410,8 @@ export function buildMist(ctx) {
     const ok = (p) => inGarden(p) && ways.every((o) => lineDist(p, o.pts) > o.w / 2 + 0.4) && offPond(p, LAWN.bank)
       && !standing.some((st) => dist(p, st.p) < st.r + 0.2)
       && !hedged.some((h) => p[0] > h.x0 && p[0] < h.x1 && p[1] > h.z0 && p[1] < h.z1 && inLoop(p, h.loop));
-    // (gardenFix5.js, 5: they were needles — clumped now, broader, their tips
-    // a mid green; and under them a mown sward for the lantern to fall on)
+    // (gardenFix5.js, 5: clumped, broader, their tips a mid green, not needles;
+    // and under them a mown sward for the lantern to fall on)
     const clump = garden5Old(5) ? null : GRASS;
     for (const g of lawnBlades({ lamps: lawnLamps, ok, ground: 4, density: LAWN.density * (light ? 0.5 : 1), height: LAWN.height, clump })) {
       const m = new THREE.Mesh(keep(g), M.lawnBlade);
@@ -441,9 +440,9 @@ export function buildMist(ctx) {
     }), { cast: false, chunked: true });
   } else {
     // ── The pond's edge (shore.js) ──────────────────────────────────────────
-    // A bank the water lies in, its stones set along it, and pebbles; the
-    // stones that stood round it before (`bank`) are left out — their draws
-    // were spent where they were made, so nothing else moves.
+    // A bank the water lies in, its stones set along it, and pebbles; the plain
+    // stones round it (`bank`) are left out — their draws are spent where they
+    // are made, so nothing else moves.
     const ss = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
     const HWB = PAVILION_BRIDGE_HALF_WIDTH;
     const bridges = [BRIDGE, ...(NORTH_OPEN ? [NORTH_BRIDGE] : [])];
@@ -575,14 +574,13 @@ export function buildMist(ctx) {
   // most of a metre of wandering, which at speed reads as flies, and the tiny
   // additive points wink in and out as they cross a pixel.
   const sparkles = [
-    // A third of them, half the size, mostly low over the hedge tops, of
+    // With ?wwebfix=old:5, a third of them, mostly low over the hedge tops, of
     // uneven brightness and blinking slowly: big and even, at head height in
-    // front of everything, they read as dots on the lens, not as insects.
-    // (All still drawn from the stream; only these are shown. No mint ones:
-    // the garden takes no teal.)
-    // (webFix.js, 5: and still they read as dust — few, large and steady. All
-    // of them now, and more over the maze, half the size, each flashing on a
-    // beat of its own and dark between.)
+    // front of everything, they read as dots on the lens, not as insects. (All
+    // still drawn from the stream; only these are shown. No mint ones: the
+    // garden takes no teal.) Otherwise (webFix.js, 5) all of them, and more
+    // over the maze, half the size, each flashing on a beat of its own and dark
+    // between: few, large and steady, they read as dust.
     fireflies.length && (webOld(5)
       ? makeSparkles(fireflies.filter((_, i) => i % 3 === 0).map((f, i) => ({
         ...f, p: [f.p[0], 12 + (f.p[1] - 12) * 0.45, f.p[2]], k: (f.k ?? 1) * (0.4 + ((i * 0.618) % 1) * 0.9),

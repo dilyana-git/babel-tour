@@ -46,14 +46,14 @@ export function buildWeb(ctx) {
     grid[2][4].s = 0;
     grid[3][4].n = 0;
     // ── The heart: a court, not a cell ────────────────────────────────────
-    // The heart was one cell of the grid, a corridor with a hedge on either
-    // hand, and the walk ended in it facing a plinth, the way a dead end does.
-    // It is the nine cells round it now, cleared into one court, with a way in
-    // on each of its axes: the one the reader comes by, and three for the
-    // others (finale.js). Any other way into the court is closed, where the
-    // maze can spare it — every cell must still be reachable from the entrance.
-    // (Knocked through after the maze is grown, so the world's stream is spent
-    // exactly as before.)
+    // Not one cell of the grid, a corridor with a hedge on either hand, where
+    // the walk would end facing a plinth the way a dead end does: the nine
+    // cells round it, cleared into one court, with a way in on each of its axes
+    // — the one the reader comes by, and three for the others (finale.js). Any
+    // other way into the court is closed, where the maze can spare it — every
+    // cell must still be reachable from the entrance. (Knocked through after
+    // the maze is grown, so the world's stream is spent exactly as the plain
+    // maze spends it.)
     if (!paintings) {
       const side = { n: [0, -1, 's'], s: [0, 1, 'n'], e: [1, 0, 'w'], w: [-1, 0, 'e'] };
       const set = (c, r, d, v) => {
@@ -131,8 +131,8 @@ export function buildWeb(ctx) {
         if (cc === cols - 1 && g.e) wall([X + cw, Z], [X + cw, Z + ch]);
       }
     }
-    // (gardenFix5.js, 10) Either side of where the reader stops for the Web
-    // of Time — the cell before the court's way in — the hedge was a blank
+    // (gardenFix5.js, 10) Either side of where the reader stops for the Web of
+    // Time — the cell before the court's way in — the hedge would be a blank
     // leaf wall a pace off. A niche is clipped into each, with a small iron
     // lantern hung in it on a crook, lit — the two of them a gate before the
     // court — and in the wider one a stone seat beside its lantern.
@@ -177,10 +177,10 @@ export function buildWeb(ctx) {
     }
     mazeGrid = grid;
     mazeRects = footprint;
-    // (3800 and a pool of 0.34 until 2026-10-05: the pale paving printed as one
-    // even cream stage against black hedges — the middle of it so far up the
-    // tone curve that the fall-off toward the kerb was squeezed out of it.
-    // Down a third, the light is seen to come FROM the armillary and fade.)
+    // (Not 3800 with a pool of 0.34: the pale paving prints as one even cream
+    // stage against black hedges — the middle of it so far up the tone curve
+    // that the fall-off toward the kerb is squeezed out of it. A third lower,
+    // the light is seen to come FROM the armillary and fade.)
     point(HEART, 28, '#ffc77e', 2600, 5);
     heartParts.wish = lightWishes[lightWishes.length - 1];
     decal(HEART, 160, 160, '#ffbd6c', 0.22 * POOL_DIAL, 5.4, 0.12);
@@ -191,9 +191,9 @@ export function buildWeb(ctx) {
       GB.stone.add(slabGeo(circlePts(HEART, 35.2, 64), [circlePts(HEART, 33.6, 64)], 0.6, 5));
       // And in it, the garden of forking paths: brass let into the paving,
       // three lines out from the plinth that divide at every ring of stones,
-      // and divide again, twenty-four ways to the kerb. It was bright, even
-      // paving with nothing drawn on it, under the one place the finale's
-      // light floods; now the flood has the paths to run along.
+      // and divide again, twenty-four ways to the kerb — so the one place the
+      // finale's light floods is not bright, even paving with nothing drawn on
+      // it, and the flood has the paths to run along.
       {
         const RINGS = [6.9, 14, 22, 30, 33.2], SPREAD = [0, 0.3, 0.15, 0.075];
         const pol = (r, a) => add(HEART, [Math.cos(a), Math.sin(a)], r);
@@ -215,8 +215,8 @@ export function buildWeb(ctx) {
         }
       }
       // An armillary of gold rings turning over a stone plinth — the size of a
-      // thing a court is built round now, not of a thing on a desk: the rings
-      // were 5 to 6.4 across and read, at the end of the walk, as a toy.
+      // thing a court is built round, not of a thing on a desk: rings 5 to 6.4
+      // across read, at the end of the walk, as a toy.
       if (webOld(7)) {
         GB.stone.add(placed(new THREE.CylinderGeometry(6.2, 6.6, 1.4, 20), HEART, 5 + 0.7));
         GB.stone.add(placed(new THREE.CylinderGeometry(3.2, 4.0, 8.6, 16), HEART, 6.4 + 4.3));
@@ -225,12 +225,12 @@ export function buildWeb(ctx) {
         GB.gold.add(placed(new THREE.TorusGeometry(3.86, 0.16, 6, 40).rotateX(Math.PI / 2), HEART, 7.8));
         GB.gold.add(placed(new THREE.TorusGeometry(3.32, 0.14, 6, 40).rotateX(Math.PI / 2), HEART, 14.2));
       } else {
-        // A carved stand (webFix.js, 7): three plain cylinders under the
-        // most richly made thing in the garden read as a drainpipe under a
-        // clock. A stepped plinth, a moulded base, a shaft reeded at foot and
-        // head, an ovolo capital; and between the reeds, in two rings of gilt
-        // capitals, the sentence the map says when the walk is over — its
-        // middle turned to the way in.
+        // A carved stand (webFix.js, 7): three plain cylinders under the most
+        // richly made thing in the garden read as a drainpipe under a clock. A
+        // stepped plinth, a moulded base, a shaft reeded at foot and head, an
+        // ovolo capital; and between the reeds, in two rings of gilt capitals,
+        // the sentence the map says when the walk is over — its middle turned
+        // to the way in.
         const { stone, gold } = pedestalGeometry();
         GB.pedestal.add(stone.translate(HEART[0], 0, HEART[1]));
         // (gardenFix5.js, 8: its two bands in the collars' dark gilt, not bright gold)
@@ -245,14 +245,14 @@ export function buildWeb(ctx) {
           GB.letters.add(g.rotateY(Math.PI / 2 - L.a).translate(HEART[0] + Math.cos(L.a) * L.r, L.y, HEART[1] + Math.sin(L.a) * L.r));
         }
       }
-      // An instrument, not three hoops. Three plain gold rings on a stalk had
-      // less to them than a lamp, and they were the last thing the walk shows.
-      // Now: the meridian, standing, its rim cut in degrees, with the polar
-      // axis through it at the latitude of the place; the equator, ticked in
-      // hours; and the ecliptic, a broad band with the twelve signs let into
-      // it — dark bronze, and the gilt only in what is cut into it. A seed of
-      // light where the axis crosses. (Each ring is still the child it was:
-      // the turning in tick and the finale's spin ask for them by place.)
+      // An instrument, not three hoops: three plain gold rings on a stalk have
+      // less to them than a lamp, and they are the last thing the walk shows.
+      // The meridian, standing, its rim cut in degrees, with the polar axis
+      // through it at the latitude of the place; the equator, ticked in hours;
+      // and the ecliptic, a broad band with the twelve signs let into it — dark
+      // bronze, and the gilt only in what is cut into it. A seed of light where
+      // the axis crosses. (Each ring is the child the three hoops were: the
+      // turning in tick and the finale's spin ask for them by place.)
       armillary = new THREE.Group();
       armillary.position.set(HEART[0], 26, HEART[1]);
       const ticks = (r, n, len, deep, every = 0) => {
@@ -265,9 +265,10 @@ export function buildWeb(ctx) {
         parts.forEach((x) => x.dispose());
         return keep(g);
       };
-      // (webProps.js, 3: the degrees and the hours were those `ticks`, gilt
+      // (webProps.js, 3: flat bands, the scale let into their faces; with
+      // ?wwebprops=old:3 the degrees and the hours are those `ticks`, gilt
       // blocks stood out from the rims of round hoops, and the rings read as
-      // gears. Flat bands now, the scale let into their faces.)
+      // gears)
       const ringed = (group, which, hoop, teeth, opts) => {
         if (webPropsOld(3)) {
           group.add(new THREE.Mesh(keep(hoop()), M.bronze));
@@ -372,9 +373,9 @@ export function buildWeb(ctx) {
     }
   }
   {
-    // Mats of it over the first bays of the pergola. (They lay across the old
-    // breach at the height of the arch, where they floated in the opening as
-    // loose leaves; same draws, laid out beyond the wall.)
+    // Mats of it over the first bays of the pergola. (The draws of mats once
+    // laid across the breach at the height of the arch, laid out beyond the
+    // wall.)
     const e = edgeFrame(DOOR, 5);
     for (let s = 0; s < 6; s++) {
       const along = rr(-46, 46), out = rr(-16, 16);

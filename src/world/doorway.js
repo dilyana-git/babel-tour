@@ -156,7 +156,7 @@ export function makeDoorway({ root, keep, at, out, half, floor, top, by }) {
   // the reader's. Call after the camera's matrix is up to date and before the
   // frame is drawn.
   // `thin`: how much of the room's fog the far room is drawn through (1 all
-  // of it; World.jsx asks buildWorld's portalThin, which thins it seen from
+  // of it; World.jsx asks build/walk.js's portalThin, which thins it seen from
   // across the room and gives it all back by the time the doorway is reached).
   const render = (renderer, scene, camera, stencil, aim = null, thin = 1) => {
     const ahead = -past(camera.position.x, camera.position.z);

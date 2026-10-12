@@ -104,12 +104,12 @@ export function buildKit(ctx) {
     }
     speckle(g, s, s, 8000, true, 0.35);
   }), [1 / 16, 1 / 16]);
-  // (forkProps.js, 8: that was white speckle on grey — a grain a pixel or two
-  // across, forty shades apart from the next. Pebbles now: each a few
-  // millimetres to a centimetre and a half, rounded, lit a little on one side,
-  // a dozen shades apart, a little warm; and the bed they lie on shows dark
-  // only between them. Painted from its own stream — the old one is still
-  // painted above, for the draws it took from the world's.)
+  // (forkProps.js, 8: pebbles, each a few millimetres to a centimetre and a
+  // half, rounded, lit a little on one side, a dozen shades apart, a little
+  // warm; and the bed they lie on shows dark only between them. A grain a pixel
+  // or two across, forty shades from the next, reads as white speckle on grey.
+  // Painted from its own stream — the old gravel is still painted above, for
+  // the draws it takes from the world's.)
   const GRAVEL_COLOR = propsOld(8) ? '#6f6c66' : '#7b7367';
   const gravelTex = propsOld(8) ? gravelOldTex : tex(paint(1024, 1024, (g, s) => {
     const r = makeRng(8808), R = (a, b) => a + (b - a) * r();
@@ -260,9 +260,9 @@ export function buildKit(ctx) {
       blob(g, x, y, rr(4, 10), [rr(112, 140), rr(26, 40), rr(14, 28)], 1, 0.35);
     }
   }));
-  // The koi were a card painted here, four blotches drawn from the world's
-  // stream; they are solid fish now (pond.js), and the stream is spent as the
-  // card spent it, so everything laid out after this lands where it did.
+  // The koi are solid fish (pond.js); the four draws a painted card of them
+  // took from the world's stream are still spent, so everything laid out after
+  // this lands where it always has.
   for (let k = 0; k < 20; k++) rnd();
 
   // Surfaces with the maps that make light behave on them (see textures.js).
@@ -323,7 +323,7 @@ export function buildKit(ctx) {
   const shoreBankSet = SHORE_OLD ? null : painter.take('shoreBank');
   for (const set of [shoreRockSet, shoreBankSet]) if (set) Object.values(set).forEach(keep);
   if (rubbleSet) Object.values(rubbleSet).forEach(keep);
-  // (painted once: the caps' stone, laid at another size — it was painted twice)
+  // (painted once: the caps' stone, laid at another size)
   const dressedSet = { map: again(pale.map, 1 / 20), normalMap: again(pale.normalMap, 1 / 20), roughnessMap: again(pale.roughnessMap, 1 / 20) };
   const marbleSet = purbeck();
   Object.values(marbleSet).forEach(keep);

@@ -1,31 +1,7 @@
-// What the design board on the opening and the map (2026-10-09, board 2)
-// marked REFINE, where it is in the world and its camera — the points by the
-// board's own numbers:
-// L2 the opening's first frame was lopsided: looking down the walk, the ink's
-//    camera put the Vestibule in the middle of the frame and the Echo over its
-//    top edge, cut off, with the left half of the screen holding only the
-//    epigraph. Its lens now starts shifted down and toward the title, and the
-//    shift is gone by the time the camera rests (ink.js, START).
-// 4  the garden was squeezed into the map's top right corner, and the frame
-//    rested against its left and bottom bounds only. The map's camera is
-//    turned 9° off north (plan.js, TILT_YAW), so the walk runs flatter, from
-//    the bottom left into the centre right, and its aim is panned until the
-//    rooms sit centred between the left and right bounds and down on the
-//    bottom one (clear of the title and caption) before it is fitted: the
-//    frame is larger and the garden is given the right of it.
-// 7  seen from the map, the Vertigo had a floor: the cone of lit air under
-//    the lamp hung in the drum, seen down its axis as a lit round foot, and
-//    the stair's pale treads under it, turned down the funnel as one beige
-//    disc — in the room whose line is "the stairwell that has no floor".
-//    Over the map that cone goes, the floor round the mouth darkens, and the
-//    stair and the shelves darken with depth below it; the books do not, so
-//    the warm light the bottom throws up them is what is left to see. All of
-//    it is gone before a flight reaches the rooms. (Dark layers across the
-//    shaft were tried first: they put out that glow too.)
-// 8  the wall tops were one cold grey everywhere: the lit rooms glowed, but
-//    their rims were as cold as the dark ones'. Over the map, the coping round
-//    each room of the walk takes a faint warm bounce from inside, strongest
-//    at its inner edge.
+// The opening and the map, in the world and its camera (2026-10-09, board 2):
+// the opening's first frame (L2), the map's framing (4), the Vertigo seen
+// from the map (7), the warm rims of the walk's rooms (8).
+// What each point was, and why: docs/design-history.md.
 //
 // ?wmapfix=old puts all of them back as they were; ?wmapfix=old:L2,7 only those.
 const Q = typeof location !== 'undefined' ? new URLSearchParams(location.search) : new URLSearchParams();

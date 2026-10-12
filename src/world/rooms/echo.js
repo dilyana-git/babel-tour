@@ -14,14 +14,14 @@ export function buildEcho(ctx) {
     flightProfile, flightDress, LB, posts, globes, lamp } = ctx;
   // II — the Echo: two flights crossing over the shaft, a colonnade answering itself.
   //
-  // The Echo's flights are cut on a tread of 7, not 8. At 8 each one ran 144
-  // long, and its feet came down at 72 from the middle of the room: in the
-  // corners, a stride from the bookcases, so the reader stepped onto the
-  // stair out of the shelves with the case at their back — "too little space
-  // when ascending". At 7 every foot stands 9 further in, with the floor
-  // clear in front of it (the parapet's corner 16 from the case, where it was
-  // 8), and the crown is where it was: only the going is shorter, not the rise.
-  // ?wecho=old cuts them on the old 8 again; ?wechorun dials it.
+  // The Echo's flights are cut on a tread of 7, not 8. At 8 each one runs 144
+  // long, and its feet come down at 72 from the middle of the room: in the
+  // corners, a stride from the bookcases, so the reader steps onto the stair
+  // out of the shelves with the case at their back — "too little space when
+  // ascending". At 7 every foot stands 9 further in, with the floor clear in
+  // front of it (the parapet's corner 16 from the case, not 8), and the crown
+  // is where 8 puts it: only the going is shorter, not the rise. ?wecho=old
+  // cuts them on 8; ?wechorun dials it.
   const ECHO_FLIGHT = { run: qNum('wechorun', Q.get('wecho') === 'old' ? 8 : 7) };
   // Keep the arcade and the walk on the same ring. Six units outward gives
   // the column bases about 23 cm clear of the stair coping (formerly 9 cm),
@@ -31,16 +31,15 @@ export function buildEcho(ctx) {
     const c = cellC(1, -1);
     // Each flight is ONE piece of stone: a stepped top, and under it the arc
     // that carries it over the shaft — springing off the floor at the well's
-    // lip, thinnest at the crown. As 36 separate slabs hung in the air with a
-    // gap under every one, this read as a stack of packing crates, which is the
-    // single thing that made this room look built out of cardboard.
-    // A real arch under each flight, springing wide of the well: end-on, a
-    // flight is a wall across half the room, and the opening under it is what
-    // makes it a bridge instead.
+    // lip, thinnest at the crown. (As 36 separate slabs hung in the air with a
+    // gap under every one, it reads as a stack of packing crates: a room built
+    // out of cardboard.) A real arch under each flight, springing wide of the
+    // well: end-on, a flight is a wall across half the room, and the opening
+    // under it is what makes it a bridge instead.
     //
     // The crown both flights share is where the rose is laid (see the
-    // crossing), so its two treads are not worn: the rose is what the feet
-    // have worn there. ?wrose=old is the rose as it was.
+    // crossing), so its two treads are not worn: the rose is what the feet have
+    // worn there. ?wrose=old is the old rose.
     const ROSE_OLD = Q.get('wrose') === 'old';
     const echoF = flightProfile(ECHO_FLIGHT);
     const CROWN_Y = Math.max(...echoF.top.map(([, h]) => h));
@@ -70,27 +69,25 @@ export function buildEcho(ctx) {
         : { cross: { c, ang: 60 - ang, f, half: 7.5 }, gapNewels: ang === 0, worn: ROSE_OLD || notCrown, keyThrough: ROSE_OLD, plane: ECHO_ONE_FACE, face: ECHO_ONE_FACE ? LB.flank : LB.cap, ...VALUES });
     }
     // ── The crossing ─────────────────────────────────────────────────────
-    // The one piece of floor in this room a reader is ever brought to a stop
-    // on (VANTAGES), and it was two staircases overlapping. An inlaid rose
-    // makes it a place: six points for the six ways out of a hexagon, two of
-    // which are the flights under your feet. Kept inside 7.1, which is where
-    // the flanks of both flights stand: a wider ring runs into them at four
-    // bearings and reads as a broken circle (and past 8.66 the landing is air
-    // — beyond that radius neither flight is under it).
+    // The one piece of floor in this room a reader is ever brought to a stop on
+    // (VANTAGES), and without the rose it is two staircases overlapping. An
+    // inlaid rose makes it a place: six points for the six ways out of a
+    // hexagon, two of which are the flights under your feet. Kept inside 7.1,
+    // which is where the flanks of both flights stand: a wider ring runs into
+    // them at four bearings and reads as a broken circle (and past 8.66 the
+    // landing is air — beyond that radius neither flight is under it).
     //
-    // It was laid as hoops and spokes of brass standing half a unit proud of
-    // the crown round a dark hub, and from the stair it read as a cartwheel
-    // left lying on the bridge ("very unnatural", 2026-10-05). An inlay is
-    // LEVEL with what it is let into, and told from it by colour and sheen,
-    // never by height. And a rose is points, not spokes: shapes with an area,
-    // each lit on one half and shaded on the other, so that they read as
-    // facets in a floor that is flat. So: a roundel of the dark polished
-    // Purbeck (the Door's shafts) let into the crown; a twelve-point star of
-    // brass and pale stone on it, with a brass dial round the star; a ring
-    // with a sentence of the Library's cut in gilt between that and the rim;
-    // and at the middle, rubbed bright, a hexagon — "the Library is a sphere
-    // whose exact center is any one of its hexagons", and this is the one the
-    // reader is standing in.
+    // An inlay is LEVEL with what it is let into, and told from it by colour
+    // and sheen, never by height: hoops and spokes of brass standing proud of
+    // the crown read from the stair as a cartwheel left lying on the bridge.
+    // And a rose is points, not spokes: shapes with an area, each lit on one
+    // half and shaded on the other, so that they read as facets in a floor that
+    // is flat. So: a roundel of the dark polished Purbeck (the Door's shafts)
+    // let into the crown; a twelve-point star of brass and pale stone on it,
+    // with a brass dial round the star; a ring with a sentence of the Library's
+    // cut in gilt between that and the rim; and at the middle, rubbed bright, a
+    // hexagon — "the Library is a sphere whose exact center is any one of its
+    // hexagons", and this is the one the reader is standing in.
     //
     // Each piece is a few hundredths proud of what it lies on: enough to keep
     // the two surfaces out of each other's depth (see the well rings), too
@@ -101,8 +98,8 @@ export function buildEcho(ctx) {
       const FIELD = Y + 0.06, METAL = Y + 0.1, HEX_IN = Y + 0.13, HEX = Y + 0.16;
       const at = (a, r) => add(c, dir(a), r);
       const piece = (batch, pts) => batch.add(slabGeo(pts, [], METAL - (FIELD - 0.03), FIELD - 0.03));
-      // (the marble's figure finer than on the Door's shafts: at their size
-      // the shell in it read as terrazzo from the stair)
+      // (the marble's figure finer than on the Door's shafts: at their size the
+      // shell in it reads as terrazzo from the stair)
       const marble = (g) => {
         const uv = g.attributes.uv;
         for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) / 4, uv.getY(i) / 4);
@@ -184,7 +181,8 @@ export function buildEcho(ctx) {
       const up = new THREE.Vector3(Math.sin(tilt) * Math.cos(bear), Math.cos(tilt), Math.sin(tilt) * Math.sin(bear));
       const mid = new THREE.Vector3(c[0], 30, c[1]);
       // The crossing stands in the middle of this, so it has to know where it
-      // is: from the crown it was the whole frame gone pale (see shaftVolume).
+      // is: from the crown it would be the whole frame gone pale (see
+      // shaftVolume).
       const beam = new THREE.Mesh(
         keep(shaftVolume(new THREE.CylinderGeometry(21, 35, 190, 30, 1, true),
           mid.clone().addScaledVector(up, -95).toArray(), 35, mid.clone().addScaledVector(up, 95).toArray(), 21)),
@@ -195,20 +193,19 @@ export function buildEcho(ctx) {
       beam.position.copy(mid);
       beam.renderOrder = 2;
       root.add(beam);
-      // Where it LANDS. From the floor the column hung in front of the stair
-      // as a grey sheet, and light in the air is the weakest way to say light.
-      // Laid on the treads it crosses, cut to the beam's own section at the
-      // height of each tread, it comes down the stair in steps.
+      // Where it LANDS. From the floor the column alone hangs in front of the
+      // stair as a grey sheet, and light in the air is the weakest way to say
+      // light. Laid on the treads it crosses, cut to the beam's own section at
+      // the height of each tread, it comes down the stair in steps.
       //
-      // ADDED, a flat grey laid on top of the stone, it was the harshest thing
-      // on the bridge ("too harsh and unnatural", 2026-10-05): each tread
-      // under the crown a sheet of white paper with a hard outline, the joints
-      // between its flags turned blue-grey, because added light lights the
-      // mortar exactly as much as the stone. Light MULTIPLIES what it falls on.
-      // So it brightens the stone it lands on in proportion to the stone
-      // (dst·(1 + k)): the joints stay dark, the stone keeps its warmth, and
-      // the edge is a penumbra several units wide, not a cut line.
-      // ?wmoon=old is the added sheet.
+      // Light MULTIPLIES what it falls on. ADDED, a flat grey laid on top of
+      // the stone is the harshest thing on the bridge: each tread under the
+      // crown a sheet of white paper with a hard outline, the joints between
+      // its flags turned blue-grey, because added light lights the mortar
+      // exactly as much as the stone. So it brightens the stone it lands on in
+      // proportion to the stone (dst·(1 + k)): the joints stay dark, the stone
+      // keeps its warmth, and the edge is a penumbra several units wide, not a
+      // cut line. ?wmoon=old is the added sheet.
       const moonOld = Q.get('wmoon') === 'old';
       const moonLand = keep(moonOld ? new THREE.ShaderMaterial({
         uniforms: {
@@ -235,17 +232,16 @@ export function buildEcho(ctx) {
           uD: { value: new THREE.Vector2(Math.cos(bear), Math.sin(bear)) },
           // What it multiplies is stone already lit by the lamps, so a neutral
           // moon would only be more lamplight. Leaning a little cool, it takes
-          // the lamp's amber partly back out where it falls: the patch reads
-          // as a different light, nearer the stone's own colour. Only a little:
-          // a stronger cool cast on warm stone reads as a filter, the teal
-          // grade that was turned down.
+          // the lamp's amber partly back out where it falls: the patch reads as
+          // a different light, nearer the stone's own colour. Only a little: a
+          // stronger cool cast on warm stone reads as a filter.
           uColor: { value: new THREE.Color().setRGB(0.84, 0.92, 1.0) },
-          // Since the column was begun over the lower arcade (echoFix.js, 4)
-          // the light is what it lays on the stair, and the stair has to be
-          // the brightest thing in the room: stronger where it falls, and a
-          // fainter spill of it carried on down the flight to the floor,
-          // which the stand looks up (the lower treads lay outside the
-          // column's section, and from the floor the moon lit nothing seen).
+          // With the column begun over the lower arcade (echoFix.js, 4) the
+          // light is what it lays on the stair, and the stair has to be the
+          // brightest thing in the room: stronger where it falls, and a fainter
+          // spill of it carried on down the flight to the floor, which the
+          // stand looks up (the lower treads lie outside the column's section,
+          // and from the floor the moon would light nothing seen).
           uK: { value: qNum('wmoonk', echoOld(4) ? 0.8 : 1.3) },
           uSoft: { value: qNum('wmoonsoft', 6) },
           uSpill: { value: qNum('wmoonspill', echoOld(4) ? 0 : 0.8) },
@@ -321,11 +317,11 @@ export function buildEcho(ctx) {
     LB.inlay.add(slabGeo(circlePts(c, 50.5, 60), [circlePts(c, 49, 60)], 0.5, 6));
     LB.inlay.add(slabGeo(circlePts(c, 79 + ECHO_R - R, 60), [circlePts(c, 77.2 + ECHO_R - R, 60)], 0.5, 6));
     // ── Arcades answering arcades ─────────────────────────────────────────
-    // What the room is called after, and what it did not have: two storeys of
-    // arcade round the well on twelve bays, so that from anywhere in the gallery
-    // you are looking through one arch at another, and through that at a third.
-    // Without it this was a hexagon of bookshelves with a lamp in it — which is
-    // exactly what the Vestibule is, and the two rooms were interchangeable.
+    // What the room is called after: two storeys of arcade round the well on
+    // twelve bays, so that from anywhere in the gallery you are looking through
+    // one arch at another, and through that at a third. Without it this is a
+    // hexagon of bookshelves with a lamp in it — which is exactly what the
+    // Vestibule is.
     const FLOOR = 6, BAYS = 12;
     // The slender columns still stand directly on the floor. Their ring is
     // set back from the flights so the plinths and coping read as separate
@@ -535,27 +531,25 @@ export function buildEcho(ctx) {
       LB.cap.add(slabGeo(ring(RING + wall / 2 + 0.9), [ring(RING - wall / 2 - 0.9)], 1.4, top + rise + band + 2));
       return top + rise + band + 2.4;
     };
-    // The lower storey springs its arches where the old one did (43.5), level
-    // with the crown; the columns are 4.2 across and 8 diameters tall, where
-    // the piers were 7.2 across on 10-unit pedestals.
+    // The lower storey springs its arches at 43.5, level with the crown; the
+    // columns are 4.2 across and 8 diameters tall.
     const upper = arcade({ foot: FLOOR, top: 43.5, rad: 2.1, rise: 12, band: 8, wall: 4.6 });
     arcade({ foot: upper, ped: 3, top: upper + 20, rad: 1.15, rise: 10, band: 6, wall: 3.2 });
-    // The upper arcade's bays stand open. They once held a low case of
-    // books each, on the cornice between the columns; looked up at from the
-    // floor they read as cabinets left out in a loggia, not as library.
-    // A sconce on every other pier, so the light repeats with the arches. Not
-    // `lamp` — its halo is a sprite drawn with depthTest off, and at this size
-    // and this close it hangs in front of the arcade as a pale disc.
-    // Not on the two piers at the ends of the flight the walk climbs (165° and
-    // 345°): the walk steps onto the stair beside one and off it beside the
-    // other, a few units from the pier at the height of the eye, and a lit
-    // lamp that close sweeping past the lens was most of what made going over
-    // the crossing feel like walking into the columns.
-    // Since 2026-10-07 a lantern on a console (sconce.js), fixed to a cast plate
-    // on the shaft's face; ?wmount=old: held by a band round the shaft instead;
-    // ?wsconce=old: the sconce as it was, a rod run through its globe under a
-    // pan. The shaft's radius at the plate is the lower storey's, entasis and
-    // all: arcade({ foot: FLOOR, top: 43.5, rad: 2.1 }).
+    // The upper arcade's bays stand open: a low case of books in each, on the
+    // cornice between the columns, looked up at from the floor reads as
+    // cabinets left out in a loggia, not as library. A sconce on every other
+    // pier, so the light repeats with the arches. Not `lamp` — its halo is a
+    // sprite drawn with depthTest off, and at this size and this close it hangs
+    // in front of the arcade as a pale disc. Not on the two piers at the ends
+    // of the flight the walk climbs (165° and 345°): the walk steps onto the
+    // stair beside one and off it beside the other, a few units from the pier
+    // at the height of the eye, and a lit lamp that close sweeping past the
+    // lens is most of what makes going over the crossing feel like walking into
+    // the columns. A lantern on a console (sconce.js), fixed to a cast plate on
+    // the shaft's face; ?wmount=old: held by a band round the shaft instead;
+    // ?wsconce=old: the old sconce, a rod run through its globe under a pan.
+    // The shaft's radius at the plate is the lower storey's, entasis and all:
+    // arcade({ foot: FLOOR, top: 43.5, rad: 2.1 }).
     const SCONCE_OLD = Q.get('wsconce') === 'old';
     const shaftR = (y) => {
       const rad = 2.1, from = FLOOR + rad * 1.3, h = 43.5 - rad * 2.45 - from + rad * 0.02, t = (y - from) / h;
@@ -575,10 +569,10 @@ export function buildEcho(ctx) {
       }
       LB.bronze.add(placed(new THREE.CylinderGeometry(0.4, 0.4, 3.4, 6).rotateZ(Math.PI / 2), p, 26, -a * deg));
       LB.bronze.add(placed(new THREE.CylinderGeometry(1.9, 1.1, 0.8, 10), p, 28.4));
-      // A small opal globe, the hanging lamps' glass (makeLampGlobeMaterial):
-      // it was a glow-core, bright nearly to its rim, and from the stand it
-      // printed as a flat cream plate stuck on the pier.
-      // (And the lamps' hollow halo, which leaves the glass to be seen.)
+      // A small opal globe, the hanging lamps' glass (makeLampGlobeMaterial): a
+      // glow-core, bright nearly to its rim, prints from the stand as a flat
+      // cream plate stuck on the pier. (And the lamps' hollow halo, which
+      // leaves the glass to be seen.)
       globes.push({ p: [p[0], 26.5, p[1]], s: [1.55, 1.55, 1.55], color: '#ffe8c8', k: 0.85 });
       halo(p, 26.6, 16, '#ffbe78', 0.16, lampHaloTex);
     }
@@ -594,8 +588,8 @@ export function buildEcho(ctx) {
       root.add(wash);
     }
     // (Both with their halos turned down: between them and the moon the upper
-    // middle of the stand's frame — the arcade, the room's subject — was milk.)
-    // (At 44 since the colonnade came in to 56: at 52 its globe stood in the
+    // middle of the stand's frame — the arcade, the room's subject — would be
+    // milk.) (At 44, inside the colonnade at 56: at 52 its globe stands in the
     // upper storey's arches.)
     lamp(add(c, dir(150), 44), { light: 8500, priority: 7, strength: 1.2, pool: 0.32, haze: 0.45 });
     // In a little from the arcade and down in strength: at 52 it hung a dozen

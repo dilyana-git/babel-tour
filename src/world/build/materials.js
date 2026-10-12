@@ -270,8 +270,7 @@ export function buildMaterials(ctx) {
           ${worked?.polish ? `roughnessFactor = mix(roughnessFactor, ${ECHO_STONE.polish.toFixed(3)},
             stoneWork * ${worked.polish.toFixed(3)} * max(0.0, 1.0 - vStoneSide - vStoneDown) * (0.55 + 0.6 * stoneNoise3(vStoneW * 0.35 + 1.7)));` : ''}`)
         // (and its gloss with it, webFix.js 2: let fall in its colour alone,
-        // the stone kept the sky in its sheen — blank brick, painted black,
-        // was still brick in the moonlit sky's reflection)
+        // the stone would keep the sky in its sheen and still read as brick)
         .replace('#include <aomap_fragment>', `#include <aomap_fragment>
           ${(weather || night) && WALLS.spec ? `reflectedLight.directSpecular *= stoneNight;
           reflectedLight.indirectSpecular *= stoneNight;` : ''}
@@ -389,10 +388,10 @@ export function buildMaterials(ctx) {
     return mat;
   };
   // The moon on a hedge's shoulder and top, from across the garden only
-  // (forkProps.js, 6). Close to, a pale band along every top was the first
-  // thing wrong with the maze, and there is none; far off, the hedge that
-  // closes the garden was a stripe of black with nothing to say where its
-  // top was. Laid on what the skyDull above left.
+  // (forkProps.js, 6). Close to there is none: a pale band along every top is
+  // the first thing that looks wrong in a maze. Far off, without it, the hedge
+  // that closes the garden is a stripe of black with nothing to say where its
+  // top is. Laid on what the skyDull above left.
   const hedgeMoon = (mat) => {
     if (propsOld(6) || HEDGE_SHEEN.k <= 0) return mat;
     const inner = mat.onBeforeCompile, key = mat.customProgramCacheKey;
@@ -765,10 +764,10 @@ export function buildMaterials(ctx) {
     // Bronze where hands go: the top of a handrail, a newel's cap. Rubbed
     // bright and smooth, where the rest has gone dark.
     bronzeWorn: Std({ color: '#86653b', roughness: 0.42, metalness: 0.8, side: THREE.DoubleSide }),
-    // The ladders, the stools, the catalogue's drawer fronts: a paler wood
-    // than the cases'. (One flat colour until 2026-10-05, and under a lamp a
-    // ladder's rail lit up like a rod of orange plastic.) The cases' walnut,
-    // tinted up in linear light, so it shares their compiled program.
+    // The ladders, the stools, the catalogue's drawer fronts: a paler wood than
+    // the cases', grained (in one flat colour a ladder's rail lights up under a
+    // lamp like a rod of orange plastic). The cases' walnut, tinted up in
+    // linear light, so it shares their compiled program.
     oak: WOOD_OLD ? Std({ color: '#5e3f27', roughness: 0.55 })
       : Std({ map: wood.map, normalMap: wood.normalMap, roughnessMap: wood.roughnessMap, color: new THREE.Color().setRGB(1.55, 1.36, 1.1), roughness: 1.1 }),
     shade: ((m) => (LAMPS.corner ? shadeLit(m, 6 + 7.6 + 3.75, 6 + 7.6 + 5.55) : m))(Std({ color: '#7a4a22', emissive: '#ff9a48', emissiveIntensity: 1.3, roughness: 0.7, side: THREE.DoubleSide })),
@@ -783,18 +782,18 @@ export function buildMaterials(ctx) {
     // Stone walked smooth: the floor's and the stair's own stone, paler and
     // with a sheen, in a strip that fades out at both sides. Laid over the
     // stone in world units, so its joints are the stone's joints.
-    // (Roughness 0.34 and 0.36 until 2026-10-05: a tread worn that glossy
-    // took the lamp over it as a hot spot the size of a footprint.)
+    // (No glossier: at a roughness of 0.35 a worn tread takes the lamp over it
+    // as a hot spot the size of a footprint.)
     // (and catches the light a few strides on where the reader walks the way: `wayLit`)
     wornFloor: wayLit(Std({ map: flag.map, color: '#a8a295', roughness: 0.56, transparent: true, depthWrite: false, alphaMap: wornTex, polygonOffset: true, polygonOffsetFactor: -2 }), 'floor'),
     wornStep: wayLit(Std({ map: again(flag.map, 1 / 22), color: '#c6c0b2', roughness: 0.58, transparent: true, depthWrite: false, alphaMap: wornTex, polygonOffset: true, polygonOffsetFactor: -2 }), 'step'),
     // a stair's risers, in the shadow of the lip over them; the joints of a parapet
     riserShade: keep(new THREE.MeshBasicMaterial({ color: '#000000', transparent: true, opacity: 0.4, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 })),
     // The Echo's stair read by its values (echoFix.js, 2): the lip the palest
-    // stone on it, the riser only a shade under the tread — at 0.4 every
-    // riser was a black slot and the flight a stack of separate slabs.
-    // (in the balustrades' jointless limestone: the caps' ashlar put a mortar
-    // joint through the middle of every lip, a dark slot down the flight)
+    // stone on it, the riser only a shade under the tread — at 0.4 every riser
+    // is a black slot and the flight a stack of separate slabs. (In the
+    // balustrades' jointless limestone: the caps' ashlar puts a mortar joint
+    // through the middle of every lip, a dark slot down the flight.)
     nosing: stoneShade(Std({ map: again(carveSet.map, 1 / 13), normalMap: again(carveSet.normalMap, 1 / 13), roughnessMap: again(carveSet.roughnessMap, 1 / 13), color: '#d6cfc0', roughness: 1, side: THREE.DoubleSide }), { worked: { polish: 1 } }),
     riserSoft: keep(new THREE.MeshBasicMaterial({ color: '#000000', transparent: true, opacity: 0.2, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 })),
     joint: Std({ color: '#2a241e', roughness: 1 }),
@@ -915,12 +914,11 @@ export function buildMaterials(ctx) {
     signBoard: signLit(Std({ map: timber.map, normalMap: timber.normalMap, roughnessMap: timber.roughnessMap, color: SIGN.board, roughness: 0.9 }), signLamp),
     // the caps shod on the Pavilion's bracket arms, dark bronze (pavilionFix.js, 2)
     pavBronze: Std({ color: '#5c4630', roughness: 0.5, metalness: 0.65 }),
-    // the armillary's pedestal, turned from one stone: the garden stone's
-    // tint on the lanterns' jointless carving (webFix.js, 7 — the ashlar's
-    // mortar ran in joints down the lettered shaft)
-    // (gardenFix5.js, 8: under its own lamp it took only the sky and was
-    // smooth blue-grey — the paving's stone now, weathered, and lit by the
-    // paving it stands on)
+    // the armillary's pedestal, turned from one stone: the garden stone's tint
+    // on the lanterns' jointless carving, so no mortar joints run down the
+    // lettered shaft (webFix.js, 7); and the paving's stone, weathered, lit by
+    // the paving it stands on, since under its own lamp it takes only the sky
+    // (gardenFix5.js, 8)
     pedestalStone: garden5Old(8) ? stoneShade(Std({ map: again(carveSet.map, 1 / 11), normalMap: again(carveSet.normalMap, 1 / 11), roughnessMap: again(carveSet.roughnessMap, 1 / 11), color: '#b9ae9f', roughness: 1 }))
       : plinthLit(Std({ map: again(pale.map, 1 / 26), normalMap: again(pale.normalMap, 1 / 26), roughnessMap: again(pale.roughnessMap, 1 / 26), color: PLINTH.color, roughness: 1 })),
     // the Pavilion's own (pavilionProps.js): the dark gilt of its columns'
@@ -944,8 +942,8 @@ export function buildMaterials(ctx) {
     stone: stoneShade(Std({ map: again(pale.map, 1 / 26), normalMap: again(pale.normalMap, 1 / 26), roughnessMap: again(pale.roughnessMap, 1 / 26), color: '#b9ae9f', roughness: 1 })),
     // the same stone in the balustrades on the wall tops, let fall into the
     // night round the maze with the walls and copings under them (webProps.js,
-    // 1: over the cedars it was a pale lit strip, the one thing of the Library
-    // left in the court's sky)
+    // 1: or over the cedars it is a pale lit strip, the one thing of the
+    // Library left in the court's sky)
     wallTop: stoneShade(Std({ map: again(pale.map, 1 / 26), normalMap: again(pale.normalMap, 1 / 26), roughnessMap: again(pale.roughnessMap, 1 / 26), color: '#b9ae9f', roughness: 1 }), { night: !webPropsOld(1), quiet: true, sink: true, route: true }),
     frame: Std({ color: '#7a5a30', roughness: 0.4, metalness: 0.6 }),
     // water gilding on the pier glasses' carving (mirror.js), burnished and old
@@ -1029,12 +1027,11 @@ export function buildMaterials(ctx) {
   }
   // A hole must be drawn the opposite way round to the outline it is cut in, or
   // its walls come out inside out — and three only squares the two up when the
-  // OUTLINE is the one it had to turn round (the `reverse` branch of its
+  // OUTLINE is the one it has to turn round (the `reverse` branch of its
   // ExtrudeGeometry). Every outline here is drawn clockwise, so that branch
-  // never ran and every hole kept the winding it arrived with: the stone had no
-  // inner face at all. A gallery's own walls were culled from inside it — the
-  // eye looked straight through them into the next room, which is what walking
-  // the Library felt like.
+  // never runs; a hole that kept the winding it arrived with would give the
+  // stone no inner face, and a gallery's own walls would be culled from inside
+  // it — the eye would look straight through them into the next room.
   const wound = (pts, clockwise) => {
     const v = pts.map(([x, z]) => new THREE.Vector2(x, -z));
     return THREE.ShapeUtils.isClockWise(v) === clockwise ? v : v.reverse();
@@ -1165,9 +1162,9 @@ export function buildMaterials(ctx) {
     g.computeVertexNormals();
     return g;
   };
-  // A garden stone: worn round, wider than it is tall, and green where rain
-  // and the dark sit on it. (The garden's stones were rockGeo, faceted and
-  // flat-shaded: from the Fork they read as black chips cut out of the frame.)
+  // A garden stone: worn round, wider than it is tall, and green where rain and
+  // the dark sit on it. (Not rockGeo: faceted and flat-shaded, from the Fork
+  // those read as black chips cut out of the frame.)
   const stoneGeo = () => {
     const g = new THREE.IcosahedronGeometry(1, light ? 2 : 3);
     g.deleteAttribute('normal');
@@ -1335,20 +1332,17 @@ export function buildMaterials(ctx) {
     halos.push({ mat, base: opacity, phase: phase ?? rr(0, 100), sprite: s, size, lamp: map === lampHaloTex, seen: 1, seenTo: 1 });
   };
   const lightWishes = [];
-  // The lamps' light, softened 2026-10-01, when the reader found the piece
-  // "almost aggressively lit". It fell off at an inverse square from a hot
-  // core, so whatever stood near a lamp — the court's paving under the
-  // armillary, the waymark beside its lantern, the Pavilion's floor and
-  // columns — was floodlit while the rest of the frame went black: stage
-  // light, not lamplight. Now it falls away more gently, the lamps put 60% of
-  // the light they did on what they light (the lamps themselves, their globes
-  // and halos, burn as bright as ever), the warm pools painted under them are
-  // a little over half as strong, and the fill comes up to meet them
-  // (World.jsx). The middle of the frame holds its brightness; the top 1%
-  // came down by 0.1-0.15.
+  // The lamps' light falls away more gently than an inverse square from a hot
+  // core, which floodlights whatever stands near a lamp — the court's paving
+  // under the armillary, the waymark beside its lantern, the Pavilion's floor
+  // and columns — while the rest of the frame goes black: stage light, not
+  // lamplight. The lamps put 60% of the inverse square's light on what they
+  // light (the lamps themselves, their globes and halos, burn at full
+  // brightness), the warm pools painted under them are a little over half as
+  // strong, and the fill comes up to meet them (World.jsx).
   //
   // A lamp is rescaled so that it lights a wall DECAY_AT away exactly as it
-  // did at an inverse square; only nearer than that does the softer fall-off
+  // would at an inverse square; only nearer than that does the softer fall-off
   // soften it, and further off it carries. ?wlight=old puts the hard light
   // back; ?wdecay, ?wlamp and ?wpool dial each part of it.
   const Q = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
@@ -1356,8 +1350,8 @@ export function buildMaterials(ctx) {
   const HARD_LIGHT = Q.get('wlight') === 'old';
   const LAMP_DECAY = qNum('wdecay', HARD_LIGHT ? 2 : 1.5), DECAY_AT = 32;
   const LAMP_DIAL = qNum('wlamp', HARD_LIGHT ? 1 : 0.6), POOL_DIAL = qNum('wpool', HARD_LIGHT ? 1 : 0.55);
-  // (And since 2026-10-05 a lamp is a globe, not a point — lightModel.js — so
-  // it is given back what the softer near field takes from it at DECAY_AT.)
+  // (A lamp is a globe, not a point — lightModel.js — so it is given back what
+  // the softer near field takes from it at DECAY_AT.)
   // `column` [x, z, radius]: whoever stands inside it keeps this light, however far off.
   const point = ([x, z], y, color, intensity, priority, decay = null, column = null) => {
     lightWishes.push({

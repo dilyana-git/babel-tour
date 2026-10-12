@@ -1,39 +1,7 @@
-// The Web of Time's own things, reviewed 2026-10-09 (board 12 of the second
-// audit; the numbers are the board's own). The court was right — the lettered
-// pedestal, the paving and its gold paths, the fireflies, the hedges in the
-// near field — and what stood round and over it was not:
-// 1 over the cedars the Library's wall top still showed, a pale lit strip on
-//   the night (the green discs along it were auditFix.js, 2). The balustrade
-//   on the wall tops is the garden's pale stone, and nothing let it fall into
-//   the night with the wall and the coping under it; and its balusters are
-//   instances, which the night's falloff placed at the world's origin, so
-//   they stayed white whatever the rail did. Both fall now (buildWorld.js,
-//   M.wallTop and stoneShade's `vStoneAt`) — and the belt, below, is closed
-//   in front of all of it, so that from the stand none of the stone shows.
-// 2 the cedars were telegraph poles: a straight bare stem with a tuft every
-//   nine units up it, all of a height and evenly spaced, a palisade — and
-//   only twenty-five of them stood, with the wall between. They are grown as
-//   spires (trees.js, `spire`): leaf from the grass to the leader, in whorls
-//   set as close as their own reach, hanging low down and lifting toward the
-//   top; of heights from 68 to 200; stood unevenly, in rows where there is
-//   ground for a row, and then one more wherever from the stand the stone
-//   still showed between two (closeBelt).
-// 3 the armillary was a saw blade: its degrees and hours were blocks of gilt
-//   stood out from the rims of round hoops, teeth on a gear. The rings are
-//   flat bands now, as an instrument's are, and the graduations are let into
-//   their faces in gilt, every fifth longer and every tenth longest, between
-//   two scribed lines. The lit band with its signs is as it was.
-// 6 the caption's last words ran out over the pale court, the brightest floor
-//   on the walk, and its name sat a line lower than in every other room:
-//   map.css — the pool of shadow under it reaches further in this room
-//   (`.room-hud[data-room='web']`), and the voice's cell is as tall in every
-//   room (`.room-voice`). (No switch: it is not the world's.)
-// 7 the top of the frame was a black void — sky and cedars both at nothing,
-//   the trees without an outline, the court afloat in black. The night behind
-//   the belt is lifted a few levels, low down, as haze with the moon on it
-//   (sky.js), and the belt's own leaf gives back enough of the night to have
-//   a shape (`BELT.moon`): over the upper three fifths of the stand's frame
-//   the median luminance went from 0.0006 to 0.0019.
+// The Web of Time's own things, reviewed 2026-10-09 (audit II, board 12): the
+// wall top over the cedars (1), the cedars (2), the armillary's rings (3),
+// the night behind the belt (7).
+// What each point was, and why: docs/design-history.md.
 //
 // ?wwebprops=old puts all of them back as they were; ?wwebprops=old:2,7 only those.
 import * as THREE from 'three';

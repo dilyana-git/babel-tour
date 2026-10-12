@@ -1,16 +1,7 @@
-// The Vertigo's arrival frame, reviewed 2026-10-09 (the numbered points on the
-// review board): 1 the stand turned in toward the well and looking further
-// down, so the first frame is half books, half drop, and the drop is what the
-// room is named for; 4 the well lit from below — the light at the bottom
-// climbing the funnel warm, and the shelves going dark as they rise — instead
-// of evenly from edge to edge; 2 the near bindings' tooling varied, compartment
-// by compartment (a gilt "+" in every panel of every volume read as a grid of
-// plus signs), and a few books gone from the near shelves, their neighbours
-// leaning into the room they left; 3 a moulded walnut lip on the front of
-// every shelf, darker than the boards, where the bare board fronts were pale
-// flat strips like plywood. (8, the near books too big and soft, went with 1
-// and 2: the turn puts the near wall at the frame's edge and the tooling no
-// longer repeats; 7, the copy, is kept — the frame now shows what it says.)
+// The Vertigo's arrival frame, reviewed 2026-10-09: the stand (1), the well
+// lit from below (4), the bindings' tooling and the gaps on the shelves (2),
+// the shelf lips (3).
+// What each point was, and why: docs/design-history.md.
 //
 // ?wvfix=old puts all of them back as they were; ?wvfix=old:2,4 only those.
 import * as THREE from 'three';

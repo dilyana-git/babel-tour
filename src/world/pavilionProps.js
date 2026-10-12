@@ -1,26 +1,7 @@
-// The Pavilion's own things, reviewed 2026-10-09 (board 11 of the second
-// audit; the numbers are the board's own). The stand was right and showed
-// what stood in it: 3 up close the bracket arms were lengths of timber with
-// flat ends, and a gilt cup and ball hung from the middle of the ceiling like
-// a bell — the arms' edges are eased and their ends rolled under, their faces
-// carry a band of green inside a chalk line (cǎihuà, the paint a bracket of
-// this kind is always given), and the boss is a plain lacquered one; 4 the
-// qin the caption sends the reader to was a board with a pale stripe — it has
-// a qin's outline now (the head, the neck cut in, the shoulders, the waist),
-// an arched top, seven strings from the bridge to the tail, thirteen studs of
-// pearl where the harmonics are, its head over the table's edge with the pegs
-// and their tassels hanging from it, and a cloth under its tail let down over
-// the rim; 6 the willows were umbrella pines — tufts on bare limbs, and thin
-// bright strings hung from them like rain on glass: a full round crown that
-// droops at its shoulders, and a curtain that starts inside it and darkens
-// to its tips; 10 the rails were one red-brown from end to end, plastic —
-// the lacquer is deeper where two members meet and under every rail, rubbed
-// through to the wood along the top of the handrail where hands go, and
-// its top is eased; 13 gilt collars on every column and gilt balls under
-// every lantern, with the finial, were a casino's — the collars are dark
-// gilt, the small fittings bronze, and the one bright gold thing is the
-// finial. (1 and 2, the roof and its corners: forkProps.js, 2 and 11. 9, the
-// caption's last two words alone on a line: map.css, `.room-voice-line`.)
+// The Pavilion's own things, reviewed 2026-10-09 (audit II, board 11): the
+// bracket arms (3), the qin (4), the willows (6), the rails (10), the gilt
+// (13).
+// What each point was, and why: docs/design-history.md.
 //
 // ?wpavprops=old puts all of them back as they were; ?wpavprops=old:4,10 only those.
 import * as THREE from 'three';
@@ -245,7 +226,7 @@ export function qinCloth({ centre, rim, x0, x1, back = -1.6, hang = 2.5, thick =
 // 10. A rail's member, worn. From a to b ([x, z]), `h` tall from y0 and `t`
 // through, cut along its length every unit or so, so that what it carries in
 // its vertices can change along it. In each vertex's colour, read by the
-// lacquer's shader (buildWorld, `wornLacquer`) and not as a colour: red, how
+// lacquer's shader (build/materials.js, `wornLacquer`) and not as a colour: red, how
 // clean the lacquer is there (1; less under a rail, and where another member
 // meets it — `joints`, distances along it); green, how far it is rubbed
 // through to the wood: `rub` along the middle of its top, where a hand

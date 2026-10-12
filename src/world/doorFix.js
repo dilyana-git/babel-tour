@@ -1,19 +1,7 @@
-// The Door's arrival frame, reviewed 2026-10-09 (the numbered points on the
-// review board): 2 the fallen blocks were clean bevelled boxes of a size,
-// spread evenly over the floor like props — they lie in two heaps now under
-// the breach they came out of, most of them broken to wedges, bedded into
-// the floor where they struck it, with big spalls round them and more dust;
-// 4 the garden in the arch was a milky grey haze, its wisteria and lantern
-// drained — that was the "green moon" shaft, a pale sheet seen face on across
-// the whole opening, and the pergola's three lantern halos stacked on one
-// another down its axis; 3 the portal's jambs, reveals and soffits were one
-// warm grey — the reveals and undersides of each order go dark now, the
-// deeper the darker, so the arch is a funnel; 5 the cracks were lines of an
-// even width — they start wide, taper all the way out, branch and chip more,
-// and here and there a slab has sunk and tipped; 8 the lamp left of the
-// portal hung where the frame's top edge cut its globe in half — it hangs
-// lower. (7, the copy, is catalogue.js: it said a green moon, which nothing
-// shows; it says what the arch shows.)
+// The Door's arrival frame, reviewed 2026-10-09: the fallen blocks (2), the
+// portal's reveals (3), the garden in the arch (4), the cracks (5), the lamp
+// left of the portal (8).
+// What each point was, and why: docs/design-history.md.
 //
 // ?wdoorfix=old puts all of them back as they were; ?wdoorfix=old:2,4 only those.
 const Q = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
@@ -23,7 +11,7 @@ export const doorOld = (n) => V === 'old' || (ONLY ? ONLY.has(n) : false);
 const qn = (k, d) => (Q.get(k) !== null && Q.get(k) !== '' && Number.isFinite(+Q.get(k)) ? +Q.get(k) : d);
 
 // 2. What fell, [along, into, w, h, d, how it lies] in the breach's frame
-// (buildWorld's DOOR_FALLEN, which this replaces). Two heaps, one under each
+// (build/common.js's DOOR_FALLEN, which this replaces). Two heaps, one under each
 // side of the breach, against the feet of the piers (which stand twenty-five
 // into the room): a long block broken across its length and a wedge beside
 // it on the left; on the right, a block come down on a stone that fell before
@@ -66,7 +54,7 @@ export const CRACKS = { taper: !doorOld(5) };
 export const LAMP_Y = qn('wdlampy', 72);
 
 // 3. The portal's reveals and undersides, darkened in its stone's own shader
-// (buildWorld gives the portal a carve and a dressed material of its own,
+// (rooms/door.js gives the portal a carve and a dressed material of its own,
 // through this): in the arch's frame — x across the opening, y up, z toward
 // the room, as portal.js builds it — every face turned in toward the opening
 // (a reveal; round the arch, toward the arc's centre) or turned down (a

@@ -1,32 +1,8 @@
-// What the design board on the HUD and its type (2026-10-11, audit III,
-// board 2) marked FIX and REFINE — the points by the board's own numbers:
-// 1  the room's subtitle is set in Tangerine at about 26 px: hairlines a pixel
-//    wide over a moving scene, a swash capital that takes a beat to decode,
-//    and the one face here that says stationery, not library. The board asked
-//    for options first, and there were four (SUBS, below). The user chose a:
-//    the name's own italic, Cormorant Garamond, at half the name's size.
-// 2  four families for forty words. The mono is right in the opening, where
-//    "HEXAGON 967,168 · SHELF 2" is the catalogue speaking; over every room,
-//    as the kicker and the caption's source, it was a 2017 corporate face in a
-//    1941 library. Those are set in Cormorant SC, letterspaced — the title's
-//    voice — and the mono is left to the opening (map.css, `--caps`).
-// 3  the Vertigo is the one room whose brightest area is bottom right: the
-//    corner's pool of shadow ran out before it reached "fall into", set small
-//    at 72 per cent ink over lit spines. The pool reaches further left in that
-//    room and holds more of its dark, and the verb is in full ink there.
-// 4  one ink in thirteen strengths, ten warm whites, three darks at eight
-//    alphas: drift, not decisions. map.css names four steps of ink, three
-//    shades and three lamp whites beside the gold and the jade, and nothing
-//    else. (No flag: it is the same page.)
-// 5  fourteen durations, nearly all on the browser's default curve. One curve
-//    for what arrives (a long settle, a lamp coming up), one for what leaves,
-//    three durations (map.css, `--arrive`, `--leave`, `--t-*`). `old` puts the
-//    default curve back; the durations stay.
-// 6  the first room's name was set over a reader: one of the file on the
-//    Vestibule's bridge, stopped at the rail in the corner of the frame the
-//    caption is in, half out of it. The corner the caption stands in is kept
-//    like the frame's edges are (walkers.js): nobody in it on arrival, and
-//    nobody stops in it, or across an edge, at any time.
+// The HUD and its type (2026-10-11, audit III, board 2): the subtitle's face
+// (1, SUBS below: the user chose a), the caps voice (2), the Vertigo's corner
+// (3), the inks (4), the curves and durations (5), the caption's corner kept
+// clear (6).
+// What each point was, and why: docs/design-history.md.
 //
 // ?whud3=old puts 2, 3, 5 and 6 back as they were; ?whud3=old:3,6 only those.
 // ?whudsub=b|c|d puts one of the other three subtitles (1) in a's place; `off`

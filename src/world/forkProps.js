@@ -1,20 +1,7 @@
-// The Fork's props, reviewed 2026-10-09 (board 10 of the second audit; the
-// numbers are the board's own). The frame was right and the things in it were
-// new from the factory: 1 the moon was an even white disc in a wide halo, a
-// lamp in the sky — it has its seas now, a little darker at the limb, ivory,
-// and a closer halo; 2 the Pavilion's roof was navy panes between black ribs,
-// a conservatory's — it is tiled: grey tile in rolls down every slope, a
-// round tile-end on each roll at the eave, the hips rolled, and the corners
-// swept up (and 11: they ended in gold balls on black posts, bedknobs; they
-// end in the sweep's own curl); 3 the stone the ways part at was a sawn disc
-// — a low boulder, weathered, the rake's rings going round its own outline;
-// 4 the tōrō were porcelain — granite, grimed under every ledge, damp at the
-// foot, lichened; 6 the hedge behind the lanterns was one black stripe — its
-// top takes the moon, and clipped finials stand out of it; 7 the cherries
-// were the most saturated thing in the night — greyer, fewer flowers, lit
-// from above only; 8 the gravel was white speckle on grey — larger, softer
-// grains, a little warm; 10 the lawn in the lanterns' light was brown mud —
-// it has blades there.
+// The Fork's props, reviewed 2026-10-09 (audit II, board 10): the moon (1),
+// the Pavilion's roof (2, 11), the stone at the fork (3), the tōrō (4), the
+// hedge (6), the cherries (7), the gravel (8), the lawn (10).
+// What each point was, and why: docs/design-history.md.
 //
 // ?wprops=old puts all of them back as they were; ?wprops=old:3,8 only those.
 // ?wroof=green|bark: the roof's two other dressings (green-glazed tile; bark

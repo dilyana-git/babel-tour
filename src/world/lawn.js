@@ -10,7 +10,7 @@
 // They are lit by the lantern they stand round and by nothing else that
 // would not also light the plane under them: each vertex carries its lamp
 // (`aLamp`: where it is, and how strong), and the blade takes that light as
-// the lantern's own stone does (buildWorld.js, flameLit) — falling off with
+// the lantern's own stone does (build/materials.js, flameLit) — falling off with
 // distance, warm, brightest toward the tip. Geometry, not cards: no alpha to
 // test and nothing to shimmer.
 //

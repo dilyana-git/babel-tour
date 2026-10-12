@@ -1,31 +1,7 @@
-// The ending, reviewed 2026-10-09 (board 13 of the second audit; the numbers
-// are the board's own). The idea was right and the armillary waking (1) is
-// kept as it was; the pictures on the way were less sure than the idea:
-// 2 the flood was a screensaver: hundreds of round dots of one size and one
-//   yellow-green, spread evenly over the frame. A third as many now; each as
-//   large as its distance makes it, and more than that — the near ones wide
-//   and soft, out of focus, the far ones points; gold by the armillary and
-//   paling outward; of uneven brightness; and over the heart they rise in a
-//   slow column, where they had hung everywhere at once (finale.js).
-// 3 as the others gathered, half the frame was hedge: the film is watched from
-//   wherever the reader stood when it began, and from the stand that is a
-//   corridor, the court seen through its mouth — turned toward the west gate,
-//   the eye looked at the corridor's own wall. The reader takes the step in
-//   that the caption says they take, as far as the mouth of the gate, and the
-//   eye is turned only until the armillary stands on the left third, the
-//   others to its right and the hedge a wing at the frame's edge (World.jsx,
-//   finaleMove). The one behind is brought as far forward, so it is as near
-//   as it was.
-// 4 the other's hood was plastic: one smooth even tan with a soft sheen, the
-//   inside of its edge a pale band round the opening like a tyre, and the
-//   opening one flat black. The others' wool is woven now, and matt but for
-//   its fuzz at the edges; the cowl hangs in folds to its hem; the hem is
-//   thin, turned in, and frayed; and inside the hood there is a low warm
-//   light, as from the reader's own lamp, on the brow and the nose and the
-//   chin of whoever is in it (readers.js, `close`, and clothShader).
-// 5 the rise over the lit maze was right, and snowed on: the glitter over it
-//   was twice too dense and of one brightness. It is halved (2), and it goes
-//   out as the eye rises, so that the last thing seen is the lit path.
+// The ending, reviewed 2026-10-09 (audit II, board 13): the flood of
+// fireflies (2), where the film is watched from (3), the others' hoods (4),
+// the rise over the maze (5).
+// What each point was, and why: docs/design-history.md.
 //
 // ?wfin=old puts all of them back as they were; ?wfin=old:2,4 only those.
 const Q = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
