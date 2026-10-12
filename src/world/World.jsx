@@ -48,6 +48,8 @@ import { makeSky } from './sky';
 import { TILT_FOV, framePointsOf, restPose } from './plan';
 import { tallFov } from './phoneFix';
 import { prepareEnvironment } from './effects';
+import { startShaders, shaderReady, texturesOf, makeWarmer } from './assembly';
+import { makeLights } from './build/light';
 import { probeClearance, probeRay } from './probe';
 import { GLASS } from './mirror';
 import { makeBody, EYE, ROOM_STAND } from './body';
@@ -914,10 +916,13 @@ const loadPlate = async (url) => {
 // So the assembly is a sequence that lets the page breathe between its steps:
 //   1. the heavy surfaces start painting in workers (paint.js), and the sky,
 //      the air and the environment light are made while they do;
-//   2. the world is built a section at a time (assembleWorld's yields);
-//   3. every shader the world needs is started at once and polled, never
-//      waited on (KHR_parallel_shader_compile — renderer.compile, and
-//      program.isReady() for how far along it is);
+//   2. the world is built a section at a time (assembleWorld's yields), and
+//      at every breath the shaders for what has been built so far are
+//      started (assembly.js, makeWarmer), so that they compile while the
+//      rest is built rather than after it;
+//   3. every shader the world needs that is not yet started is started, and
+//      all of them are polled, never waited on (KHR_parallel_shader_compile —
+//      renderer.compile, and program.isReady() for how far along it is);
 //   4. the paint arrives and is uploaded;
 //   5. only then does the world go into the scene and LiveWorld start drawing.
 // `onProgress` hears how far along it is, 0 to 1, for the status line.
@@ -935,74 +940,6 @@ const SHARE = { setup: 0.12, build: 0.5, compile: 0.94, upload: 0.99 };
 const BUILD_STEPS = 28;
 // Past this, stop waiting for the shaders: the first frame finishes them.
 const COMPILE_GIVE_UP_MS = 90000;
-
-// Every shader the world will draw with, started now: compiled against the
-// scene's fog, environment and lights exactly as a frame would, and into a
-// render target, because that is where the composer draws the scene (and a
-// target changes the program: no tone mapping, linear output). The world is
-// compiled from outside the scene so that nothing draws it before it is ready.
-// Returns the materials, or null if this renderer could not do it.
-//
-// renderer.compile works out a program for every OBJECT it finds, not for
-// every material, and with a few thousand objects sharing their materials
-// that alone was three seconds. So it is handed stand-ins: one per material
-// and kind of object it is on (what three reads off an object to choose a
-// program, `programShape`), each the real object seen through Object.create
-// with no children of its own, and the world's lights as a frame would find
-// them — visible all the way up.
-const programShape = (o) => {
-  const a = o.geometry?.attributes ?? {}, m = o.geometry?.morphAttributes ?? {};
-  return [
-    o.type, o.isInstancedMesh, !!o.instanceColor, !!o.morphTexture, o.isBatchedMesh, !!o._colorsTexture, o.isSkinnedMesh,
-    Object.keys(a).sort().join(','), a.color?.itemSize, Object.keys(m).map((k) => `${k}${m[k].length}`).join(','),
-  ].join('|');
-};
-const standIns = (root) => {
-  const stand = new THREE.Group();
-  const seen = new Set();
-  const add = (o) => {
-    const p = Object.create(o);
-    p.children = [];
-    stand.children.push(p);
-  };
-  root.traverse((o) => {
-    if (!(o.isMesh || o.isPoints || o.isLine || o.isSprite) || !o.material) return;
-    const key = `${(Array.isArray(o.material) ? o.material : [o.material]).map((m) => m.id).join('+')}#${programShape(o)}`;
-    if (seen.has(key)) return;
-    seen.add(key);
-    add(o);
-  });
-  root.traverseVisible((o) => { if (o.isLight) add(o); });
-  return stand;
-};
-const startShaders = (gl, root, camera, scene) => {
-  const target = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType });
-  const was = gl.getRenderTarget();
-  try {
-    gl.setRenderTarget(target);
-    return gl.compile(standIns(root), camera, scene);
-  } catch (error) {
-    console.warn('[world] could not start the shaders early; the first frame will compile them:', error);
-    return null;
-  } finally {
-    gl.setRenderTarget(was);
-    target.dispose();
-  }
-};
-const shaderReady = (gl, material) => {
-  const program = gl.properties.get(material).currentProgram;
-  return !program || program.isReady();
-};
-// Every texture a material samples, its own maps and its shader's uniforms.
-const texturesOf = (materials) => {
-  const out = new Set();
-  const take = (v) => { if (v?.isTexture && !v.isRenderTargetTexture && v.image) out.add(v); };
-  for (const m of materials) {
-    Object.values(m).forEach(take);
-    if (m.uniforms) Object.values(m.uniforms).forEach((u) => take(u?.value));
-  }
-  return out;
-};
 
 // The painting starts the moment this module is loaded (EntryMap fetches it as
 // soon as it can), not once the canvas has made its first frames: it needs
@@ -1060,7 +997,21 @@ function WorldContent({ rooms = false, onProgress, onHold, onAssembled, onPlan, 
       if (!alive) return;
       say(SHARE.setup);
 
-      made.steps = assembleWorld({ light: LIGHT_MESH, paintings: !rooms, painter: made.painter });
+      // (before the world's shaders: which environment they light by is part
+      // of them — finished as the first of them are started)
+      const finishEnvironment = () => {
+        if (made.environment) return;
+        made.environment = made.prepared.finish();
+        made.prepared = null;
+        scene.environment = made.environment.texture;
+        mark('environment');
+      };
+      // what has been made so far, its shaders started a slice at a time
+      // while the rest is built (assembly.js, makeWarmer)
+      const ahead = [];
+      const { hemi, moon, pool } = makeLights({ light: LIGHT_MESH });
+      const warm = makeWarmer(gl, camera, scene, { lights: [hemi, moon, ...pool], environment: finishEnvironment });
+      made.steps = assembleWorld({ light: LIGHT_MESH, paintings: !rooms, painter: made.painter, ahead });
       let k = 0, since = performance.now();
       for (;;) {
         const step = made.steps.next();
@@ -1068,6 +1019,7 @@ function WorldContent({ rooms = false, onProgress, onHold, onAssembled, onPlan, 
         k += 1;
         say(SHARE.setup + (SHARE.build - SHARE.setup) * Math.min(1, k / BUILD_STEPS));
         if (performance.now() - since > SLICE_MS) {
+          warm(ahead.splice(0));
           await breathe();
           if (!alive) return;
           since = performance.now();
@@ -1078,12 +1030,7 @@ function WorldContent({ rooms = false, onProgress, onHold, onAssembled, onPlan, 
       const { world } = made;
       // what the map will frame, for the opening's camera to come to rest on
       planRef.current?.(framePointsOf(world.overlay));
-      // (before the world's shaders: which environment they light by is part of them)
-      const environment = made.prepared.finish();
-      made.prepared = null;
-      made.environment = environment;
-      scene.environment = environment.texture;
-      mark('environment');
+      finishEnvironment();
 
       const materials = startShaders(gl, world.root, camera, scene);
       mark('shaders-started');

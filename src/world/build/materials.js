@@ -41,7 +41,7 @@ export function buildMaterials(ctx) {
     roofTex, radialTex, wisteriaTex, ivyTex, again, flag, crackMap, wall, pale, wood, whiteTex,
     timber, spines, titles, bookRowsSet, friezeTex, gilt, hedge, carveSet, rubbleSet, shoreRockSet,
     shoreBankSet, dressedSet, marbleSet, columnSet, hangTex, glowTex, lampHaloTex, wind, lilyPads,
-    leaves, barkSet, gradTex, wornTex, dustFanTex, mossTex, leafTex, globeTex } = ctx;
+    leaves, barkSet, gradTex, wornTex, dustFanTex, mossTex, leafTex, globeTex, ahead } = ctx;
   // ── Materials ─────────────────────────────────────────────────────────────
   const Std = (o) => keep(new THREE.MeshStandardMaterial(o));
   // the pond, for the stones' wet line (filled in where POND is laid out)
@@ -1011,6 +1011,13 @@ export function buildMaterials(ctx) {
       else if (this.project) uvWorld(flat, uvAt);
       flat.computeBoundingBox();
       flat.boundingBox.getCenter(centre);
+      // (what it will be drawn as, offered while it is still being filled, so
+      // its shader can be started now: its pieces all have the first's
+      // attributes, or they would not merge — see assembleWorld's `ahead`)
+      if (ahead && !this.offered) {
+        this.offered = true;
+        ahead.push(new THREE.Mesh(flat, this.mat));
+      }
       const k = chunkKey(centre.x, centre.z);
       if (!this.chunks.has(k)) this.chunks.set(k, []);
       this.chunks.get(k).push(flat);

@@ -66,63 +66,57 @@ export function buildWorld(options) {
 // The world, built section by section: it yields between them (the name of the
 // one it is about to start) and returns the world. `painter` hands out the
 // PAINTED surfaces (paint.js); without one they are painted here and now.
-export function* assembleWorld({ light = false, paintings = true, painter = paintNow(PAINTED) } = {}) {
-  const ctx = { light, paintings, painter };
+// `ahead`, if given, is handed whatever has been made to be drawn by the time
+// of each yield — what the root holds by then, and a stand-in for each batch
+// still being filled (build/materials.js, Batch) — so that its shaders can be
+// started while the rest is built (assembly.js, makeWarmer).
+export function* assembleWorld({ light = false, paintings = true, painter = paintNow(PAINTED), ahead = null } = {}) {
+  const ctx = { light, paintings, painter, ahead };
+  let offered = 0;
+  const offer = () => {
+    const kids = ctx.root?.children;
+    if (!ahead || !kids) return;
+    for (; offered < kids.length; offered++) ahead.push(kids[offered]);
+  };
   Object.assign(ctx, buildKit(ctx));
-  yield 'Materials';
-  Object.assign(ctx, buildMaterials(ctx));
-  yield 'The honeycomb';
-  Object.assign(ctx, buildHoneycomb(ctx));
-  yield 'The dressing on a flight';
-  Object.assign(ctx, buildFlightDressing(ctx));
-  yield 'The books on a wall';
-  Object.assign(ctx, buildBooks(ctx));
-  yield 'Furniture';
-  Object.assign(ctx, buildFurniture(ctx));
-  yield 'The Vestibule';
-  Object.assign(ctx, buildVestibule(ctx));
-  yield 'The Echo';
-  Object.assign(ctx, buildEcho(ctx));
-  yield 'The Silence';
-  buildSilence(ctx);
-  yield 'The Vertigo';
-  Object.assign(ctx, buildVertigo(ctx));
-  yield 'The Door';
-  Object.assign(ctx, buildDoor(ctx));
-  yield 'The arch';
-  Object.assign(ctx, buildArch(ctx));
-  yield 'The garden';
-  Object.assign(ctx, buildGarden(ctx));
-  yield 'The fork, raked';
-  buildForkRaked(ctx);
-  yield 'The wisteria pergola, hung with lanterns';
-  buildPergola(ctx);
-  yield 'Lanterns';
-  Object.assign(ctx, buildLanterns(ctx));
-  yield 'The Fork';
-  Object.assign(ctx, buildFork(ctx));
-  yield 'The Web';
-  Object.assign(ctx, buildWeb(ctx));
-  yield 'Trees';
-  Object.assign(ctx, buildTrees(ctx));
-  yield 'Mist on the grass';
-  Object.assign(ctx, buildMist(ctx));
-  yield 'Light';
-  Object.assign(ctx, buildLight(ctx));
-  yield 'The unexplored';
-  Object.assign(ctx, buildUnexplored(ctx));
-  yield 'What a reader at eye level cannot see';
-  Object.assign(ctx, buildCulling(ctx));
-  yield 'What the camera and the overlay need';
-  Object.assign(ctx, buildOverlay(ctx));
-  yield 'Where a reader stands, and the ways on';
-  Object.assign(ctx, buildStands(ctx));
-  yield 'The crossing, over the middle of the Echo';
-  Object.assign(ctx, buildCrossing(ctx));
-  yield 'Where the walk has worn the floor';
-  buildWornFloor(ctx);
-  yield 'What the water has to look at';
-  buildWaterView(ctx);
+  for (const [name, section] of SECTIONS) {
+    offer();
+    yield name;
+    Object.assign(ctx, section(ctx));
+  }
+  offer();
   yield 'How the walk ends';
   return buildEnding(ctx);
 }
+
+// In the order they always ran (and the world's stream is drawn in): each
+// section's name, and the section.
+const SECTIONS = [
+  ['Materials', buildMaterials],
+  ['The honeycomb', buildHoneycomb],
+  ['The dressing on a flight', buildFlightDressing],
+  ['The books on a wall', buildBooks],
+  ['Furniture', buildFurniture],
+  ['The Vestibule', buildVestibule],
+  ['The Echo', buildEcho],
+  ['The Silence', buildSilence],
+  ['The Vertigo', buildVertigo],
+  ['The Door', buildDoor],
+  ['The arch', buildArch],
+  ['The garden', buildGarden],
+  ['The fork, raked', buildForkRaked],
+  ['The wisteria pergola, hung with lanterns', buildPergola],
+  ['Lanterns', buildLanterns],
+  ['The Fork', buildFork],
+  ['The Web', buildWeb],
+  ['Trees', buildTrees],
+  ['Mist on the grass', buildMist],
+  ['Light', buildLight],
+  ['The unexplored', buildUnexplored],
+  ['What a reader at eye level cannot see', buildCulling],
+  ['What the camera and the overlay need', buildOverlay],
+  ['Where a reader stands, and the ways on', buildStands],
+  ['The crossing, over the middle of the Echo', buildCrossing],
+  ['Where the walk has worn the floor', buildWornFloor],
+  ['What the water has to look at', buildWaterView],
+];
