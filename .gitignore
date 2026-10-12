@@ -10,6 +10,9 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+# Vite's dependency caches (a `cacheDir` of a dev or test server)
+vite-cache*/
+node_modules/.vite*/
 *.local
 .ux-review/
 .claude/settings.local.json
