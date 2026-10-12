@@ -1,0 +1,389 @@
+/* --- A volume, open ------------------------------------------------------------
+   OpenBook.jsx. The room goes down into the dark behind it and the book lies
+   open under the lamp: two leaves of old paper in a leather binding, forty
+   lines to the page, and under it the one line that reads, said as the room's
+   caption says things.
+
+   The book is drawn, not photographed, and every part of it is something a
+   book has: boards a little larger than the leaves, the leaves' edges stacked
+   at the fore-edge and the foot, the fall of the page into the gutter, a silk
+   marker. The paper is the Library's light, not white: on this page a white
+   sheet would be the brightest thing in the piece.
+
+   Sizes: the spread is as large as the screen allows with the label under it;
+   its type is set from the page's own height (forty lines fill it, whatever
+   the screen), so the page is always the story's page. */
+
+.open-book {
+  --leaf: #d2c39c;
+  --print: #2a2118;
+  --hide: #3b1d15;
+  --hide-lit: #5a2c1f;
+  --mark: var(--gold-lit);
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(0.9rem, 2.4vh, 1.6rem);
+  box-sizing: border-box;
+  padding: clamp(1rem, 3.2vh, 2rem) 1.5rem clamp(0.9rem, 2.6vh, 1.6rem);
+  /* (the dark, and in it a breath of the lamp the book is read by) */
+  background:
+    radial-gradient(ellipse 46% 50% at 40% 36%, rgba(255, 190, 110, 0.07), transparent 72%),
+    radial-gradient(ellipse 70% 62% at 50% 44%, rgba(8, 6, 5, 0.5) 0%, rgba(8, 6, 5, 0.82) 100%);
+  animation: book-dim var(--t) var(--arrive) backwards;
+}
+
+.open-book.is-garden {
+  --mark: var(--jade);
+}
+
+@keyframes book-dim {
+  from { opacity: 0; }
+}
+
+/* (the room's own words and ways stand down while a book is open) */
+.entry-map.is-reading :is(.room-hud, .room-assist, .map-sound) {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--t) var(--leave);
+}
+
+/* The binding: the boards, seen as a rim of leather round the leaves, with the
+   lamp on their near edge. Its width follows the height it has, two leaves of
+   0.71 side by side. */
+.book {
+  position: relative;
+  flex: 0 1 auto;
+  box-sizing: border-box;
+  height: min(calc(100% - 7.2rem), calc((100vw - 3rem) / 1.46));
+  aspect-ratio: 1.46;
+  padding: 0.5% 0.62% 0.78%;
+  border-radius: 0.45rem 0.45rem 0.55rem 0.55rem;
+  background:
+    linear-gradient(to bottom, rgba(255, 220, 170, 0.1), transparent 12%),
+    linear-gradient(to right, var(--hide) 0%, var(--hide-lit) 7%, var(--hide) 16%, var(--hide) 84%, var(--hide-lit) 93%, var(--hide) 100%);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.55),
+    0 1.2rem 1.6rem -0.4rem rgba(0, 0, 0, 0.7),
+    0 3.2rem 6rem 0.5rem rgba(0, 0, 0, 0.6);
+  animation: book-open var(--t-slow) var(--arrive) backwards;
+}
+
+@keyframes book-open {
+  from { opacity: 0; transform: translateY(14px) scale(0.985); }
+}
+
+/* The leaves, as a block: what shows of all the pages under these two is
+   their edges, at either side and along the foot. */
+.book-block {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  height: 100%;
+  padding: 0 0.55% 0.5%;
+  box-sizing: border-box;
+  border-radius: 0.2rem;
+  background:
+    repeating-linear-gradient(to bottom, transparent 0 calc(100% - 4px), #8f7f5f calc(100% - 4px) calc(100% - 3px), #c9ba97 calc(100% - 3px) calc(100% - 2px), #8f7f5f calc(100% - 2px) calc(100% - 1px), #b9aa86 calc(100% - 1px) 100%),
+    repeating-linear-gradient(to right, #b9aa86 0 1px, #8a7a5a 1px 2px, #c9ba97 2px 3px);
+}
+
+/* A leaf. The light is the room's lamp, up and to the left, so the verso is
+   the brighter of the two; each falls away into the gutter, and its outer
+   edge has taken the colour old paper takes from hands. The paper's own
+   unevenness is two grains of noise, each made to tile (stitchTiles): the
+   first cut left a seam down the recto where one tile ended.
+
+   Everything on a leaf is sized from the leaf (container units), so the page
+   is the same page at every size: forty lines fill it, set in type 1.779% of
+   its height, on a measure 82% of its width (OpenBook's MEASURE). */
+.book-page {
+  position: relative;
+  min-width: 0;
+  container-type: size;
+  color: var(--print);
+  background-color: var(--leaf);
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='640' height='640'%3E%3Cfilter id='f' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.0125 0.0187' numOctaves='3' seed='4' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.42  0 0 0 0 0.3  0 0 0 0 0.14  1.25 0 0 0 -0.52'/%3E%3C/filter%3E%3Crect width='640' height='640' filter='url(%23f)'/%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='g' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' seed='9' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.3  0 0 0 0 0.22  0 0 0 0 0.12  0 0 0 0.1 0'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23g)'/%3E%3C/svg%3E");
+}
+
+.book-page.is-verso {
+  border-radius: 0.15rem 0 0 0.15rem;
+  background-position: 40px 90px, 0 0;
+}
+
+.book-page.is-recto {
+  border-radius: 0 0.15rem 0.15rem 0;
+  background-position: 310px 420px, 0 0;
+}
+
+.book-leaf {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  padding: 4.6cqh 9.5cqw 5.6cqh 8.5cqw;
+}
+
+.book-page.is-verso .book-leaf {
+  padding-right: 8.5cqw;
+  padding-left: 9.5cqw;
+}
+
+/* (over the paper and under the print: the lamp, and the fall into the gutter) */
+.book-page::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+/* A leaf in an open book is not flat: it rises from the gutter, swells (the
+   pale band a tenth of the way out, where it faces the lamp squarely), and
+   lies down toward its fore-edge. The verso swells brighter than the recto;
+   the lamp is on its side. */
+.book-page.is-verso::before {
+  background:
+    linear-gradient(to left, rgba(38, 24, 9, 0.62) 0%, rgba(38, 24, 9, 0.3) 2.6%, rgba(38, 24, 9, 0.08) 7%, rgba(255, 246, 220, 0.2) 13%, rgba(255, 246, 220, 0.06) 22%, transparent 34%),
+    radial-gradient(ellipse 110% 90% at 30% 18%, rgba(255, 242, 206, 0.36), transparent 68%),
+    linear-gradient(to right, rgba(86, 58, 24, 0.3) 0%, rgba(86, 58, 24, 0.1) 5%, transparent 16%),
+    linear-gradient(to top, rgba(74, 50, 20, 0.26), transparent 20%),
+    linear-gradient(to bottom, rgba(74, 50, 20, 0.12), transparent 9%);
+}
+
+.book-page.is-recto::before {
+  background:
+    linear-gradient(to right, rgba(38, 24, 9, 0.62) 0%, rgba(38, 24, 9, 0.3) 2.6%, rgba(38, 24, 9, 0.1) 7%, rgba(255, 246, 220, 0.1) 13%, transparent 26%),
+    radial-gradient(ellipse 90% 80% at 34% 20%, rgba(255, 242, 206, 0.14), transparent 68%),
+    linear-gradient(to left, rgba(86, 58, 24, 0.4) 0%, rgba(86, 58, 24, 0.16) 6%, transparent 22%),
+    linear-gradient(to top, rgba(74, 50, 20, 0.3), transparent 22%),
+    linear-gradient(to bottom, rgba(74, 50, 20, 0.12), transparent 9%);
+}
+
+/* The running head: where the volume stands, and the page. The catalogue's
+   small capitals, as the cornices are lettered. */
+.book-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex: none;
+  box-sizing: border-box;
+  height: 4.4cqh;
+  font: 600 1.8cqh/1 var(--sc, 'Cormorant SC', serif);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: rgba(42, 33, 24, 0.6);
+}
+
+/* Forty lines to the leaf. */
+.book-lines {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+  font: 500 1.779cqh/1.2 var(--serif);
+  color: rgba(42, 33, 24, 0.52);
+}
+
+/* (each row is already set to the measure, to within a letter; justifying
+   takes up the rest) */
+.book-line {
+  margin: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-align: justify;
+  text-align-last: justify;
+}
+
+/* The line that reads: the same letters in the same size, in ink that took.
+   Until it has come right it is the noise the rest of the page is. */
+.book-found {
+  transition: color var(--t) var(--arrive);
+}
+
+.book-found.is-clear {
+  color: #150f09;
+  font-weight: 600;
+}
+
+/* The marker: a ribbon of the binding's red out of the head of the gutter,
+   laid down the recto in the slack curve silk takes, and hanging a little
+   below the foot. Drawn (an svg in the leaves' box): a straight strip down
+   the middle read as a ruled line. */
+.book-ribbon {
+  position: absolute;
+  top: -0.6%;
+  left: 50.3%;
+  width: 5.4%;
+  height: 105.5%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.book-ribbon path {
+  fill: none;
+  vector-effect: non-scaling-stroke;
+  stroke-linecap: butt;
+}
+
+.book-ribbon-shade {
+  stroke: rgba(30, 16, 6, 0.3);
+  stroke-width: 7;
+  filter: blur(1.5px);
+}
+
+.book-ribbon-silk {
+  stroke: #6c1c15;
+  stroke-width: 5.5;
+}
+
+.book-ribbon-light {
+  stroke: rgba(196, 96, 74, 0.55);
+  stroke-width: 1.2;
+}
+
+/* Under the book: where it came from, the line, and the way to put it back —
+   the caption's voice, on the dark. */
+.book-label {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 2rem;
+  flex: none;
+  box-sizing: border-box;
+  width: min(100%, 62rem);
+  padding: 0 0.4rem;
+  text-shadow: var(--halo);
+  animation: book-open var(--t-slow) var(--t) var(--arrive) backwards;
+}
+
+.book-mark {
+  margin: 0 0 0.55rem;
+  font: var(--caps);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--mark);
+}
+
+.book-said {
+  margin: 0;
+  max-width: 44rem;
+  font: italic 500 clamp(1.15rem, 2.5vh, 1.5rem) / 1.3 var(--serif);
+  color: var(--ink);
+  text-wrap: balance;
+}
+
+.book-from {
+  margin-left: 0.9rem;
+  font: var(--caps);
+  font-size: 0.8rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--ink-3);
+}
+
+.book-from::before {
+  content: '— ';
+}
+
+.book-back {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: var(--caps);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  text-decoration: underline;
+  text-decoration-color: var(--mark);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.5rem;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color var(--t-quick) var(--arrive);
+}
+
+.book-back svg {
+  order: -1;
+  width: 1rem;
+  height: 0.62rem;
+  fill: none;
+  stroke: var(--mark);
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.book-back:hover {
+  color: var(--mark);
+}
+
+.book-back:focus-visible {
+  outline: 2px solid var(--mark);
+  outline-offset: 6px;
+}
+
+/* --- Upright (a phone) ---------------------------------------------------------
+   Two leaves side by side would be a quarter of a phone's width each. The
+   book is turned to the leaf with the line on it: the recto alone, the verso
+   a sliver at its left where the gutter is, as a book is held in one hand. */
+.entry-map.is-tall .open-book {
+  justify-content: flex-start;
+  padding: 3.2rem 0.9rem 1rem;
+}
+
+.entry-map.is-tall .book {
+  height: auto;
+  width: 100%;
+  max-height: calc(100% - 13rem);
+  aspect-ratio: 0.76;
+  padding: 1% 1.2% 1.4% 0;
+  border-radius: 0 0.45rem 0.55rem 0;
+}
+
+.entry-map.is-tall .book-block {
+  grid-template-columns: 5% minmax(0, 1fr);
+  padding-left: 0;
+}
+
+.entry-map.is-tall .book-page.is-verso .book-leaf {
+  display: none;
+}
+
+.entry-map.is-tall .book-ribbon {
+  left: 4%;
+  width: 9%;
+  height: 102.5%;
+}
+
+.entry-map.is-tall .book-label {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.6rem;
+}
+
+.entry-map.is-tall .book-from {
+  display: block;
+  margin: 0.5rem 0 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .book,
+  .book-label {
+    animation-name: book-dim;
+  }
+}

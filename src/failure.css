@@ -1,0 +1,141 @@
+/* --- When the Library cannot be drawn ---------------------------------------
+   Failure.jsx: the title over a still of the piece, and the reason underneath.
+   Plain on purpose. What it must not be is blank: under the still there is a
+   ground of its own, in case the picture is one more thing this browser cannot
+   fetch. (These rules were the plate tour's entry veil, in tour.css; the
+   failure page is the part of it the world still needs.) */
+
+.entry-veil {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 1.4rem;
+  padding: 2rem 2rem 15vh;
+  overflow: hidden;
+}
+
+@media (orientation: portrait) {
+  .entry-veil {
+    padding: 2rem 2rem 34vh;
+  }
+}
+
+.entry-film {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.entry-film-ground {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 60%, #1c1710 0%, #0b0906 70%);
+}
+
+/* The still, in a window of any shape: fill and crop rather than letterbox. */
+.entry-film-still {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 50%;
+}
+
+/* Shade over the art, deepest in the middle where the type lands: the still is
+   the Vertigo's lit shelves, bright behind small mono. */
+.entry-film-scrim {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 50% 48%, rgba(8, 6, 4, 0.74) 0%,
+                    rgba(8, 6, 4, 0.46) 46%, rgba(8, 6, 4, 0.4) 100%);
+}
+
+.entry-eyebrow,
+.entry-title {
+  text-shadow:
+    0 0 30px rgba(6, 5, 3, 0.92),
+    0 0 12px rgba(6, 5, 3, 0.8),
+    0 1px 3px rgba(0, 0, 0, 0.65);
+}
+
+.entry-eyebrow {
+  font: 400 0.68rem/1 var(--mono);
+  letter-spacing: 0.34em;
+  color: var(--ink-dim);
+  text-transform: uppercase;
+  animation: veil-rise 1400ms 200ms ease both;
+}
+
+.entry-title {
+  font: italic 500 clamp(2.1rem, 6vw, 3.6rem) / 1.15 var(--serif);
+  color: var(--ink);
+  margin: 0;
+  animation: veil-rise 1400ms 500ms ease both;
+}
+
+.entry-rule {
+  width: 4.5rem;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--gold), transparent);
+  animation: veil-rise 1400ms 800ms ease both;
+}
+
+@keyframes veil-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.entry-fault {
+  max-width: 34rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  animation: veil-rise 1400ms 1100ms ease both;
+}
+
+.entry-fault-line {
+  margin: 0;
+  font: italic 500 clamp(1rem, 2.4vw, 1.25rem) / 1.4 var(--serif);
+  color: var(--ink);
+  text-shadow: 0 0 30px rgba(6, 5, 3, 0.92), 0 0 12px rgba(6, 5, 3, 0.8);
+}
+
+.entry-fault-detail {
+  margin: 0;
+  font: 400 0.78rem/1.7 var(--mono);
+  color: var(--ink-dim);
+  text-shadow: 0 0 30px rgba(6, 5, 3, 0.92), 0 0 12px rgba(6, 5, 3, 0.8);
+}
+
+.entry-restart {
+  border: 1px solid rgba(201, 162, 76, 0.36);
+  border-radius: 999px;
+  background: none;
+  padding: 0.6rem 1.1rem;
+  color: var(--ink);
+  font: 400 0.66rem/1 var(--mono);
+  letter-spacing: 0.2em;
+  cursor: pointer;
+  text-shadow:
+    0 0 30px rgba(6, 5, 3, 0.92),
+    0 0 12px rgba(6, 5, 3, 0.8);
+  animation: veil-rise 1400ms 1400ms ease both;
+}
+
+.entry-restart:hover,
+.entry-restart:focus-visible {
+  border-color: var(--gold);
+}
