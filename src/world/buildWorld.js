@@ -51,7 +51,7 @@ import { auditOld, FILLET, FILLET_BRASS, deadOpal } from './auditFix';
 import { webPropsOld, BELT, SPIRE, closeBelt, graduatedRing } from './webProps';
 import { garden5Old, SIGN, signPostGeometry, signBoardGeometry, paintSignName, signLit, VINE, GRASS, paintSward, HORN, POND as POND_GLOW, PLINTH, plinthLit, BEAD, NICHE, FEATHER } from './gardenFix5';
 import { mapOld, PIT_FADE, RIM_WARM as RIM_BASE } from './mapFix';
-import { map3Old, QUIET, LOOK, GARDEN_MAP } from './mapFix3';
+import { map3Old, QUIET, GARDEN_MAP } from './mapFix3';
 import { map4Old, ROUTE_LIGHT as ROUTE_BASE } from './mapFix4';
 import { map5Old } from './mapFix5';
 import { TONE } from './mapFix6';
@@ -97,9 +97,9 @@ const RUBBLE_OLD = typeof window !== 'undefined' && new URLSearchParams(window.l
 const SHORE_OLD = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('wshore') === 'old';
 const stoneTint = (was, now) => (OLD_PALETTE ? was : now);
 // The light on the wall tops and the rims' warm bounce over the map, as the
-// map's look has them (mapFix6.js; ?wmaptone=old for them as they were).
-const ROUTE_LIGHT = { ...ROUTE_BASE, ...TONE?.route };
-const RIM_WARM = { ...RIM_BASE, ...TONE?.rim };
+// map's look has them (mapFix6.js).
+const ROUTE_LIGHT = { ...ROUTE_BASE, ...TONE.route };
+const RIM_WARM = { ...RIM_BASE, ...TONE.rim };
 // ?wivy=old: the Door's ivy as it was before 2026-10-09 — cards of painted
 // green blots on the arch's garden face and the passage walls — and the
 // pergola's vines as one plain tube of timber, not the grown ivy and twined,
@@ -771,7 +771,7 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
   // on the wall tops — is let down into the coping there. (How dark, and how
   // warm, is the hand-over's to say where one is picked: mapFix3.js, 2.)
   const QUIET_ON = !map3Old(3);
-  const QUIET_TINT = TONE?.quiet ?? LOOK?.tint ?? QUIET.tint;
+  const QUIET_TINT = TONE.quiet;
   // And the light on the wall tops over the map, the lamps' colour (mapFix4.js,
   // 2): what the moon's light on that stone is multiplied by to be the lamps'
   // at the same brightness — `ROUTE_TINT` — before `k` or `far` of it is left.

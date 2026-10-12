@@ -299,7 +299,7 @@ const GARDEN_SKY = new THREE.Color('#6d88b8');
 // The bounce: warm off the Library's floors, cold off wet grass under a moon.
 const LIBRARY_BOUNCE = new THREE.Color('#5b432f');
 // (over the map, as the map's look has it: mapFix6.js)
-const MAP_BOUNCE = TONE?.bounce ? new THREE.Color(TONE.bounce) : null;
+const MAP_BOUNCE = new THREE.Color(TONE.bounce);
 const GARDEN_BOUNCE = new THREE.Color('#25333f');
 // How fast the head turns on a held key. Slowed from 1.6 (92 degrees a second)
 // on 2026-09-22, for the "flickering around the edges when I move" that is the
@@ -2780,7 +2780,7 @@ function LiveWorld({
     world.hemi.intensity = THREE.MathUtils.lerp(FILL_MAP.hemi, eyeFill('hemi'), e) * FILL_DIAL * quiet;
     world.hemi.color.lerpColors(MAP_SKY, LIBRARY_SKY, e).lerp(GARDEN_SKY, garden * e);
     world.hemi.groundColor.lerpColors(LIBRARY_BOUNCE, GARDEN_BOUNCE, garden * e);
-    if (MAP_BOUNCE) world.hemi.groundColor.lerp(MAP_BOUNCE, 1 - e);
+    world.hemi.groundColor.lerp(MAP_BOUNCE, 1 - e);
     world.moon.intensity = THREE.MathUtils.lerp(FILL_MAP.moon, LIGHT_MESH ? 0.8 : eyeFill('moon'), e) * MOON_DIAL * quiet;
     if (aoRef?.current?.configuration) aoRef.current.configuration.intensity = THREE.MathUtils.lerp(0.9, 2.4, e);
     sky.update(t, camera.position, THREE.MathUtils.smoothstep(e, 0.35, 1));
@@ -3065,9 +3065,9 @@ export default function World(props) {
             shadowTint={GRADE.shadowTint}
             gold={dial('wgold', GRADE.gold)}
             shadowChroma={dial('wdark', GRADE.shadowChroma)}
-            mapGold={TONE?.grade?.gold ?? dial('wgold', GRADE.gold)}
-            mapDeep={TONE?.grade?.deep ?? 0}
-            mapChroma={TONE?.grade?.chroma ?? 1}
+            mapGold={TONE.grade.gold}
+            mapDeep={TONE.grade.deep}
+            mapChroma={TONE.grade.chroma}
           />}
           {/* A separate pass over the graded image, before grain. ?waa=0 is
               the control for comparing the same walk without edge filtering. */}
