@@ -52,6 +52,7 @@ import { webPropsOld, BELT, SPIRE, closeBelt, graduatedRing } from './webProps';
 import { garden5Old, SIGN, signPostGeometry, signBoardGeometry, paintSignName, signLit, VINE, GRASS, paintSward, HORN, POND as POND_GLOW, PLINTH, plinthLit, BEAD, NICHE, FEATHER } from './gardenFix5';
 import { mapOld, PIT_FADE, RIM_WARM } from './mapFix';
 import { map3Old, QUIET, LOOK, GARDEN_MAP } from './mapFix3';
+import { map4Old, ROUTE_LIGHT } from './mapFix4';
 import { lib3Old, STRING, COLOUR, ECHO_STONE } from './libFix3';
 import { doorPropsOld, STAND as DOOR_STAND, SPILL as DOOR_SPILL, SIDE_LAMP as DOOR_SIDE_LAMP, LADDER_U as DOOR_LADDER_U, CANDLES as DOOR_CANDLES, candleWax, splayedBook, tentBook } from './doorProps';
 import { doorOld, FALLEN as DOOR_FALLEN_HEAPS, DUST as DOOR_DUST, SHAFT_K, LANTERN_HALO, CRACKS as DOOR_CRACK_STYLE, LAMP_Y as DOOR_LAMP_Y, revealShade } from './doorFix';
@@ -760,6 +761,16 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
   // warm, is the hand-over's to say where one is picked: mapFix3.js, 2.)
   const QUIET_ON = !map3Old(3);
   const QUIET_TINT = LOOK?.tint ?? QUIET.tint;
+  // And the light on the wall tops over the map, the lamps' colour (mapFix4.js,
+  // 2): what the moon's light on that stone is multiplied by to be the lamps'
+  // at the same brightness — `ROUTE_TINT` — before `k` or `far` of it is left.
+  const ROUTE_ON = !map4Old(2);
+  const ROUTE_TINT = (() => {
+    const lamp = new THREE.Color(ROUTE_LIGHT.color), sky = new THREE.Color(ROUTE_LIGHT.moon);
+    const lum = (c) => 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+    const even = lum(sky) / lum(lamp);
+    return [lamp.r / sky.r, lamp.g / sky.g, lamp.b / sky.b].map((x) => 1 + (x * even - 1) * ROUTE_LIGHT.warm);
+  })();
   const walkNearGlsl = (at) => `
             float walkNear = 0.0;
             for (int i = 0; i < ${bounceRooms.value.length}; i++) {
@@ -788,8 +799,12 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
   // column stands on it.
   // `wash`: the stone the Vestibule's string course throws its lamp-rail's
   // light up (`stringWash`).
-  const stoneShade = (mat, { weather = false, night = false, drum = null, lift = 1, side = 0, quiet = false, sink = false, aged = false, worked = null, wash = false } = {}) => {
+  // `route`: the stone of the wall tops and of the heads of the walls under
+  // them, which over the map takes the lamps' light for the moon's
+  // (mapFix4.js, 2).
+  const stoneShade = (mat, { weather = false, night = false, drum = null, lift = 1, side = 0, quiet = false, sink = false, aged = false, worked = null, wash = false, route = false } = {}) => {
     wash = wash && !lib3Old(6);
+    route = route && ROUTE_ON;
     quiet = quiet && QUIET_ON;
     sink = sink && QUIET_ON;
     aged = aged && weather && !lib3Old(3);
@@ -798,7 +813,7 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
     const placed = night || quiet || sink;
     mat.onBeforeCompile = (sh) => {
       sh.uniforms.uBounceRooms = bounceRooms;
-      if (RIM || quiet || sink) sh.uniforms.uMapWarm = mapWarm;
+      if (RIM || quiet || sink || route) sh.uniforms.uMapWarm = mapWarm;
       sh.uniforms.uStoneLift = { value: lift };
       if (worked) sh.uniforms.uWorkAt = workAt;
       if (wash) { sh.uniforms.uWashA = stringWash.a; sh.uniforms.uWashB = stringWash.b; }
@@ -853,7 +868,7 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
       sh.fragmentShader = sh.fragmentShader
         .replace('#include <common>', `#include <common>
           uniform vec3 uBounceRooms[${bounceRooms.value.length}];
-          ${RIM || quiet ? 'uniform float uMapWarm;' : ''}
+          ${RIM || quiet || route ? 'uniform float uMapWarm;' : ''}
           uniform float uStoneLift;
           uniform float uStoneSide;
           varying vec3 vStoneW;
@@ -938,7 +953,20 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
         // was still brick in the moonlit sky's reflection)
         .replace('#include <aomap_fragment>', `#include <aomap_fragment>
           ${(weather || night) && WALLS.spec ? `reflectedLight.directSpecular *= stoneNight;
-          reflectedLight.indirectSpecular *= stoneNight;` : ''}`)
+          reflectedLight.indirectSpecular *= stoneNight;` : ''}
+          ${route ? `
+          // the wall tops over the map: the light on them the lamps' colour,
+          // and less of it — most taken round the rooms of the walk, where
+          // the paving was the brightest thing on the page (mapFix4.js, 2)
+          if (uMapWarm > 0.0) {
+            float paved = uMapWarm * smoothstep(${(MASS_H + ROUTE_LIGHT.from[0]).toFixed(1)}, ${(MASS_H + ROUTE_LIGHT.from[1]).toFixed(1)}, ${placed ? 'vStoneAt' : 'vStoneW'}.y);
+            vec3 routeLight = mix(vec3(1.0), vec3(${ROUTE_TINT.map((x) => x.toFixed(3)).join(', ')})
+              * mix(${ROUTE_LIGHT.k.toFixed(3)}, ${ROUTE_LIGHT.far.toFixed(3)}, mapQuiet / uMapWarm), paved);
+            reflectedLight.directDiffuse *= routeLight;
+            reflectedLight.indirectDiffuse *= routeLight;
+            reflectedLight.directSpecular *= routeLight;
+            reflectedLight.indirectSpecular *= routeLight;
+          }` : ''}`)
         .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
           float bounce = 0.0;
           for (int i = 0; i < ${bounceRooms.value.length}; i++) {
@@ -972,7 +1000,7 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
               * ${RIM_WARM.k.toFixed(3)} * rim * uMapWarm * smoothstep(${(MASS_H - 14).toFixed(1)}, ${(MASS_H - 2).toFixed(1)}, vStoneW.y);
           }` : ''}`);
     };
-    mat.customProgramCacheKey = () => `babel-stone-${weather ? 'w' : night ? 'n' : 'b'}${(weather || night) && WALLS.spec ? 's' : ''}${drum ? '-drum' : ''}-${bounceRooms.value.length}${RIM ? '-rim' : ''}${quiet ? '-quiet' : ''}${sink ? '-sink' : ''}${aged ? '-aged' : ''}${worked ? `-work${worked.polish ?? 0}${worked.joints ?? 0}${worked.foot ? 'f' : ''}` : ''}${wash ? '-wash' : ''}`;
+    mat.customProgramCacheKey = () => `babel-stone-${weather ? 'w' : night ? 'n' : 'b'}${(weather || night) && WALLS.spec ? 's' : ''}${drum ? '-drum' : ''}-${bounceRooms.value.length}${RIM ? '-rim' : ''}${quiet ? '-quiet' : ''}${route ? '-route' : ''}${sink ? '-sink' : ''}${aged ? '-aged' : ''}${worked ? `-work${worked.polish ?? 0}${worked.joints ?? 0}${worked.foot ? 'f' : ''}` : ''}${wash ? '-wash' : ''}`;
     return mat;
   };
   // Less of the sky in a surface's gloss, `k` of it, and `direct` of the
@@ -1341,10 +1369,10 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
   const signLamp = { value: new THREE.Vector4(0, -1e6, 0, 0) };
   const M = {
     floor: lpPool(paveShade(Std({ map: flag.map, normalMap: flag.normalMap, roughnessMap: flag.roughnessMap, color: stoneTint('#8d7f6e', '#8a857b'), roughness: 1, side: THREE.DoubleSide }))),
-    mass: stoneShade(Std({ map: wall.map, normalMap: wall.normalMap, roughnessMap: wall.roughnessMap, color: stoneTint('#b6a897', '#ada89e'), roughness: 1, side: THREE.DoubleSide }), { weather: true, quiet: true, aged: true, wash: true }),
+    mass: stoneShade(Std({ map: wall.map, normalMap: wall.normalMap, roughnessMap: wall.roughnessMap, color: stoneTint('#b6a897', '#ada89e'), roughness: 1, side: THREE.DoubleSide }), { weather: true, quiet: true, aged: true, wash: true, route: true }),
     // the Echo's: the same stone, coursed lower as it rises (echoFix.js, 6)
-    drum: stoneShade(Std({ map: wall.map, normalMap: wall.normalMap, roughnessMap: wall.roughnessMap, color: stoneTint('#b6a897', '#ada89e'), roughness: 1, side: THREE.DoubleSide }), { weather: true, aged: true, drum: { tile: 1 / wall.map.repeat.x, rep: wall.map.repeat.x } }),
-    cap: stoneShade(Std({ map: pale.map, normalMap: pale.normalMap, roughnessMap: pale.roughnessMap, color: stoneTint('#b3a894', '#b0aa9d'), roughness: 1, side: THREE.DoubleSide }), { night: WALLS.spec, quiet: true, worked: { polish: 0.3, joints: 1 }, wash: true }),
+    drum: stoneShade(Std({ map: wall.map, normalMap: wall.normalMap, roughnessMap: wall.roughnessMap, color: stoneTint('#b6a897', '#ada89e'), roughness: 1, side: THREE.DoubleSide }), { weather: true, aged: true, drum: { tile: 1 / wall.map.repeat.x, rep: wall.map.repeat.x }, route: true }),
+    cap: stoneShade(Std({ map: pale.map, normalMap: pale.normalMap, roughnessMap: pale.roughnessMap, color: stoneTint('#b3a894', '#b0aa9d'), roughness: 1, side: THREE.DoubleSide }), { night: WALLS.spec, quiet: true, worked: { polish: 0.3, joints: 1 }, wash: true, route: true }),
     // the same stone in the Silence's flights, where the lamp over the landing
     // reached in under it (no lamp casts a shadow) and drew a lit line along
     // every voussoir and string: a striped ziggurat in the quietest room
@@ -1595,7 +1623,7 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
     // night round the maze with the walls and copings under them (webProps.js,
     // 1: over the cedars it was a pale lit strip, the one thing of the Library
     // left in the court's sky)
-    wallTop: stoneShade(Std({ map: again(pale.map, 1 / 26), normalMap: again(pale.normalMap, 1 / 26), roughnessMap: again(pale.roughnessMap, 1 / 26), color: '#b9ae9f', roughness: 1 }), { night: !webPropsOld(1), quiet: true, sink: true }),
+    wallTop: stoneShade(Std({ map: again(pale.map, 1 / 26), normalMap: again(pale.normalMap, 1 / 26), roughnessMap: again(pale.roughnessMap, 1 / 26), color: '#b9ae9f', roughness: 1 }), { night: !webPropsOld(1), quiet: true, sink: true, route: true }),
     frame: Std({ color: '#7a5a30', roughness: 0.4, metalness: 0.6 }),
     // water gilding on the pier glasses' carving (mirror.js), burnished and old
     gilt: Std({ color: '#c2994c', roughness: 0.34, metalness: 0.9 }),
@@ -9875,6 +9903,45 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
     mat.customProgramCacheKey = () => `${prevKey.call(mat)}-pitfade`;
   };
   if (!mapOld(7)) [M.step, M.shelf, M.shelfLip, M.floor, M.inlay, pitCarved].forEach((m) => m && pitFade(m));
+  // And the tops of the bookcases, which stand to the head of the wall: from
+  // the map each was a pale band inside its cell's rim, timber gone grey under
+  // the moon, and the brightest cold thing left once the coping round it had
+  // the lamps' light (mapFix4.js, 2). They take it too. (Chained on, as the
+  // pit's is.)
+  const routeLit = (mat) => {
+    const prev = mat.onBeforeCompile, prevKey = mat.customProgramCacheKey;
+    mat.onBeforeCompile = (sh, renderer) => {
+      prev?.call(mat, sh, renderer);
+      sh.uniforms.uRouteMap = mapWarm;
+      sh.uniforms.uRouteRooms = bounceRooms;
+      sh.vertexShader = sh.vertexShader
+        .replace('#include <common>', `#include <common>
+          varying vec3 vRouteW;`)
+        .replace('#include <begin_vertex>', `#include <begin_vertex>
+          #ifdef USE_INSTANCING
+            vRouteW = (modelMatrix * instanceMatrix * vec4(transformed, 1.0)).xyz;
+          #else
+            vRouteW = (modelMatrix * vec4(transformed, 1.0)).xyz;
+          #endif`);
+      sh.fragmentShader = sh.fragmentShader
+        .replace('#include <common>', `#include <common>
+          uniform float uRouteMap;
+          uniform vec3 uRouteRooms[${bounceRooms.value.length}];
+          varying vec3 vRouteW;`)
+        .replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
+          if (uRouteMap > 0.0) {${walkNearGlsl('vRouteW').replaceAll('uBounceRooms', 'uRouteRooms')}
+            float paved = uRouteMap * smoothstep(${(MASS_H + ROUTE_LIGHT.from[0]).toFixed(1)}, ${(MASS_H + ROUTE_LIGHT.from[1]).toFixed(1)}, vRouteW.y);
+            vec3 routeLight = mix(vec3(1.0), vec3(${ROUTE_TINT.map((x) => x.toFixed(3)).join(', ')})
+              * mix(${ROUTE_LIGHT.far.toFixed(3)}, ${ROUTE_LIGHT.k.toFixed(3)}, walkNear), paved);
+            reflectedLight.directDiffuse *= routeLight;
+            reflectedLight.indirectDiffuse *= routeLight;
+            reflectedLight.directSpecular *= routeLight;
+            reflectedLight.indirectSpecular *= routeLight;
+          }`);
+    };
+    mat.customProgramCacheKey = () => `${prevKey.call(mat)}-route${bounceRooms.value.length}`;
+  };
+  if (ROUTE_ON) [M.shelf, M.shelfLip].forEach((m) => m && routeLit(m));
   // And the cone of lit air under the lamp hung in the drum, which was most of
   // that disc: looked down along its axis from the map it is a lit round foot
   // on the floor. Over the map it goes, inside the drum only and above the

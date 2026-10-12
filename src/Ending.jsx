@@ -118,7 +118,6 @@ export default function Ending({ stage, look = null, reducedMotion = false, agai
           Their words are given in the English of <cite>Labyrinths</cite> (New Directions, 1962): the Library
           in James E. Irby’s translation, the garden in Donald A. Yates’s.
         </p>
-        <p>{MADE.by ? `Made by ${MADE.by}, ${MADE.year}.` : `Made in ${MADE.year}.`}</p>
       </div>
       <div className="map-ending-ways" inert={stage < 3} aria-hidden={stage < 3 || undefined}>
         <button ref={againRef} type="button" className="map-enter" onClick={onAgain}>
