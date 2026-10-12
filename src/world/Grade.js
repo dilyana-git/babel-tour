@@ -54,8 +54,8 @@ const fragmentShader = /* glsl */ `
     // frames keep their dark wood red-brown and make the light gold, and pulled
     // all the way down every rail and shelf turned to brass.
     float warm = clamp((c.r - c.b) / max(c.r, 1e-4), 0.0, 1.0);
-    // (over the map, where one of its looks is picked — mapFix6.js — the gold
-    // can reach down into the paving round the rooms, too dark for it here)
+    // (over the map, as its look has it — mapFix6.js — the gold can reach
+    // down into the paving round the rooms, too dark for it here)
     float gold = mix(uGold, uMapGold, uMap);
     float goldAt = mix(smoothstep(0.08, 0.45, l), smoothstep(0.01, 0.12, l), uMap * uMapDeep);
     c.g += (c.r - c.g) * gold * warm * goldAt;

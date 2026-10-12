@@ -298,7 +298,7 @@ const LIBRARY_SKY = new THREE.Color('#8e8880');
 const GARDEN_SKY = new THREE.Color('#6d88b8');
 // The bounce: warm off the Library's floors, cold off wet grass under a moon.
 const LIBRARY_BOUNCE = new THREE.Color('#5b432f');
-// (over the map, as one of the map's looks has it, where one is picked: mapFix6.js)
+// (over the map, as the map's look has it: mapFix6.js)
 const MAP_BOUNCE = TONE?.bounce ? new THREE.Color(TONE.bounce) : null;
 const GARDEN_BOUNCE = new THREE.Color('#25333f');
 // How fast the head turns on a held key. Slowed from 1.6 (92 degrees a second)

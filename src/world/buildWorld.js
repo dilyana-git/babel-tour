@@ -96,8 +96,8 @@ const RUBBLE_OLD = typeof window !== 'undefined' && new URLSearchParams(window.l
 // bank, the set stones and the granite pier and step of shore.js.
 const SHORE_OLD = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('wshore') === 'old';
 const stoneTint = (was, now) => (OLD_PALETTE ? was : now);
-// The light on the wall tops and the rims' warm bounce over the map, as one of
-// the looks has them where one is picked (mapFix6.js, ?wmaptone=).
+// The light on the wall tops and the rims' warm bounce over the map, as the
+// map's look has them (mapFix6.js; ?wmaptone=old for them as they were).
 const ROUTE_LIGHT = { ...ROUTE_BASE, ...TONE?.route };
 const RIM_WARM = { ...RIM_BASE, ...TONE?.rim };
 // ?wivy=old: the Door's ivy as it was before 2026-10-09 — cards of painted

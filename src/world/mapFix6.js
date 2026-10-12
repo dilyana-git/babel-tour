@@ -15,8 +15,10 @@
 //   b  old gold   yellower and a little brighter: brass lamplight on the stone
 //   c  parchment  half the colour: pale warm limestone, the lit rooms warmest
 //   d  ash        the stone near grey; the warmth left to the rooms and their rims
+// The user's pick, from the four on the map (2026-10-12): c.
 //
-// ?wmaptone=a|b|c|d puts one on the map; with none, the map is as it was.
+// ?wmaptone=a|b|d puts one of the others in its place; ?wmaptone=old puts the
+// map back as it was.
 const Q = typeof location !== 'undefined' ? new URLSearchParams(location.search) : new URLSearchParams();
 
 // Each look's dials. Any left out is as it was.
@@ -59,4 +61,5 @@ export const TONES = {
     grade: { gold: 0.25, deep: 1, chroma: 0.3 },
   },
 };
-export const TONE = TONES[Q.get('wmaptone')] ?? null;
+const PICK = Q.get('wmaptone');
+export const TONE = PICK === 'old' ? null : TONES[PICK] ?? TONES.c;
