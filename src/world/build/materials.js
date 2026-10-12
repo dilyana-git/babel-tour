@@ -79,6 +79,10 @@ export function buildMaterials(ctx) {
   // of its light out past the walk's rooms, and `sink` stone — the balustrades
   // on the wall tops — is let down into the coping there. (How dark, and how
   // warm, is the hand-over's to say where one is picked: mapFix3.js, 2.)
+  // The wall tops are quiet round the walk's rooms too, so the map is one
+  // stone at one value from edge to edge, and the walk's rooms are told by
+  // their light and their warm rims rather than by a paler, colder, blocked
+  // coping round them (widest round the Echo, between two of them).
   const QUIET_ON = !map3Old(3);
   const QUIET_TINT = TONE.quiet;
   // And the light on the wall tops over the map, the lamps' colour (mapFix4.js,
@@ -211,7 +215,9 @@ export function buildMaterials(ctx) {
           float mapQuiet = 0.0;
           ${quiet ? `
           if (uMapWarm > 0.0) {${walkNearGlsl('vStoneAt')}
-            mapQuiet = uMapWarm * (1.0 - walkNear);
+            // (the wall tops, from the coping up, wherever they are)
+            float mapTop = smoothstep(${(MASS_H - 0.5).toFixed(1)}, ${(MASS_H + 0.5).toFixed(1)}, vStoneAt.y);
+            mapQuiet = uMapWarm * (1.0 - walkNear * (1.0 - mapTop));
             // its blocks: the stone in its one mean colour (the map's last mip)
             #ifdef USE_MAP
               vec3 stoneMean = texture2D(map, vMapUv, 12.0).rgb;
