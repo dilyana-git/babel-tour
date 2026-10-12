@@ -6,6 +6,7 @@
 import * as THREE from 'three';
 import { assembleWorld, PAINTED } from '../src/world/buildWorld';
 import { makePainter } from '../src/world/paint';
+import { PAINTERS } from '../src/world/paintJobs';
 import { makeSky } from '../src/world/sky';
 import { prepareEnvironment } from '../src/world/effects';
 import { startShaders, texturesOf, makeWarmer } from '../src/world/assembly';
@@ -134,7 +135,7 @@ async function bench() {
   finishEnvironment();
 
   t = now();
-  const materials = startShaders(gl, world.root, camera, scene);
+  const materials = startShaders(gl, [world.root, sky.mesh], camera, scene);
   out.compileCallMs = Math.round(now() - t);
   out.materials = materials ? materials.size : 0;
   const programs = gl.info.programs ?? [];
@@ -190,6 +191,15 @@ async function bench() {
   out.textureList = [...images.values()].sort((a, b) => bytes(b) - bytes(a))
     .map((im) => `${(bytes(im) / 1e6).toFixed(1).padStart(6)} MB  ${im.w}x${im.h}  ${[...im.names].join(', ')}`);
   out.totalMs = Math.round(now() - t0);
+  // (?paint: each painted surface painted again here, alone, timed — what a
+  // worker spends on it, against the cost paintJobs.js shares them out by)
+  if (Q.has('paint')) {
+    out.paint = Object.entries(PAINTED).map(([key, [name, args]]) => {
+      const p0 = now();
+      PAINTERS[name].paint(args);
+      return [key, name, Math.round(now() - p0), PAINTERS[name].cost];
+    });
+  }
   return out;
 }
 

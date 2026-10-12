@@ -919,11 +919,12 @@ const loadPlate = async (url) => {
 //   2. the world is built a section at a time (assembleWorld's yields), and
 //      at every breath the shaders for what has been built so far are
 //      started (assembly.js, makeWarmer), so that they compile while the
-//      rest is built rather than after it;
+//      rest is built rather than after it, and a little of the texture that
+//      is ready (the paint as it arrives) is sent up;
 //   3. every shader the world needs that is not yet started is started, and
 //      all of them are polled, never waited on (KHR_parallel_shader_compile —
 //      renderer.compile, and program.isReady() for how far along it is);
-//   4. the paint arrives and is uploaded;
+//   4. the rest of the texture, and of the paint as it arrives, is sent up;
 //   5. only then does the world go into the scene and LiveWorld start drawing.
 // `onProgress` hears how far along it is, 0 to 1, for the status line.
 // Each step is marked on the page's timeline (world:…), for the DevTools
@@ -933,6 +934,8 @@ const breathe = () => new Promise((resolve) => { setTimeout(resolve, 0); });
 const pause = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
 // How long the main thread works before it lets the page draw.
 const SLICE_MS = 40;
+// And how much of each breath of the build goes to sending textures up.
+const UPLOAD_MS = 6;
 // Where each step ends on the way to 1, roughly as long as each took (cold).
 const SHARE = { setup: 0.12, build: 0.5, compile: 0.94, upload: 0.99 };
 // How many times assembleWorld yields (one per section of buildWorld.js, and
@@ -1011,6 +1014,22 @@ function WorldContent({ rooms = false, onProgress, onHold, onAssembled, onPlan, 
       const ahead = [];
       const { hemi, moon, pool } = makeLights({ light: LIGHT_MESH });
       const warm = makeWarmer(gl, camera, scene, { lights: [hemi, moon, ...pool], environment: finishEnvironment });
+      // And up to the GPU with every texture the world's materials sample, as
+      // they are started and the painted ones as their pixels arrive, a little
+      // at every breath and the rest once it is built, rather than all of it
+      // in the first frame.
+      const textures = new Set(made.painter.textures());
+      const uploaded = new Set();
+      const upload = (ms) => {
+        const until = performance.now() + ms;
+        for (const t of textures) {
+          if (uploaded.has(t) || (t.isPaintedTexture && !t.image.data)) continue;
+          gl.initTexture(t);
+          uploaded.add(t);
+          if (performance.now() > until) break;
+        }
+        return uploaded.size === textures.size;
+      };
       made.steps = assembleWorld({ light: LIGHT_MESH, paintings: !rooms, painter: made.painter, ahead });
       let k = 0, since = performance.now();
       for (;;) {
@@ -1019,7 +1038,8 @@ function WorldContent({ rooms = false, onProgress, onHold, onAssembled, onPlan, 
         k += 1;
         say(SHARE.setup + (SHARE.build - SHARE.setup) * Math.min(1, k / BUILD_STEPS));
         if (performance.now() - since > SLICE_MS) {
-          warm(ahead.splice(0));
+          for (const t of texturesOf(warm(ahead.splice(0)) ?? [])) textures.add(t);
+          upload(UPLOAD_MS);
           await breathe();
           if (!alive) return;
           since = performance.now();
@@ -1032,23 +1052,11 @@ function WorldContent({ rooms = false, onProgress, onHold, onAssembled, onPlan, 
       planRef.current?.(framePointsOf(world.overlay));
       finishEnvironment();
 
-      const materials = startShaders(gl, world.root, camera, scene);
+      // (and the sky's, which is the scene's and not the world's: left out, it
+      // was compiled in the first frame, the frame waiting on it)
+      const materials = startShaders(gl, [world.root, made.sky.mesh], camera, scene);
       mark('shaders-started');
-      // Meanwhile, up to the GPU with every texture whose pixels are here (the
-      // painted ones as they arrive), a slice at a time, rather than all of it
-      // in the first frame.
-      const textures = [...new Set([...(materials ? texturesOf(materials) : []), ...made.painter.textures()])];
-      const uploaded = new Set();
-      const upload = () => {
-        const until = performance.now() + SLICE_MS;
-        for (const t of textures) {
-          if (uploaded.has(t) || (t.isPaintedTexture && !t.image.data)) continue;
-          gl.initTexture(t);
-          uploaded.add(t);
-          if (performance.now() > until) break;
-        }
-        return uploaded.size === textures.length;
-      };
+      for (const t of materials ? texturesOf(materials) : []) textures.add(t);
       mark('textures-listed');
       const asked = performance.now();
       let compiled = !materials || !materials.size, sent = false;
@@ -1060,7 +1068,7 @@ function WorldContent({ rooms = false, onProgress, onHold, onAssembled, onPlan, 
           if (compiled) mark('shaders-ready');
           say(SHARE.build + (SHARE.compile - SHARE.build) * (ready / materials.size));
         }
-        sent = upload();
+        sent = upload(SLICE_MS);
         if (compiled && sent) break;
         await pause(compiled ? 10 : 40);
         if (!alive) return;

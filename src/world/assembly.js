@@ -60,7 +60,8 @@ const compileInto = (gl, stand, camera, scene) => {
     target.dispose();
   }
 };
-export const startShaders = (gl, root, camera, scene) => compileInto(gl, standIns(root), camera, scene);
+// (`roots`: the world's root, and anything else of the scene's to be drawn)
+export const startShaders = (gl, roots, camera, scene) => compileInto(gl, standIns(roots), camera, scene);
 
 // The same, started while the world is still being built: the shaders take
 // as long to compile as the world takes to build, and compiled in parallel
@@ -81,13 +82,14 @@ export const startShaders = (gl, root, camera, scene) => compileInto(gl, standIn
 export const makeWarmer = (gl, camera, scene, { lights, environment }) => {
   const seen = new Set();
   let ready = false;
+  // (it returns the materials it started, or null)
   return (objects) => {
-    if (!objects.length) return;
+    if (!objects.length) return null;
     if (!ready) {
       environment();
       ready = true;
     }
-    compileInto(gl, standIns(objects, { lights, seen }), camera, scene);
+    return compileInto(gl, standIns(objects, { lights, seen }), camera, scene);
   };
 };
 export const shaderReady = (gl, material) => {

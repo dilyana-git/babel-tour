@@ -15,6 +15,7 @@
 //   npm run bench -- --programs       and every program, by material and key
 //   npm run bench -- --textures       and every texture image, largest first
 //   npm run bench -- --profile        and where the build's time goes, by function
+//   npm run bench -- --paint          and each painted surface's cost, painted alone
 //   npm run bench -- --query=wmap5=old   with a query string
 //   npm run bench -- --warmcheck      once with the shaders started at the end
 //                                     only, and once as the world starts them
@@ -175,7 +176,7 @@ async function main() {
         await page('Profiler.start');
       }
       const query = [typeof args.query === 'string' ? args.query : '', r < 0 ? 'nofingerprint' : '', args.sections ? 'sections' : '',
-        args.warmcheck && r === 0 ? 'nowarm' : '', args.keys ? 'keys' : ''].filter(Boolean).join('&');
+        args.warmcheck && r === 0 ? 'nowarm' : '', args.keys ? 'keys' : '', args.paint && r === RUNS - 1 ? 'paint' : ''].filter(Boolean).join('&');
       await page('Page.navigate', { url: `http://localhost:${port}/tools/load-bench.html${query ? `?${query}` : ''}` });
       const { result, exceptionDetails } = await page('Runtime.evaluate', {
         expression: `new Promise((ok) => { const t = setInterval(() => { if (window.__bench) { clearInterval(t); ok(window.__bench); } }, 100); })`,
@@ -215,6 +216,11 @@ async function main() {
     let sum = 0;
     console.log('\nprograms by the section whose objects first need them (running total):');
     for (const [n, k] of last.programsBySection) { sum += k; if (k) console.log(`  ${n.padEnd(width)}  ${String(k).padStart(3)}  ${String(sum).padStart(3)}`); }
+  }
+  if (last.paint) {
+    const total = last.paint.reduce((a, [, , ms]) => a + ms, 0);
+    console.log(`\nthe painted surfaces, each painted alone (${total} ms in all; the painters share them out by \`cost\`, paintJobs.js):`);
+    for (const [key, name, ms, cost] of [...last.paint].sort((a, b) => b[2] - a[2])) console.log(`  ${key.padEnd(12)} ${name.padEnd(14)} ${String(ms).padStart(6)} ms  (cost ${cost})`);
   }
   if (args.offmap) console.log(`\nmaterials not drawn over the map:\n  ${last.offMap.join('\n  ')}`);
   if (args.textures) console.log(`\ntextures, largest first:\n  ${last.textureList.join('\n  ')}`);
