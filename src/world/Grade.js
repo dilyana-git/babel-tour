@@ -35,6 +35,10 @@ const fragmentShader = /* glsl */ `
   uniform vec3 uShadowTint;
   uniform float uGold;
   uniform float uShadowChroma;
+  uniform float uMap;
+  uniform float uMapGold;
+  uniform float uMapDeep;
+  uniform float uMapChroma;
 
   void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor) {
     vec3 c = inputColor.rgb * uExposure;
@@ -50,8 +54,15 @@ const fragmentShader = /* glsl */ `
     // frames keep their dark wood red-brown and make the light gold, and pulled
     // all the way down every rail and shelf turned to brass.
     float warm = clamp((c.r - c.b) / max(c.r, 1e-4), 0.0, 1.0);
-    c.g += (c.r - c.g) * uGold * warm * smoothstep(0.08, 0.45, l);
+    // (over the map, where one of its looks is picked — mapFix6.js — the gold
+    // can reach down into the paving round the rooms, too dark for it here)
+    float gold = mix(uGold, uMapGold, uMap);
+    float goldAt = mix(smoothstep(0.08, 0.45, l), smoothstep(0.01, 0.12, l), uMap * uMapDeep);
+    c.g += (c.r - c.g) * gold * warm * goldAt;
     float keep = mix(mix(uSaturation, uSaturationCool, uCool), 1.0, highs * 0.35);
+    // ...and the warm stone there can be let down toward grey, leaving what is
+    // bright (the lit rooms) and what is not warm (the garden) their colour
+    keep *= mix(1.0, uMapChroma, uMap * smoothstep(0.03, 0.2, warm) * (1.0 - highs));
     // Film and eyes both lose colour as the light goes: a dark corner of a
     // lamp-lit room is dark, not dark ORANGE. Without this, every shadow in a
     // room lit only by warm lamps printed as saturated brown. Library only —
@@ -75,7 +86,7 @@ const fragmentShader = /* glsl */ `
 // own three.js parent chain and the whole composer throws (the frame goes
 // black, silently, with nothing but a circular-structure error). The effect
 // reads this in its own update(), which is where per-frame values belong.
-export const gradePlace = { cool: 0 };
+export const gradePlace = { cool: 0, map: 0 };
 
 export class GradeEffect extends Effect {
   constructor({
@@ -91,6 +102,9 @@ export class GradeEffect extends Effect {
     shadowTint = [0, 0, 0],
     gold = 0,
     shadowChroma = 1,
+    mapGold = gold,
+    mapDeep = 0,
+    mapChroma = 1,
   } = {}) {
     super('GradeEffect', fragmentShader, {
       uniforms: new Map([
@@ -106,11 +120,16 @@ export class GradeEffect extends Effect {
         ['uShadowTint', new Uniform(new Vector3(...shadowTint))],
         ['uGold', new Uniform(gold)],
         ['uShadowChroma', new Uniform(shadowChroma)],
+        ['uMap', new Uniform(0)],
+        ['uMapGold', new Uniform(mapGold)],
+        ['uMapDeep', new Uniform(mapDeep)],
+        ['uMapChroma', new Uniform(mapChroma)],
       ]),
     });
   }
 
   update() {
     this.uniforms.get('uCool').value = gradePlace.cool;
+    this.uniforms.get('uMap').value = gradePlace.map;
   }
 }

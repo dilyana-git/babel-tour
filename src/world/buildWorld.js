@@ -50,10 +50,11 @@ import { webOld, SCREEN, GATE as WEB_GATE, screenPlaces, openGate, FLIES, WALLS,
 import { auditOld, FILLET, FILLET_BRASS, deadOpal } from './auditFix';
 import { webPropsOld, BELT, SPIRE, closeBelt, graduatedRing } from './webProps';
 import { garden5Old, SIGN, signPostGeometry, signBoardGeometry, paintSignName, signLit, VINE, GRASS, paintSward, HORN, POND as POND_GLOW, PLINTH, plinthLit, BEAD, NICHE, FEATHER } from './gardenFix5';
-import { mapOld, PIT_FADE, RIM_WARM } from './mapFix';
+import { mapOld, PIT_FADE, RIM_WARM as RIM_BASE } from './mapFix';
 import { map3Old, QUIET, LOOK, GARDEN_MAP } from './mapFix3';
-import { map4Old, ROUTE_LIGHT } from './mapFix4';
+import { map4Old, ROUTE_LIGHT as ROUTE_BASE } from './mapFix4';
 import { map5Old } from './mapFix5';
+import { TONE } from './mapFix6';
 import { lib3Old, STRING, COLOUR, ECHO_STONE } from './libFix3';
 import { doorPropsOld, STAND as DOOR_STAND, SPILL as DOOR_SPILL, SIDE_LAMP as DOOR_SIDE_LAMP, LADDER_U as DOOR_LADDER_U, CANDLES as DOOR_CANDLES, candleWax, splayedBook, tentBook } from './doorProps';
 import { doorOld, FALLEN as DOOR_FALLEN_HEAPS, DUST as DOOR_DUST, SHAFT_K, LANTERN_HALO, CRACKS as DOOR_CRACK_STYLE, LAMP_Y as DOOR_LAMP_Y, revealShade } from './doorFix';
@@ -95,6 +96,10 @@ const RUBBLE_OLD = typeof window !== 'undefined' && new URLSearchParams(window.l
 // bank, the set stones and the granite pier and step of shore.js.
 const SHORE_OLD = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('wshore') === 'old';
 const stoneTint = (was, now) => (OLD_PALETTE ? was : now);
+// The light on the wall tops and the rims' warm bounce over the map, as one of
+// the looks has them where one is picked (mapFix6.js, ?wmaptone=).
+const ROUTE_LIGHT = { ...ROUTE_BASE, ...TONE?.route };
+const RIM_WARM = { ...RIM_BASE, ...TONE?.rim };
 // ?wivy=old: the Door's ivy as it was before 2026-10-09 — cards of painted
 // green blots on the arch's garden face and the passage walls — and the
 // pergola's vines as one plain tube of timber, not the grown ivy and twined,
@@ -766,7 +771,7 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
   // on the wall tops — is let down into the coping there. (How dark, and how
   // warm, is the hand-over's to say where one is picked: mapFix3.js, 2.)
   const QUIET_ON = !map3Old(3);
-  const QUIET_TINT = LOOK?.tint ?? QUIET.tint;
+  const QUIET_TINT = TONE?.quiet ?? LOOK?.tint ?? QUIET.tint;
   // And the light on the wall tops over the map, the lamps' colour (mapFix4.js,
   // 2): what the moon's light on that stone is multiplied by to be the lamps'
   // at the same brightness — `ROUTE_TINT` — before `k` or `far` of it is left.
