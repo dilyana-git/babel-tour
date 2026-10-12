@@ -1,18 +1,18 @@
 # Navigation testing
 
-> **Paused (2026-10-07):** the navigation gate and checked development commands
-> run only when explicitly requested, as recorded in `AGENTS.md`. Verify changes
-> with `npm run build` and, where useful, a quick browser check. The GitHub
-> workflow is manual-only.
+> **Since 2026-10-12** the browser gate no longer runs after every change.
+> `npm run check` (lint, governor, the fast tests below, build) does, in about
+> ten seconds. The smoke suite runs when navigation, input or collision code
+> changes; the full gate when asked, after a large refactor, and nightly in CI.
+> `AGENTS.md` has the rule.
 
-These scripts run locally without an AI model. The following describes the
-available suites and the verification workflow for when the gate is re-enabled.
-At that point, frequent fast checks supplement the full major-change gate.
+These scripts run locally without an AI model.
 
 ## Commands
 
 | Command | Purpose |
 | --- | --- |
+| `npm run check` | After every change: `check:fast`, then the build |
 | `npm run check:fast` | Lint, governor rules, deterministic geometry, generated movement cases, and harness checks |
 | `npm run dev:checked:fast` | Start Vite and rerun fast movement checks after each settled batch of edits |
 | `npm run check:navigation:watch:fast` | Watch and rerun fast checks without starting the development server |
@@ -123,9 +123,8 @@ camera-jitter thresholds are a further test layer, not a claim of this suite.
 
 ## Implementation discipline
 
-When the gate is re-enabled, run a behavior change's contract first and retain
-the failing evidence.
-Make the smallest runtime change, run fast and focused browser checks, and
-then complete `npm run check:major`. Never relax an assertion just to obtain
+For a navigation behavior change, run its contract first and retain the
+failing evidence. Make the smallest runtime change, run the fast checks and the
+focused browser case, then the smoke suite. Never relax an assertion just to obtain
 a green report. Check the intended behavior and diagnose failed or unexecuted
 scenarios. Read compact summaries first; load detailed traces on failure.

@@ -46,16 +46,18 @@ last holding the tour's source is `e50afe9`.
 
 ## Checks
 
-> **Paused (2026-10-07):** the navigation gate below is switched off for now
-> (see `AGENTS.md`). Verify changes with `npm run build` and, where useful,
-> a quick browser check. Run the navigation checks and checked development
-> commands only when explicitly requested; CI runs the gate only by hand.
+After every change, run `npm run check`: lint, the frame-rate rule, the
+geometry/path unit tests and the build, in about ten seconds with no browser.
+`npm run shot` takes a picture of the world (`tools/shot.mjs`; `--help` for
+its options).
 
-The test-first navigation suite and frequent local commands are described in
-[docs/navigation-testing.md](docs/navigation-testing.md). When explicitly
-requested, `npm run dev:checked:fast` provides automatic checks while editing,
-`npm run check:navigation:smoke` runs a short browser selection, and
-`npm run check:major` runs the full gate. The
+The browser gate is no longer run after every change (see `AGENTS.md`): it
+drives headless Edge through every room and takes tens of minutes. Run
+`npm run check:navigation:smoke` when navigation, input or collision changes,
+and `npm run check:major` when asked or after a large refactor; CI runs the
+full gate nightly. The test-first navigation suite and its commands are
+described in [docs/navigation-testing.md](docs/navigation-testing.md).
+`npm run dev:checked:fast` provides automatic checks while editing. The
 `npm run check:navigation:contracts` selection tests free looking, deliberate
 steering, automatic path rejoining and the endless spiral passage. Those
 acceptance cases also run in the major gate.
@@ -63,8 +65,7 @@ acceptance cases also run in the major gate.
 The browser suites use the `selenium-webdriver` development dependency.
 Run these commands from the project root.
 
-When the navigation gate is re-enabled, run `npm run check:major` for every
-major change. It lints the app, checks the
+`npm run check:major` lints the app, checks the
 frame-rate rule and path/collision math, drives the default world tour through
 real navigation controls, and builds the app. The browser suite starts Vite
 and headless Edge itself; no manually running server is required. Set
@@ -87,12 +88,12 @@ basic held-key movement is checked at normal speed; stopping/travel use the fast
 completes an input journey. These are navigation checks, not performance or
 visual-quality benchmarks.
 
-`.github/workflows/navigation.yml` runs the same major-change gate only when
-started manually from GitHub Actions and uploads the evidence. Automatic
-push and pull-request triggers remain disabled while the gate is paused.
-`AGENTS.md` records the current pause and the requirements for resuming it.
+`.github/workflows/navigation.yml` runs `npm run check` on every push and pull
+request, and the browser gate (its baseline and contracts suites as two
+parallel jobs) nightly and when started by hand from GitHub Actions, uploading
+the evidence.
 
-When explicitly requested, `npm run dev:checked` starts automatic local runs. It starts
+`npm run dev:checked` starts automatic local runs. It starts
 Vite, prints the app URL, and watches app code, assets, tests, dependencies and CI files.
 Browser checks use a separate test server while that development window stays live.
 It checks navigation at startup and after a batch of edits has been quiet for

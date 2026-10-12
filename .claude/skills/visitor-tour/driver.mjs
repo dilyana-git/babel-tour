@@ -1,10 +1,15 @@
-// Zero-dep CDP driver for babel-tour. Node 24+ (global WebSocket, global fetch).
+// Zero-dep CDP driver for babel-tour. Node 22+ (global WebSocket, global fetch).
+// Drives a browser already listening for DevTools on CDP_PORT (9333); SKILL.md
+// says how to start one.
 //
 //   SHOT_DIR=/abs/path VW=640 VH=360 node driver.mjs "$(cat steps.json)"
 //
 // `steps` is a JSON array run in order. Recognised keys per step:
 //   open/nav <url>   open a new target / navigate the current one (wait: ms, default 13000)
 //   wait <ms>        sleep before the step's other keys run
+//   until <js>       poll the expression in the page until it is truthy (untilMs,
+//                    default 600000): how to wait for the world to be built —
+//                    "window.__worldJump && document.querySelector('.entry-map.is-world')"
 //   key <name>       dispatch a key (times, gap, mod: 8 = Shift) — see KEYS below
 //   click [x,y]      press+release at a point
 //   move  [x,y]      hover
@@ -15,7 +20,7 @@
 //   shot  <name>     screenshot to SHOT_DIR/<name>.png
 //
 // Console output and uncaught exceptions from the page are collected and printed
-// at the end, which is how a stalled clip or a plate that failed to hang shows up.
+// at the end, which is how a shader that did not compile or a thrown error shows up.
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -58,7 +63,7 @@ class Conn {
           this.pending.delete(id);
           rej(new Error('timeout ' + method));
         }
-      }, 60000);
+      }, 900000);
     });
   }
 }
@@ -165,6 +170,16 @@ async function main() {
       await sleep(s.wait ?? 13000);
     } else if (s.wait) {
       await sleep(s.wait);
+    }
+    if (s.until) {
+      const r = await c.send('Runtime.evaluate', {
+        expression: `new Promise((ok) => { const t0 = performance.now(); const t = setInterval(() => {
+          if (${s.until}) { clearInterval(t); ok(true); }
+          else if (performance.now() - t0 > ${s.untilMs ?? 600000}) { clearInterval(t); ok(false); }
+        }, 200); })`,
+        returnByValue: true, awaitPromise: true,
+      });
+      console.log('UNTIL ' + s.until.slice(0, 60) + ' => ' + r.result?.value);
     }
     if (s.key) {
       const k = KEYS[s.key];

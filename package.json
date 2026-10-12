@@ -8,6 +8,7 @@
     "dev:checked": "node tools/navigation-watch.mjs --dev",
     "build": "vite build",
     "lint": "oxlint",
+    "check": "npm run check:fast && npm run build",
     "check:governor": "node tools/governor-check.mjs",
     "check:selenium": "node tools/selenium/run.mjs",
     "check:walls": "node tools/wall-check.mjs",

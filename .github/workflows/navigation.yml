@@ -1,42 +1,45 @@
 name: Navigation regression
 
-# Paused 2026-10-07: automatic push/pull_request runs are off while the
-# navigation gate is disabled (see AGENTS.md). Still runnable by hand from
-# the Actions tab. To re-enable, restore the triggers below.
+# The quick checks (lint, the frame-rate rule, geometry/path unit tests and the
+# build: under a minute) run on every push and pull request. The browser gate
+# drives headless Edge through every room with software WebGL and takes tens
+# of minutes, so it runs nightly and by hand, its two suites in parallel. See
+# AGENTS.md.
 on:
-  # push:
-  #   paths:
-  #     - 'src/**'
-  #     - 'tools/**'
-  #     - 'public/**'
-  #     - 'package*.json'
-  #     - 'vite.config.*'
-  #     - 'index.html'
-  #     - 'AGENTS.md'
-  #     - '.github/workflows/navigation.yml'
-  # pull_request:
-  #   paths:
-  #     - 'src/**'
-  #     - 'tools/**'
-  #     - 'public/**'
-  #     - 'package*.json'
-  #     - 'vite.config.*'
-  #     - 'index.html'
-  #     - 'AGENTS.md'
-  #     - '.github/workflows/navigation.yml'
+  push:
+    paths:
+      - 'src/**'
+      - 'tools/**'
+      - 'public/**'
+      - 'package*.json'
+      - 'vite.config.*'
+      - 'index.html'
+      - '.github/workflows/navigation.yml'
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'tools/**'
+      - 'public/**'
+      - 'package*.json'
+      - 'vite.config.*'
+      - 'index.html'
+      - '.github/workflows/navigation.yml'
+  schedule:
+    - cron: '17 3 * * *'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: navigation-${{ github.workflow }}-${{ github.ref }}
+  group: navigation-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 jobs:
-  navigation:
-    runs-on: windows-2022
-    timeout-minutes: 60
+  quick:
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
         with:
@@ -46,13 +49,35 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - name: Check navigation and build
-        run: npm run check:major
+      - name: Lint, frame-rate rule, geometry tests, build
+        run: npm run check
+
+  browser:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: windows-2022
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [baseline, contracts]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Quick checks
+        run: npm run check
+      - name: Browser navigation (${{ matrix.suite }})
+        run: npm run check:navigation:browser -- --suite=${{ matrix.suite }}
       - name: Save navigation evidence
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: navigation-evidence
+          name: navigation-evidence-${{ matrix.suite }}
           path: .ux-review/navigation/
           include-hidden-files: true
           if-no-files-found: warn

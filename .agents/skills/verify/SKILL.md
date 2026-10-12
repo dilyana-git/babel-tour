@@ -5,68 +5,84 @@ description: Build, launch, and headlessly drive the babel-tour app to verify ch
 
 # Verifying babel-tour changes
 
-## Build / lint
-```powershell
-Set-Location babel-tour
-npx oxlint src          # pre-existing warning: exhaustive-deps on the tick effect — ignore
-npx vite build          # chunk-size warning is pre-existing
+The piece is the world tour (`src/WorldTour.jsx` → `EntryMap.jsx` → `src/world`).
+
+## Check
+
+```
+npm run check     # lint + frame-rate rule + geometry/path unit tests + build, ~10 s
 ```
 
-## Launch
-The user often already has `vite` running on port 5173 — it binds **IPv6 `::1` only**,
-so probe `http://localhost:5173/` (NOT `127.0.0.1`). If nothing is listening, start
-`npx vite --port 5173 --strictPort` in the background from `babel-tour/`.
+Lint has pre-existing `exhaustive-deps` warnings in `EntryMap.jsx` and one
+`only-export-components` in `Failure.jsx`: ignore them, not new ones.
+The browser test gate is off: see `AGENTS.md` for when its suites still run.
 
-`?dev=1` (dev builds only) skips the entry veil, marks the tour as entered, opens the
-garden door, and settles the camera at the vortex (deepest library gallery). It also
-exposes `window.__setDive(el)` to freeze the dive at any progress.
+## Look
 
-### Looking at a transition (the rites of passage)
-Each of the seven crossings has its own rite (see `src/rites.js`). A rite only exists
-while a plate is dissolving — about a second and a half of a seven-second crossing —
-so it cannot be caught by walking, least of all headlessly. Park inside one instead:
+```
+npm run shot -- --room=1                     stand in room 1 (0-7; 1 is the Echo)
+npm run shot -- --room=0,1,2 --up            several rooms, at their vantages
+npm run shot -- --room=3 --look=0.6,-0.3     turn the head (yaw, pitch; radians)
+npm run shot -- --eye=0,200,300:0,0,0        look from a point at a point
+npm run shot                                 the map
+npm run shot -- --ab=wmap5=old --room=1      the same frame without and with a flag
+npm run shot -- --help                       every option
+```
 
-- `window.__rite(c, p)` — freeze crossing `c` (indexed by the chapter it departs
-  from) at progress `p`, 0 at the room you are leaving, 1 at the one you are entering.
-  Teleports, so nothing has to ease. Logs which rite it landed in.
-- `window.__rites(0)` / `window.__rites(1)` — every crossing back on the plain
-  depth-melt, and back on again. **Always shoot the A/B pair from the SAME browser
-  session**: swiftshader's exposure and unsharp differ enough between runs that a
-  rite compared against a control shot from another session tells you nothing.
-- `window.__climb(el)` — freeze the climb (the dive mirrored, garden → library) the
-  way `__setDive` freezes the fall.
+`tools/shot.mjs` starts its own Vite (no HMR, its own dep cache, a free port:
+it never touches a dev server the user has running) and a headless browser,
+waits for the world to be built and drawn, and writes PNGs to
+`.ux-review/shots/`. Then **Read each PNG** — a change is not verified until
+you have looked at it.
 
-Judge a rite at `p` ≈ 0.2–0.45. By 0.5 the departing plate is largely gone under any
-threshold and both shots look the same.
+- **Linux (cloud sessions):** Chromium at `/opt/pw-browsers/chromium`,
+  software WebGL. A page load takes about **six minutes** (the world is built
+  in the browser); run the command in the background and do other work. Every
+  `--ab` side and every query string is a fresh page load, so ask for several
+  rooms in one call rather than calling it once per room. Keep `--size` at the
+  default 960x600 or smaller: large frames starve the renderer and the
+  screenshot times out.
+- **Windows / macOS:** Edge or Chrome with the GPU (`--software` to force
+  software WebGL). `--browser=PATH` or `BROWSER_PATH` picks another browser.
+- Reduced motion is emulated (the opening and the flights are cuts);
+  `--motion` turns that off, and then flights take a minute or more headless.
+- `--strict` exits 1 on a page error or a console error, such as a shader
+  that does not compile: use it after touching GLSL in `buildWorld.js`.
 
-## Drive headlessly (zero-dep CDP)
-Node 24 has global `WebSocket` — no puppeteer needed. Spawn Edge:
-`msedge.exe --headless=new --remote-debugging-port=9333 --enable-unsafe-swiftshader
---use-gl=angle --use-angle=swiftshader --user-data-dir=<ABSOLUTE tmp path> --no-first-run about:blank`
-(relative `--user-data-dir` makes the browser die silently — always absolute).
+Comparing two looks: shoot them in **one** `--ab` call, not two runs.
+Software WebGL's exposure differs enough between sessions to fake a
+difference. To measure what changed, diff the two PNGs (for example with
+Python's PIL: `ImageChops.difference(a, b).getbbox()`): the garden's water and
+flowers move between frames, so ignore noise there.
 
-Then: GET `/json/version` → browser ws → `Target.createTarget{url}` (no width/height),
-`Target.attachToTarget{flatten:true}`, `Emulation.setDeviceMetricsOverride`,
-**wait ~13s** for WebGL textures under swiftshader, `Page.captureScreenshot`.
+## Driving it yourself
 
-Input works through CDP and reaches the app's window/pointer handlers:
-- `Input.dispatchKeyEvent` (`rawKeyDown`+`keyUp`, `modifiers: 8` = Shift)
-- `Input.dispatchMouseEvent` pressed → ~14 moved steps → released simulates a drag
+For anything `shot.mjs` cannot do (pressing keys, dragging, touch), copy its
+DevTools-protocol client: it is plain Node (global `WebSocket`), no
+dependencies. Input reaches the app through `Input.dispatchKeyEvent`,
+`Input.dispatchMouseEvent` (pressed → moved steps → released is a drag) and
+`Input.dispatchTouchEvent` (a synthetic `PointerEvent` has no live pointer and
+cannot be captured, so test the touch walk button with real touch events).
 
-Give eased camera state ~2s to settle before each screenshot. A known-good driver
-script pattern is in the session scratchpads as `look.mjs` (spawn, ws send/await,
-key/drag/shot helpers).
+Dev hooks (dev builds only, set in `World.jsx`):
+- `__worldJump(i, up)` — stand in room `i` (0-7) at once, at its vantage if `up`.
+- `__worldLook(yaw, pitch)` — turn the head at a stand.
+- `__worldEye({ from, at, fov })` — look from a point at a point; `null` gives the eye back to the walk.
+- `__worldScrub(t)` — hold a leg or the finale at a point; `null` lets it run.
+- `__worldSim({...})` — walk a move on a fixed clock, without waiting on frames.
+- `__worldBench(n)` — milliseconds per frame of the scene alone, drawn `n` times.
+- `__worldScene`, `__worldCamera` — the three.js scene and camera.
+
+Wait for the world with `window.__worldJump && document.querySelector('.entry-map.is-world')`,
+polled inside the page (`Runtime.evaluate` with `awaitPromise`), not from the driver.
 
 ## Gotchas
-- The headless clock is unreliable for pacing — under swiftshader the rAF-driven
-  sim runs ~10× slow, so chapter crossings that take ~7s on real hardware barely
-  move in a 10s headless wait. Do NOT diagnose "navigation broken" from a stale
-  `DEPTH n/4` label alone; read `window.__nav()` (dev+?dev only — returns
-  `{target, descent, immT, diving}`) to see whether the *target* moved. For the
-  dive use the frozen-progress hook `window.__setDive(el)`.
-- Navigation state to eyeball in shots: `DEPTH n/4` label, progress bar, chapter card
-  title — these confirm whether an input walked, dove, or only moved the gaze.
-- Depth/layering regressions to look for in shots: bright fragments floating
-  detached over dark voids = the next chapter's near band poking through this
-  chapter's far band (the DEPTH_SPREAD interleave ceiling — see the constant's
-  comment).
+
+- Old looks sit behind `?w…=old[:n]` flags, one module per design board
+  (`src/world/*Fix*.js`). When the user picks between options, follow
+  "Variants of a look" in `AGENTS.md`.
+- Never stop a server by its port number: the user's own `vite` may be on 5173.
+  Stop only processes you started (`shot.mjs` cleans up after itself).
+- A still frame under software WebGL can show artifacts the GPU does not
+  (slow texture decode, a frame caught mid-ease). Re-shoot with a longer
+  `--settle` before believing a rendering bug.
