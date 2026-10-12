@@ -26,7 +26,8 @@
     "review:world-ux": "node tools/ux-world-audit.mjs",
     "check:deploy": "npm run lint -- src && npm run check:governor && npm run build && node tools/verify-dist.mjs",
     "preview": "vite preview",
-    "shot": "node tools/shot.mjs"
+    "shot": "node tools/shot.mjs",
+    "bench": "node tools/load-bench.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",
