@@ -549,6 +549,8 @@ export function buildMist(ctx) {
         depth: foliageDepth,
         prepass: M.hedgeLeafPre,
         attrs: { aKind: (it) => it.kind, aCrown: (it) => it.crown },
+        // (feathered, it blends, as the trees do)
+        order: FEATHER.on ? -0.5 : 0,
       });
     }
     // wisteria and trailing leaves, hung by the top edge (makeHangingMaterial)
