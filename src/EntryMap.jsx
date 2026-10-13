@@ -202,9 +202,7 @@ function fogFor(lantern, w, h) {
   return { cx: w, cy, rx: w * 0.55, ry: Math.max(1, cy - top) };
 }
 
-// Inside the tour the garden restarts its count (PATH I–IV), but on one sheet
-// holding both worlds "I The Door" beside "I The Vestibule" reads as an error,
-// so the map counts the whole walk.
+// The numerals count the whole walk, independently of each room's kind.
 const MAP_NUMERAL = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'];
 // How long a reader stands with their hands off everything before the key caps
 // come back.
@@ -878,7 +876,8 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
 
   const node = NODES[shown];
   const isGarden = (i) => i > libraryMax;
-  const kindOf = (i) => (isGarden(i) ? 'Path' : 'Gallery');
+  const kindOf = (i) => (NODES[i].slug === 'door' ? 'Gallery / Path' : isGarden(i) ? 'Path' : 'Gallery');
+  const captionOf = (i) => `${MAP_NUMERAL[i]} of ${MAP_NUMERAL[NODES.length - 1]} · ${kindOf(i)}`;
   const here = (i) => (i === resumeAt ? (shared ? 'where you were sent' : 'where you left off') : null);
   const invitation = resumeAt !== null
     ? `${shared ? 'Enter' : 'Return to'} ${NODES[resumeAt].title}, or choose a room`
@@ -967,7 +966,7 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
       className: cls.join(' '),
       role: 'button',
       tabIndex: 0,
-      'aria-label': `${kindOf(i)} ${MAP_NUMERAL[i]}: ${n.title} — ${n.subtitle}${here(i) ? `. ${here(i)}` : ''}`,
+      'aria-label': `${captionOf(i)}: ${n.title} — ${n.subtitle}${here(i) ? `. ${here(i)}` : ''}`,
       onPointerDown: (e) => { pointerRef.current = e.pointerType; },
       // The caption stays with the last room pointed at (or focused) when the
       // pointer or the focus moves on, rather than flicking back to the
@@ -1299,7 +1298,7 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
           <Ending stage={Math.max(1, ending)} look={landing ? ENDIN : null} reducedMotion={reducedMotion} againRef={againRef} onAgain={walkAgain} onMap={toRooms} />
         )}
         <aside ref={cardRef} className={`map-card${isGarden(shown) ? ' is-garden' : ''}`} hidden={ending > 0 || landing}>
-          <div className="map-card-kicker">{`${kindOf(shown)} ${MAP_NUMERAL[shown]} of ${MAP_NUMERAL[NODES.length - 1]}`}</div>
+          <div className="map-card-kicker">{captionOf(shown)}</div>
           <h2 className="map-card-title">{node.title}</h2>
           <p className="map-card-sub">{node.subtitle}</p>
           <span className="map-card-rule" aria-hidden="true" />
@@ -1326,7 +1325,7 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
             aria-labelledby="room-title"
             onClick={tall ? turnCaption : undefined}
           >
-            <div className="room-kicker">{`${kindOf(place)} ${MAP_NUMERAL[place]} of ${MAP_NUMERAL[NODES.length - 1]}`}</div>
+            <div className="room-kicker">{captionOf(place)}</div>
             <h2 ref={roomTitleRef} className="room-title" id="room-title" tabIndex={-1}>{NODES[place].title}</h2>
             <p className="room-sub">{NODES[place].subtitle}</p>
             <p className="sr-only">{voice.said}</p>
