@@ -1701,9 +1701,16 @@
 }
 
 .room-step:focus-visible,
-.room-map:focus-visible {
-  outline: 2px solid var(--card-accent);
+.room-map:focus-visible,
+.room-hold:focus-visible,
+.room-skip:focus-visible {
+  outline: 1px solid var(--card-accent, var(--gold-lit));
   outline-offset: 3px;
+  box-shadow: 0 0 8px 2px color-mix(in srgb, var(--card-accent, var(--gold-lit)) 45%, transparent);
+}
+
+.room-hold:focus-visible {
+  border-radius: 50%;
 }
 
 .room-step:disabled,
@@ -1997,11 +2004,6 @@
 
 .room-skip:hover:not(:disabled) {
   color: var(--card-accent);
-}
-
-.room-skip:focus-visible {
-  outline: 2px solid var(--card-accent);
-  outline-offset: 3px;
 }
 
 .room-skip:disabled {
