@@ -1901,6 +1901,7 @@
 .room-key kbd {
   font: 600 1.08rem/1 var(--sc);
   letter-spacing: 0.1em;
+  text-transform: uppercase;
   color: var(--gold-lit);
 }
 
