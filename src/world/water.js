@@ -191,6 +191,8 @@ export function makeWater({ mirror = true } = {}) {
     uShatterAt: { value: new THREE.Vector4(0, -1e6, 0, 0) },
     uShatterRing: { value: new THREE.Vector4(WATER.glowFrom, WATER.glowFade, WATER.glowLean[0], WATER.glowLean[1]) },
     uShatterColor: { value: new THREE.Color('#ff5a2e') },
+    uMapPavilion: { value: new THREE.Vector4() },
+    uWaterMap: { value: 0 },
   };
 
   const common = /* glsl */ `
@@ -221,6 +223,8 @@ export function makeWater({ mirror = true } = {}) {
     uniform vec4 uShatterAt;
     uniform vec4 uShatterRing;
     uniform vec3 uShatterColor;
+    uniform vec4 uMapPavilion;
+    uniform float uWaterMap;
     varying vec4 vMirrorUv;
 
     // What a reflected ray finds. Not the scene environment — that is a
@@ -382,6 +386,20 @@ export function makeWater({ mirror = true } = {}) {
             // (the lacquer's red on a facet that barely leans, the lanterns' orange on one that leans hard)
             vec3 wGlowCol = mix(uShatterColor * vec3(0.85, 0.4, 0.38), uShatterColor, smoothstep(uShatterRing.w * 0.7, uShatterRing.w * 1.8, wLean));
             wLit += wGlowCol * (uShatterAt.w * wRing * smoothstep(uShatterRing.z, uShatterRing.w, wLean));
+          }
+          // The map's warm reflection belongs to the water: brightest at the
+          // Pavilion's foot, on the ripples that lean back toward its lamp.
+          if (uWaterMap > 0.001 && uMapPavilion.w > 0.0) {
+            vec2 mapToP = uMapPavilion.xy - vWPos.xz;
+            vec2 mapView = cameraPosition.xz - uMapPavilion.xy;
+            mapView /= max(length(mapView), 1e-3);
+            vec2 mapFoot = uMapPavilion.xy + mapView * uShatterRing.x;
+            float mapD = length(vWPos.xz - mapFoot);
+            float mapFall = 1.0 - smoothstep(0.0, uMapPavilion.z, mapD);
+            float mapLean = dot(-wSlope, mapToP / max(length(mapToP), 1e-3));
+            float mapWidth = max(fwidth(mapLean), 0.002);
+            float mapGlitter = smoothstep(0.004 - mapWidth, 0.022 + mapWidth, mapLean);
+            wLit += uShatterColor * (80.0 * uWaterMap * uMapPavilion.w * mapFall * pow(mapGlitter, 3.0));
           }
           // The moon is a long way off: a direction, not a place.
           float wMs = max(dot(wR, uMoonDir), 0.0);
@@ -600,10 +618,14 @@ export function makeWater({ mirror = true } = {}) {
     shared.uShatterAt.value.set(x, y, z, WATER.glowK);
     shared.uShatterColor.value.set(color);
   };
+  const setMapPavilion = (at, radius, strength, amount) => {
+    shared.uMapPavilion.value.set(at[0], at[1], radius, strength);
+    shared.uWaterMap = amount;
+  };
 
   const dispose = () => { target?.dispose(); };
 
   // (DEV: where the lamps it was handed are, for __water's report)
   const list = () => lamps.map((l) => [+l.p.x.toFixed(1), +l.p.y.toFixed(1), +l.p.z.toFixed(1), +l.power.toFixed(2)]);
-  return { material, surface, reflect, addLamp, setGlow, setViewport, tick, redial, dispose, count: () => lamps.length, list };
+  return { material, surface, reflect, addLamp, setGlow, setMapPavilion, setViewport, tick, redial, dispose, count: () => lamps.length, list };
 }

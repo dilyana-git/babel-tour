@@ -19,14 +19,14 @@ export const map3Old = (n) => V === 'old' || (ONLY ? ONLY.has(String(n)) : false
 export const QUIET = { near: [112, 128], flat: 0.85, relief: 0.8, tint: [0.62, 0.6, 0.58] };
 
 // 4. The garden's light over the map: each a patch of light laid on it, `k`
-// strong. The pavilion's pool by its reach from the pavilion's middle; the
+// strong. The pavilion's reflection by its reach from the near foot; the
 // moon's road by where it crosses the pond (0 its west shore, 1 its east)
 // and the wash of it over the whole water;
 // the wisteria by its length along the pergola from the Door's arch, its
 // width and its height (over the leaves); the lit stone lanterns by where
 // they stand.
 export const GARDEN_MAP = {
-  pavilion: { r: 86, k: 0.4 },
+  pavilion: { r: 86 / Math.sqrt(3), k: 1.2 },
   moon: { road: 0.8, wash: 0.2, k: 0.6 },
   wisteria: { along: [28, 124], across: 36, y: 52, k: 0.85 },
   lanterns: { at: [[1201, 262], [1264, 234], [1342, 262], [1290, 292]], r: 19, y: 24, k: 0.5 },
