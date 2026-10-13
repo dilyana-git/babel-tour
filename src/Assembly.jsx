@@ -189,7 +189,7 @@ const FOUND_MARK = ['Hexagon I · shelf 1', 'vol. 1 · p. 1'];
 const TICK_MS = 160;
 const FOUND_GLOW_MS = 480;
 
-export function AssemblyEpigraph({ driver, reducedMotion }) {
+export function AssemblyEpigraph({ driver, progress, ready, reducedMotion }) {
   const lineRef = useRef(null);
   const markRef = useRef(null);
   const noteRef = useRef(null);
@@ -242,7 +242,6 @@ export function AssemblyEpigraph({ driver, reducedMotion }) {
       }
       if (!left && !noteRef.current.classList.contains('is-found')) {
         setMark(FOUND_MARK);
-        noteRef.current.textContent = 'The Library of Babel';
         noteRef.current.classList.add('is-found');
       }
       if (!left && !glowing) return;
@@ -258,12 +257,12 @@ export function AssemblyEpigraph({ driver, reducedMotion }) {
 
   let at = 0;
   return (
-    <div className="assembly-epigraph" aria-hidden="true">
+    <div className="assembly-epigraph" aria-hidden={ready || undefined}>
       <div className="assembly-epigraph-in">
-        <div className="assembly-mark" ref={markRef}>
+        <div className="assembly-mark" ref={markRef} aria-hidden="true">
           {(reducedMotion ? FOUND_MARK : first.mark).map((half, k) => <span key={k} className="assembly-mark-half">{half}</span>)}
         </div>
-        <p className="assembly-line" ref={lineRef}>
+        <p className="assembly-line" ref={lineRef} aria-hidden="true">
           {WORDS.map((word, w) => (
             <span key={w}>
               {w > 0 && ' '}
@@ -276,7 +275,9 @@ export function AssemblyEpigraph({ driver, reducedMotion }) {
             </span>
           ))}
         </p>
-        <div className="assembly-note" ref={noteRef}>Searching the shelves…</div>
+        <div className="assembly-note" ref={noteRef} role="status">
+          {ready ? 'The Library of Babel' : `Searching the shelves… ${Math.min(99, Math.round(progress * 100))}%`}
+        </div>
       </div>
     </div>
   );

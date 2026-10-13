@@ -893,12 +893,10 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
           ? `${invitation} · assembling ${Math.min(99, Math.round(progress))}%`
           // back on the map from the heart of the maze, the walk drawn in light
           : ended ? 'Time forks perpetually toward innumerable futures' : invitation;
-  // Once a room's caption is showing, what the line would say — choose a
-  // room, or that one is opening — the caption's own Enter says, in its own
-  // place; and beside the byline, gold mono capitals after serif italic, it
-  // read as the byline's tail (mapFix3.js, 6). The line is then the byline's
-  // alone. It is still said to a screen reader: only what a reader is waiting
-  // on (the assembly), or is given at the end, is shown.
+  const epigraphShown = !inkGone && !worldFailed;
+  // Assembly progress belongs under the sentence being found. Once the map
+  // is ready, the caption's Enter supplies its invitation visually, while
+  // the status still announces it to screen readers.
   const statusSaid = (!map3Old(6) && (status === invitation || opening !== null)) || ((ending > 0 || landing) && opening === null);
   // Between the Vertigo and the Door the way is not a walk.
   const crossing = (from, to) => (from === libraryMax && to === libraryMax + 1
@@ -1291,11 +1289,11 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
           <span className="map-title-rule" aria-hidden="true" />
           <div className="map-title-line">
             <span className="map-title-eyebrow">Jorge Luis Borges · 1941</span>
-            <span className={`map-status${statusSaid ? ' is-said' : ''}`} role="status">{status}</span>
+            {!epigraphShown && <span className={`map-status${statusSaid ? ' is-said' : ''}`} role="status">{status}</span>}
           </div>
         </header>
 
-        {!inkGone && !worldFailed && <AssemblyEpigraph driver={inkRef} reducedMotion={reducedMotion} />}
+        {epigraphShown && <AssemblyEpigraph driver={inkRef} progress={assembled} ready={liveWorld} reducedMotion={reducedMotion} />}
 
         {(ending > 0 || landing) && (
           <Ending stage={Math.max(1, ending)} look={landing ? ENDIN : null} reducedMotion={reducedMotion} againRef={againRef} onAgain={walkAgain} onMap={toRooms} />
