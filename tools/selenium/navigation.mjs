@@ -184,8 +184,12 @@ export function navigationScenarios(driver, baseUrl, options = {}) {
       assert.equal(await driver.executeScript('return matchMedia("(prefers-reduced-motion: reduce)").matches'), false);
       await click('.map-enter');
       await room(0);
-      assert.equal(await enabled('.room-step.is-back'), false,
-        'Back must be disabled in the first room');
+      assert.equal(await enabled('.room-step.is-back'), true,
+        'The first room must offer the way back to the map');
+      await click('.room-step.is-back');
+      await map();
+      await choose(0);
+      await room(0);
     }],
     ['held W/S, key release, and blur recovery', async () => {
       await prepare(0);
@@ -342,7 +346,10 @@ export function navigationScenarios(driver, baseUrl, options = {}) {
       await prepare(2);
       for (let i = 3; i < ROOMS.length; i++) { await click('.room-step.is-on'); await room(i); }
       for (let i = ROOMS.length - 2; i >= 0; i--) { await click('.room-step.is-back'); await room(i); }
-      assert.equal(await enabled('.room-step.is-back'), false);
+      assert.equal(await enabled('.room-step.is-back'), true,
+        'Returning to the first room must restore the way back to the map');
+      await click('.room-step.is-back');
+      await map();
     }],
     ['keyboard map return and all eight room choices', async () => {
       await prepare(0);

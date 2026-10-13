@@ -1380,9 +1380,9 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
                   <button
                     type="button"
                     className="room-step is-back"
-                    disabled={moving || place === 0}
-                    aria-label={backText.charAt(0).toUpperCase() + backText.slice(1)}
-                    {...actionHandlers(() => send(-1))}
+                    disabled={moving}
+                    aria-label={place === 0 ? 'The way in: return to the map' : backText.charAt(0).toUpperCase() + backText.slice(1)}
+                    {...actionHandlers(() => (place === 0 ? setTarget(null) : send(-1)))}
                   >
                     <svg viewBox="0 0 24 10" aria-hidden="true"><path d="M23 5 H2 M6.5 1 Q4 4.2 2 5 Q4 5.8 6.5 9" /></svg>
                     {backTo >= 0 && <span className={`room-step-num${isGarden(backTo) ? ' is-garden' : ''}`}>{MAP_NUMERAL[backTo]}</span>}
