@@ -1250,6 +1250,7 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
               <line key={k} x1={3 + k * 4} x2={3 + k * 4} y1={8 - h / 2} y2={8 + h / 2} style={{ '--h': h }} />
             ))}
           </svg>
+          <span>Sound</span>
         </button>
       )}
 

@@ -104,8 +104,7 @@
   pointer-events: none;
 }
 
-/* The sound's control (worldSound.js): top right, where nothing else is. As
-   quiet as a mark in a margin until it is pointed at. */
+/* A labelled sound button in the unused corner, visible before hovering. */
 .map-sound {
   position: absolute;
   top: 0.9rem;
@@ -114,15 +113,19 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 44px;
+  gap: 0.5rem;
+  box-sizing: border-box;
+  min-width: 44px;
   height: 44px;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  background: none;
-  color: var(--ink-3);
+  padding: 0 0.75rem;
+  border: 1px solid var(--ink-4);
+  border-radius: 999px;
+  background: var(--shade-mid);
+  color: var(--ink-2);
+  font: var(--caps);
+  letter-spacing: 0.1em;
   cursor: pointer;
-  transition: color var(--t-quick) var(--arrive), opacity var(--t) var(--arrive);
+  transition: color var(--t-quick) var(--arrive), border-color var(--t-quick) var(--arrive), opacity var(--t) var(--arrive);
 }
 
 .map-sound svg {
@@ -142,7 +145,7 @@
 }
 
 .map-sound.is-muted {
-  color: var(--ink-4);
+  color: var(--ink-2);
 }
 
 .map-sound.is-muted line {
@@ -151,6 +154,7 @@
 
 .map-sound:hover {
   color: var(--gold-lit);
+  border-color: var(--gold-lit);
 }
 
 .map-sound:focus-visible {
@@ -1014,7 +1018,7 @@
 
 .entry-map.is-tall .map-title {
   order: 0;
-  padding: 1.5rem 1rem 1rem;
+  padding: 3.5rem 1rem 1rem;
   text-align: center;
 }
 
