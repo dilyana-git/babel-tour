@@ -12,7 +12,7 @@ import { forkOld, WAYMARK } from '../forkFix';
 import { pavOld, bracketSet, BRACKET, lotusBud } from '../pavilionFix';
 import { LAWN, propsOld, ROOF_KIND } from '../forkProps';
 import { pavPropsOld, wornBar, wornPost, CAIHUA, qin, qinCloth } from '../pavilionProps';
-import { ROOF_TIERS, roofProfile, roofTop, ROOF_SURFACE, roofTiles, tiledRoof } from '../pavilionRoof';
+import { ROOF_TIERS, roofProfile, roofTop, ROOF_SURFACE, roofTiles, tiledRoof, softenRoofTiles } from '../pavilionRoof';
 import { garden5Old, signPostGeometry, paintSignName, SIGN, signBoardGeometry, HORN } from '../gardenFix5';
 import { bridgeFoot } from '../shore';
 import { FORK_OLD, deg, SHORE_OLD } from '../build/common';
@@ -510,7 +510,7 @@ export function buildFork(ctx) {
       // hips in one mesh, the soffit and the eave board in another; and
       // between the two tiers, the short wall the upper one stands on.
       const kind = ROOF_KIND, surface = ROOF_SURFACE[kind];
-      const roofMat = skyDull(Std({ map: tex(roofTiles(kind), [1, 1]), roughness: surface.roughness, side: THREE.DoubleSide }), surface.sky, surface.direct);
+      const roofMat = softenRoofTiles(skyDull(Std({ map: tex(roofTiles(kind), [1, 1]), roughness: surface.roughness, side: THREE.DoubleSide }), surface.sky, surface.direct));
       // (gardenFix5.js, 6: the hips' curled ends in dark bronze — in the rolls'
       // pale grey, on the night, they are horns)
       const roof = tiledRoof({ at: PV, kind, light, bronze: !garden5Old(6) });

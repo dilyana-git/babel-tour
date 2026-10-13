@@ -1003,7 +1003,8 @@ export function bankLit(mat, { grass, gravel, grassColor, gravelColor, grassRepe
         // grazing look and the far shore glittered white like frost)
         roughnessFactor = mix(roughnessFactor, 0.6, vShore.z);`)
       .replace('#include <normal_fragment_maps>', `
-        vec3 bkWN = normalize(normalize(vBkN) + vec3(bkT.x * 2.0 - 1.0, 0.0, 1.0 - bkT.y * 2.0) * normalScale.x * vShore.x);
+        float bkDetail = 1.0 - smoothstep(180.0, 450.0, length(vViewPosition));
+        vec3 bkWN = normalize(normalize(vBkN) + vec3(bkT.x * 2.0 - 1.0, 0.0, 1.0 - bkT.y * 2.0) * normalScale.x * vShore.x * bkDetail);
         normal = normalize((viewMatrix * vec4(bkWN, 0.0)).xyz);`);
   };
   mat.customProgramCacheKey = () => 'babel-shore-bank';

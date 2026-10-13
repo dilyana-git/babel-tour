@@ -68,15 +68,18 @@ export const roofTop = (t, a, r) => {
 
 // A mesh gathered a triangle at a time, each corner { p, n, t } — wound to
 // agree with the normals it is given.
-const gather = () => {
-  const pos = [], nor = [], uv = [];
+const gather = (shell = false) => {
+  const pos = [], nor = [], uv = [], baseNor = [];
   const tri = (a, b, c) => {
     const ux = b.p[0] - a.p[0], uy = b.p[1] - a.p[1], uz = b.p[2] - a.p[2];
     const vx = c.p[0] - a.p[0], vy = c.p[1] - a.p[1], vz = c.p[2] - a.p[2];
     const fx = uy * vz - uz * vy, fy = uz * vx - ux * vz, fz = ux * vy - uy * vx;
     if (fx * fx + fy * fy + fz * fz < 1e-12) return;
     const flip = fx * (a.n[0] + b.n[0] + c.n[0]) + fy * (a.n[1] + b.n[1] + c.n[1]) + fz * (a.n[2] + b.n[2] + c.n[2]) < 0;
-    for (const v of flip ? [a, c, b] : [a, b, c]) { pos.push(...v.p); nor.push(...v.n); uv.push(...v.t); }
+    for (const v of flip ? [a, c, b] : [a, b, c]) {
+      pos.push(...v.p); nor.push(...v.n); uv.push(...v.t);
+      if (shell) baseNor.push(...(v.baseN ?? v.n));
+    }
   };
   return {
     tri,
@@ -86,6 +89,7 @@ const gather = () => {
       g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
       g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
       g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+      if (shell) g.setAttribute('aRoofNormal', new THREE.Float32BufferAttribute(baseNor, 3));
       g.computeBoundingSphere();
       return g;
     },
@@ -101,7 +105,7 @@ const mix3 = (a, b, k) => [a[0] + b[0] * k, a[1] + b[1] * k, a[2] + b[2] * k];
 // `bronze` (gardenFix5.js, 6): the hips' curled ends past the eave as a mesh
 // of their own (`horns`), for another metal than the tile's.
 export function tiledRoof({ at, kind = 'grey', light = false, bronze = false }) {
-  const tiles = gather(), under = gather(), horns = gather(), tips = [];
+  const tiles = gather(true), under = gather(), horns = gather(), tips = [];
   const rolled = kind !== 'bark';
   const hash = (i, j, k) => { const x = Math.sin(i * 127.1 + j * 311.7 + k * 74.7) * 43758.5453; return x - Math.floor(x); };
   ROOF_TIERS.forEach((t, ti) => {
@@ -167,6 +171,7 @@ export function tiledRoof({ at, kind = 'grey', light = false, bronze = false }) 
             return {
               p: [c[0] + (S[0] * cs + nn[0] * sn) * rad, c[1] + (S[1] * cs + nn[1] * sn) * rad, c[2] + (S[2] * cs + nn[2] * sn) * rad],
               n: norm([S[0] * cs + nn[0] * sn, S[1] * cs + nn[1] * sn, S[2] * cs + nn[2] * sn]),
+              baseN: nn,
               t: [0.61 + 0.18 * (h / TH), v],
             };
           });
@@ -259,6 +264,29 @@ export function tiledRoof({ at, kind = 'grey', light = false, bronze = false }) 
     }
   });
   return { tiles: tiles.geometry(), under: under.geometry(), horns: bronze ? horns.geometry() : null, tips };
+}
+
+// Keep the roof's broad shape once individual tile rolls are smaller than pixels.
+export function softenRoofTiles(mat) {
+  const previous = mat.onBeforeCompile, key = mat.customProgramCacheKey;
+  mat.onBeforeCompile = (sh, renderer) => {
+    previous.call(mat, sh, renderer);
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute vec3 aRoofNormal;\nvarying vec3 vRoofNormal;')
+      .replace('#include <defaultnormal_vertex>', '#include <defaultnormal_vertex>\nvRoofNormal = normalize(normalMatrix * aRoofNormal);');
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vRoofNormal;')
+      .replace('#include <map_fragment>', `#include <map_fragment>
+        float roofDetail = 1.0 - smoothstep(180.0, 450.0, length(vViewPosition));
+        #ifdef USE_MAP
+          vec3 roofMean = texture2D(map, vMapUv, 6.0).rgb;
+          diffuseColor.rgb *= mix(vec3(1.0), roofMean / max(sampledDiffuseColor.rgb, vec3(0.04)), 1.0 - roofDetail);
+        #endif`)
+      .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+        normal = normalize(mix(normalize(vRoofNormal) * faceDirection, normal, roofDetail));`);
+  };
+  mat.customProgramCacheKey = () => `${key.call(mat)}-distant-tiles`;
+  return mat;
 }
 
 // The tiles' texture, for `tiledRoof`'s uv: five columns — three of pans side
