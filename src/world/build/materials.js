@@ -884,9 +884,9 @@ export function buildMaterials(ctx) {
       name: 'hedge-litter', map: hedge.map, color: '#8c7556', roughness: 1, vertexColors: true,
       transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
     }),
-    // the same again for the hedges' sprigs (one program with the trees'; a
-    // material of their own so they can be told apart — and switched off —
-    // by name)
+    // the same again for the hedges' sprigs (one program with the trees', its
+    // cut edge soft across the garden as theirs is; a material of their own so
+    // they can be told apart — and switched off — by name)
     hedgeLeaf: keep(Object.assign(makeFoliageMaterial(leaves, wind, FOLIAGE_KINDS, { prepassed: true, feather: FEATHER.on ? FEATHER : null }), { name: 'hedge-leaf' })),
     hedgeLeafPre: keep(Object.assign(makeFoliagePrepass(leaves, wind, FOLIAGE_KINDS, { feather: FEATHER.on ? FEATHER : null }), { name: 'hedge-leaf-pre' })),
     // the trees' wood (trees.js): each tree's bark colour is in its vertices
