@@ -52,6 +52,32 @@ six minutes a page load) and writes PNGs to `.ux-review/shots/`. `--help`
 lists its options. Look at every picture before reporting a visual change
 done. The `verify` skill has more.
 
+## In a cloud session: the user looks
+
+This section applies only in a Claude Code cloud session (`CLAUDE_CODE_REMOTE`
+is `true`): Linux, no GPU, minutes per page load. On any other machine, take
+the pictures yourself as above.
+
+In a cloud session the user pulls the branch and looks on their own machine:
+
+1. Make the change, run `npm run check`, commit (one commit per change) and
+   push. Do not run `npm run shot` unless the user asks.
+2. For each commit, tell the user its hash, where to look (room, vantage,
+   what should differ) and how to see it: `npm run dev`, or
+   `npm run shot -- --room=N`, with `--ab=<flag>=old` for a before/after.
+   Independent changes can go up together as separate commits.
+3. Report a visual change as pushed and waiting for the user's look, not
+   done. It is done when the user approves it. If they reject it, revert that
+   commit or revise it as they say. A screenshot the user attaches is the
+   picture to look at.
+4. Offer a design question's options behind a temporary query flag, so the
+   user can compare them in one tab. "Variants of a look" applies once they
+   pick.
+5. Browser suites and fingerprints still run when this file calls for them
+   (`check:navigation:smoke`, `--fingerprint` around a refactor): run them in
+   the background, or ask the user to run them locally on the GPU
+   (`BABEL_BROWSER_GRAPHICS=hardware` for the suites).
+
 ## Where the world is built
 
 `src/world/buildWorld.js` runs the world's sections in order (assembleWorld).
