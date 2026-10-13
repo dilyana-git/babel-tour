@@ -74,6 +74,22 @@ const [FW, FH] = [1440, 900];
 const hexPoints = ([cx, cy], r) => Array.from({ length: 6 }, (_, k) =>
   [cx + r * Math.cos((k * Math.PI) / 3), cy + r * Math.sin((k * Math.PI) / 3)]);
 const toAttr = (pts) => pts.map(([x, y]) => `${(+x).toFixed(1)},${(+y).toFixed(1)}`).join(' ');
+const roundedOutline = (pts, radius) => {
+  const corners = pts.map(([x, y], i) => {
+    const toward = ([tx, ty]) => {
+      const length = Math.hypot(tx - x, ty - y);
+      const t = Math.min(radius, length / 2) / (length || 1);
+      return [x + (tx - x) * t, y + (ty - y) * t];
+    };
+    return {
+      at: [x, y],
+      before: toward(pts[(i + pts.length - 1) % pts.length]),
+      after: toward(pts[(i + 1) % pts.length]),
+    };
+  });
+  return corners.map(({ at, before, after }, i) =>
+    `${i ? 'L' : 'M'} ${toAttr([before])} Q ${toAttr([at, after])}`).join(' ') + ' Z';
+};
 const grownFrom = (pts, by) => {
   const cx = pts.reduce((s, p) => s + p[0], 0) / pts.length;
   const cy = pts.reduce((s, p) => s + p[1], 0) / pts.length;
@@ -1103,13 +1119,19 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
       role="group"
       aria-label="Map of the rooms, seen from above"
     >
-      {layout.rooms.map((poly, i) => (
-        <g key={NODES[i].slug} {...roomProps(i)}>
-          <polygon className="map-hit" points={toAttr(poly)} />
-          <polygon className="map-outline-glow" points={toAttr(poly)} />
-          <polygon className="map-outline" points={toAttr(poly)} />
-        </g>
-      ))}
+      {layout.rooms.map((poly, i) => {
+        const Outline = NODES[i].slug === 'web' ? 'path' : 'polygon';
+        const outline = NODES[i].slug === 'web'
+          ? { d: roundedOutline(poly, 6) }
+          : { points: toAttr(poly) };
+        return (
+          <g key={NODES[i].slug} {...roomProps(i)}>
+            <polygon className="map-hit" points={toAttr(poly)} />
+            <Outline className="map-outline-glow" {...outline} />
+            <Outline className="map-outline" {...outline} />
+          </g>
+        );
+      })}
       <g className="map-numerals" aria-hidden="true">
         {numeralsFor(layout.marks ?? layout.rooms, tall ? 19 : 38).map(([x, y], i) => {
           return (
