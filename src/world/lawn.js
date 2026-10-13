@@ -19,14 +19,14 @@ import * as THREE from 'three';
 import { makeRng } from './textures';
 
 // `lamps`: [{ p: [x, z], y, reach, k }]. `ok(p)`: whether grass grows at p.
-// `ground`: the lawn's height. Returns one geometry per lamp.
+// `ground`: the lawn's height. Yields one geometry per lamp so assembly can
+// give the page time between lamps without changing their random streams.
 // `clump` (gardenFix5.js, 5 — GRASS): the blades were scattered evenly, each
 // one triangle a centimetre wide with a pale tip, and read as needles on dark
 // ground. With it they stand in clumps, in patches — thick here, none there —
 // each blade broader, bent over at two thirds of its height, its tip a mid
 // green.
-export function lawnBlades({ lamps, ok, ground, seed = 6607, density = 1, height = 0.8, clump = null }) {
-  const out = [];
+export function* lawnBlades({ lamps, ok, ground, seed = 6607, density = 1, height = 0.8, clump = null }) {
   // a slow field over the lawn: where it is low, no clump stands
   const cell = (i, j) => { const x = Math.sin(i * 127.1 + j * 311.7 + seed) * 43758.5453; return x - Math.floor(x); };
   const field = (x, z) => {
@@ -34,7 +34,7 @@ export function lawnBlades({ lamps, ok, ground, seed = 6607, density = 1, height
     const fu = u - i, fv = v - j, su = fu * fu * (3 - 2 * fu), sv = fv * fv * (3 - 2 * fv);
     return (cell(i, j) * (1 - su) + cell(i + 1, j) * su) * (1 - sv) + (cell(i, j + 1) * (1 - su) + cell(i + 1, j + 1) * su) * sv;
   };
-  lamps.forEach((lamp, li) => {
+  for (const [li, lamp] of lamps.entries()) {
     const r = makeRng(seed + li * 131), R = (a, b) => a + (b - a) * r();
     const pos = [], col = [], nor = [], lit = [];
     const bent = (x, z, near) => {
@@ -98,16 +98,15 @@ export function lawnBlades({ lamps, ok, ground, seed = 6607, density = 1, height
         tuft(x, z, 1 - d);
       }
     }
-    if (!pos.length) return;
+    if (!pos.length) continue;
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
     g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
     g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
     g.setAttribute('aLamp', new THREE.Float32BufferAttribute(lit, 4));
     g.computeBoundingSphere();
-    out.push(g);
-  });
-  return out;
+    yield g;
+  }
 }
 
 // The mown sward under the blades (gardenFix5.js, 5): for each lamp a sheet
@@ -115,8 +114,7 @@ export function lawnBlades({ lamps, ok, ground, seed = 6607, density = 1, height
 // blades do (`aLamp`) and how much of it shows at each corner (`aShow`: none
 // at the edge of the lamp's reach, none where no grass grows). It adds the
 // lantern's light off cut grass to the lawn under it and is nothing else.
-export function lawnSward({ lamps, ok, ground, step = 1.2 }) {
-  const out = [];
+export function* lawnSward({ lamps, ok, ground, step = 1.2 }) {
   for (const lamp of lamps) {
     const n = Math.ceil(lamp.reach / step), W = 2 * n + 1;
     const show = new Float32Array(W * W);
@@ -160,9 +158,8 @@ export function lawnSward({ lamps, ok, ground, step = 1.2 }) {
     g.setAttribute('aShow', new THREE.Float32BufferAttribute(shown, 1));
     g.setIndex(idx);
     g.computeBoundingSphere();
-    out.push(g);
+    yield g;
   }
-  return out;
 }
 
 // Its material: `map` the mown grass (laid in world units, `tile` to a

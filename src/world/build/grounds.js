@@ -286,7 +286,7 @@ export function buildTrees(ctx) {
   return { beltGroup };
 }
 
-export function buildMist(ctx) {
+export function* buildMist(ctx) {
   const { paintings, light, rr, add, lerp2, unit2, dist, keep, paint, tex, withRepeat, starTex,
     radialTex, water, wind, lilyPads, leaves, M, root, flatPlane, stoneGeo, instances, lightWishes,
     R, RC, cells, inGarden, LB, hangs, dust, trialPaper, trialEaves, glows, PIT, GB, rocks, ivy,
@@ -418,6 +418,7 @@ export function buildMist(ctx) {
       m.receiveShadow = true;
       m.name = 'lawnBlades';
       root.add(m);
+      yield;
     }
     if (clump) {
       const swardTex = tex(paint(512, 512, (g, s) => paintSward(g, s, makeRng(6619))), [1, 1]);
@@ -428,6 +429,7 @@ export function buildMist(ctx) {
         m.name = 'lawnBlades';
         m.renderOrder = 1;
         root.add(m);
+        yield;
       }
     }
   }

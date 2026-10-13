@@ -63,12 +63,13 @@ export function buildWorld(options) {
   }
 }
 
-// The world, built section by section: it yields between them (the name of the
-// one it is about to start) and returns the world. `painter` hands out the
+// The world, built section by section: named yields announce each section,
+// unnamed yields let its longer loops pause, and the return value is the world.
+// `painter` hands out the
 // PAINTED surfaces (paint.js); without one they are painted here and now.
 export function* assembleWorld({ light = false, paintings = true, painter = paintNow(PAINTED) } = {}) {
   const ctx = { light, paintings, painter };
-  Object.assign(ctx, buildKit(ctx));
+  Object.assign(ctx, yield* buildKit(ctx));
   yield 'Materials';
   Object.assign(ctx, buildMaterials(ctx));
   yield 'The honeycomb';
@@ -78,7 +79,7 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
   yield 'The books on a wall';
   Object.assign(ctx, buildBooks(ctx));
   yield 'Furniture';
-  Object.assign(ctx, buildFurniture(ctx));
+  Object.assign(ctx, yield* buildFurniture(ctx));
   yield 'The Vestibule';
   Object.assign(ctx, buildVestibule(ctx));
   yield 'The Echo';
@@ -106,7 +107,7 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
   yield 'Trees';
   Object.assign(ctx, buildTrees(ctx));
   yield 'Mist on the grass';
-  Object.assign(ctx, buildMist(ctx));
+  Object.assign(ctx, yield* buildMist(ctx));
   yield 'Light';
   Object.assign(ctx, buildLight(ctx));
   yield 'The unexplored';

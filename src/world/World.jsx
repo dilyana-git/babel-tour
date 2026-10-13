@@ -915,7 +915,7 @@ const loadPlate = async (url) => {
 //   1. the heavy surfaces start painting in workers (paint.js), and the sky,
 //      the air and the environment light are made while they do;
 //   2. the world is built a section at a time (assembleWorld's yields);
-//   3. every shader the world needs is started at once and polled, never
+//   3. shaders are submitted in short batches and polled, never
 //      waited on (KHR_parallel_shader_compile — renderer.compile, and
 //      program.isReady() for how far along it is);
 //   4. the paint arrives and is uploaded;
@@ -926,17 +926,16 @@ const loadPlate = async (url) => {
 const mark = (name) => performance.mark?.(`world:${name}`);
 const breathe = () => new Promise((resolve) => { setTimeout(resolve, 0); });
 const pause = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
-// How long the main thread works before it lets the page draw.
-const SLICE_MS = 40;
+// Target work per slice; an individual geometry or driver call can take longer.
+const SLICE_MS = 12;
 // Where each step ends on the way to 1, roughly as long as each took (cold).
 const SHARE = { setup: 0.12, build: 0.5, compile: 0.94, upload: 0.99 };
-// How many times assembleWorld yields (one per section of buildWorld.js, and
-// one per gallery of the Library and of the garden).
+// Named sections in assembleWorld; unnamed yields split work within a section.
 const BUILD_STEPS = 28;
 // Past this, stop waiting for the shaders: the first frame finishes them.
 const COMPILE_GIVE_UP_MS = 90000;
 
-// Every shader the world will draw with, started now: compiled against the
+// Every shader the world will draw with, submitted in batches: compiled against the
 // scene's fog, environment and lights exactly as a frame would, and into a
 // render target, because that is where the composer draws the scene (and a
 // target changes the program: no tone mapping, linear output). The world is
@@ -975,12 +974,27 @@ const standIns = (root) => {
   root.traverseVisible((o) => { if (o.isLight) add(o); });
   return stand;
 };
-const startShaders = (gl, root, camera, scene) => {
+const startShaders = async (gl, root, camera, scene, alive) => {
   const target = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType });
   const was = gl.getRenderTarget();
   try {
-    gl.setRenderTarget(target);
-    return gl.compile(standIns(root), camera, scene);
+    const stand = standIns(root);
+    const objects = stand.children.filter((o) => !o.isLight);
+    const lights = stand.children.filter((o) => o.isLight);
+    const materials = new Set();
+    let since = performance.now();
+    for (const object of objects) {
+      stand.children = [...lights, object];
+      gl.setRenderTarget(target);
+      for (const material of gl.compile(stand, camera, scene)) materials.add(material);
+      gl.setRenderTarget(was);
+      if (performance.now() - since > SLICE_MS) {
+        await breathe();
+        if (!alive()) return null;
+        since = performance.now();
+      }
+    }
+    return materials;
   } catch (error) {
     console.warn('[world] could not start the shaders early; the first frame will compile them:', error);
     return null;
@@ -990,16 +1004,19 @@ const startShaders = (gl, root, camera, scene) => {
   }
 };
 const shaderReady = (gl, material) => {
-  const program = gl.properties.get(material).currentProgram;
-  return !program || program.isReady();
+  const { programs, currentProgram } = gl.properties.get(material);
+  return programs ? [...programs.values()].every((program) => program.isReady()) : !currentProgram || currentProgram.isReady();
 };
 // Every texture a material samples, its own maps and its shader's uniforms.
-const texturesOf = (materials) => {
+const texturesOf = (gl, materials) => {
   const out = new Set();
   const take = (v) => { if (v?.isTexture && !v.isRenderTargetTexture && v.image) out.add(v); };
   for (const m of materials) {
     Object.values(m).forEach(take);
     if (m.uniforms) Object.values(m.uniforms).forEach((u) => take(u?.value));
+    // onBeforeCompile adds uniforms to the renderer's material properties.
+    const uniforms = gl.properties.get(m).uniforms;
+    if (uniforms) Object.values(uniforms).forEach((u) => take(u?.value));
   }
   return out;
 };
@@ -1065,7 +1082,7 @@ function WorldContent({ rooms = false, onProgress, onHold, onAssembled, onPlan, 
       for (;;) {
         const step = made.steps.next();
         if (step.done) { made.world = step.value; break; }
-        k += 1;
+        if (step.value) k += 1;
         say(SHARE.setup + (SHARE.build - SHARE.setup) * Math.min(1, k / BUILD_STEPS));
         if (performance.now() - since > SLICE_MS) {
           await breathe();
@@ -1084,13 +1101,15 @@ function WorldContent({ rooms = false, onProgress, onHold, onAssembled, onPlan, 
       made.environment = environment;
       scene.environment = environment.texture;
       mark('environment');
+      await breathe();
+      if (!alive) return;
 
-      const materials = startShaders(gl, world.root, camera, scene);
+      const materials = await startShaders(gl, world.root, camera, scene, () => alive);
+      if (!alive) return;
       mark('shaders-started');
-      // Meanwhile, up to the GPU with every texture whose pixels are here (the
-      // painted ones as they arrive), a slice at a time, rather than all of it
-      // in the first frame.
-      const textures = [...new Set([...(materials ? texturesOf(materials) : []), ...made.painter.textures()])];
+      // Wait for shader compilation before uploading: a texture upload can
+      // synchronously drain the driver's queue and block on pending shaders.
+      const textures = [...new Set([...(materials ? texturesOf(gl, materials) : []), ...made.painter.textures()])];
       const uploaded = new Set();
       const upload = () => {
         const until = performance.now() + SLICE_MS;
@@ -1113,7 +1132,7 @@ function WorldContent({ rooms = false, onProgress, onHold, onAssembled, onPlan, 
           if (compiled) mark('shaders-ready');
           say(SHARE.build + (SHARE.compile - SHARE.build) * (ready / materials.size));
         }
-        sent = upload();
+        if (compiled) sent = upload();
         if (compiled && sent) break;
         await pause(compiled ? 10 : 40);
         if (!alive) return;

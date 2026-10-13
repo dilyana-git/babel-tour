@@ -12,7 +12,7 @@ import { propsOld } from '../forkProps';
 import { WOOD_OLD, WALNUT_TILE, CEDAR_TILE } from '../woodGrain';
 import { CRACK_OLD, RUBBLE_OLD, SHORE_OLD, deg, BOOK_ROWS, FLOOR_OLD } from './common';
 
-export function buildKit(ctx) {
+export function* buildKit(ctx) {
   const { light, painter } = ctx;
   let seed = 1941;
   const rnd = () => {
@@ -93,6 +93,7 @@ export function buildKit(ctx) {
       g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(a) * L, y + Math.sin(a) * L); g.stroke();
     }
   }), [1 / 46, 1 / 46]);
+  yield;
 
   const gravelOldTex = tex(paint(512, 512, (g, s) => {
     g.fillStyle = '#6f685c';
@@ -104,6 +105,7 @@ export function buildKit(ctx) {
     }
     speckle(g, s, s, 8000, true, 0.35);
   }), [1 / 16, 1 / 16]);
+  yield;
   // (forkProps.js, 8: pebbles, each a few millimetres to a centimetre and a
   // half, rounded, lit a little on one side, a dozen shades apart, a little
   // warm; and the bed they lie on shows dark only between them. A grain a pixel
@@ -151,6 +153,7 @@ export function buildKit(ctx) {
   }), [1 / 16, 1 / 16]);
 
   // Stars, for the shafts, the pools and the dark under everything.
+  yield;
   const starCanvas = paint(512, 512, (g, s) => {
     g.fillStyle = '#01040a';
     g.fillRect(0, 0, s, s);

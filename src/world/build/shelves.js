@@ -484,7 +484,7 @@ export function buildBooks(ctx) {
   return { LAID, GRAZE_BY_ROOM, roman, hexNumber, shelfWall };
 }
 
-export function buildFurniture(ctx) {
+export function* buildFurniture(ctx) {
   const { paintings, light, rnd, rr, dir, add, lerp2, dist, hexPts, keep, lampHaloTex, stringWash,
     root, slabGeo, boxGeo, placed, rodGeo, barGeo, decal, halo, POOL_DIAL, point, R, A, GAP, RC,
     HALL, ARCH_SPRING, ARCH_R, WAY_IN, cellC, rimAt, deepAt, NB, cells, inFrame, routeDist, hallway,
@@ -900,6 +900,7 @@ export function buildFurniture(ctx) {
 
   for (const cell of cells) {
     if (cell.garden || cell.k === '3,-3') continue;
+    yield;
     const { c } = cell;
     const room = cell.room;
     const lit = room !== undefined;
