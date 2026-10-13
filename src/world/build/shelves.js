@@ -729,48 +729,6 @@ export function* buildFurniture(ctx) {
     if (pool) decal(poolAt, poolSize, poolSize, '#ffb060', pool * POOL_DIAL, poolY, 0.1, [p[0], y, p[1], G]);
   };
 
-  // ── Light from far down the Vestibule's well ─────────────────────────────
-  // Its walls are lit from somewhere far below, warmly and faintly — none at
-  // the lip, more the further down the eye goes — so the dark under the bridge
-  // reads as depth and not as a flat black slab beside it (vestFix.js, 7;
-  // ?wvest=old:7). A sheet of lit air laid just inside the liner, as the light
-  // columns are: no lamp, nothing to cost.
-  const wellGlowMat = keep(new THREE.ShaderMaterial({
-    uniforms: { uColor: { value: new THREE.Color('#ff9d58') }, uStrength: { value: 0.24 } },
-    vertexShader: /* glsl */ `
-      varying float vY;
-      void main() {
-        vec4 w = modelMatrix * vec4(position, 1.0);
-        vY = w.y;
-        gl_Position = projectionMatrix * viewMatrix * w;
-      }`,
-    fragmentShader: /* glsl */ `
-      uniform vec3 uColor;
-      uniform float uStrength;
-      varying float vY;
-      void main() {
-        // nothing at the lip, and more the further down: from the stand the
-        // eye only reaches the top thirty or forty units of it, under the bridge
-        float t = clamp((3.0 - vY) / 110.0, 0.0, 1.0);
-        gl_FragColor = vec4(uColor * uStrength * pow(t, 0.7), 1.0);
-      }`,
-    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false,
-  }));
-  const wellGlow = (c, shaft) => {
-    const ring = hexPts(c, shaft - 0.25), pos = [];
-    const TOP = 3, BOT = -228;
-    for (let k = 0; k < ring.length; k++) {
-      const [ax0, az0] = ring[k], [bx0, bz0] = ring[(k + 1) % ring.length];
-      pos.push(ax0, TOP, az0, bx0, TOP, bz0, bx0, BOT, bz0, ax0, TOP, az0, bx0, BOT, bz0, ax0, BOT, az0);
-    }
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-    const m = new THREE.Mesh(keep(g), wellGlowMat);
-    m.name = 'well-glow';
-    m.renderOrder = 2;
-    root.add(m);
-  };
-
   const mounts = [];
   const hangPainting = (index, [x, z], y, normal, width) => {
     if (!paintings) return;
@@ -1049,9 +1007,9 @@ export function* buildFurniture(ctx) {
       // (2.5 thick, so its top, level with the paving, lies wholly under the
       // bronze plinth or the parapet: at 3 a sliver of it showed beside the
       // parapet's foot, in the floor's own plane)
-      LB.liner.add(slabGeo(hexPts(c, shaft + 2.5), [hexPts(c, shaft)], 236, -230));
+      const lining = lit && room === 0 && !vestOld(7) ? LB.wellGlow : LB.well;
+      lining.add(slabGeo(hexPts(c, shaft + 2.5), [hexPts(c, shaft)], 236, -230));
       LB.stars.add(slabGeo(hexPts(c, shaft + 2), [], 1, -232));
-      if (lit && room === 0 && !vestOld(7)) wellGlow(c, shaft);
       if (lit && room === 0 && BRIDGE_LEVEL) {
         // (the Vestibule's well rail is laid with its bridge, as one run
         // round each half of the well: vestibuleBridge.js)

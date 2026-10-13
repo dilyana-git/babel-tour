@@ -1,5 +1,19 @@
 # Design history
 
+### Stone inside the Library's wells
+
+*2026-10-13* · `src/world/build/materials.js`, `honeycomb.js`, `shelves.js`.
+
+The Vestibule's first-load view showed a textured bridge beside a blank brown
+well wall. This was the well's untextured lining, made more visible by a smooth
+additive glow sheet, rather than a texture still loading. All hexagonal well
+linings now share the gallery walls' ashlar colour, normal and roughness maps,
+projected at the same world-space scale. Their light fades with depth; the
+Vestibule's warmth from below is shaded on the masonry itself, so mortar stays
+dark and the stone retains its detail. The separate glow sheet is removed.
+The paving, bridge, rails and random layout are unchanged. The existing
+`?wvest=old:7` switch still disables the warmth from below.
+
 What the design boards asked for, what was tried, and what was picked. The
 code keeps what is built and why; the story of how it got there lives here
 and in git history.

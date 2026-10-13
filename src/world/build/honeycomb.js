@@ -932,6 +932,7 @@ export function buildFlightDressing(ctx) {
     shelf: new Batch(M.shelf, G), shelfLip: new Batch(M.shelfLip), shelfBack: new Batch(M.shelfBack, { cast: false, ...G }),
     bronze: new Batch(M.bronze), bronzeDim: new Batch(M.bronzeDim), inlay: new Batch(M.inlay, { cast: false }), fillet: new Batch(M.fillet, { cast: false }),
     liner: new Batch(M.liner, { cast: false }), stars: new Batch(M.stars, { cast: false, receive: false }),
+    well: new Batch(M.well, { cast: false, ...P }), wellGlow: new Batch(M.wellGlow, { cast: false, ...P }),
     step: new Batch(M.step, P), mirror: new Batch(M.mirror, { cast: false }), stone: new Batch(M.stone, P),
     frame: new Batch(M.frame), gilt: new Batch(M.gilt, { cast: false }), giltDeep: new Batch(M.giltDeep, { cast: false }), iron: new Batch(M.iron, { cast: false }), rail: new Batch(M.wallTop, P),
     shafts: new Batch(shaftMaterial, { cast: false, receive: false }),

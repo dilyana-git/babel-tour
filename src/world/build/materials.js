@@ -687,6 +687,29 @@ export function buildMaterials(ctx) {
     return mat;
   };
   const sprite = (map) => Std({ map, alphaTest: 0.32, roughness: 0.9, side: THREE.DoubleSide });
+  // Well linings use the walls' stone and world-space scale. Light from below
+  // belongs to the stone too, so its joints remain visible in the warm glow.
+  const wellStone = (glow = false) => {
+    const mat = Std({
+      map: wall.map, normalMap: wall.normalMap, roughnessMap: wall.roughnessMap,
+      color: stoneTint('#b6a897', '#ada89e'), roughness: 1, side: THREE.DoubleSide,
+    });
+    mat.onBeforeCompile = (sh) => {
+      sh.uniforms.uWellGlow = { value: new THREE.Color(glow ? '#ff9d58' : '#000000') };
+      sh.vertexShader = sh.vertexShader
+        .replace('#include <common>', '#include <common>\nvarying float vWellY;')
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\nvWellY = (modelMatrix * vec4(transformed, 1.0)).y;');
+      sh.fragmentShader = sh.fragmentShader
+        .replace('#include <common>', '#include <common>\nvarying float vWellY;\nuniform vec3 uWellGlow;')
+        .replace('#include <opaque_fragment>', `
+          outgoingLight *= 1.0 - 0.98 * smoothstep(6.0, 150.0, -vWellY);
+          float wellDepth = clamp((3.0 - vWellY) / 110.0, 0.0, 1.0);
+          outgoingLight += diffuseColor.rgb * uWellGlow * 1.2 * pow(wellDepth, 0.7);
+          #include <opaque_fragment>`);
+    };
+    mat.customProgramCacheKey = () => 'babel-well-stone';
+    return mat;
+  };
   // where the Fork's signpost's lantern hangs, and how strong (gardenFix5.js, 3)
   const signLamp = { value: new THREE.Vector4(0, -1e6, 0, 0) };
   const M = {
@@ -835,6 +858,8 @@ export function buildMaterials(ctx) {
     fillet: Std({ ...FILLET_BRASS, side: THREE.DoubleSide }),
     mirror: Std({ color: '#767c82', roughness: 0.34, metalness: 0.95, envMapIntensity: 2.4 }),
     liner: Std({ color: '#2a2219', roughness: 1, side: THREE.DoubleSide }),
+    well: wellStone(),
+    wellGlow: wellStone(true),
     stars: keep(new THREE.MeshBasicMaterial({ map: starTex, color: '#ffffff', toneMapped: false, side: THREE.DoubleSide })),
     step: stoneShade(Std({ map: again(flag.map, 1 / 22), normalMap: again(flag.normalMap, 1 / 22), roughnessMap: again(flag.roughnessMap, 1 / 22), color: stoneTint('#b3a692', '#aea99b'), roughness: 1 })),
     glow: keep(makeGlowMaterial()),
