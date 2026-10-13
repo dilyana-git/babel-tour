@@ -61,6 +61,18 @@ export function createNavigationDriver(driver, baseUrl, { mutation, onStep = asy
   const backToMap = async () => { await click('.room-map'); await map(); };
   const choose = async (index) => {
     await map();
+    // The ending keeps the map behind its colophon until the reader asks
+    // for the rooms. Follow that control before testing the room Tab order.
+    if (await driver.executeScript('return !!document.querySelector(".map-ending")')) {
+      await waitUntil(driver, () => driver.executeScript(() => {
+        const ways = document.querySelector('.map-ending-ways');
+        return ways && !ways.inert && Number(getComputedStyle(ways).opacity) > 0.99;
+      }), 'The ending did not offer a return to the rooms', TIMEOUT);
+      await click('.map-ending-map');
+      await waitUntil(driver, () => driver.executeScript('return !document.querySelector(".map-ending")'),
+        'Choosing rooms did not dismiss the ending', TIMEOUT);
+      await map();
+    }
     assert.equal(await driver.executeScript('return document.querySelectorAll(".map-room").length'), ROOMS.length,
       'All eight map room controls must exist');
     // Navigate focus through the actual Tab order, without retaining handles
