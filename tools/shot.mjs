@@ -22,6 +22,7 @@
 //
 // It prints each file it wrote and any console errors the page logged.
 //
+// --profile records startup marks, long tasks and a JavaScript CPU profile.
 // For a refactor that should change nothing: --fingerprint writes, instead of
 // pictures, <name>-fingerprint.json — a hash of every object in the built
 // scene (its geometry, transform and materials, each material's shader patch
@@ -187,6 +188,16 @@ async function run() {
       };
       await page('Runtime.enable');
       await page('Page.enable');
+      if (args.profile) {
+        await page('Page.addScriptToEvaluateOnNewDocument', { source: `
+          window.__startupTasks = [];
+          new PerformanceObserver((list) => {
+            window.__startupTasks.push(...list.getEntries().map(({ startTime, duration }) => ({ startTime, duration })));
+          }).observe({ type: 'longtask', buffered: true });
+        ` });
+        await page('Profiler.enable');
+        await page('Profiler.start');
+      }
       if (args.fingerprint) await page('Page.addScriptToEvaluateOnNewDocument', { source: CAPTURE_SHADERS });
       await page('Emulation.setDeviceMetricsOverride', { width: W, height: H, deviceScaleFactor: 1, mobile: W < 600 });
       if (W < 600) await page('Emulation.setTouchEmulationEnabled', { enabled: true });
@@ -200,6 +211,21 @@ async function run() {
       if (!ready) throw new Error('The world never finished building (5 min).');
       const frames = () => evaluate(`new Promise((ok) => { let n = ${FRAMES}; const f = () => (--n > 0 ? requestAnimationFrame(f) : ok(true)); requestAnimationFrame(f); })`);
       await frames();
+      if (args.profile) {
+        const { profile } = await page('Profiler.stop');
+        const timing = await evaluate(`({
+          marks: performance.getEntriesByType('mark').map(({ name, startTime }) => ({ name, startTime })),
+          tasks: window.__startupTasks,
+          renderer: (() => { const gl = document.querySelector('canvas[data-engine]')?.getContext('webgl2');
+            const ext = gl?.getExtension('WEBGL_debug_renderer_info');
+            return ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : null; })()
+        })`);
+        const file = join(OUT, `${[args.name, tag].filter(Boolean).join('-') || 'world'}-startup.json`);
+        writeFileSync(file, JSON.stringify({ ...timing, profile }));
+        written.push(file);
+        console.log(file);
+        console.log(JSON.stringify({ marks: timing.marks, longestTasks: [...timing.tasks].sort((a, b) => b.duration - a.duration).slice(0, 10) }, null, 2));
+      }
       if (args.fingerprint) {
         const file = join(OUT, `${[args.name, tag].filter(Boolean).join('-') || 'world'}-fingerprint.json`);
         writeFileSync(file, JSON.stringify(await evaluate(FINGERPRINT)));
