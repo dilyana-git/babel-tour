@@ -473,6 +473,8 @@
 .map-card-summary {
   margin: 0;
   max-width: 52ch;
+  /* Reserve three lines so the Enter button stays in place between rooms. */
+  min-height: 4.35em;
   font: 500 1.1875rem / 1.45 var(--serif);
   color: var(--ink);
   text-wrap: pretty;
@@ -1118,14 +1120,6 @@
 .entry-map.is-tall.is-ended .map-stage {
   height: clamp(13rem, 40vh, calc(100vh - 32rem));
   height: clamp(13rem, 40svh, calc(100svh - 32rem));
-}
-
-/* The summary is on the phone too (it was hidden under 520 px: kicker, name,
-   subtitle and Enter, and not the sentence that makes a reader want to go
-   in). Three lines of room for it in every caption, so that Enter keeps its
-   place from room to room under a thumb. */
-.entry-map.is-tall .map-card-summary {
-  min-height: 4.35em;
 }
 
 /* --- The live world ----------------------------------------------------------
