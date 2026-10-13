@@ -472,8 +472,9 @@
 
 .map-card-summary {
   margin: 0;
-  font: 500 clamp(0.98rem, 0.9vw, 1.06rem) / 1.45 var(--serif);
-  color: var(--ink-2);
+  max-width: 52ch;
+  font: 500 1.1875rem / 1.45 var(--serif);
+  color: var(--ink);
   text-wrap: pretty;
 }
 
