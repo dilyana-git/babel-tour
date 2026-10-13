@@ -66,8 +66,10 @@ export const roofTop = (t, a, r) => {
   return roofProfile(t, q) + sweep(t, u, q);
 };
 
-// A mesh gathered a triangle at a time, each corner { p, n, t } — wound to
-// agree with the normals it is given.
+// A mesh gathered a triangle at a time, each corner { p, n, t, baseN } — wound
+// to agree with the normals it is given. `baseN` (`n` if not given) is the
+// roof's slope under the corner, without the roll or tile-end it is on: what a
+// `shell` carries as aRoofNormal for softenRoofTiles.
 const gather = (shell = false) => {
   const pos = [], nor = [], uv = [], baseNor = [];
   const tri = (a, b, c) => {
@@ -190,17 +192,17 @@ export function tiledRoof({ at, kind = 'grey', light = false, bronze = false }) 
           // the tile-end: a round face on the roll's end, looking out
           const c = W(w, rE), nn = N(w, rE), outw = norm(cross(S, nn)), o = outw[0] * OUT[0] + outw[2] * OUT[2] < 0 ? -1 : 1;
           const face = [outw[0] * o, outw[1] * o, outw[2] * o], R = TILE.roll * 1.12;
-          const mid = { p: mix3(mix3(c, nn, R * 0.25), face, 0.12), n: face, t: [0.9, 0.5] };
+          const mid = { p: mix3(mix3(c, nn, R * 0.25), face, 0.12), n: face, t: [0.9, 0.5], baseN: nn };
           const rim = Array.from({ length: 11 }, (_, h) => {
             const th = (h / 10) * Math.PI * 2;
-            return { p: mix3(mix3(mid.p, S, Math.cos(th) * R), nn, Math.sin(th) * R), n: face, t: [0.9 + 0.085 * Math.cos(th), 0.5 + 0.085 * Math.sin(th)] };
+            return { p: mix3(mix3(mid.p, S, Math.cos(th) * R), nn, Math.sin(th) * R), n: face, t: [0.9 + 0.085 * Math.cos(th), 0.5 + 0.085 * Math.sin(th)], baseN: nn };
           });
           for (let h = 0; h < 10; h++) tiles.tri(mid, rim[h], rim[h + 1]);
           // and the drip tile between this roll and the next: a tongue hung from the pan's edge
           if (j < lines.length - 1) {
             const wa = w + TILE.roll * 1.1, wb = lines[j + 1] - TILE.roll * 1.1, wm = (wa + wb) / 2;
             const pa = W(wa, rE, 0.1), pb = W(wb, rE, 0.1), pm = mix3(W(wm, rE, 1.15), face, 0.15);
-            tiles.tri({ p: pa, n: face, t: [0.03, 0.03] }, { p: pb, n: face, t: [0.17, 0.03] }, { p: pm, n: face, t: [0.1, 0.2] });
+            tiles.tri({ p: pa, n: face, t: [0.03, 0.03], baseN: nn }, { p: pb, n: face, t: [0.17, 0.03], baseN: nn }, { p: pm, n: face, t: [0.1, 0.2], baseN: nn });
           }
         });
       }
@@ -256,7 +258,7 @@ export function tiledRoof({ at, kind = 'grey', light = false, bronze = false }) 
           return Array.from({ length: RAD + 1 }, (_, h) => {
             const th = (h / RAD) * Math.PI * 2, cs = Math.cos(th), sn = Math.sin(th);
             const nn = [up[0] * cs + b[0] * sn, up[1] * cs + b[1] * sn, up[2] * cs + b[2] * sn];
-            return { p: mix3(centre, nn, pt.rad), n: nn, t: [0.61 + 0.18 * (h / RAD), run / (TILE.len * 4)] };
+            return { p: mix3(centre, nn, pt.rad), n: nn, t: [0.61 + 0.18 * (h / RAD), run / (TILE.len * 4)], baseN: up };
           });
         });
         for (let i = 0; i < rings.length - 1; i++) for (let h = 0; h < RAD; h++) (bronze && i >= eaveAt - 2 ? horns : tiles).quad(rings[i][h], rings[i][h + 1], rings[i + 1][h + 1], rings[i + 1][h]);
