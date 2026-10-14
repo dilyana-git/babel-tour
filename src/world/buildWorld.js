@@ -92,7 +92,7 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
   yield 'The Door';
   Object.assign(ctx, buildDoor(ctx));
   yield 'The arch';
-  Object.assign(ctx, buildArch(ctx));
+  Object.assign(ctx, yield* buildArch(ctx));
   yield 'The garden';
   Object.assign(ctx, buildGarden(ctx));
   yield 'The fork, raked';
@@ -114,7 +114,7 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
   yield 'The unexplored';
   Object.assign(ctx, buildUnexplored(ctx));
   yield 'What a reader at eye level cannot see';
-  Object.assign(ctx, buildCulling(ctx));
+  Object.assign(ctx, yield* buildCulling(ctx));
   yield 'What the camera and the overlay need';
   Object.assign(ctx, buildOverlay(ctx));
   yield 'Where a reader stands, and the ways on';

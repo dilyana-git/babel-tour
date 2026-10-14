@@ -553,6 +553,7 @@ export function* buildMist(ctx) {
       instances(geo, M.shoreRock, items.filter((it) => it.v === v), { cast: false, chunked: true });
     });
   }
+  yield;
   instances(new THREE.SphereGeometry(1, 12, 8), M.glow, glows, { cast: false, receive: false, chunked: true });
   // (the paper lanterns, lampPass.js)
   instances(new THREE.SphereGeometry(1, 40, 28), M.lpPaper, trialPaper, { cast: false, receive: false, chunked: true, name: 'trial-paper' });
@@ -576,6 +577,7 @@ export function* buildMist(ctx) {
       // (feathered, it blends: ahead of the water, the pools and the halos)
       order: FEATHER.on ? -0.5 : 0,
     });
+    yield;
     if (beltGroup) {
       // (lit by the card's corner, not by the pixel: effects.js)
       const lit = BELT.lit;
@@ -647,8 +649,14 @@ export function* buildMist(ctx) {
     root.add(points);
   });
 
-  Object.entries(LB).forEach(([name, b]) => b.flush(name));
-  Object.entries(GB).forEach(([name, b]) => b.flush(name));
+  // Merging a world's worth of stone in one pass blocks the opening. Finish
+  // one material at a time so assembly can pause between the larger batches.
+  for (const batches of [LB, GB]) {
+    for (const [name, b] of Object.entries(batches)) {
+      b.flush(name);
+      yield;
+    }
+  }
 
   // The dark the honeycomb stands in: stars all the way down.
   {

@@ -1007,6 +1007,58 @@ const shaderReady = (gl, material) => {
   const { programs, currentProgram } = gl.properties.get(material);
   return programs ? [...programs.values()].every((program) => program.isReady()) : !currentProgram || currentProgram.isReady();
 };
+// Send vertex and instance buffers in short slices before the first visible
+// frame. The one-pixel renders use the finished scene's shader configuration.
+const prepareBuffers = async (gl, root, camera, scene, alive, progress) => {
+  const target = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType });
+  const was = gl.getRenderTarget();
+  const shadows = { auto: gl.shadowMap.autoUpdate, needed: gl.shadowMap.needsUpdate };
+  const scratch = new THREE.Scene();
+  scratch.fog = scene.fog;
+  scratch.environment = scene.environment;
+  scratch.environmentIntensity = scene.environmentIntensity;
+  root.updateMatrixWorld(true);
+  const objects = [], lights = [], uploaded = new Set();
+  root.traverse((o) => {
+    if (o.isLight) {
+      const stand = Object.create(o); stand.children = []; lights.push(stand);
+    } else if (o.geometry && o.material && o.name !== 'doorway') {
+      // Ordinary meshes sharing geometry share its buffers. Instanced meshes
+      // also carry their own matrices and colours, so each needs preparing.
+      const buffers = o.isInstancedMesh ? o : o.geometry;
+      if (!uploaded.has(buffers)) { uploaded.add(buffers); objects.push(o); }
+    }
+  });
+  try {
+    gl.shadowMap.autoUpdate = gl.shadowMap.needsUpdate = false;
+    let since = performance.now();
+    for (let i = 0; i < objects.length; i += 8) {
+      const stands = objects.slice(i, i + 8).map((o) => {
+        const stand = Object.create(o);
+        stand.children = [];
+        stand.visible = true;
+        stand.frustumCulled = false;
+        stand.onBeforeRender = stand.onAfterRender = () => {};
+        return stand;
+      });
+      scratch.children = [...lights, ...stands];
+      gl.setRenderTarget(target);
+      gl.render(scratch, camera);
+      gl.setRenderTarget(was);
+      progress(Math.min(1, (i + stands.length) / objects.length));
+      if (performance.now() - since > SLICE_MS) {
+        await breathe();
+        if (!alive()) return;
+        since = performance.now();
+      }
+    }
+  } finally {
+    gl.setRenderTarget(was);
+    gl.shadowMap.autoUpdate = shadows.auto;
+    gl.shadowMap.needsUpdate = shadows.needed;
+    target.dispose();
+  }
+};
 // Every texture a material samples, its own maps and its shader's uniforms.
 const texturesOf = (gl, materials) => {
   const out = new Set();
@@ -1153,6 +1205,11 @@ function WorldContent({ rooms = false, onProgress, onHold, onAssembled, onPlan, 
         if (!alive) return;
       }
       mark('textures-sent');
+      mark('buffers-started');
+      await prepareBuffers(gl, world.root, camera, scene, () => alive,
+        (f) => say(SHARE.compile + (SHARE.upload - SHARE.compile) * f));
+      if (!alive) return;
+      mark('buffers-ready');
       say(SHARE.upload);
       scene.add(world.root);
       setBuilt({ world, sky: made.sky });

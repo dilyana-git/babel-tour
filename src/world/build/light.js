@@ -470,22 +470,20 @@ export function buildUnexplored(ctx) {
   return { veil, setVeil };
 }
 
-export function buildCulling(ctx) {
+export function* buildCulling(ctx) {
   const { root, lodGroups, veil } = ctx;
   // ── What a reader at eye level cannot see ─────────────────────────────────
   // Everything past `reach` from the eye, by bounding sphere. From above,
   // nothing is culled.
   root.updateMatrixWorld(true);
-  const cullable = (() => {
-    const box = new THREE.Box3(), sphere = new THREE.Sphere();
-    return root.children
-      .filter((o) => (o.isMesh || o.isSprite) && o !== veil)
-      .map((o) => {
-        box.setFromObject(o);
-        box.getBoundingSphere(sphere);
-        return { o, c: sphere.center.clone(), r: sphere.radius };
-      });
-  })();
+  const cullable = [], box = new THREE.Box3(), sphere = new THREE.Sphere();
+  for (const o of root.children) {
+    if (!(o.isMesh || o.isSprite) || o === veil) continue;
+    box.setFromObject(o);
+    box.getBoundingSphere(sphere);
+    cullable.push({ o, c: sphere.center.clone(), r: sphere.radius });
+    if (cullable.length % 16 === 0) yield;
+  }
   let culling = false;
   // `near`: the eyes a gallery wall's books are drawn as boxes for, within
   // LOD_NEAR of its bounds (the reader's, and the far side of a doorway's);

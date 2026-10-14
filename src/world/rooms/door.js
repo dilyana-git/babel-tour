@@ -23,7 +23,7 @@ export function buildDoor(ctx) {
   return { DOOR, GATE };
 }
 
-export function buildArch(ctx) {
+export function* buildArch(ctx) {
   const { light, rnd, rr, pick, dir, add, rot3, keep, bookRowsSet, Std, M, root, boxGeo, placed,
     brokenBlock, chunkGeo, rockGeo, instances, decal, haloMaterial, halos, lightWishes, point, R, A,
     edgeFrame, hallMid, LB, fallenLeaves, doorIvy, doorRubble, petals, hangs, ivyLeaves, ivyWood,
@@ -51,6 +51,7 @@ export function buildArch(ctx) {
       }
     }
   }
+  yield;
   {
     const e = edgeFrame(DOOR, 5);
     // Boulders at the foot of the wall on the garden side, either side of the
@@ -341,6 +342,7 @@ export function buildArch(ctx) {
       // voussoirs and hangs from it — and in along the passage's walls as far
       // as the garden's light goes. In the arch's frame, cast onto its stone.
       if (!IVY_OLD) {
+        yield;
         const W = PORTAL.WALL, HW = PORTAL.HW, F = PORTAL.FLOOR;
         // (the wall's garden face beyond the arch's own masonry, either side)
         const beyond = (x0, x1) => new THREE.PlaneGeometry(x1 - x0, 125).translate((x0 + x1) / 2, 62.5, -W);
@@ -391,6 +393,7 @@ export function buildArch(ctx) {
         }
       }
     }
+    yield;
     // ── The green moon, through the jamb ──────────────────────────────────
     // "Hedges breathe under a green moon": the light off the garden falls
     // through the breach and lands on the pavement, which is the only thing
@@ -530,7 +533,9 @@ export function buildArch(ctx) {
   const ENTRANCE = hallMid(0, 0, 2);
 
   const bookAttrs = { aSpine: (it) => it.spine ?? spineAt(it.p), aTitle: (it) => it.title ?? titleAt(it.p), aGraze: (it) => it.graze ?? 0, aDust: (it) => it.dust ?? 0 };
+  yield;
   instances(new THREE.BoxGeometry(1, 1, 1), M.books, books, { chunked: true, attrs: bookAttrs });
+  yield;
   // A shelved book shows its spine, its head and its sides, never the foot it
   // stands on or the fore-edge against the case's back: its box without
   // those two faces (BoxGeometry's -y and -z), a third less to draw of each
@@ -542,6 +547,7 @@ export function buildArch(ctx) {
     return g;
   })();
   instances(shelvedBox, M.books, shelved, { group: (it) => it.wall, attrs: bookAttrs, name: 'shelvedBooks' });
+  yield;
   // Each wall's painted copy, a mesh to a wall, to stand in for its boxes
   // when no eye is near: through an arch two galleries off, or from the map,
   // a real book is two or three pixels across and the paint is the same
@@ -568,16 +574,20 @@ export function buildArch(ctx) {
       rows.visible = false;
       root.add(rows);
       lodGroups.push({ boxes, rows, c: boxes.boundingSphere.center.clone(), r: boxes.boundingSphere.radius });
+      yield;
     }
   }
   instances(new THREE.TorusGeometry(0.72, 0.2, 5, 10), M.iron, links, { cast: false, chunked: true });
+  yield;
   instances(new THREE.LatheGeometry([
     [0, 0], [0.95, 0], [0.95, 0.35], [0.5, 0.8], [0.36, 2], [0.78, 3.2], [0.84, 3.7], [0.38, 4.6], [0.42, 5.5], [0.85, 6], [0, 6.2],
   ].map(([x, yy]) => new THREE.Vector2(x, yy)), 10), M.bronze, balusters, { chunked: true });
+  yield;
   instances(new THREE.SphereGeometry(1, 16, 12), M.glow, lampCores, { cast: false, receive: false, chunked: true });
   instances(new THREE.SphereGeometry(1, 20, 14), M.glass, lampShells, { cast: false, receive: false, chunked: true });
   instances(new THREE.SphereGeometry(1, 32, 20), M.globe, globes, { cast: false, receive: false, chunked: true });
   instances(new THREE.SphereGeometry(1, 32, 20), M.deadGlass, deadGlobes, { cast: false, chunked: true });
+  yield;
   // (the lamp pass, lampPass.js)
   instances(lanternPaneGeometry(), M.globe, trialPanes, { cast: false, receive: false, chunked: true, name: 'trial-panes' });
   instances(flameGeometry(), M.lpFlame, trialFlames, { cast: false, receive: false, chunked: true, name: 'trial-flames' });
@@ -588,6 +598,7 @@ export function buildArch(ctx) {
     wax.renderOrder = 2;
     root.add(wax);
   }
+  yield;
   instances(rockGeo(), M.rock, rubble, { chunked: true });
   instances(chunkGeo(), M.moonRock, doorRubble, { chunked: true });
   instances(new THREE.PlaneGeometry(0.9, 0.62).rotateX(-Math.PI / 2), M.petal, petals, { cast: false });

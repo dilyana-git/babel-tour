@@ -1,5 +1,20 @@
 # Design history
 
+### Shorter startup stalls
+
+*2026-10-14* · Further loading profiling found large uninterrupted arch,
+geometry-merge and visibility-bound construction passes, followed by buffer
+uploads in the first visible frame. Assembly now yields between those batches,
+and small offscreen renders prepare geometry and instance buffers beforehand.
+Shared geometry is prepared once, with shadows deferred to the real scene.
+The library geometry, random layout and material code match the prior scene
+fingerprint; animated uniforms and transforms naturally differ between loads.
+On the local Radeon GPU, the paired profile's first-frame block fell from
+2.12 seconds to 0.45 seconds. Total construction and shader preparation still
+take about 15 seconds; this change addresses freezes rather than promising an
+instant load. Reports and inspected pictures are in `.ux-review/shots/` under
+`map-polish-loading-reference` and `map-polish-loading-final`.
+
 ### Stone inside the Library's wells
 
 *2026-10-13* · `src/world/build/materials.js`, `honeycomb.js`, `shelves.js`.
