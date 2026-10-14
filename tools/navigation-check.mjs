@@ -193,6 +193,26 @@ test('a long move cannot tunnel through a thin wall', () => {
   body.dispose();
 });
 
+test('instanced woodland trunks block their transformed positions while the glade stays clear', () => {
+  const root = new THREE.Group(); floor(root);
+  const grove = new THREE.Group();
+  grove.position.set(4, 0, 7);
+  root.add(grove);
+  const geometry = new THREE.CylinderGeometry(2, 2, 30, 8);
+  const originalIndex = Array.from(geometry.index.array);
+  const trunks = new THREE.InstancedMesh(geometry, material, 2);
+  trunks.name = 'trees';
+  for (let i = 0; i < 2; i++) trunks.setMatrixAt(i, new THREE.Matrix4().makeTranslation(i * 30, 15, 0));
+  grove.add(trunks);
+  const body = makeBody(root);
+  for (const x of [4, 34]) {
+    assert.equal(body.clear(new THREE.Vector3(x, 0, -10), new THREE.Vector3(x, 0, 25)), false);
+  }
+  assert.equal(body.clear(new THREE.Vector3(19, 0, -10), new THREE.Vector3(19, 0, 25)), true);
+  assert.deepEqual(Array.from(geometry.index.array), originalIndex, 'Collision preparation must leave the rendered bark intact');
+  body.dispose();
+});
+
 test('floor markings cannot turn supported pavement into a ledge', () => {
   const root = new THREE.Group(); floor(root);
   const marking = new THREE.Mesh(new THREE.PlaneGeometry(20, 100).rotateX(Math.PI / 2), material);

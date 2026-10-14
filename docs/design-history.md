@@ -1,5 +1,23 @@
 # Design history
 
+### Woodland around the lake and labyrinth
+
+*2026-10-14* · The compact groves were still too sparse beside the chosen A
+concept. Twenty-four planting areas now add 167 mature broad trees, pines,
+cherries and a few maples to the default scene, bringing the tree count from
+271 to 438. Shrubs and scattered granite stones fill their understory. Twelve
+grown bark shapes are shared across instances, with varied heights (49–76),
+rotation and crown colours. Seed 94263 leaves the prior planting and shared
+world stream intact. Trunks clear the actual walking corridors, water and
+hedges; instanced bark also participates in collision.
+
+The desktop and phone map, Fork, Pavilion and maze pictures were inspected.
+The navigation smoke test passed all five scenarios, and real held-W travel
+from the Door through the Fork, Pavilion and maze passed, as did the Back
+controls through each garden room. A unit check covers transformed shared
+trunks, an open glade and unchanged rendered bark indices. Evidence is under
+`.ux-review/shots/map-polish-*` and `.ux-review/navigation/map-polish-*`.
+
 ### Shorter startup stalls
 
 *2026-10-14* · Further loading profiling found large uninterrupted arch,

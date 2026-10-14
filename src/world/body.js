@@ -116,7 +116,7 @@ const treeFor = (geometry) => {
   return bvh;
 };
 
-// An instanced field of boxes as one solid in world space (positions only).
+// An instanced field of solid shapes in world space (positions only).
 const mergeField = (inst) => {
   const g = inst.geometry, pos = g.attributes.position, idx = g.index;
   const n = inst.count, per = pos.count;
@@ -160,7 +160,8 @@ export function makeBody(root) {
     const c = { water, name: o.name, double: m.side === THREE.DoubleSide, sphere: new THREE.Sphere(), inverse: new THREE.Matrix4() };
     if (o.isInstancedMesh) {
       const g = o.geometry;
-      if (m.alphaTest || m.transparent || (g.index ? g.index.count : g.attributes.position.count) / 3 !== BOX_TRIS) return;
+      if (m.alphaTest || m.transparent
+        || (o.name !== 'trees' && (g.index ? g.index.count : g.attributes.position.count) / 3 !== BOX_TRIS)) return;
       // merged on first approach (`solid`), in world space
       if (!o.boundingSphere) o.computeBoundingSphere();
       Object.assign(c, { field: o, geometry: null, matrix: IDENTITY, bounds: o.boundingSphere.clone().applyMatrix4(o.matrixWorld) });

@@ -22,7 +22,7 @@ import { pondShore, rockVariants, guardStones } from '../shore';
 import { ONE_TREE, SHORE_OLD, FORK_OLD, NO_BOUND } from './common';
 
 export function buildTrees(ctx) {
-  const { light, paintings, rnd, rr, pick, dir, add, dist, keep, M, root, chunkKey, inGarden, hangs,
+  const { light, paintings, rnd, rr, pick, dir, add, dist, keep, M, root, instances, chunkKey, inGarden, hangs,
     GATE, foliage, beltFoliage, beltWood, LEAF, BLOSSOM, PERGOLA0, J, POND, MZ,
     POOLS, PATHS, segDist, pathDist, NORTH_OPEN, wayDist, onNorthBridge, boundaryDist } = ctx;
   // ── Trees (trees.js) ──────────────────────────────────────────────────────
@@ -227,6 +227,68 @@ export function buildTrees(ctx) {
             ctx.rocks.push({ p: [q[0] + 4, 4.5, q[1] - 3], rot: [0, range(0, 3), 0],
               s: [range(2.5, 4), range(1.5, 2.5), range(2, 3.5)], color: '#aaa293' });
           }
+        }
+      }
+    }
+    // Layered woodland makes glades of the lake and maze. A small family of
+    // grown shapes shares bark geometry; scale, rotation and leaf tints vary
+    // each tree. Its own stream keeps the established planting in place.
+    if (!paintings && !ONE_TREE) {
+      const wr = makeRng(94263), range = (a, b) => a + (b - a) * wr();
+      const choose = (xs) => xs[Math.floor(wr() * xs.length)];
+      const shapes = new Map();
+      for (const [si, species] of ['broad', 'pine', 'cherry', 'maple'].entries()) {
+        shapes.set(species, Array.from({ length: 3 }, (_, variant) => {
+          const wood = new Wood(7);
+          const grown = growTree(species, makeRng(94400 + si * 31 + variant * 7), wood, { H: 50, S: 30, detail: false });
+          return { geometry: wood.geometry(), sprays: grown.sprays, trees: [] };
+        }));
+      }
+      const groves = [[1085, -242], [1120, -342], [1180, -407], [1240, -422], [1320, -419], [1400, -416],
+        [1475, -352], [1530, -255], [1550, -160], [1585, -53], [1575, 42], [1585, 153],
+        [1570, 280], [1542, 401], [1520, 485], [1440, 522], [1345, 537], [1235, 465],
+        [1190, 400], [1170, 330], [1145, 230], [1164, -88], [1410, 59], [1212, 62]];
+      const yawQ = new THREE.Quaternion(), leafQ = new THREE.Quaternion(), angles = new THREE.Euler();
+      for (const [gi, centre] of groves.entries()) {
+        for (let tries = 0, count = 0; tries < 180 && count < (light ? 3 : 8); tries++) {
+          const p = [centre[0] + range(-54, 54), centre[1] + range(-43, 43)];
+          const walk = walkDist(p);
+          if (blocked(p) || wayDist(p) < 28 || boundaryDist(p) < 24 || walk < 43
+            || placedTrees.some((q) => dist(q, p) < 23) || treeList.some((t) => dist(t.p, p) < 23)) continue;
+          const roll = wr();
+          const species = gi % 7 === 3 ? 'cherry' : roll < 0.46 ? 'broad' : roll < 0.82 ? 'pine' : roll < 0.94 ? 'cherry' : 'maple';
+          const shape = choose(shapes.get(species)), H = range(49, 76), scale = H / 50;
+          const yaw = range(0, Math.PI * 2), cs = Math.cos(yaw), sn = Math.sin(yaw);
+          const at = ([x, y, z]) => [p[0] + scale * (cs * x + sn * z), GROUND_T + scale * y, p[1] + scale * (cs * z - sn * x)];
+          shape.trees.push({ p: [p[0], GROUND_T, p[1]], rot: [0, yaw, 0], s: [scale, scale, scale] });
+          yawQ.setFromEuler(angles.set(0, yaw, 0));
+          const palette = TINT[species], tint = new THREE.Color(choose(palette));
+          for (const sp of shape.sprays) {
+            const position = at(sp.p), size = sp.s.map((s) => s * scale);
+            if (walkDist([position[0], position[2]]) < 9 + size[0] * 0.5 && position[1] - size[1] * 0.5 < 30) continue;
+            leafQ.setFromEuler(angles.set(...sp.rot)).premultiply(yawQ);
+            angles.setFromQuaternion(leafQ);
+            tone.copy(tint).lerp(pickTone.set(choose(palette)), 0.25);
+            foliage.push({ p: position, rot: [angles.x, angles.y, angles.z], s: size, color: tone.getHex(),
+              k: sp.shade, kind: sp.kind, crown: [...at(sp.crown), sp.crown[3] * scale] });
+          }
+          treeList.push({ p, species, H: +H.toFixed(1), woodland: true });
+          count++;
+          for (let k = 0; k < 2; k++) {
+            const q = [p[0] + range(-20, 20), p[1] + range(-20, 20)];
+            if (blocked(q, -10) || wayDist(q) < 18 || walkDist(q) < 22 || boundaryDist(q) < 12) continue;
+            const size = range(10, 18);
+            foliage.push({ p: [q[0], range(7, 11), q[1]], rot: [0, range(0, Math.PI * 2), 0],
+              s: [size, size * 0.8, size], color: choose(TINT.broad), k: range(0.7, 0.9), crown: [q[0], 5, q[1], size * 0.75] });
+            if (k === 0) ctx.rocks.push({ p: [q[0] + 5, 4.4, q[1] - 3], rot: [0, range(0, 3), 0],
+              s: [range(2.5, 4), range(1.5, 2.5), range(2, 3.5)], color: '#aaa293' });
+          }
+        }
+      }
+      for (const family of shapes.values()) {
+        for (const shape of family) {
+          if (shape.trees.length) instances(shape.geometry, M.bark, shape.trees, { chunked: true, name: 'trees' });
+          else shape.geometry.dispose();
         }
       }
     }
