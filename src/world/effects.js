@@ -14,6 +14,7 @@
 //                    shelves round a dark vault, with a few hot lamps in it
 import * as THREE from 'three';
 import { LAMPS } from './lampPass';
+import { bindSceneDepth } from './softDepth';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { SPINE_COLS, SPINE_ROWS, SPINE_KINDS, HIDE_TILE, HIDE_SIZE, spineLayout, TITLE_COLS, TITLE_ROWS, TITLE_ASPECT, TITLE_COUNT, NUMERALS } from './textures';
 
@@ -1151,59 +1152,9 @@ export function makeShaftMaterial(color = '#ffc88a', strength = 0.17) {
     side: THREE.DoubleSide,
   });
 
-  // A cone is a sheet of light, so a depth test alone cuts a hard arc where
-  // it enters a wall. Fade against the solids' depth instead. Copy it once
-  // per scene render, after the solids and before these transparent sheets;
-  // sampling the active depth attachment would create a feedback loop.
-  // Each target keeps its own copy: the doorway and the pond render other
-  // cameras, and their depth must never be mistaken for the reader's.
-  const copies = new Map();
-  material.onBeforeRender = (renderer, scene, camera) => {
-    const source = renderer.getRenderTarget();
-    material.uniforms.uSoft.value = 0;
-    material.uniformsNeedUpdate = true;
-    if (!source || !source.depthBuffer || source.samples > 0 || renderer.capabilities.reverseDepthBuffer) return;
-    let copy = copies.get(source);
-    if (!copy) {
-      const depth = new THREE.DepthTexture(source.width, source.height,
-        source.depthTexture?.type ?? (source.stencilBuffer ? THREE.UnsignedInt248Type : THREE.UnsignedIntType));
-      depth.format = source.depthTexture?.format ?? (source.stencilBuffer ? THREE.DepthStencilFormat : THREE.DepthFormat);
-      copy = { target: new THREE.WebGLRenderTarget(source.width, source.height, {
-        depthTexture: depth, stencilBuffer: source.stencilBuffer,
-      }), frame: -1 };
-      copies.set(source, copy);
-    }
-    const target = copy.target;
-    if (target.width !== source.width || target.height !== source.height) {
-      target.setSize(source.width, source.height);
-      copy.frame = -1;
-    }
-    if (copy.frame !== renderer.info.render.frame) {
-      renderer.initRenderTarget(target);
-      const gl = renderer.getContext();
-      try {
-        gl.bindFramebuffer(gl.READ_FRAMEBUFFER, renderer.properties.get(source).__webglFramebuffer);
-        gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, renderer.properties.get(target).__webglFramebuffer);
-        gl.blitFramebuffer(0, 0, source.width, source.height, 0, 0, target.width, target.height,
-          gl.DEPTH_BUFFER_BIT, gl.NEAREST);
-      } finally {
-        // Restore both framebuffer bindings as well as three's cached state.
-        gl.bindFramebuffer(gl.FRAMEBUFFER, renderer.properties.get(source).__webglFramebuffer);
-        renderer.setRenderTarget(source);
-      }
-      copy.frame = renderer.info.render.frame;
-    }
-    material.uniforms.uSceneDepth.value = target.depthTexture;
-    material.uniforms.uDepthSize.value.set(source.width, source.height);
-    renderer.getCurrentViewport(material.uniforms.uDepthViewport.value);
-    material.uniforms.uInverseProjection.value.copy(camera.projectionMatrixInverse);
-    material.uniforms.uSoft.value = 1;
-  };
-  material.addEventListener('dispose', () => {
-    for (const { target } of copies.values()) target.dispose();
-    copies.clear();
-  });
-  return material;
+  // A depth test cuts a hard arc where a cone meets a wall; the shader fades
+  // that intersection against a copy of the solids' depth instead.
+  return bindSceneDepth(material, material.uniforms);
 }
 
 // ── The motes ─────────────────────────────────────────────────────────────────

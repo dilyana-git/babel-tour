@@ -1,5 +1,19 @@
 # Design history
 
+### Soft mist around the garden's trunks
+
+*2026-10-14* · The garden's horizontal mist sheets drew straight colour
+boundaries across trunks and pergola posts. Disabling their opacity confirmed
+the cause. Mist now reads a copy of the solids' depth and fades over eight
+world units of vertical separation at each intersection. Its placement,
+strength and drift stay the same. The existing light-shaft depth copying is
+shared with it, keeping each render camera's target separate and releasing
+the copies with the material. Mist is omitted when readable depth is absent.
+
+Strict GPU before/after pictures of the Fork and close post, plus the Pavilion
+and maze, were inspected. The required check and all five navigation smoke
+scenarios passed. Scene fingerprints retain identical geometry and lighting.
+
 ### Balancing the Silence and Door lighting
 
 *2026-10-14* · Rooms III and V still read darker than their neighbours.

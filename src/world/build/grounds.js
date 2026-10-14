@@ -8,6 +8,7 @@ import { PAVILION_PATH, gardenWalks } from '../gardenPlan';
 import { makeRng, FOLIAGE_KINDS } from '../textures';
 import { makeSparkles, makeFoliageDepthMaterial, crossedCards, makeBackdropFoliage } from '../effects';
 import { Wood, growTree } from '../trees';
+import { bindSceneDepth } from '../softDepth';
 import { WATER_Y } from '../water';
 import { lilyFlowerGeometry, lilyBudGeometry } from '../pond';
 import { BANK_VARY, forkOld, WAYMARK } from '../forkFix';
@@ -419,10 +420,7 @@ export function* buildMist(ctx) {
   {
     const near = [POND.c, [1150, 300], [1090, 400], [1240, 200], SHORE, J, [980, 520], [1350, 60],
       [1420, 250], [900, 430], [1180, 120], [1500, 380], [820, 300], [1600, 150]];
-    // Faint, and kept well off the places a reader stands: a horizontal sheet
-    // that passes through a post in front of you draws a razor-straight line
-    // across it. At this strength it is the air between the middle distance and
-    // the tree line, which is all it was ever wanted for.
+    // Faint, with its centres kept away from the places a reader stands.
     const mistMat = keep(new THREE.MeshBasicMaterial({
       map: radialTex, color: '#9fc0d8', transparent: true, opacity: 0.055,
       blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, side: THREE.DoubleSide,
@@ -435,21 +433,50 @@ export function* buildMist(ctx) {
     // place the garden was composed with.
     {
       const rooms = cells.filter((cl) => cl.room !== undefined).map((cl) => new THREE.Vector2(cl.c[0], cl.c[1]));
+      const depth = {
+        uSceneDepth: { value: null },
+        uDepthSize: { value: new THREE.Vector2(1, 1) },
+        uDepthViewport: { value: new THREE.Vector4(0, 0, 1, 1) },
+        uInverseProjection: { value: new THREE.Matrix4() },
+        uCameraWorld: { value: new THREE.Matrix4() },
+        uSoft: { value: 0 },
+      };
+      bindSceneDepth(mistMat, depth);
       mistMat.onBeforeCompile = (sh) => {
+        Object.assign(sh.uniforms, depth);
         sh.uniforms.uRooms = { value: rooms };
         sh.vertexShader = sh.vertexShader
           .replace('#include <common>', `#include <common>
-            varying vec2 vMistXZ;`)
+            varying vec3 vMistW;`)
           .replace('#include <begin_vertex>', `#include <begin_vertex>
-            vMistXZ = (modelMatrix * vec4(transformed, 1.0)).xz;`);
+            vMistW = (modelMatrix * vec4(transformed, 1.0)).xyz;`);
         sh.fragmentShader = sh.fragmentShader
           .replace('#include <common>', `#include <common>
             uniform vec2 uRooms[${rooms.length}];
-            varying vec2 vMistXZ;`)
+            uniform sampler2D uSceneDepth;
+            uniform vec2 uDepthSize;
+            uniform vec4 uDepthViewport;
+            uniform mat4 uInverseProjection;
+            uniform mat4 uCameraWorld;
+            uniform float uSoft;
+            varying vec3 vMistW;`)
           .replace('#include <map_fragment>', `#include <map_fragment>
-            for (int i = 0; i < ${rooms.length}; i++) diffuseColor.a *= smoothstep(${R.toFixed(1)}, ${(RC + 6).toFixed(1)}, distance(vMistXZ, uRooms[i]));`);
+            for (int i = 0; i < ${rooms.length}; i++) diffuseColor.a *= smoothstep(${R.toFixed(1)}, ${(RC + 6).toFixed(1)}, distance(vMistW.xz, uRooms[i]));
+            // Fade by vertical separation, so grazing views keep a soft edge
+            // where a horizontal sheet meets a trunk or post.
+            float mistIntersection = 0.0;
+            if (uSoft > 0.5) {
+              float solidDepth = texture2D(uSceneDepth, gl_FragCoord.xy / uDepthSize).r;
+              vec2 ndc = (gl_FragCoord.xy - uDepthViewport.xy) / uDepthViewport.zw * 2.0 - 1.0;
+              vec4 surface = uInverseProjection * vec4(ndc, solidDepth * 2.0 - 1.0, 1.0);
+              if (abs(surface.w) > 1e-6) {
+                float surfaceY = (uCameraWorld * vec4(surface.xyz / surface.w, 1.0)).y;
+                mistIntersection = smoothstep(0.0, 8.0, abs(surfaceY - vMistW.y));
+              }
+            }
+            diffuseColor.a *= mistIntersection;`);
       };
-      mistMat.customProgramCacheKey = () => 'babel-mist';
+      mistMat.customProgramCacheKey = () => 'babel-mist-soft';
     }
     const sheet = keep(flatPlane());
     const stands = [J, BRIDGE_STAND, HEART];
