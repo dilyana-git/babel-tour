@@ -569,7 +569,8 @@ export function* buildArch(ctx) {
       const flat = geos.map((g) => { const f = g.index ? g.toNonIndexed() : g; if (f !== g) g.dispose(); return f; });
       const geo = keep(mergeGeometries(flat, false));
       flat.forEach((g) => g.dispose());
-      const rows = new THREE.Mesh(geo, wallRoom.get(wall) === 2 ? greyRows : M.bookRows);
+      const room = wallRoom.get(wall);
+      const rows = new THREE.Mesh(geo, room === 2 ? greyRows : room === 0 ? M.vestBookRows : M.bookRows);
       rows.name = 'shelvedRows';
       rows.visible = false;
       root.add(rows);

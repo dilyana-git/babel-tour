@@ -1,5 +1,37 @@
 # Design history
 
+### Vestibule stone, readers and sightlines
+
+*2026-10-14* · The large ashlar blocks and repeated bright arrises read as
+chocolate; the bridge readers as smooth clay; the foreground rail obscured
+them; pale labels made the shelves read as filing boxes; and the arch's
+underside competed with the Echo beyond it.
+
+The Vestibule and its entrance/exit arches now use 36 courses per 38-unit
+tile instead of 12, with varied lengths, a flat face, a narrow joint and
+one 18-value step of tone per stone. Normal strength is 0.65 rather than
+3.2. The foot takes 22% more darkening and soot hangs below the string
+course. Downward-facing arch stone loses 20% of its light.
+
+The bridge readers use four broad robe folds, a deeper mantle, a darker
+hem, and the existing filtered wool-weave shading (18 ribs per unit,
+strength 0.18, dye variation 0.13, specular suppression 0.9). Their sheen
+is 0.65. The first preview used 5.2 ribs and strength 0.8; the close view
+showed a coarse checker pattern, so it was refined before delivery.
+
+The rail's balusters are 58% of their former width, spaced at 5.8 instead
+of 3.4 units, with a slimmer handrail and plinth. The stand and walked
+path stay in their existing places. Paper labels lose 30% of their value
+and their height varies by set, in both real books and painted rows.
+These material changes are local to the Vestibule; other rooms keep their
+existing wall and shelf treatments. Timber wainscot and a wider walked
+path were considered but not used.
+
+Saved stand, reader and shelf views are in `tools/views/vestibule.json`;
+`npm run shot -- --views=tools/views/vestibule.json --strict` captures them
+in one browser page. The quick check and rendered previews verify this
+visual revision; no navigation smoke test is required.
+
 ### Curved branching for the red maples
 
 *2026-10-14* · The red maple's straight leaders and nearly horizontal side

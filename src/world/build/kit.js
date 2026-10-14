@@ -287,6 +287,7 @@ export function* buildKit(ctx) {
   // the Door's cracks, over the breach's frame (cracks.js; read by paveShade)
   const crackMap = CRACK_OLD ? null : keep(painter.take('cracks').map);
   const wall = scaled(painter.take('wall'), 1 / 38);
+  const vestWall = scaled(painter.take('vestWall'), 1 / 38);
   const pale = scaled(painter.take('pale'), 1 / 42);
   // (the wood is a board's length of timber along u and its width across v:
   // WALNUT_TILE and CEDAR_TILE, laid by uvGrain along each piece)
@@ -302,6 +303,8 @@ export function* buildKit(ctx) {
   // runs up the texture, the canvas down)
   const bookRowsSet = painter.take('bookRows');
   keep(bookRowsSet.map);
+  const vestBookRowsSet = painter.take('vestBookRows');
+  keep(vestBookRowsSet.map);
   const rowV = (() => { const L = bookRowsLayout(BOOK_ROWS); return L.at.map(({ y, h }) => ({ top: 1 - y / L.h, base: 1 - (y + h) / L.h })); })();
   if (titles) Object.values(titles).forEach(keep);
   // The frieze's key is laid in world units like the stone: seven units to a
@@ -454,8 +457,8 @@ export function* buildKit(ctx) {
   }), [1, 1]);
   return { rnd, stream, rr, pick, dir, add, lerp2, unit2, dist, hexPts, circlePts, rot3, detail,
     disposables, keep, paint, tex, withRepeat, grassTex, GRAVEL_COLOR, gravelTex, starTex, roofTex,
-    radialTex, lanternPoolTex, wisteriaTex, ivyTex, again, flag, crackMap, wall, pale, wood,
-    whiteTex, timber, spines, titles, bookRowsSet, rowV, friezeTex, gilt, hedge, carveSet,
+    radialTex, lanternPoolTex, wisteriaTex, ivyTex, again, flag, crackMap, wall, vestWall, pale, wood,
+    whiteTex, timber, spines, titles, bookRowsSet, vestBookRowsSet, rowV, friezeTex, gilt, hedge, carveSet,
     rubbleSet, shoreRockSet, shoreBankSet, dressedSet, marbleSet, columnSet, hangTex, glowTex,
     lampHaloTex, water, wind, lilyPads, leaves, barkSet, shaftMaterial, gradTex, wornTex,
     dustFanTex, mossTex, leafTex, globeTex };

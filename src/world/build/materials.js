@@ -39,8 +39,8 @@ import { DOOR_CRACKS, stoneTint, HEDGE_DIAL, ROUTE_LIGHT, MASS_H, CAP, RIM_WARM,
 
 export function buildMaterials(ctx) {
   const { light, rr, dir, add, unit2, dist, keep, grassTex, GRAVEL_COLOR, gravelTex, starTex,
-    roofTex, radialTex, wisteriaTex, ivyTex, again, flag, crackMap, wall, pale, wood, whiteTex,
-    timber, spines, titles, bookRowsSet, friezeTex, gilt, hedge, carveSet, rubbleSet, shoreRockSet,
+    roofTex, radialTex, wisteriaTex, ivyTex, again, flag, crackMap, wall, vestWall, pale, wood, whiteTex,
+    timber, spines, titles, bookRowsSet, vestBookRowsSet, friezeTex, gilt, hedge, carveSet, rubbleSet, shoreRockSet,
     shoreBankSet, dressedSet, marbleSet, columnSet, hangTex, glowTex, lampHaloTex, wind, lilyPads,
     leaves, barkSet, gradTex, wornTex, dustFanTex, mossTex, leafTex, globeTex } = ctx;
   // ── Materials ─────────────────────────────────────────────────────────────
@@ -127,7 +127,7 @@ export function buildMaterials(ctx) {
   // `route`: the stone of the wall tops and of the heads of the walls under
   // them, which over the map takes the lamps' light for the moon's
   // (mapFix4.js, 2).
-  const stoneShade = (mat, { weather = false, night = false, drum = null, lift = 1, side = 0, quiet = false, sink = false, aged = false, worked = null, wash = false, route = false } = {}) => {
+  const stoneShade = (mat, { weather = false, night = false, drum = null, lift = 1, side = 0, quiet = false, sink = false, aged = false, worked = null, wash = false, route = false, vestibule = false } = {}) => {
     wash = wash && !lib3Old(6);
     route = route && ROUTE_ON;
     quiet = quiet && QUIET_ON;
@@ -141,7 +141,7 @@ export function buildMaterials(ctx) {
       if (RIM || quiet || sink || route) sh.uniforms.uMapWarm = mapWarm;
       sh.uniforms.uStoneLift = { value: lift };
       if (worked) sh.uniforms.uWorkAt = workAt;
-      if (wash) { sh.uniforms.uWashA = stringWash.a; sh.uniforms.uWashB = stringWash.b; }
+      if (wash || vestibule) { sh.uniforms.uWashA = stringWash.a; sh.uniforms.uWashB = stringWash.b; }
       sh.uniforms.uStoneSide = { value: side };
       sh.vertexShader = sh.vertexShader
         .replace('#include <common>', `#include <common>
@@ -201,7 +201,7 @@ export function buildMaterials(ctx) {
           varying float vStoneSide;
           ${placed ? 'varying vec3 vStoneAt;' : ''}
           ${worked ? 'uniform vec3 uWorkAt;' : ''}
-          ${wash ? 'uniform vec4 uWashA, uWashB;' : ''}
+          ${wash || vestibule ? 'uniform vec4 uWashA, uWashB;' : ''}
           ${aged || worked ? `float stoneHash3(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
           float stoneNoise3(vec3 x) {
             vec3 i = floor(x), f = fract(x);
@@ -256,6 +256,15 @@ export function buildMaterials(ctx) {
             * (1.0 - 0.3 * smoothstep(88.0, 124.0, vStoneW.y))
             *` : ''} stoneNight;`}` : ''}
           float stoneWork = 0.0;
+          ${vestibule ? `
+          diffuseColor.rgb *= mix(0.78, 1.0, smoothstep(6.0, 28.0, vStoneW.y));
+          // Soot hangs below the string course, fading down the face.
+          vec2 ledgeD = vStoneW.xz - uWashA.xy;
+          float ledgeBelow = uWashA.z - 4.0 - vStoneW.y;
+          float ledgeSoot = step(0.0, ledgeBelow) * exp(-max(0.0, ledgeBelow) / 5.0)
+            * (1.0 - smoothstep(3.0, 6.0, abs(ledgeD.x * uWashB.y - ledgeD.y * uWashB.x)))
+            * (1.0 - smoothstep(uWashB.z - 3.0, uWashB.z, abs(dot(ledgeD, uWashB.xy))));
+          diffuseColor.rgb *= 1.0 - 0.26 * ledgeSoot;` : ''}
           ${worked ? `
           stoneWork = uWorkAt.z > 0.0 ? smoothstep(uWorkAt.z + 10.0, uWorkAt.z - 2.0, distance(vStoneW.xz, uWorkAt.xy)) : 0.0;
           ${ECHO_TOPS ? `stoneWork *= 1.0 - smoothstep(${(MASS_H - 1).toFixed(1)}, ${(MASS_H - 0.2).toFixed(1)}, vStoneW.y);` : ''}
@@ -326,9 +335,11 @@ export function buildMaterials(ctx) {
             }
             totalEmissiveRadiance += diffuseColor.rgb * vec3(${RIM_WARM.color.map((x) => x.toFixed(2)).join(', ')})
               * ${RIM_WARM.k.toFixed(3)} * rim * uMapWarm * smoothstep(${(MASS_H - 14).toFixed(1)}, ${(MASS_H - 2).toFixed(1)}, vStoneW.y);
-          }` : ''}`);
+          }` : ''}`)
+        .replace('#include <opaque_fragment>', `${vestibule ? 'outgoingLight *= 1.0 - 0.2 * vStoneDown;' : ''}
+          #include <opaque_fragment>`);
     };
-    mat.customProgramCacheKey = () => `babel-stone-${weather ? 'w' : night ? 'n' : 'b'}${(weather || night) && WALLS.spec ? 's' : ''}${drum ? '-drum' : ''}-${bounceRooms.value.length}${RIM ? '-rim' : ''}${quiet ? '-quiet' : ''}${route ? '-route' : ''}${sink ? '-sink' : ''}${aged ? '-aged' : ''}${worked ? `-work${worked.polish ?? 0}${worked.joints ?? 0}${worked.foot ? 'f' : ''}` : ''}${wash ? '-wash' : ''}`;
+    mat.customProgramCacheKey = () => `babel-stone-${weather ? 'w' : night ? 'n' : 'b'}${(weather || night) && WALLS.spec ? 's' : ''}${drum ? '-drum' : ''}-${bounceRooms.value.length}${RIM ? '-rim' : ''}${quiet ? '-quiet' : ''}${route ? '-route' : ''}${sink ? '-sink' : ''}${aged ? '-aged' : ''}${worked ? `-work${worked.polish ?? 0}${worked.joints ?? 0}${worked.foot ? 'f' : ''}` : ''}${wash ? '-wash' : ''}${vestibule ? '-vestibule' : ''}`;
     return mat;
   };
   // Less of the sky in a surface's gloss, `k` of it, and `direct` of the
@@ -721,6 +732,7 @@ export function buildMaterials(ctx) {
   const M = {
     floor: lpPool(paveShade(Std({ map: flag.map, normalMap: flag.normalMap, roughnessMap: flag.roughnessMap, color: stoneTint('#8d7f6e', '#8a857b'), roughness: 1, side: THREE.DoubleSide }))),
     mass: stoneShade(Std({ map: wall.map, normalMap: wall.normalMap, roughnessMap: wall.roughnessMap, color: stoneTint('#b6a897', '#ada89e'), roughness: 1, side: THREE.DoubleSide }), { weather: true, quiet: true, aged: true, wash: true, route: true }),
+    vestMass: stoneShade(Std({ map: vestWall.map, normalMap: vestWall.normalMap, roughnessMap: vestWall.roughnessMap, color: stoneTint('#b6a897', '#ada89e'), roughness: 1, side: THREE.DoubleSide }), { weather: true, quiet: true, aged: true, wash: true, route: true, vestibule: true }),
     // the Echo's: the same stone, coursed lower as it rises (echoFix.js, 6)
     drum: stoneShade(Std({ map: wall.map, normalMap: wall.normalMap, roughnessMap: wall.roughnessMap, color: stoneTint('#b6a897', '#ada89e'), roughness: 1, side: THREE.DoubleSide }), { weather: true, aged: true, drum: { tile: 1 / wall.map.repeat.x, rep: wall.map.repeat.x }, route: true }),
     cap: stoneShade(Std({ map: pale.map, normalMap: pale.normalMap, roughnessMap: pale.roughnessMap, color: stoneTint('#b3a894', '#b0aa9d'), roughness: 1, side: THREE.DoubleSide }), { night: WALLS.spec, quiet: true, worked: { polish: 0.3, joints: 1 }, wash: true, route: true }),
@@ -735,6 +747,7 @@ export function buildMaterials(ctx) {
     shelfLip: Std({ map: wood.map, normalMap: wood.normalMap, roughnessMap: wood.roughnessMap, color: LIP_COLOR, roughness: 0.92 }),
     books: keep(makeBookMaterial(spines, titles?.map)),
     bookRows: Std({ map: bookRowsSet.map, roughness: 0.85 }),
+    vestBookRows: Std({ map: vestBookRowsSet.map, roughness: 0.85 }),
     // the same paint on a gallery's top two tiers: washed by its lamp-rail as
     // the books' shader washes them (aLit.x, the room's graze), and greyed in
     // the Silence (aLit.y) as its bindings are
@@ -1398,6 +1411,10 @@ export function buildMaterials(ctx) {
       decay: decay ?? LAMP_DECAY,
     });
   };
+  M.vestBookRowsLit = keep(M.bookRowsLit.clone());
+  M.vestBookRowsLit.map = vestBookRowsSet.map;
+  M.vestBookRowsLit.onBeforeCompile = M.bookRowsLit.onBeforeCompile;
+  M.vestBookRowsLit.customProgramCacheKey = M.bookRowsLit.customProgramCacheKey;
   return { Std, shorePond, bounceRooms, workAt, stringWash, mapWarm, echoDeep, ROUTE_ON, ROUTE_TINT,
     walkNearGlsl, stoneShade, skyDull, setWay, signLamp, M, root, chunkKey, centre, Batch, slabGeo,
     boxGeo, placed, profileGeo, rodGeo, flatPlane, wornRibbon, flatQuad, barGeo, brokenBlock,

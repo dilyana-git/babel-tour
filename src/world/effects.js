@@ -134,6 +134,11 @@ const LETTERING = `
           float lost = smoothstep(0.56, 0.7, hide.r + 0.3 * (fineH - 0.5));
           float pick = fract(title * 0.6180339 + 0.13);
           bool paper = style > 0.5 && style < 1.5, morocco = style > 1.5 && style < 2.5;
+          if (vLabelRoom > 0.5 && (paper || morocco)) {
+            // Keep a set's titles together, but break the wall's dotted bands.
+            lay.xy += vec2(0.04 + 0.2 * pick);
+            lay.zw += vec2(0.04 * pick);
+          }
           bool inked = paper || (style > 4.5 && style < 5.5), blindT = style > 3.5 && style < 4.5;
           // (most of a spine is neither compartment, and goes no further)
           bool here = style > 0.5 && (abs(spPos.y - 0.5 * (lay.x + lay.y) * sh) < 0.5 * (lay.y - lay.x) * sh + 0.1
@@ -161,7 +166,7 @@ const LETTERING = `
               vec3 mor = pick < 0.42 ? vec3(0.19, 0.032, 0.022) : pick < 0.64 ? vec3(0.028, 0.024, 0.02) : pick < 0.84 ? vec3(0.034, 0.064, 0.036) : vec3(0.19, 0.1, 0.045);
               if (k == 1) mor = pick < 0.42 ? vec3(0.028, 0.024, 0.02) : vec3(0.19, 0.032, 0.022);
               vec3 face = paper
-                ? vec3(0.6, 0.53, 0.4) * (0.55 + detail * 0.5) * (0.8 + 0.4 * hide.r) * (1.0 - 0.3 * smoothstep(-0.35, 0.0, edge))
+                ? vec3(0.6, 0.53, 0.4) * mix(1.0, 0.7, vLabelRoom) * (0.55 + detail * 0.5) * (0.8 + 0.4 * hide.r) * (1.0 - 0.3 * smoothstep(-0.35, 0.0, edge))
                 : mor * (0.7 + 0.6 * hide.r) * mix(1.0, 1.6, smoothstep(-0.1, 0.0, edge));
               col = mix(col, face, lab);
               letterFlat = max(letterFlat, lab);
@@ -381,8 +386,11 @@ export const titleAt = ([x, y, z]) => {
 // `titles`: spineTitles's map, for the lettered books (BOOKS_TITLED).
 export function makeBookMaterial(atlas, titles = null) {
   const material = new THREE.MeshStandardMaterial({ roughness: 0.8, metalness: 0 });
+  const labelRoom = { value: new THREE.Vector3(0, 0, 0) };
+  material.userData.labelRoom = labelRoom;
   material.defines = { USE_UV: '' };
   material.onBeforeCompile = (shader) => {
+    shader.uniforms.uLabelRoom = labelRoom;
     if (BOOKS_TITLED) {
       shader.uniforms.uSpineLayout = { value: spineLayoutTexture() };
       shader.uniforms.uTitles = { value: titles };
@@ -395,6 +403,8 @@ export function makeBookMaterial(atlas, titles = null) {
         attribute float aSpine;
         attribute float aGraze;
         attribute float aDust;
+        uniform vec3 uLabelRoom;
+        varying float vLabelRoom;
         varying vec2 vSpineUv;
         varying float vFace;
         varying float vGraze;
@@ -463,9 +473,12 @@ export function makeBookMaterial(atlas, titles = null) {
         // book's room has (none in the Silence).
         #ifdef USE_INSTANCING
           float grazeY = (modelMatrix * instanceMatrix * vec4(transformed, 1.0)).y;
+          vec2 labelAt = (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xz;
         #else
           float grazeY = (modelMatrix * vec4(transformed, 1.0)).y;
+          vec2 labelAt = (modelMatrix * vec4(transformed, 1.0)).xz;
         #endif
+        vLabelRoom = uLabelRoom.z > 0.0 && distance(labelAt, uLabelRoom.xy) < uLabelRoom.z ? 1.0 : 0.0;
         vGraze = aGraze * pow(smoothstep(78.0, 111.0, grazeY), 1.6);
         vDust = aDust;
         // Only the Vertigo's books go this far down: the light at the bottom
@@ -474,6 +487,7 @@ export function makeBookMaterial(atlas, titles = null) {
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>
         uniform sampler2D uSpineDetail;
+        varying float vLabelRoom;
         uniform sampler2D uSpineMask;
         uniform sampler2D uHide;
         uniform vec2 uSpineTexel;

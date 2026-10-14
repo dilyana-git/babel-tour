@@ -125,7 +125,8 @@ const RHYTHM_MIXED = [1.5, 0.7, 1.1, 0.66, 1.32, 0.8, 0.94, 0.68, 1.46, 0.74, 1.
 // ten a darker; and lime come out of the bed joints and down the faces under
 // them in pale blooms.
 export function ashlar({ size = 1024, seed = 7, courses = 8, blocks = 4, tone = [112, 100, 88], joint = 3, strength = 3.2, spread = 18, dress = 'cushion' } = {}) {
-  const punched = dress === 'punched';
+  const flat = dress === 'flat';
+  const punched = dress === 'punched' || flat;
   const rnd = makeRng(seed);
   const [col, c] = canvas(size);
   const [hei, hg] = canvas(size);
@@ -156,7 +157,7 @@ export function ashlar({ size = 1024, seed = 7, courses = 8, blocks = 4, tone = 
   // and at any distance a wall of them read as rivets or as Morse.)
   const block = (x, y, w, h, look) => {
     const { v, wear, tilt, warm, mottle, angle, chips } = look;
-    const l = v * spread;
+    const l = (flat ? Math.round(v) : v) * spread;
     c.fillStyle = `rgb(${tone[0] + l + 4 + warm * 7},${tone[1] + l + warm * 2},${tone[2] + l - 3 - warm * 6})`;
     c.fillRect(x, y, w, h);
     for (const g of [c, hg]) { g.save(); g.beginPath(); g.rect(x, y, w, h); g.clip(); }
@@ -170,15 +171,15 @@ export function ashlar({ size = 1024, seed = 7, courses = 8, blocks = 4, tone = 
       c.fillRect(px - r, py - r, r * 2, r * 2);
     }
     const wash = c.createLinearGradient(0, y, 0, y + h);
-    wash.addColorStop(0, 'rgba(236,224,200,0.1)');
+    wash.addColorStop(0, flat ? 'rgba(0,0,0,0)' : 'rgba(236,224,200,0.1)');
     wash.addColorStop(0.45, 'rgba(0,0,0,0)');
-    wash.addColorStop(1, `rgba(22,15,9,${0.22 + tilt * 0.14})`);
+    wash.addColorStop(1, `rgba(22,15,9,${flat ? 0.04 : 0.22 + tilt * 0.14})`);
     c.fillStyle = wash;
     c.fillRect(x, y, w, h);
     // chamfered faces: lower toward every edge
     // (punched: an arris, three pixels of it, and the face flat to there)
-    for (let s = 0; s < (punched ? 3 : 7); s++) {
-      hg.fillStyle = grey(punched ? 148 + s * 27 + wear * 10 : 70 + s * 22 + wear * 10);
+    for (let s = 0; s < (flat ? 1 : punched ? 3 : 7); s++) {
+      hg.fillStyle = grey(flat ? 190 + wear * 10 : punched ? 148 + s * 27 + wear * 10 : 70 + s * 22 + wear * 10);
       hg.fillRect(x + s, y + s, w - s * 2, h - s * 2);
     }
     // the field, tooled: parallel strokes across it inside the drafted margin
@@ -1889,7 +1890,7 @@ export function bookRowsLayout({ rows, unit = 12, variants = 2, length = 128 }) 
   }
   return { at, w: Math.round(length * unit), h: y };
 }
-export function bookRows({ rows, unit = 12, variants = 2, length = 128, palette, seed = 53 } = {}) {
+export function bookRows({ rows, unit = 12, variants = 2, length = 128, palette, seed = 53, quietLabels = false } = {}) {
   const rnd = makeRng(seed);
   const { at, w: W, h: H } = bookRowsLayout({ rows, unit, variants, length });
   const [col, c] = canvas(W, H);
@@ -1913,7 +1914,7 @@ export function bookRows({ rows, unit = 12, variants = 2, length = 128, palette,
       c.fillStyle = dark;
       c.fillRect(0, top, W, h);
       // in runs, as the near shelves are (newRun, build/shelves.js)
-      let x = rnd() * 3, run = 0, B = null, kind = 'plain', hex = '#6f4c31', bh = 0, bw = 0;
+      let x = rnd() * 3, run = 0, B = null, kind = 'plain', hex = '#6f4c31', bh = 0, bw = 0, labelY = 0.29;
       for (;;) {
         if (run <= 0) {
           if (rnd() < 0.03) { x += within([0.4, 1]) * unit; continue; }
@@ -1924,6 +1925,8 @@ export function bookRows({ rows, unit = 12, variants = 2, length = 128, palette,
           bh = within(r.h) * unit;
           bw = within(r.w) * unit * (kind === 'vellum' ? 0.85 : 1);
           run = rnd() < 0.22 ? 1 : 2 + Math.floor(rnd() * rnd() * 8);
+          // Derive a set's label position without moving the book-placement stream.
+          labelY = quietLabels ? 0.18 + 0.28 * ((bh * 0.731 + bw * 0.419) % 1) : 0.29;
         }
         const w = Math.max(2, Math.round(bw * (0.97 + rnd() * 0.06))), hh = Math.round(bh * (0.99 + rnd() * 0.02));
         // (a gap where the strip comes round to its start again)
@@ -1945,8 +1948,8 @@ export function bookRows({ rows, unit = 12, variants = 2, length = 128, palette,
           for (const f of [0.08, 0.27, 0.42, 0.57, 0.72, 0.92]) c.fillRect(x, Math.round(y0 + hh * f), w, 1);
         }
         if (kind === 'label') {
-          c.fillStyle = 'rgba(158,138,104,0.9)';
-          c.fillRect(x + Math.max(1, Math.round(w * 0.15)), Math.round(y0 + hh * 0.29), Math.max(1, Math.round(w * 0.7)), Math.max(2, Math.round(hh * 0.1)));
+          c.fillStyle = quietLabels ? 'rgba(111,97,73,0.9)' : 'rgba(158,138,104,0.9)';
+          c.fillRect(x + Math.max(1, Math.round(w * 0.15)), Math.round(y0 + hh * labelY), Math.max(1, Math.round(w * 0.7)), Math.max(2, Math.round(hh * 0.1)));
         } else if (kind === 'cloth') {
           c.fillStyle = 'rgba(201,160,90,0.6)';
           c.fillRect(x, Math.round(y0 + hh * 0.06), w, Math.max(1, Math.round(hh * 0.05)));

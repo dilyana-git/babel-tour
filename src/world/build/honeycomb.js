@@ -13,7 +13,7 @@ import { WOOD_OLD } from '../woodGrain';
 import { deg, PORTAL_FRAME } from './common';
 
 export function buildHoneycomb(ctx) {
-  const { light, dir, add, dist, bounceRooms, workAt, echoDeep, placed, wells, Q, qNum } = ctx;
+  const { light, dir, add, dist, bounceRooms, workAt, echoDeep, placed, wells, Q, qNum, M } = ctx;
   // ── The honeycomb ─────────────────────────────────────────────────────────
   const R = 100, A = R * Math.sqrt(3) / 2, GAP = 50, D = 2 * A + GAP, AC = D / 2, RC = AC * 2 / Math.sqrt(3);
   const HALL = 36;
@@ -25,6 +25,7 @@ export function buildHoneycomb(ctx) {
   // between the Silence and the Echo. `by` takes the one to the other.
   const WAY_IN = { from: '0,0', to: '-1,1', by: [2 * (E0[0] - E1[0]), 2 * (E0[1] - E1[1])] };
   const cellC = (i, j) => [O[0] + i * E0[0] + j * E1[0], O[1] + i * E0[1] + j * E1[1]];
+  M.books.userData.labelRoom.value.set(...cellC(0, 0), 135);
   // The Echo is wider than the other galleries. With its colonnade out at 62
   // (clear of the stair coping) the aisle between a column's plinth and the
   // bookcases would be under a metre at the others' size, and the reader would
@@ -947,6 +948,7 @@ export function buildFlightDressing(ctx) {
   const G = { project: WOOD_OLD || 'grain' };
   const LB = {
     mass: new Batch(M.mass, P), cap: new Batch(M.cap, P), capShade: new Batch(M.capShade, P), floor: new Batch(M.floor, { cast: false, ...P }),
+    vestMass: new Batch(M.vestMass, P),
     // the bridges' stone balustrades: carved stone, never a stair (their uv
     // is their own: along each moulding, round each baluster)
     balustrade: new Batch(M.carve), balustradeShade: new Batch(M.carveShade),
@@ -987,6 +989,7 @@ export function buildFlightDressing(ctx) {
     nosing: new Batch(M.nosing, P), riserSoft: new Batch(M.riserSoft, { cast: false, receive: false }), drum: new Batch(M.drum, P),
     column: new Batch(M.column), columnBox: new Batch(M.column, P),
     bookRows: new Batch(M.bookRows, { cast: false }), bookRowsLit: new Batch(M.bookRowsLit, { cast: false }),
+    vestBookRowsLit: new Batch(M.vestBookRowsLit, { cast: false }),
   };
   const fallenLeaves = [], doorIvy = [], doorRubble = [], petals = [], hangs = [];
   // the Door's ivy and the pergola's wisteria leaves, and both their wood (ivy.js)

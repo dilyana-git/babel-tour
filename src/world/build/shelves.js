@@ -185,7 +185,7 @@ export function buildBooks(ctx) {
         add: (g) => {
           const n = g.attributes.position.count, v = [graze, room === 2 ? 1 : 0];
           g.setAttribute('aLit', new THREE.Float32BufferAttribute(Array.from({ length: n }, () => v).flat(), 2));
-          LB.bookRowsLit.add(g);
+          (room === 0 ? LB.vestBookRowsLit : LB.bookRowsLit).add(g);
         },
       };
       // One bay of one shelf, from `ua` to `ub` along the wall, its books
@@ -795,13 +795,13 @@ export function* buildFurniture(ctx) {
     }
     return { stone: mergeGeometries(stones, false), mortar: mergeGeometries(beds, false), parts: [...stones, ...beds] };
   };
-  const arch = (mid0, n, uvAt = null, cut = [0, 0]) => {
+  const arch = (mid0, n, uvAt = null, cut = [0, 0], mass = LB.mass) => {
     const turn = Math.atan2(n[0], n[1]);
     const len = GAP - cut[0] - cut[1], mid = add(mid0, n, (cut[0] - cut[1]) / 2);
     const g = len === GAP ? archGeo.clone() : archGeoOf(len);
     g.rotateY(turn);
     g.translate(mid[0], 0, mid[1]);
-    LB.mass.add(g, uvAt);
+    mass.add(g, uvAt);
     LB.cap.add(boxGeo(add(mid, n, -len / 2), add(mid, n, len / 2), CAP, HALL, MASS_H), uvAt);
     const across = [n[1], -n[0]];
     for (const side of [-1, 1]) {
@@ -896,12 +896,12 @@ export function* buildFurniture(ctx) {
       const bearing = (Math.atan2(mid[1] - c[1], mid[0] - c[0]) / deg + 360) % 360;
       const uvAt = wayInSide !== null && Math.abs(((bearing - wayInSide + 540) % 360) - 180) < 30 ? WAY_IN.by : null;
       // (the Echo's walls coursed as a drum: echoFix.js, 6)
-      (room === 1 && !echoOld(6) ? LB.drum : LB.mass).add(slabGeo(piece, [], MASS_H, 0), uvAt);
+      (room === 0 ? LB.vestMass : room === 1 && !echoOld(6) ? LB.drum : LB.mass).add(slabGeo(piece, [], MASS_H, 0), uvAt);
       LB.cap.add(slabGeo(piece, [], CAP, MASS_H), uvAt);
     }
     if (hallway(cell, 5)) {
       arch(hallMid(cell.i, cell.j, 5), dir(330), cell.k === WAY_IN.to ? WAY_IN.by : null,
-        [deepAt(c), deepAt(cellC(cell.i + NB[5][0], cell.j + NB[5][1]))]);
+        [deepAt(c), deepAt(cellC(cell.i + NB[5][0], cell.j + NB[5][1]))], room === 0 || cell.k === WAY_IN.to ? LB.vestMass : LB.mass);
     }
     if (framed) balustrade(cell, halls);
 

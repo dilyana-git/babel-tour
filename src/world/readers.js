@@ -226,7 +226,7 @@ const remap = (g, fn) => {
 // heart of the maze: finaleFix.js, 4) — the cowl and the mantle in deeper
 // folds that run to the hem, the hem thin, turned in and frayed, the inside
 // of the hood the wool's own colour going into the dark.
-export function readerGeometry({ seed = 1, color = ROBES[0], book = false, seated = false, detail = 1, close = false, plain = false, hollow = false, nod = 0 } = {}) {
+export function readerGeometry({ seed = 1, color = ROBES[0], book = false, seated = false, detail = 1, close = false, plain = false, hollow = false, nod = 0, heavyWool = false } = {}) {
   const rng = makeRng(seed);
   const R = (a, b) => a + (b - a) * rng();
   const base = new THREE.Color(color);
@@ -274,6 +274,11 @@ export function readerGeometry({ seed = 1, color = ROBES[0], book = false, seate
   const norm = waves.reduce((s, w) => s + w.a, 0) / 1.7;
   // -1 in the valley of a fold, +1 on its ridge: rounded ridges, creased valleys
   const fold = (u, y) => {
+    if (heavyWool) {
+      // Four broad folds continue from the shoulders to the hem.
+      const f = Math.sin(4 * u + waves[0].ph + 0.09 * Math.sin(y * 0.3));
+      return f > 0 ? f ** 0.65 : -((-f) ** 1.3);
+    }
     let s = 0;
     for (const w of waves) s += w.a * Math.sin(w.k * u + w.ph + 0.35 * Math.sin(y * w.drift + w.ph));
     const f = Math.max(-1, Math.min(1, s / norm));
@@ -281,7 +286,7 @@ export function readerGeometry({ seed = 1, color = ROBES[0], book = false, seate
   };
   // how deep the folds hang: deepest at the hem, gathered at the belt, a
   // little over the chest
-  const depth = (y) => (y < BELT
+  const depth = (y) => heavyWool ? 0.22 + 0.48 * (1 - smooth(y / TOP)) : (y < BELT
     ? 0.05 + 0.42 * smooth((BELT - y) / BELT) ** 0.7
     : 0.05 + 0.1 * Math.sin(Math.PI * clamp01((y - BELT) / 4.5)));
   const hemPh = R(0, TAU);
@@ -301,6 +306,7 @@ export function readerGeometry({ seed = 1, color = ROBES[0], book = false, seate
     k *= 1 - 0.35 * Math.exp(-(((y - 11.1) / 0.9) ** 2));      // under the mantle's hem
     const c = base.clone().multiplyScalar(k * grain());
     c.lerp(DUST, 0.5 * clamp01(1 - y / 2.2) ** 2);             // the dust of the paths
+    if (heavyWool) c.multiplyScalar(1 - 0.42 * clamp01(1 - y / 2.8));
     // (`close`: the robe's neck, up inside the collar, in the collar's dark —
     // lit, its edge showed either side of the chin as two white ticks)
     return close ? [...c.toArray(), 0.92 * smooth((y - 14.2) / 0.6)] : c.toArray();
@@ -319,7 +325,7 @@ export function readerGeometry({ seed = 1, color = ROBES[0], book = false, seate
   // (`close`: the cape's folds deeper, and the cloth gathered where it is
   // drawn in round the neck)
   const gather = (u, t) => (close ? 0.05 * Math.sin(13 * u + mPh) * smooth((t - 0.3) / 0.5) : 0);
-  const mDeep = close ? 1 + 0.25 * HOOD.fold : 1;
+  const mDeep = heavyWool ? 2.2 : close ? 1 + 0.25 * HOOD.fold : 1;
   const mantle = faceOut(sheet(18, res(close ? 128 : 64), (v, u, i) => {
     // the first ring is the hem turned under, so the cape has an edge to it
     const t = i === 0 ? 0 : (i - 1) / 16;

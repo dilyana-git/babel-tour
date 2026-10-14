@@ -106,7 +106,9 @@ export function buildWalkers({ root, keep, c, ax, px, deck, lectern, arch = null
 
   const figure = (name, i, book) => {
     const { mat, u } = readerMaterial(keep);
-    const mesh = new THREE.Mesh(keep(readerGeometry({ seed: 3 + i * 13, color: robes[(i * 3 + 1) % robes.length], book })), mat);
+    u.uWool = { value: new THREE.Vector4(18, 0.18, 0.13, 0.9) };
+    u.uSheen.value = 0.65;
+    const mesh = new THREE.Mesh(keep(readerGeometry({ seed: 3 + i * 13, color: robes[(i * 3 + 1) % robes.length], book, heavyWool: true })), mat);
     if (LIT) {
       u.uLitK.value.set(...BRIDGE_READERS.lit);
       if (arch) {

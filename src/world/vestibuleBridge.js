@@ -186,17 +186,17 @@ export function buildVestibuleBridge({ c, ax, px, LB, placed, mouldGeo, baluster
     dressArch({ at, under, LB, mouldGeo });
     const LOW = 5.6;
     const run = (path, h, gap) => {
-      LB.bronze.add(mouldGeo(path, box(1.2, 1)));
-      LB.bronze.add(mouldGeo(path, box(0.85, 0.35, 1)));
-      LB.bronzeDim.add(mouldGeo(path, box(0.8, 0.35, h)));
-      const rail = Array.from({ length: 16 }, (_, k) => { const t = (k / 16) * 2 * Math.PI; return [1.2 * Math.cos(t), h + 1 + 0.72 * Math.sin(t)]; });
+      LB.bronze.add(mouldGeo(path, box(0.85, 0.65)));
+      LB.bronze.add(mouldGeo(path, box(0.6, 0.25, 0.65)));
+      LB.bronzeDim.add(mouldGeo(path, box(0.48, 0.22, h)));
+      const rail = Array.from({ length: 16 }, (_, k) => { const t = (k / 16) * 2 * Math.PI; return [0.75 * Math.cos(t), h + 1 + 0.44 * Math.sin(t)]; });
       LB.bronzeWorn.add(mouldGeo(path, rail));
       for (let k = 0; k + 1 < path.length; k++) {
         const a = path[k], b = path[k + 1], L = Math.hypot(b[0] - a[0], b[2] - a[2]);
         const n = Math.max(1, Math.round((L - 3.2) / gap));
         for (let i = 0; i <= n; i++) {
           const t = (1.6 + (i * (L - 3.2)) / n) / L;
-          LB.bronze.add(placed(balusterGeo(h - 0.85), [a[0] + (b[0] - a[0]) * t, a[2] + (b[2] - a[2]) * t], FLOOR + 1));
+          LB.bronze.add(placed(balusterGeo(h - 0.85).scale(0.58, 1, 0.58), [a[0] + (b[0] - a[0]) * t, a[2] + (b[2] - a[2]) * t], FLOOR + 1));
         }
       }
     };
@@ -208,7 +208,7 @@ export function buildVestibuleBridge({ c, ax, px, LB, placed, mouldGeo, baluster
     for (const s of [-1, 1]) {
       const edge = s * (HALF - 1.2);
       const ring = [[RAIL, edge], [RAIL, (s * RAIL_R) / 2], [0, s * RAIL_R], [-RAIL, (s * RAIL_R) / 2], [-RAIL, edge]].map(([u, w]) => at(u, w, FLOOR));
-      run([...ring, ring[0]], LOW, 3.4);
+      run([...ring, ring[0]], LOW, 5.8);
       ring.forEach((p) => newel(p, LOW + 1.3));
     }
     return;
