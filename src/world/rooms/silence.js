@@ -10,7 +10,7 @@ import { deg, MASS_H } from '../build/common';
 
 export function buildSilence(ctx) {
   const { rr, pick, dir, add, dist, circlePts, rot3, keep, root, centre, slabGeo, placed,
-    profileGeo, rodGeo, pedestalGeo, patchOf, Q, qNum, cellC, hallMid, flightProfile, stoneRail, FLIGHT_RAIL,
+    profileGeo, mouldGeo, pedestalGeo, patchOf, Q, qNum, cellC, hallMid, flightProfile, stoneRail, FLIGHT_RAIL,
     flightDress, LB, links, lamp, M } = ctx;
   // III — the Silence: "where the stairways stop crossing, a single lamp keeps
   // the dark honest". So the Echo's crossing is here too — and stilled: two
@@ -100,8 +100,12 @@ export function buildSilence(ctx) {
       // arris printed from the floor as a bright chipped crack along the whole
       // underside of the terrace.
       if (TERRACE) band(LF - 0.3, LF + 0.03, TOP - 3.4, 0.95, LB.capShade);
-      const mid = (B0 + B1) / 2, front0 = mid - 45, front1 = mid + 45;
+      const mid = (B0 + B1) / 2, front0 = mid - 37.5, front1 = mid + 37.5;
       const base = TOP + 2.45, high = TOP + 9.5;
+      const shoulderTop = (a, low, spread) => {
+        const t = THREE.MathUtils.clamp((Math.abs(a - mid) - 37.5) / spread, 0, 1);
+        return TOP + low + (9.5 - low) * t * t * (3 - 2 * t);
+      };
       const railRun = (a0, a1, top, S = FLIGHT_RAIL) => {
         const length = (a1 - a0) * deg * RF;
         const bear = (s) => a0 + s / (RF * deg);
@@ -116,35 +120,39 @@ export function buildSilence(ctx) {
       if (railChoice === 'b') {
         // The rail slopes down on each shoulder, then remains level across
         // the front, below the reader's hands and book.
-        const lowTop = (a) => {
-          const t = THREE.MathUtils.clamp((Math.abs(a - mid) - 45) / 15, 0, 1);
-          return TOP + 5.8 + 3.7 * t * t * (3 - 2 * t);
-        };
         const lowRail = {
-          ...FLIGHT_RAIL, railH: 0.85, baseH: 0.4, sink: 0.2, r: 0.55,
-          rail: FLIGHT_RAIL.rail.map(([z, y, sharp]) => [z, y * 0.85 / FLIGHT_RAIL.railH, sharp]),
-          base: FLIGHT_RAIL.base.map(([z, y, sharp]) => [z, y * 0.4 / FLIGHT_RAIL.baseH, sharp]),
+          ...FLIGHT_RAIL, railH: 0.65, baseH: 0.28, sink: 0.18, r: 0.45, step: 3.2,
+          rail: FLIGHT_RAIL.rail.map(([z, y, sharp]) => [z * 0.72, y * 0.65 / FLIGHT_RAIL.railH, sharp]),
+          base: FLIGHT_RAIL.base.map(([z, y, sharp]) => [z * 0.8, y * 0.28 / FLIGHT_RAIL.baseH, sharp]),
         };
-        railRun(B0, front0 - 15, () => high);
-        railRun(front0 - 15, front1 + 15, lowTop, lowRail);
-        railRun(front1 + 15, B1, () => high);
+        railRun(B0, front0 - 28, () => high);
+        railRun(front0 - 28, front1 + 28, (a) => shoulderTop(a, 5.4, 28), lowRail);
+        railRun(front1 + 28, B1, () => high);
       } else {
-        railRun(B0, front0, () => high);
-        railRun(front1, B1, () => high);
+        const endHeight = railChoice === 'a' ? 7.2 : 6.6;
+        railRun(B0, front0, (a) => shoulderTop(a, endHeight, 22));
+        railRun(front1, B1, (a) => shoulderTop(a, endHeight, 22));
         for (const a of [front0, front1]) {
           const p = add(FC, dir(a), RF);
-          LB.balustradeShade.add(placed(pedestalGeo(2.1, 0.85, 5.6, { shift: patchOf(p) }), p, base, -(a + 90) * deg));
+          LB.balustradeShade.add(placed(pedestalGeo(1.5, 0.6, endHeight - 2.45 - 1.6, { shift: patchOf(p) }), p, base, -(a + 90) * deg));
         }
         if (railChoice === 'c') {
-          // A narrow bronze handrail and three posts retain a full-height
-          // boundary across the front without a screen of stone balusters.
-          const front = Array.from({ length: 25 }, (_, k) => add(FC, dir(front0 + (front1 - front0) * k / 24), RF));
-          for (let k = 1; k < front.length; k++) {
-            LB.bronze.add(rodGeo([front[k - 1][0], high, front[k - 1][1]], [front[k][0], high, front[k][1]], 0.13));
-          }
-          for (const a of [front0 + 4, mid, front1 - 4]) {
+          // A moulded bronze handrail rests on square posts with socket feet
+          // and collars. Its low arc keeps the hood and page above the rail.
+          const railY = TOP + 6.6, railH = 0.45;
+          const front = Array.from({ length: 25 }, (_, k) => {
+            const p = add(FC, dir(front0 + (front1 - front0) * k / 24), RF);
+            return [p[0], railY - railH, p[1]];
+          });
+          const section = FLIGHT_RAIL.rail.map(([z, y, sharp]) => [z * 0.34, y * railH / FLIGHT_RAIL.railH, sharp]);
+          LB.bronze.add(mouldGeo(front, section));
+          for (const offset of [-30, -15, 0, 15, 30]) {
+            const a = mid + offset, turn = -(a + 90) * deg;
             const p = add(FC, dir(a), RF);
-            LB.bronze.add(rodGeo([p[0], base, p[1]], [p[0], high, p[1]], 0.1));
+            const postH = railY - railH - base;
+            LB.bronzeDim.add(placed(new THREE.BoxGeometry(0.28, postH, 0.34), p, base + postH / 2, turn));
+            LB.bronzeDim.add(placed(new THREE.BoxGeometry(0.64, 0.18, 0.72), p, base + 0.09, turn));
+            LB.bronze.add(placed(new THREE.BoxGeometry(0.45, 0.16, 0.5), p, railY - railH - 0.08, turn));
           }
         }
       }

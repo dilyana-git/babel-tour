@@ -1,5 +1,25 @@
 # Design history
 
+### Silence rail options refined
+
+*2026-10-14* · The first options (`e726a93`) were too blunt: A's end posts
+were bulky, B's short balusters looked squat, and C's full-height wire crossed
+the reader's hood in the arrival view. The revised choices still use
+`?wsilrail=a|b|c`, with a narrower central arc of 75 degrees:
+
+- A keeps the central kerb. The stone rails descend from 9.5 to 7.2 units
+  over 22 degrees at each end, finishing in smaller newels (width 1.5).
+- B keeps a continuous stone rail, now 5.4 units at the front, rising to
+  the side height over 28 degrees. The front rail is slimmer (height 0.65,
+  width 72% of the side profile), its base 0.28 high, its balusters radius
+  0.45 at spacing 3.2.
+- C has a low moulded bronze handrail at 6.6 units, height 0.45 and width
+  34% of the stone profile, on five square posts with socket feet and collars.
+  The stone shoulders descend over 22 degrees to compact end newels.
+
+The lamp, reader and dead glass retain their positions and finishes. No
+option is picked; the losing code paths and query flag go when one is chosen.
+
 ### Silence front rail options
 
 *2026-10-14* · Removing the whole terrace balustrade was too much. Three
