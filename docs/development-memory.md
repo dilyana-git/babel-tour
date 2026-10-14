@@ -8,9 +8,9 @@ preferences apply to future work in this project:
 - Make one coherent visual revision and show it promptly after the required
   quick checks and a focused rendered inspection. Avoid repeated speculative
   polishing and optional diagnostic work before asking for design feedback.
-- Use a small tree preview with garden materials and lighting, explicit
-  specimen seeds, and saved camera views. Verify the selected result in the
-  garden once it is ready.
+- Prefer a small tree preview, where available, with garden materials and
+  lighting, explicit specimen seeds, and saved camera views. Verify the selected
+  result in the garden once it is ready.
 - Reuse preview browser sessions and batch saved viewpoints. Extend the shared
   tools instead of creating ad hoc copies for each visual request.
 - Keep `npm run check` after app edits. Do not run browser smoke tests for a
@@ -23,6 +23,9 @@ preferences apply to future work in this project:
   development-tool improvements.
 - Keep unrelated working-tree changes intact and make one small commit per
   coherent change.
+- An instructions-only request changes instructions and memory only. Building
+  preview tools or migrating existing seeds requires a separate explicit task;
+  do not expand visual fixes into those projects.
 
 These preferences were explicitly requested on 2026-10-14 after the mist and
 red-maple fixes took too many preview and verification cycles. `AGENTS.md` is

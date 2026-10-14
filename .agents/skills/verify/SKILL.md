@@ -22,7 +22,8 @@ filename alone is not a trigger; smoke covers changes to movement, input,
 interaction, walking clearance/collision behaviour or scene lifecycle.
 Schedule it after the functional change is settled.
 
-Use the focused tree preview and saved views before loading the full world.
+Prefer a focused tree preview where available and reuse saved views before
+loading the full world. Creating new tools is a separate explicit task.
 Keep one coherent visual revision per feedback cycle; do not expand an
 appearance edit into speculative profiling or repeated optional diagnostics.
 

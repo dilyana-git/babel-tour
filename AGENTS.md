@@ -10,10 +10,12 @@ promptly. Let the user's next feedback guide further polish. Keep the requested
 scope small; do not add speculative performance investigations, shader dumps,
 or broad refactors to a simple appearance change.
 
-Tune trees in `npm run preview:trees` before loading the whole world. Reuse
-saved camera views and the existing screenshot tools; capture several views
-in one browser session. Reuse a running preview session between edits when
-possible instead of creating one-off copies of the screenshot driver.
+Prefer a focused tree preview when one is available. Reuse saved camera views
+and the existing screenshot tools; capture several views in one browser
+session. Reuse a running preview session between edits when possible instead
+of creating one-off copies of the screenshot driver. New preview tooling and
+seed migrations are separate tasks: do not implement them as part of a visual
+fix or an instructions-only request unless the user explicitly asks.
 
 Run the quick check after each coherent app edit. Schedule any required browser
 smoke test once the functional change is settled. Repeat successful checks only
@@ -122,6 +124,8 @@ detail. Keep growth and leaf-colour streams separate from placement. Reuse
 existing seed values when migrating current trees: the user wants the current
 garden's shapes and planting preserved. Migrate the older compatibility draw
 budgets in small steps, proving that existing output is unchanged.
+Treat this migration as a separately requested task, not part of an appearance
+adjustment.
 
 To prove a refactor changes nothing, compare scene fingerprints before and
 after (`npm run shot -- --fingerprint`, then `--compare=a.json,b.json`; see
