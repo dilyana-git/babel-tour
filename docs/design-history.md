@@ -266,23 +266,29 @@ The original maze's random-stream state at its construction was measured as `-92
 
 Checks cover dry route centre lines, separation of pond and maze, and nonzero planting-route segments; the bridge clearance, turning and landing assertions retain their existing limits. Rendered map, phone and room pictures accompany real-input garden journeys and the navigation smoke suite under `.ux-review/`.
 
-## The map's tone (2026-10-12)
-
-### Planting around the relocated garden
+## Planting around the relocated garden
 
 *2026-10-14* · The chosen concept had groves and small planting details that the relocated scene lacked. Nine clusters now put compact broad trees, pines and flowering cherries around the pond and maze, with shrubs and small granite stones beneath them. A separate random stream keeps the established planting and later sections unchanged. Roots and low crowns clear the real walking corridors, water banks and boundary hedges. The existing foliage and stone batches carry the additions.
 
-The map gives tree foliage a diffuse fill that fades away as the camera descends. Its response is limited by the leaf's brightness so pale blossom keeps its tone. Strict desktop, phone, Fork and Pavilion pictures were inspected; actual held-W garden walking and the Back controls passed.
+The default desktop scene adds 34 grove trees. The map gives tree foliage a diffuse fill that fades away as the camera descends. Its response is limited by the leaf's brightness so pale blossom keeps its tone. Strict desktop, phone, Fork and Pavilion pictures were inspected; actual held-W garden walking and the Back controls passed.
 
-### Reading the Silence and Vertigo
+## Reading the Silence and Vertigo
 
 *2026-10-14* · Rooms III and IV were too dark. Warm diffuse bounce now reveals the Silence's stairs and shelving and the Vertigo's upper rim, fading at the doorways. Their stone bounce factors are 0.5 and 0.65. The well keeps 0.68 of its upper light rather than 0.5; its map fade takes 0.35 at the rim and 0.72 below, rather than 0.55 and 0.85. Lamp intensity and the glow at the bottom stay as they were. Strict room, desktop-map and phone pictures were inspected, and the navigation smoke test passed all five selected scenarios.
 
-### Preparing shaders during construction
+## Preparing shaders during construction
 
 *2026-10-14* · The user reported a pause around 70%, when the garden's green drawing begins. Startup profiling placed this in shader preparation, followed by texture uploads. The world now creates its final lights before construction and submits shaders in short batches while sections are built, using the final environment. Construction order and random draws are unchanged.
 
 A repeated GPU profile measured the post-build shader wait at 2.2 seconds, compared with 2.8 seconds for the original loader; total startup in those repeat runs was about 14 seconds. The first, colder reference was 26 seconds, so that difference is not treated as the optimization's gain. Scene fingerprints retain identical geometry, light configuration and material shader code; animated transforms/uniforms differ with time, and early compilation retains two superseded shader sources in the cache. Profiles and reference pictures are under `.ux-review/shots/loading-*`.
+
+## Keeping the opening's frame cadence
+
+*2026-10-14* · The opening's worker spent only a few milliseconds drawing each frame, but its timer restarted at the actual frame time. Slight lateness at the 30 FPS boundary then skipped a whole browser frame. The timer now keeps its phase and advances past missed deadlines, while still using the real elapsed time for movement and the slower cadence during the first world frames.
+
+Matched GPU profiles measured roughly 19 updates per second before and 27 afterward during construction. Total startup remained about 14 seconds, so the measured gain is animation smoothness. Additional batch/foliage shader warm-up experiments did not improve repeated loads consistently and were discarded. The five-scenario smoke test and strict rendered view passed; profiles are `.ux-review/shots/opening-timing-startup.json` and `opening-cadence-startup.json`.
+
+## The map's tone (2026-10-12)
 
 The user said of the map: "it looks too reddish". Measured on their
 screenshot, the stone round the walk sat at hue ~23 (a quarter of it under 17:

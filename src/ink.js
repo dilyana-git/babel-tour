@@ -423,6 +423,7 @@ export function startInk(canvas, { reducedMotion = false, devPace = 0 } = {}, em
   const state = { u: 0, clock: 0 };
   const t0 = performance.now() / 1000;
   let last = t0, inkedAt = -1, shownAt = -1, raf = 0, sentU = -1, stopped = false;
+  let nextPaint = t0, cadence = FRAME_S;
   // The reader's hand leans the drawing a little while it is being drawn
   // (none of it is left by the time the camera is at rest).
   const lean = { x: 0, y: 0, toX: 0, toY: 0 };
@@ -845,7 +846,13 @@ export function startInk(canvas, { reducedMotion = false, devPace = 0 } = {}, em
     // its own first frames (it is waited on for two of them, and the two
     // share one GPU).
     const hold = input.progress >= 0.99 && !input.ready;
-    if (again !== true && now - last < (hold ? HOLD_S : FRAME_S)) return;
+    const interval = hold ? HOLD_S : FRAME_S;
+    if (interval !== cadence) { cadence = interval; nextPaint = now; }
+    if (again !== true && now < nextPaint) return;
+    // Keep the cadence's phase when a browser frame arrives slightly late.
+    // Restarting from `now` turns a nearly 1/30-second gap into a skipped frame.
+    if (again === true) nextPaint = now + cadence;
+    else nextPaint += (Math.floor(Math.max(0, now - nextPaint) / cadence) + 1) * cadence;
     if (import.meta.env.DEV) {
       beat.frames += 1;
       beat.worst = Math.max(beat.worst, now - last);
