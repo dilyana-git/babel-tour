@@ -1,5 +1,12 @@
 # Design history
 
+### Echo columns warmed into the room's palette
+
+*2026-10-14* · The grey-green columns (`#919f99`, commit `8bbb57a`) felt
+separate from the rest of the Echo. Their stone is now a muted taupe-grey
+(`#a89f90`), between the darker masonry and pale limestone in value, with
+the same warm undertone as the room's stone and timber.
+
 ### Echo stone, arcade reveals and arrival
 
 *2026-10-14* · The room's stone sat within one beige band, the arcade faces

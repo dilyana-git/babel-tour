@@ -1005,11 +1005,11 @@ export function buildMaterials(ctx) {
   };
 
   // Three stones in the Echo: warm grey masonry, pale limestone carving and
-  // treads, and a cooler grey-green column stone. Keep the shared texture scale
+  // treads, and a muted taupe-grey column stone. Keep the shared texture scale
   // and the materials' lighting; the tint ends at this room's walls.
   for (const [name, color] of Object.entries({
     mass: '#77736c', cap: '#d9d6c9', step: '#cbc8ba', carve: '#dedbce',
-    column: '#919f99', nosing: '#e5dfd0', wornStep: '#eee7d6',
+    column: '#a89f90', nosing: '#e5dfd0', wornStep: '#eee7d6',
   })) {
     const mat = M[name], compile = mat.onBeforeCompile, cacheKey = mat.customProgramCacheKey;
     const tint = new THREE.Color(color);
