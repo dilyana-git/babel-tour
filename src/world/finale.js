@@ -486,7 +486,7 @@ const otherShader = (u) => (sh) => {
 // a foot out that far stood clear of the hem.)
 const STRIDE = 8;
 
-export function buildFinale({
+export function* buildFinale({
   root, keep, light = false,
   maze: { MZ, grid, rects, court, heart, ground, entry },
   stand, inside, route, branch, glowTex, heartParts,
@@ -505,6 +505,7 @@ export function buildFinale({
   const courtBox = [MZ.x0 + court.c0 * cw, MZ.z0 + court.r0 * ch, MZ.x0 + (court.c1 + 1) * cw, MZ.z0 + (court.r1 + 1) * ch];
   const field = floodField({ MZ, rects, heart, court: courtBox, mouths });
   keep(field.texture);
+  yield;
   const floorMat = keep(new THREE.ShaderMaterial({
     uniforms: {
       uField: { value: field.texture },
@@ -596,6 +597,7 @@ export function buildFinale({
   fireflies.renderOrder = 6;
   fireflies.name = 'finale-flies';
   group.add(fireflies);
+  yield;
   // (finaleFix.js, 5) Over the rise they go out, so that the last of the maze
   // seen from above is its lit ways and not the glitter over them.
   const [riseAt] = FINALE.rise;
@@ -821,10 +823,19 @@ export function buildFinale({
   };
   // (finaleFix6.js, 4: of one cut and one height, at even intervals round the
   // court and every one turned to the reader, they were figurines)
-  const others = fin6Old(4)
-    // (two of them carrying a book)
-    ? cast.map(([g, n, s, show, go, arrive], i) => comeIn(g, n, radial(gates[g].a + s * 22 * deg, STOP), show, go, arrive, i, i === 1 || i === 5))
-    : CAST.map(([g, n, round, out, show, go, arrive, opt], i) => comeIn(g, n, radial(round * deg, out), show, go, arrive, i, !!opt.book, opt));
+  const others = [];
+  if (fin6Old(4)) {
+    for (const [i, [g, n, s, show, go, arrive]] of cast.entries()) {
+      yield;
+      // Two of them carry a book.
+      others.push(comeIn(g, n, radial(gates[g].a + s * 22 * deg, STOP), show, go, arrive, i, i === 1 || i === 5));
+    }
+  } else {
+    for (const [i, [g, n, round, out, show, go, arrive, opt]] of CAST.entries()) {
+      yield;
+      others.push(comeIn(g, n, radial(round * deg, out), show, go, arrive, i, !!opt.book, opt));
+    }
+  }
   // (One more sat among them on a stool, the Silence's reader: the user did not
   // like it — 2026-10-12, "drop that" — and it is gone.)
   // ...and the one who stands where the reader came in: a few paces up the

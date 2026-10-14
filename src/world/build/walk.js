@@ -362,7 +362,7 @@ export function buildWaterView(ctx) {
   }
 }
 
-export function buildEnding(ctx) {
+export function* buildEnding(ctx) {
   const { paintings, light, dir, add, disposables, keep, glowTex, water, wind, setWay, M, root,
     pools, halos, lightWishes, R, D, HALL, ARCH_SPRING, ARCH_R, WAY_IN, cellC, ECHO_A, mirrors,
     candleLights, mounts, archGeo, vault, walkers, PIT, pitCore, pitSink, spiral, drift, ENTRANCE,
@@ -388,7 +388,7 @@ export function buildEnding(ctx) {
       const t = s / 32, u = 1 - t;
       return [0, 1, 2].map((k) => u * u * door[k] + 2 * u * t * ctrl[k] + t * t * stair[k]);
     });
-    finale = buildFinale({
+    finale = yield* buildFinale({
       root, keep, light,
       maze: { MZ, grid: mazeGrid, rects: mazeRects, court: COURT, heart: HEART, ground: MAZE, entry: MAZE_ENTRY },
       stand: stands[7],

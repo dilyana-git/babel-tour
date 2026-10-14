@@ -243,7 +243,7 @@ export const floorPoolU = {
   gain: { value: lpNum('wlpgain', 60) },
 };
 const radialAt = (t) => (t < 0.3 ? 1 - (t / 0.3) * 0.45 : t < 0.65 ? 0.55 - ((t - 0.3) / 0.35) * 0.41 : t < 1 ? 0.14 * (1 - (t - 0.65) / 0.35) : 0);
-export function bakeFloorPools() {
+export function* bakeFloorPools() {
   if (!floorPools.length) return 0;
   let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
   for (const p of floorPools) {
@@ -265,13 +265,19 @@ export function bakeFloorPools() {
         acc[k] += p.c.r * a; acc[k + 1] += p.c.g * a; acc[k + 2] += p.c.b * a;
       }
     }
+    yield;
   }
   const half = new Uint16Array(W * H * 4);
+  const opaque = THREE.DataUtils.toHalfFloat(1);
   for (let n = 0; n < W * H; n++) {
-    half[n * 4] = THREE.DataUtils.toHalfFloat(acc[n * 3]);
-    half[n * 4 + 1] = THREE.DataUtils.toHalfFloat(acc[n * 3 + 1]);
-    half[n * 4 + 2] = THREE.DataUtils.toHalfFloat(acc[n * 3 + 2]);
-    half[n * 4 + 3] = THREE.DataUtils.toHalfFloat(1);
+    // Unlit texels already contain zero; convert only the pools' colour.
+    if (acc[n * 3] || acc[n * 3 + 1] || acc[n * 3 + 2]) {
+      half[n * 4] = THREE.DataUtils.toHalfFloat(acc[n * 3]);
+      half[n * 4 + 1] = THREE.DataUtils.toHalfFloat(acc[n * 3 + 1]);
+      half[n * 4 + 2] = THREE.DataUtils.toHalfFloat(acc[n * 3 + 2]);
+    }
+    half[n * 4 + 3] = opaque;
+    if (n % 16384 === 16383) yield;
   }
   const tex = new THREE.DataTexture(half, W, H, THREE.RGBAFormat, THREE.HalfFloatType);
   tex.magFilter = THREE.LinearFilter;

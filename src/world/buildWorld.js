@@ -88,7 +88,7 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
   yield 'The Silence';
   buildSilence(ctx);
   yield 'The Vertigo';
-  Object.assign(ctx, buildVertigo(ctx));
+  Object.assign(ctx, yield* buildVertigo(ctx));
   yield 'The Door';
   Object.assign(ctx, buildDoor(ctx));
   yield 'The arch';
@@ -102,17 +102,17 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
   yield 'Lanterns';
   Object.assign(ctx, buildLanterns(ctx));
   yield 'The Fork';
-  Object.assign(ctx, buildFork(ctx));
+  Object.assign(ctx, yield* buildFork(ctx));
   yield 'The Web';
   Object.assign(ctx, buildWeb(ctx));
   yield 'Trees';
-  Object.assign(ctx, buildTrees(ctx));
+  Object.assign(ctx, yield* buildTrees(ctx));
   yield 'Mist on the grass';
   Object.assign(ctx, yield* buildMist(ctx));
   yield 'Light';
-  Object.assign(ctx, buildLight(ctx));
+  Object.assign(ctx, yield* buildLight(ctx));
   yield 'The unexplored';
-  Object.assign(ctx, buildUnexplored(ctx));
+  Object.assign(ctx, yield* buildUnexplored(ctx));
   yield 'What a reader at eye level cannot see';
   Object.assign(ctx, yield* buildCulling(ctx));
   yield 'What the camera and the overlay need';
@@ -126,5 +126,5 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
   yield 'What the water has to look at';
   buildWaterView(ctx);
   yield 'How the walk ends';
-  return buildEnding(ctx);
+  return yield* buildEnding(ctx);
 }

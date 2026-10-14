@@ -13,7 +13,7 @@ import { VLAND_OLD, VRAIL_OLD, buildVertigoRail, endlessRail } from '../vertigoR
 import { WOOD_OLD, ringGrain } from '../woodGrain';
 import { deg, MASS_H, CAP, SHELVES, BOOK_ROWS, TIER_BASE, TIER_H, TIERS, shelvesOf, BOARD } from '../build/common';
 
-export function buildVertigo(ctx) {
+export function* buildVertigo(ctx) {
   const { light, paintings, rnd, stream, rr, pick, dir, add, hexPts, circlePts, keep, paint, tex,
     withRepeat, again, pale, wood, bookRowsSet, rowV, lampHaloTex, shaftMaterial, Std, M, root,
     Batch, slabGeo, boxGeo, placed, rodGeo, instances, decal, halos, halo, lightWishes, point, A,
@@ -210,6 +210,7 @@ export function buildVertigo(ctx) {
       LB.shelfBack.add(ringGrain(slabGeo(arcSlab(rFace + 4.6, rFace + 5.6, jamb0, jamb1), [], topY - backY, backY), c[0], c[1]));
     }
     for (let tier = 0; tier < TIERS; tier++) {
+      yield;
       const y = TIER_BASE + tier * TIER_H;
       LB.shelf.add(ringGrain(slabGeo(caseRing, [], 2.4, y - 2.4), c[0], c[1]));
       if (!vertigoOld(3)) LB.shelfLip.add(shelfLip(c, rFace, y, y - 2.4, 150 + jambA, 510 - jambA));
@@ -312,6 +313,7 @@ export function buildVertigo(ctx) {
     }
     // a shelf every tier, and its books
     for (let k = 0; (k + 1) * TIER_H < 6 + DROP; k++) {
+      yield;
       const y = 6 - (k + 1) * TIER_H, face = coneR(y), n = light ? 40 : 80;
       LB.shelf.add(ringGrain(slabGeo(circlePts(c, face + RECESS + 0.5, n), [circlePts(c, face - 0.6, n)], 2.4, y - 2.4), c[0], c[1]));
       if (!vertigoOld(3)) LB.shelfLip.add(shelfLip(c, face - 0.6, y, y - 2.4, 0, 360, 360 / n));
@@ -365,6 +367,7 @@ export function buildVertigo(ctx) {
 
     // the treads, a sconce every so often on the wall string, books left on the steps
     for (let s = 0; s < STEPS; s++) {
+      if (s % 32 === 0) yield;
       const t = s / STEPS, y = 4 - t * DROP, rf = coneR(y), a = bearing(t), w = treadW(t);
       const len = ((2 * Math.PI * (rf - w / 2) * TURNS) / STEPS) * 1.08;
       LB.step.add(placed(new THREE.BoxGeometry(w, 3, Math.max(1.5, len)), add(c, dir(a), rf - w / 2 - 1), y, -a * deg));
@@ -745,8 +748,8 @@ export function buildVertigo(ctx) {
       const p = add(c, dir(rr(0, 360)), Math.sqrt(rnd()) * reach);
       dust.push({ p: [p[0], y, p[1]], s: Array(3).fill(rr(0.4, 0.9)), color: '#ffdca8', k: 0, phase: rr(0, 100) });
     }
-    carved.flush('carved');
-    funnelRows.flush('funnelRows');
+    yield* carved.flushSteps('carved');
+    yield* funnelRows.flushSteps('funnelRows');
     spiral = makeEndlessSpiral(c, {
       stone: LB.step.mat ?? carved.mat, bronze: LB.bronze.mat, books: funnelRowsMat,
       // (the same rail on down every turn of it, and the string it stands in)

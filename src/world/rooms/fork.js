@@ -17,7 +17,7 @@ import { garden5Old, signPostGeometry, paintSignName, SIGN, signBoardGeometry, H
 import { bridgeFoot } from '../shore';
 import { FORK_OLD, deg, SHORE_OLD } from '../build/common';
 
-export function buildFork(ctx) {
+export function* buildFork(ctx) {
   const { paintings, light, rnd, rr, pick, dir, add, lerp2, unit2, dist, circlePts, rot3, keep,
     paint, tex, lampHaloTex, water, wind, Std, skyDull, signLamp, M, root, slabGeo, boxGeo, placed,
     profileGeo, rodGeo, flatPlane, decal, halo, POOL_DIAL, point, trialEaves, glows, waterLamps,
@@ -246,6 +246,7 @@ export function buildFork(ctx) {
     }
     // The fish, on loops round the Pavilion and in patches of their own.
     const school = makeKoi({ pond: POND, time: wind, gather: BRIDGE_STAND, clear: (p) => inPond(p, 0.84) && dist(p, PV) > 52 });
+    yield;
     keep(school.geometry);
     keep(school.material);
     root.add(water.surface(school.mesh));
@@ -421,12 +422,14 @@ export function buildFork(ctx) {
     // plain boxes with a gilt cube on each, which from the bridge read as
     // stacked lumber.)
     const PAV_BRACKETS = !pavOld(2);
+    yield;
     if (PAV_BRACKETS) {
       // (pavilionProps.js, 3: the arms eased and painted)
       const set = bracketSet({ paint: pavPropsOld(3) ? null : CAIHUA });
       // carried from the column's frame (+x out, +z along) onto column k
       const carry = (g, a) => { const p = on(a, R_COL); return g.clone().rotateY(-a * deg).translate(p[0], HEAD, p[1]); };
       for (let k = 0; k < 8; k++) {
+        yield;
         for (const g of set.arms) GB.wood.add(carry(g, bay(k)));
         for (const g of set.blocks) GB.lacquer.add(carry(g, bay(k)));
         for (const g of set.caps) GB.pavBronze.add(carry(g, bay(k)));
@@ -513,6 +516,7 @@ export function buildFork(ctx) {
       const roofMat = softenRoofTiles(skyDull(Std({ map: tex(roofTiles(kind), [1, 1]), roughness: surface.roughness, side: THREE.DoubleSide }), surface.sky, surface.direct));
       // (gardenFix5.js, 6: the hips' curled ends in dark bronze — in the rolls'
       // pale grey, on the night, they are horns)
+      yield;
       const roof = tiledRoof({ at: PV, kind, light, bronze: !garden5Old(6) });
       const hornMat = roof.horns ? skyDull(Std({ color: HORN.color, roughness: HORN.roughness, metalness: HORN.metalness, side: THREE.DoubleSide }), HORN.sky) : null;
       for (const [geo, material] of [[roof.tiles, roofMat], [roof.under, underside], ...(roof.horns ? [[roof.horns, hornMat]] : [])]) {

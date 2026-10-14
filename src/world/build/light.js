@@ -49,7 +49,7 @@ export function makeLights({ light = false } = {}) {
   return { hemi, moon, pool };
 }
 
-export function buildLight(ctx) {
+export function* buildLight(ctx) {
   const { M, root, lightWishes, globes } = ctx;
   const { hemi, moon, pool } = ctx.lights ?? makeLights(ctx);
   root.add(hemi, moon, moon.target);
@@ -61,7 +61,7 @@ export function buildLight(ctx) {
   // only once it has faded out, so nothing pops.
   // (lampPass.js) the floor's pools summed into its map, and the lit globes
   // nearest the walk handed to the glass to glint with
-  if (LAMPS.pool) bakeFloorPools();
+  if (LAMPS.pool) yield* bakeFloorPools();
   // ?wpoolshadow=1: and shadowed, once the world is up (World.jsx steps it)
   const poolShadows = POOL_SHADOW ? makePoolShadowBake({ root, exclude: [M.floor, M.floorBand], floorY: 6.05 }) : null;
   if (LAMPS.glint) {
@@ -174,7 +174,7 @@ export function buildLight(ctx) {
     updateLights, isTwinning };
 }
 
-export function buildUnexplored(ctx) {
+export function* buildUnexplored(ctx) {
   const { add, dist, keep, paint, shaftMaterial, bounceRooms, mapWarm, ROUTE_ON, ROUTE_TINT,
     walkNearGlsl, M, root, flatPlane, cells, inFrame, routeCenters, hallMid, distantReaders, PIT,
     pitCarved, J, POND, PV, PATHS, beltGroup, water } = ctx;
@@ -459,9 +459,12 @@ export function buildUnexplored(ctx) {
 
   // The readers far off in the galleries (`figure`), all one mesh.
   if (distantReaders.length) {
-    const parts = distantReaders.map(({ p, y, ry }, i) => readerGeometry({
-      seed: 101 + i * 17, color: ROBES[i % ROBES.length], book: i % 3 === 1, detail: 0.5,
-    }).rotateY(ry).translate(p[0], y, p[1]));
+    const parts = [];
+    for (const [i, { p, y, ry }] of distantReaders.entries()) {
+      parts.push(readerGeometry({ seed: 101 + i * 17, color: ROBES[i % ROBES.length], book: i % 3 === 1, detail: 0.5 })
+        .rotateY(ry).translate(p[0], y, p[1]));
+      if (i % 8 === 7) yield;
+    }
     const mesh = new THREE.Mesh(keep(mergeGeometries(parts, false)), readerMaterial(keep).mat);
     parts.forEach((g) => g.dispose());
     mesh.name = 'distant-readers';

@@ -1042,6 +1042,10 @@ export function buildMaterials(ctx) {
       return this;
     }
     flush(name = '') {
+      const steps = this.flushSteps(name);
+      while (!steps.next().done) { /* synchronous builders finish every chunk */ }
+    }
+    *flushSteps(name = '') {
       for (const geos of this.chunks.values()) {
         const geo = keep(mergeGeometries(geos, false));
         geos.forEach((g) => g.dispose());
@@ -1052,6 +1056,7 @@ export function buildMaterials(ctx) {
         // Named so a probe can say WHAT the walk is standing in (see probe.js).
         m.name = name;
         root.add(m);
+        yield;
       }
       this.chunks.clear();
     }

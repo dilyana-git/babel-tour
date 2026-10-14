@@ -1,5 +1,19 @@
 # Design history
 
+### Finer construction and floor-light batches
+
+*2026-10-14* · The fuller woodland exposed further uninterrupted work in tree
+growth, stone merging, the Vertigo's rings, Pavilion joinery, distant readers
+and finale figures. These sections now yield in place without reordering
+their work or random draws. Floor-light baking yields between pools and
+conversion blocks, skips colour conversion for black texels and reuses the
+opaque alpha value. Reference comparisons cover sparse, overlapping and
+120-pool fixtures: all 1,048,576 half-float texels and texture bounds match
+exactly. The scene fingerprint retains identical geometry, light
+configuration and material code, all 334 submitted shader sources and all
+182 final material shader sources. Only time-driven data differ. The required
+62 unit checks, build and five-scenario navigation smoke test passed.
+
 ### Removing the Door's bright strip
 
 *2026-10-14* · A raycast of the reported bright seam identified two pale

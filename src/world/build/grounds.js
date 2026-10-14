@@ -21,7 +21,7 @@ import { garden5Old, GRASS, paintSward, FEATHER } from '../gardenFix5';
 import { pondShore, rockVariants, guardStones } from '../shore';
 import { ONE_TREE, SHORE_OLD, FORK_OLD, NO_BOUND } from './common';
 
-export function buildTrees(ctx) {
+export function* buildTrees(ctx) {
   const { light, paintings, rnd, rr, pick, dir, add, dist, keep, M, root, instances, chunkKey, inGarden, hangs,
     GATE, foliage, beltFoliage, beltWood, LEAF, BLOSSOM, PERGOLA0, J, POND, MZ,
     POOLS, PATHS, segDist, pathDist, NORTH_OPEN, wayDist, onNorthBridge, boundaryDist } = ctx;
@@ -76,6 +76,7 @@ export function buildTrees(ctx) {
       if (p[0] < 700 || p[0] > 2100 || p[1] < -1000 || p[1] > 780) continue;
       if (blocked(p) || placedTrees.some((o) => dist(o, p) < 21)) continue;
       placedTrees.push(p);
+      if (placedTrees.length % 8 === 0) yield;
       const v = rnd() < 0.2 ? 3 + Math.floor(rnd() * 2) : Math.floor(rnd() * 3);
       const kind = rnd();
       // spreading | a tall narrow spire | a young one, half the height
@@ -193,6 +194,7 @@ export function buildTrees(ctx) {
         [1490, -122], [1470, 64], [1183, 71], [1210, 335], [1454, 456]];
       const planted = [];
       for (const [gi, centre] of groves.entries()) {
+        yield;
         for (let tries = 0, count = 0; tries < 100 && count < (light ? 2 : 5); tries++) {
           const p = [centre[0] + range(-42, 42), centre[1] + range(-34, 34)];
           const walk = walkDist(p);
@@ -243,6 +245,7 @@ export function buildTrees(ctx) {
           const grown = growTree(species, makeRng(94400 + si * 31 + variant * 7), wood, { H: 50, S: 30, detail: false });
           return { geometry: wood.geometry(), sprays: grown.sprays, trees: [] };
         }));
+        yield;
       }
       const groves = [[1085, -242], [1120, -342], [1180, -407], [1240, -422], [1320, -419], [1400, -416],
         [1475, -352], [1530, -255], [1550, -160], [1585, -53], [1575, 42], [1585, 153],
@@ -250,6 +253,7 @@ export function buildTrees(ctx) {
         [1190, 400], [1170, 330], [1145, 230], [1164, -88], [1410, 59], [1212, 62]];
       const yawQ = new THREE.Quaternion(), leafQ = new THREE.Quaternion(), angles = new THREE.Euler();
       for (const [gi, centre] of groves.entries()) {
+        yield;
         for (let tries = 0, count = 0; tries < 180 && count < (light ? 3 : 8); tries++) {
           const p = [centre[0] + range(-54, 54), centre[1] + range(-43, 43)];
           const walk = walkDist(p);
@@ -289,6 +293,7 @@ export function buildTrees(ctx) {
         for (const shape of family) {
           if (shape.trees.length) instances(shape.geometry, M.bark, shape.trees, { chunked: true, name: 'trees' });
           else shape.geometry.dispose();
+          yield;
         }
       }
     }
@@ -317,7 +322,8 @@ export function buildTrees(ctx) {
         const far = (t) => t.p[1] > hedge + 56;
         closeBelt(belt, sr, ok, clear, GROUND_T).forEach((t) => { if (t.closing) t.far = far(t); });
       }
-      for (const t of belt) {
+      for (const [ti, t] of belt.entries()) {
+        if (ti % 8 === 0) yield;
         const wood = new Wood(7);
         const grown = growTree('cedar', sr, wood, { H: t.H, S: t.S, detail: !light && !t.far, skirt: SCREEN.skirt, spire: webPropsOld(2) ? null : SPIRE });
         treeList.push({ p: t.p, species: 'cedar', H: +t.H.toFixed(1), screen: true });
@@ -375,6 +381,7 @@ export function buildTrees(ctx) {
       m.receiveShadow = true;
       m.name = 'trees';
       root.add(m);
+      yield;
     }
     let shrubs = 0;
     for (let s = 0; s < 6000 && shrubs < (light ? 60 : 140); s++) {
@@ -715,7 +722,7 @@ export function* buildMist(ctx) {
   // one material at a time so assembly can pause between the larger batches.
   for (const batches of [LB, GB]) {
     for (const [name, b] of Object.entries(batches)) {
-      b.flush(name);
+      yield* b.flushSteps(name);
       yield;
     }
   }
