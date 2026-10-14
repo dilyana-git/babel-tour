@@ -1,5 +1,17 @@
 # Design history
 
+### Balancing the Silence and Door lighting
+
+*2026-10-14* · Rooms III and V still read darker than their neighbours.
+The Silence's warm diffuse fill rises from 0.85 to 1.15, and the Door gains
+a local fill of 0.75. A further map fill adds 1.0 and 1.05 respectively,
+fading with camera height between 150 and 500 and surface height between
+-30 and 6. The Door's fill follows its hexagon and fades between radii 78
+and 105, keeping the change local to the gallery. Strict GPU before/after
+pictures of the map and both interiors were inspected; the required check
+passed. The comparison injection lives only in the ignored screenshot
+tool, with no additional production query flag.
+
 ### Preparing first-use driver work
 
 *2026-10-14* · Startup sampling located much of the remaining first-frame

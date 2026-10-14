@@ -42,6 +42,7 @@ export const WELL = {
 const f = (x) => (Number.isInteger(x) ? `${x}.0` : `${x}`);
 const galleryStep = 100 * Math.sqrt(3) + 50;
 const silenceCentre = [WELL.c[0] - galleryStep * Math.cos(Math.PI / 6), WELL.c[1] + galleryStep * 0.5];
+const doorCentre = [WELL.c[0] + galleryStep * Math.cos(Math.PI / 6), WELL.c[1] - galleryStep * 0.5];
 if (!vertigoOld(4) && !THREE.ShaderChunk.lights_fragment_end.includes('wellGrade')) {
   THREE.ShaderChunk.lights_fragment_end += `
 #ifdef STANDARD
@@ -63,8 +64,18 @@ if (!vertigoOld(4) && !THREE.ShaderChunk.lights_fragment_end.includes('wellGrade
 		}
 		// Diffuse light bounced by stone reveals the stairs and shelving while
 		// the lamps retain their highlights. It fades at the rooms' doorways.
-		float libraryRoomFill = 0.85 * (1.0 - smoothstep(82.0, 140.0,
-			length(wellP.xz - vec2(${f(silenceCentre[0])}, ${f(silenceCentre[1])}))))
+		float silenceIn = 1.0 - smoothstep(82.0, 140.0,
+			length(wellP.xz - vec2(${f(silenceCentre[0])}, ${f(silenceCentre[1])})));
+		vec2 doorD = wellP.xz - vec2(${f(doorCentre[0])}, ${f(doorCentre[1])});
+		float doorEdge = max(abs(doorD.y), max(abs(dot(doorD, vec2(0.8660254, 0.5))),
+			abs(dot(doorD, vec2(-0.8660254, 0.5)))));
+		float doorIn = 1.0 - smoothstep(78.0, 105.0, doorEdge);
+		// The map needs enough diffuse light to read the rooms' floors and
+		// shelves; the extra sky fill fades before the camera reaches eye level.
+		float galleryMap = smoothstep(150.0, 500.0, cameraPosition.y)
+			* smoothstep(-30.0, 6.0, wellP.y);
+		float libraryRoomFill = (1.15 + galleryMap) * silenceIn
+			+ (0.75 + 1.05 * galleryMap) * doorIn
 			+ 0.6 * wellIn * smoothstep(-80.0, 6.0, wellP.y);
 		reflectedLight.indirectDiffuse += libraryRoomFill * vec3(1.0, 0.82, 0.63)
 			* BRDF_Lambert(material.diffuseContribution);
