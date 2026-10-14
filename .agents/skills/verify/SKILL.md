@@ -16,6 +16,15 @@ npm run check     # lint + frame-rate rule + geometry/path unit tests + build, ~
 Lint has pre-existing `exhaustive-deps` warnings in `EntryMap.jsx` and one
 `only-export-components` in `Failure.jsx`: ignore them, not new ones.
 The browser test gate is off: see `AGENTS.md` for when its suites still run.
+Do not run browser smoke tests for purely visual changes, including tree
+appearance, materials, lighting, foliage and decorative geometry. A shared
+filename alone is not a trigger; smoke covers changes to movement, input,
+interaction, walking clearance/collision behaviour or scene lifecycle.
+Schedule it after the functional change is settled.
+
+Use the focused tree preview and saved views before loading the full world.
+Keep one coherent visual revision per feedback cycle; do not expand an
+appearance edit into speculative profiling or repeated optional diagnostics.
 
 ## Look
 

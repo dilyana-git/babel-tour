@@ -1,5 +1,25 @@
 # Babel Tour: working on it
 
+Read `docs/development-memory.md` at the start of work in this project. It
+records the user's development preferences and the reason for the workflow.
+
+## A short visual feedback loop
+
+Make one coherent visual revision, inspect a focused preview, and present it
+promptly. Let the user's next feedback guide further polish. Keep the requested
+scope small; do not add speculative performance investigations, shader dumps,
+or broad refactors to a simple appearance change.
+
+Tune trees in `npm run preview:trees` before loading the whole world. Reuse
+saved camera views and the existing screenshot tools; capture several views
+in one browser session. Reuse a running preview session between edits when
+possible instead of creating one-off copies of the screenshot driver.
+
+Run the quick check after each coherent app edit. Schedule any required browser
+smoke test once the functional change is settled. Repeat successful checks only
+when a later change, failure, or concrete unresolved concern justifies it.
+Optional diagnostics are not a reason to leave a verified visual fix unfinished.
+
 ## Checking a change
 
 After every change to the app, run:
@@ -21,12 +41,19 @@ To see a change, take a picture of it (see "Looking at the world" below).
 Edge through every room with software WebGL and take tens of minutes. Run them
 only:
 
-- `npm run check:navigation:smoke` when a change touches navigation, input
-  handling, room controls, collision geometry or scene lifecycle;
+- `npm run check:navigation:smoke` when a change affects navigation, input
+  handling, room-control behaviour, walking clearance/collision behaviour or
+  scene lifecycle behaviour; run it after the functional change is settled;
 - the full gate (`npm run check:major`) when the user asks for it, or once
   after a large refactor that moves code across the world;
 - in CI, which runs the full gate nightly and by hand
   (`.github/workflows/navigation.yml`) and the quick checks on every push.
+
+**Do not run browser smoke tests for purely visual changes.** Materials,
+lighting, foliage, tree appearance and decorative geometry are visual changes
+unless they also change how the user moves or interacts with the world. A
+filename shared with collision or lifecycle code does not by itself require
+a smoke test. Keep `npm run check` and a rendered picture for visual edits.
 
 The browser suites start their own Vite server and headless Edge. On an
 offline machine, set `EDGE_DRIVER_PATH` to an installed Edge driver; on a
@@ -89,6 +116,12 @@ and returns what later sections need. Everything is laid out from one random
 stream (`rnd`) in that order: a change that adds or removes a draw, or moves a
 section, moves everything after it. Use a stream of your own (`makeRng`) for
 anything new.
+
+Use an explicit independent seed for new tree specimens and new procedural
+detail. Keep growth and leaf-colour streams separate from placement. Reuse
+existing seed values when migrating current trees: the user wants the current
+garden's shapes and planting preserved. Migrate the older compatibility draw
+budgets in small steps, proving that existing output is unchanged.
 
 To prove a refactor changes nothing, compare scene fingerprints before and
 after (`npm run shot -- --fingerprint`, then `--compare=a.json,b.json`; see

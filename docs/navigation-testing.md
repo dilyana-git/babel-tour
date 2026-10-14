@@ -2,8 +2,10 @@
 
 > **Since 2026-10-12** the browser gate no longer runs after every change.
 > `npm run check` (lint, governor, the fast tests below, build) does, in about
-> ten seconds. The smoke suite runs when navigation, input or collision code
-> changes; the full gate when asked, after a large refactor, and nightly in CI.
+> ten seconds. Purely visual changes do not run browser smoke tests. The smoke
+> suite runs after a settled change to navigation, input, interaction, walking
+> clearance/collision behaviour or scene lifecycle behaviour; the full gate
+> runs when asked, after a large refactor, and nightly in CI.
 > `AGENTS.md` has the rule.
 
 These scripts run locally without an AI model.
