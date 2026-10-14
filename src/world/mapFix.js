@@ -12,7 +12,7 @@ export const mapOld = (n) => V === 'old' || (ONLY ? ONLY.has(String(n).toUpperCa
 // 7. The well's stone, shelves and floor over the map: how much of the
 // lamplight they lose — `floor` of it at the pit's floor (6), `k` of it from
 // `to` down; and how much of the cone of lit air under the drum's lamp goes.
-export const PIT_FADE = { floor: 0.55, k: 0.85, from: 6, to: -45, shaft: 0.9 };
+export const PIT_FADE = { floor: 0.35, k: 0.72, from: 6, to: -45, shaft: 0.9 };
 
 // 8. The warm bounce on the rims of the walk's rooms, over the map: its colour,
 // strength, and the reach in from the room's inner wall (the hexagon's flat

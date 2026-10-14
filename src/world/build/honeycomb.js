@@ -61,7 +61,7 @@ export function buildHoneycomb(ctx) {
     }
   }
   // (x, z, how much warm floor-light the room's stone soffits take back)
-  bounceRooms.value = [[0, 0, 1], [1, -1, 0.8], [2, -2, 0.25], [3, -3, 0.5], [4, -4, 0.7]]
+  bounceRooms.value = [[0, 0, 1], [1, -1, 0.8], [2, -2, 0.5], [3, -3, 0.65], [4, -4, 0.7]]
     .map(([i, j, k]) => { const q = cellC(i, j); return new THREE.Vector3(q[0], q[1], k); });
   workAt.value.set(ECHO_C[0], ECHO_C[1], ECHO_STONE.reach + ECHO_R - 112);
   echoDeep.value = deepAt(ECHO_C);

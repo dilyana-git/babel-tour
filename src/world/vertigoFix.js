@@ -36,10 +36,12 @@ export const WELL = {
   // the pit's middle (buildWorld's PIT, cellC(3, -3): checked against it there)
   c: (() => { const D = 100 * Math.sqrt(3) + 50; return [232 + 3 * D * Math.cos(Math.PI / 6), 785 + 3 * D * 0.5 - 3 * D]; })(),
   r: 104, edge: 8,
-  top: qn('wvtop', 0.5), dark0: qn('wvd0', -200), dark1: qn('wvd1', 80),
+  top: qn('wvtop', 0.68), dark0: qn('wvd0', -200), dark1: qn('wvd1', 80),
   warm: qn('wvwarm', 70), warmFrom: qn('wvwf', 0), warmTo: qn('wvwt', -260), warmPow: qn('wvwp', 1.6), throat: -440,
 };
 const f = (x) => (Number.isInteger(x) ? `${x}.0` : `${x}`);
+const galleryStep = 100 * Math.sqrt(3) + 50;
+const silenceCentre = [WELL.c[0] - galleryStep * Math.cos(Math.PI / 6), WELL.c[1] + galleryStep * 0.5];
 if (!vertigoOld(4) && !THREE.ShaderChunk.lights_fragment_end.includes('wellGrade')) {
   THREE.ShaderChunk.lights_fragment_end += `
 #ifdef STANDARD
@@ -59,6 +61,13 @@ if (!vertigoOld(4) && !THREE.ShaderChunk.lights_fragment_end.includes('wellGrade
 			float wellUp = pow( smoothstep( ${f(WELL.warmFrom)}, ${f(WELL.warmTo)}, wellP.y ), ${f(WELL.warmPow)} ) * wellIn;
 			reflectedLight.indirectDiffuse += ${f(WELL.warm)} * wellUp * wellNL * vec3( 1.0, 0.55, 0.25 ) * BRDF_Lambert( material.diffuseContribution );
 		}
+		// Diffuse light bounced by stone reveals the stairs and shelving while
+		// the lamps retain their highlights. It fades at the rooms' doorways.
+		float libraryRoomFill = 0.85 * (1.0 - smoothstep(82.0, 140.0,
+			length(wellP.xz - vec2(${f(silenceCentre[0])}, ${f(silenceCentre[1])}))))
+			+ 0.35 * wellIn * smoothstep(-80.0, 6.0, wellP.y);
+		reflectedLight.indirectDiffuse += libraryRoomFill * vec3(1.0, 0.82, 0.63)
+			* BRDF_Lambert(material.diffuseContribution);
 	}
 #endif
 `;
