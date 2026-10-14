@@ -1,9 +1,9 @@
 // The Echo's arrival frame, reviewed 2026-10-08: the stand, the stair's
-// values, the keystones, the moon's column, the drum's coursing, books over
+// values, the keystones, the moon's column, books over
 // the ways out.
 // What each point was, and why: docs/design-history.md.
 //
-// ?wechofix=old puts all of them back as they were; ?wechofix=old:3,6 only
+// ?wechofix=old puts all of them back as they were; ?wechofix=old:3,4 only
 // those. (?wecho=old is the flights' old tread, and is its own.)
 const Q = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('wechofix') : null;
 const ONLY = Q && Q.startsWith('old:') ? new Set(Q.slice(4).split(',').map(Number)) : null;
@@ -46,25 +46,3 @@ export function moonBeamPatch(material) {
         gl_FragColor = vec4(moonCol, 1.45 * uStrength * body * along * near * vOpen * intersection * moonRise);`);
   return material;
 }
-
-// 6. The drum's coursing (a GLSL body for stoneShade's `drum`): the wall's own
-// ashlar, but laid as a mason sets a tall wall — each course a little lower
-// than the one under it, so the eye reads height — and every tile of courses
-// set along by its own amount, so no block comes round again above itself.
-// `s` is the height in courses at the foot's size: ds/dy = e^(y/L), so a
-// course at y is e^(-y/L) of one on the floor (0.6 at the cornice). The
-// length of the blocks steps down with them once a tile (twelve courses), at
-// a bed joint, so the perpends stay plumb.
-export const DRUM_L = 235;
-export const drumUvGlsl = (tile, rep) => `
-  vec2 drumUvOf(vec3 w, vec3 n) {
-    vec3 an = abs(n);
-    if (an.y >= an.x && an.y >= an.z) return w.xz * ${rep};
-    vec2 t = normalize(vec2(-n.z, n.x) + 1e-6);
-    float h = dot(w.xz, t);
-    float s = ${DRUM_L.toFixed(1)} * (exp(max(w.y, 0.0) / ${DRUM_L.toFixed(1)}) - 1.0);
-    float band = floor(s / ${tile});
-    float k = 1.0 / (1.0 + (band + 0.5) * ${tile} / ${DRUM_L.toFixed(1)});
-    float shift = fract(sin(band * 12.9898 + 4.1) * 43758.5453) * ${tile};
-    return vec2(h / k + shift, s) * ${rep};
-  }`;

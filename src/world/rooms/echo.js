@@ -460,7 +460,7 @@ export function buildEcho(ctx) {
           const th = Math.PI * (1 - n / 24);
           arc.push([Math.cos(th) * span, top + Math.sin(th) * rise]);
         }
-        (echoOld(6) ? LB.mass : LB.drum).add(profileGeo(
+        LB.mass.add(profileGeo(
           [[-HALF, top], [-span, top], ...arc, [span, top], [HALF, top], [HALF, top + rise + band], [-HALF, top + rise + band]],
           wall, mid, turn,
         ));

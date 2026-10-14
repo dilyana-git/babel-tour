@@ -280,14 +280,13 @@ export function* buildKit(ctx) {
     return c;
   };
   // A reader is 18 units tall, so a unit is 9.4 cm and these are sizes of stone:
-  // a flagstone 1 m across, an ashlar course 45 cm high, the massive pale stone
+  // a flagstone 1 m across, an ashlar course 30 cm high, the massive pale stone
   // of the caps and the drums laid 2 m by 1. (Everything they go on is projected
   // in world units — see uvWorld — so these numbers mean what they say.)
   const flag = scaled(painter.take('flag'), 1 / 32);
   // the Door's cracks, over the breach's frame (cracks.js; read by paveShade)
   const crackMap = CRACK_OLD ? null : keep(painter.take('cracks').map);
   const wall = scaled(painter.take('wall'), 1 / 38);
-  const vestWall = scaled(painter.take('vestWall'), 1 / 38);
   const pale = scaled(painter.take('pale'), 1 / 42);
   // (the wood is a board's length of timber along u and its width across v:
   // WALNUT_TILE and CEDAR_TILE, laid by uvGrain along each piece)
@@ -318,8 +317,8 @@ export function* buildKit(ctx) {
   const hedge = scaled(painter.take('hedge'), 1 / 12);
   // The Door's arch (portal.js): carved stone with no joints painted in it,
   // laid by the mouldings' own length (a unit of texture every nine units of
-  // stone); the same pale ashlar as the caps at half the size of block, for
-  // the plain faces of a doorway; the dark marble of its shafts; what hangs in it.
+  // stone); the shared wall ashlar on plain doorway faces, the dark marble
+  // of its shafts, and what hangs in it.
   const carveSet = painter.take('carve');
   Object.values(carveSet).forEach(keep);
   // the grain of what came down in the Door (rubble.js; laid on by M.rubble)
@@ -329,8 +328,8 @@ export function* buildKit(ctx) {
   const shoreBankSet = SHORE_OLD ? null : painter.take('shoreBank');
   for (const set of [shoreRockSet, shoreBankSet]) if (set) Object.values(set).forEach(keep);
   if (rubbleSet) Object.values(rubbleSet).forEach(keep);
-  // (painted once: the caps' stone, laid at another size)
-  const dressedSet = { map: again(pale.map, 1 / 20), normalMap: again(pale.normalMap, 1 / 20), roughnessMap: again(pale.roughnessMap, 1 / 20) };
+  // Doorway and bridge facing share the walls' texture and world scale.
+  const dressedSet = wall;
   const marbleSet = purbeck();
   Object.values(marbleSet).forEach(keep);
   // The Echo's columns: the carving's oolite again, honed, each shaft one
@@ -457,7 +456,7 @@ export function* buildKit(ctx) {
   }), [1, 1]);
   return { rnd, stream, rr, pick, dir, add, lerp2, unit2, dist, hexPts, circlePts, rot3, detail,
     disposables, keep, paint, tex, withRepeat, grassTex, GRAVEL_COLOR, gravelTex, starTex, roofTex,
-    radialTex, lanternPoolTex, wisteriaTex, ivyTex, again, flag, crackMap, wall, vestWall, pale, wood,
+    radialTex, lanternPoolTex, wisteriaTex, ivyTex, again, flag, crackMap, wall, pale, wood,
     whiteTex, timber, spines, titles, bookRowsSet, vestBookRowsSet, rowV, friezeTex, gilt, hedge, carveSet,
     rubbleSet, shoreRockSet, shoreBankSet, dressedSet, marbleSet, columnSet, hangTex, glowTex,
     lampHaloTex, water, wind, lilyPads, leaves, barkSet, shaftMaterial, gradTex, wornTex,

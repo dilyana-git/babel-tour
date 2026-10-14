@@ -11,10 +11,19 @@ block lengths, tone steps, seed and weathering:
 - `b`: 18 courses, approximately 20 cm per course.
 - `c`: 12 courses, approximately 30 cm, matching the other walls' base scale.
 
-The default remains at 36 courses until a choice is made. The selected
-option will become the sole path and the comparison flag will be removed.
-Matching stand and near-wall views are saved in
-`tools/views/vestibule-stone.json`.
+The user selected **C**, then requested the same texture across all rooms.
+Its 12-course stone is now the shared wall texture, including hallway
+arches, well linings, the Door's plain facing and exterior walls: seed 107,
+five blocks per tile, joint 1, normal strength 0.65, tone spread 18, flat
+faces, repeat 1/38.
+The Vestibule uses the same texture objects, with its existing soot and
+soffit shading. The Echo's shrinking-course projection was removed so it
+uses the same world-space scale as the other rooms.
+
+The 36-course default, A and B, and `wveststone` were removed. Commit
+`c5cb551` retains the code for all options. Matching stand and near-wall
+views are saved in `tools/views/vestibule-stone.json`; before/after room
+previews verify the shared texture.
 
 ### Vestibule stone, readers and sightlines
 

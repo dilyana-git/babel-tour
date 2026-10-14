@@ -986,7 +986,7 @@ export function buildFlightDressing(ctx) {
     // mottle reads as glossed plaster.)
     flank: new Batch(M.step, P),
     // (the Echo's: echoFix.js, 2 and 6)
-    nosing: new Batch(M.nosing, P), riserSoft: new Batch(M.riserSoft, { cast: false, receive: false }), drum: new Batch(M.drum, P),
+    nosing: new Batch(M.nosing, P), riserSoft: new Batch(M.riserSoft, { cast: false, receive: false }),
     column: new Batch(M.column), columnBox: new Batch(M.column, P),
     bookRows: new Batch(M.bookRows, { cast: false }), bookRowsLit: new Batch(M.bookRowsLit, { cast: false }),
     vestBookRowsLit: new Batch(M.vestBookRowsLit, { cast: false }),

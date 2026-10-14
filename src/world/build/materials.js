@@ -9,7 +9,6 @@ import { bayPlates, shelfEdge, FOLIAGE_KINDS, HANGING_KINDS } from '../textures'
 import { makeBookMaterial, makeGlowMaterial, makeLampGlobeMaterial, makeFoliageMaterial, makeFoliagePrepass, makeHangingMaterial, GRAZE } from '../effects';
 import { WATER_Y } from '../water';
 import { makeFlowerMaterial } from '../pond';
-import { drumUvGlsl } from '../echoFix';
 import { LIP_COLOR } from '../vertigoFix';
 import { silenceOld, ARCH_LIFT, deadGlassPatch } from '../silenceFix';
 import { forkOld, RAKE, WAYMARK } from '../forkFix';
@@ -39,7 +38,7 @@ import { DOOR_CRACKS, stoneTint, HEDGE_DIAL, ROUTE_LIGHT, MASS_H, CAP, RIM_WARM,
 
 export function buildMaterials(ctx) {
   const { light, rr, dir, add, unit2, dist, keep, grassTex, GRAVEL_COLOR, gravelTex, starTex,
-    roofTex, radialTex, wisteriaTex, ivyTex, again, flag, crackMap, wall, vestWall, pale, wood, whiteTex,
+    roofTex, radialTex, wisteriaTex, ivyTex, again, flag, crackMap, wall, pale, wood, whiteTex,
     timber, spines, titles, bookRowsSet, vestBookRowsSet, friezeTex, gilt, hedge, carveSet, rubbleSet, shoreRockSet,
     shoreBankSet, dressedSet, marbleSet, columnSet, hangTex, glowTex, lampHaloTex, wind, lilyPads,
     leaves, barkSet, gradTex, wornTex, dustFanTex, mossTex, leafTex, globeTex } = ctx;
@@ -103,10 +102,6 @@ export function buildMaterials(ctx) {
               float hex = max(abs(d.y), max(abs(dot(d, vec2(0.8660254, 0.5))), abs(dot(d, vec2(-0.8660254, 0.5)))));
               walkNear = max(walkNear, smoothstep(${QUIET.near[1].toFixed(1)}, ${QUIET.near[0].toFixed(1)}, hex));
             }`;
-  // `drum` (the Echo's walls, echoFix.js point 6): the maps laid by the
-  // fragment's own place on the wall, in courses that grow lower as it rises,
-  // rather than by the projected uv — { tile, rep }: the tile's size in world
-  // units and the maps' repeat.
   // `lift`: how much more of that bounce this stone takes, and `side` how much
   // of it a face standing upright takes too — it sees half the floor that a
   // soffit does (the Silence's arches over its well: silenceFix.js, 4)
@@ -127,7 +122,7 @@ export function buildMaterials(ctx) {
   // `route`: the stone of the wall tops and of the heads of the walls under
   // them, which over the map takes the lamps' light for the moon's
   // (mapFix4.js, 2).
-  const stoneShade = (mat, { weather = false, night = false, drum = null, lift = 1, side = 0, quiet = false, sink = false, aged = false, worked = null, wash = false, route = false, vestibule = false } = {}) => {
+  const stoneShade = (mat, { weather = false, night = false, lift = 1, side = 0, quiet = false, sink = false, aged = false, worked = null, wash = false, route = false, vestibule = false } = {}) => {
     wash = wash && !lib3Old(6);
     route = route && ROUTE_ON;
     quiet = quiet && QUIET_ON;
@@ -150,8 +145,7 @@ export function buildMaterials(ctx) {
           varying float vStoneSide;
           ${sink ? `uniform vec3 uBounceRooms[${bounceRooms.value.length}];
           uniform float uMapWarm;` : ''}
-          ${placed ? 'varying vec3 vStoneAt;' : ''}
-          ${drum ? 'varying vec3 vStoneN;' : ''}`)
+          ${placed ? 'varying vec3 vStoneAt;' : ''}`)
         .replace('#include <begin_vertex>', `#include <begin_vertex>
           vStoneW = (modelMatrix * vec4(transformed, 1.0)).xyz;
           ${placed ? `
@@ -177,19 +171,7 @@ export function buildMaterials(ctx) {
           }` : ''}`)
         .replace('#include <beginnormal_vertex>', `#include <beginnormal_vertex>
           vStoneDown = max(0.0, -normalize(mat3(modelMatrix) * objectNormal).y);
-          vStoneSide = 1.0 - abs(normalize(mat3(modelMatrix) * objectNormal).y);
-          ${drum ? 'vStoneN = mat3(modelMatrix) * objectNormal;' : ''}`);
-      if (drum) {
-        // (every map read in main() reads this uv instead of the vertex's)
-        sh.fragmentShader = sh.fragmentShader.replace('void main() {', `varying vec3 vStoneN;
-          ${drumUvGlsl(drum.tile.toFixed(2), drum.rep.toFixed(6))}
-          vec2 drumUv;
-          #define vMapUv drumUv
-          #define vNormalMapUv drumUv
-          #define vRoughnessMapUv drumUv
-          void main() {
-            drumUv = drumUvOf(vStoneW, normalize(vStoneN));`);
-      }
+          vStoneSide = 1.0 - abs(normalize(mat3(modelMatrix) * objectNormal).y);`);
       sh.fragmentShader = sh.fragmentShader
         .replace('#include <common>', `#include <common>
           uniform vec3 uBounceRooms[${bounceRooms.value.length}];
@@ -339,7 +321,7 @@ export function buildMaterials(ctx) {
         .replace('#include <opaque_fragment>', `${vestibule ? 'outgoingLight *= 1.0 - 0.2 * vStoneDown;' : ''}
           #include <opaque_fragment>`);
     };
-    mat.customProgramCacheKey = () => `babel-stone-${weather ? 'w' : night ? 'n' : 'b'}${(weather || night) && WALLS.spec ? 's' : ''}${drum ? '-drum' : ''}-${bounceRooms.value.length}${RIM ? '-rim' : ''}${quiet ? '-quiet' : ''}${route ? '-route' : ''}${sink ? '-sink' : ''}${aged ? '-aged' : ''}${worked ? `-work${worked.polish ?? 0}${worked.joints ?? 0}${worked.foot ? 'f' : ''}` : ''}${wash ? '-wash' : ''}${vestibule ? '-vestibule' : ''}`;
+    mat.customProgramCacheKey = () => `babel-stone-${weather ? 'w' : night ? 'n' : 'b'}${(weather || night) && WALLS.spec ? 's' : ''}-${bounceRooms.value.length}${RIM ? '-rim' : ''}${quiet ? '-quiet' : ''}${route ? '-route' : ''}${sink ? '-sink' : ''}${aged ? '-aged' : ''}${worked ? `-work${worked.polish ?? 0}${worked.joints ?? 0}${worked.foot ? 'f' : ''}` : ''}${wash ? '-wash' : ''}${vestibule ? '-vestibule' : ''}`;
     return mat;
   };
   // Less of the sky in a surface's gloss, `k` of it, and `direct` of the
@@ -732,9 +714,7 @@ export function buildMaterials(ctx) {
   const M = {
     floor: lpPool(paveShade(Std({ map: flag.map, normalMap: flag.normalMap, roughnessMap: flag.roughnessMap, color: stoneTint('#8d7f6e', '#8a857b'), roughness: 1, side: THREE.DoubleSide }))),
     mass: stoneShade(Std({ map: wall.map, normalMap: wall.normalMap, roughnessMap: wall.roughnessMap, color: stoneTint('#b6a897', '#ada89e'), roughness: 1, side: THREE.DoubleSide }), { weather: true, quiet: true, aged: true, wash: true, route: true }),
-    vestMass: stoneShade(Std({ map: vestWall.map, normalMap: vestWall.normalMap, roughnessMap: vestWall.roughnessMap, color: stoneTint('#b6a897', '#ada89e'), roughness: 1, side: THREE.DoubleSide }), { weather: true, quiet: true, aged: true, wash: true, route: true, vestibule: true }),
-    // the Echo's: the same stone, coursed lower as it rises (echoFix.js, 6)
-    drum: stoneShade(Std({ map: wall.map, normalMap: wall.normalMap, roughnessMap: wall.roughnessMap, color: stoneTint('#b6a897', '#ada89e'), roughness: 1, side: THREE.DoubleSide }), { weather: true, aged: true, drum: { tile: 1 / wall.map.repeat.x, rep: wall.map.repeat.x }, route: true }),
+    vestMass: stoneShade(Std({ map: wall.map, normalMap: wall.normalMap, roughnessMap: wall.roughnessMap, color: stoneTint('#b6a897', '#ada89e'), roughness: 1, side: THREE.DoubleSide }), { weather: true, quiet: true, aged: true, wash: true, route: true, vestibule: true }),
     cap: stoneShade(Std({ map: pale.map, normalMap: pale.normalMap, roughnessMap: pale.roughnessMap, color: stoneTint('#b3a894', '#b0aa9d'), roughness: 1, side: THREE.DoubleSide }), { night: WALLS.spec, quiet: true, worked: { polish: 0.3, joints: 1 }, wash: true, route: true }),
     // the same stone in the Silence's flights, where the lamp over the landing
     // reached in under it (no lamp casts a shadow) and drew a lit line along

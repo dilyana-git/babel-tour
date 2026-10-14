@@ -895,8 +895,7 @@ export function* buildFurniture(ctx) {
       const mid = piece.reduce((m, q) => [m[0] + q[0] / piece.length, m[1] + q[1] / piece.length], [0, 0]);
       const bearing = (Math.atan2(mid[1] - c[1], mid[0] - c[0]) / deg + 360) % 360;
       const uvAt = wayInSide !== null && Math.abs(((bearing - wayInSide + 540) % 360) - 180) < 30 ? WAY_IN.by : null;
-      // (the Echo's walls coursed as a drum: echoFix.js, 6)
-      (room === 0 ? LB.vestMass : room === 1 && !echoOld(6) ? LB.drum : LB.mass).add(slabGeo(piece, [], MASS_H, 0), uvAt);
+      (room === 0 ? LB.vestMass : LB.mass).add(slabGeo(piece, [], MASS_H, 0), uvAt);
       LB.cap.add(slabGeo(piece, [], CAP, MASS_H), uvAt);
     }
     if (hallway(cell, 5)) {

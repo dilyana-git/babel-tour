@@ -3,18 +3,13 @@
 
 import { CEDAR, CEDAR_WOOD } from '../textures';
 import { BOOKS_TITLED } from '../effects';
-import { vestOld } from '../vestFix';
 import { vertigoOld } from '../vertigoFix';
 import { RIM_WARM as RIM_BASE } from '../mapFix';
 import { ROUTE_LIGHT as ROUTE_BASE } from '../mapFix4';
 import { TONE } from '../mapFix6';
-import { lib3Old } from '../libFix3';
 import { doorOld, FALLEN as DOOR_FALLEN_HEAPS, CRACKS as DOOR_CRACK_STYLE, DUST as DOOR_DUST } from '../doorFix';
 import { WOOD_OLD } from '../woodGrain';
 import { rubbleLayout } from '../rubble';
-
-const VEST_STONE_OPTION = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('wveststone') : null;
-const VEST_STONE_COURSES = { a: 24, b: 18, c: 12 }[VEST_STONE_OPTION] ?? 36;
 
 export const FRAME = [1440, 900];
 // The palette (see World.jsx): the stone a neutral limestone grey, so the lamps
@@ -192,16 +187,10 @@ export const PAINTED = {
   // the floor: a mason's pavement (`paving`), or the old tiles (?wfloor=old)
   flag: FLOOR_OLD ? ['flagstones'] : ['paving'],
   ...(CRACK_OLD ? {} : { cracks: ['floorCracks', DOOR_CRACKS] }),
-  // Twelve courses to the tile: a course about 30 cm, a block about 70 cm long,
-  // each a little further from the next in tone. At eight a course is a torso
-  // high, and over an arch every block looks the same; at sixteen (22 cm) the
-  // wall reads as small brick, not dressed stone (vestFix.js, 5; ?wvest=old:5
-  // lays the old). Dressed with the punch, in courses and blocks of more than
-  // one size, with lime under its joints: libFix3.js, 3.
-  wall: vestOld(5) ? ['ashlar'] : ['ashlar', { courses: 12, blocks: 5, spread: 24, ...(lib3Old(3) ? {} : { dress: 'punched', spread: 26 }) }],
-  // Flat-faced courses with a single step of tone between stones.
-  vestWall: ['ashlar', { seed: 107, courses: VEST_STONE_COURSES, blocks: 5, joint: 1, strength: 0.65, spread: 18, dress: 'flat' }],
-  // the caps' pale stone; the Door's dressed faces are the same stone, laid smaller
+  // Shared wall stone: roughly 30 cm courses, varied lengths, flat faces
+  // and narrow joints, with a single step of tone between stones.
+  wall: ['ashlar', { seed: 107, courses: 12, blocks: 5, joint: 1, strength: 0.65, spread: 18, dress: 'flat' }],
+  // The massive pale stone of the caps.
   pale: ['ashlar', { seed: 9, courses: 4, blocks: 2, tone: [158, 150, 136], strength: 2 }],
   // The wood: boards sawn from the log, grain along u (`timber`), or the
   // striped walnut (?wwood=old, see woodGrain.js).
