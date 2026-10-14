@@ -1658,6 +1658,13 @@ function LiveWorld({
     const leg = onward && world.legs[placeRef.current];
     const course = leg?.kind === 'walk' && leg.points.length > 1
       ? new THREE.Vector3(leg.points[1][0] - leg.points[0][0], 0, leg.points[1][2] - leg.points[0][2]).normalize() : null;
+    // Setting off from the Vertigo view follows the stair underfoot. The
+    // continuous tour keeps its route to the break; looking over it still falls.
+    if (onward && placeRef.current === 3 && !BRINK_OLD) {
+      const c = route.findIndex((pts) => pts.branch);
+      const near = c >= 0 && nearWay(b.feet, FOLLOW_CAPTURE, null, null, c);
+      if (near && wayOn(c, near.i, 1, b.feet, along)) return { c, i: near.i, dir: 1, aim: h.clone() };
+    }
     // (walking on from a stand, the way on, never a branch off it)
     if (onward) {
       const near = nearWay(b.feet, 14, null, course, 'trunk');

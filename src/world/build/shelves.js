@@ -490,7 +490,7 @@ export function* buildFurniture(ctx) {
     HALL, ARCH_SPRING, ARCH_R, WAY_IN, cellC, rimAt, deepAt, NB, cells, inFrame, routeDist, hallway,
     edgeFrame, hallMid, BRIDGE_LEVEL, ECHO_KERB, mouldGeo, wallRing, mirrors, LB, posts, links,
     balusters, books, globes, deadGlobes, dust, glows, LAID, GRAZE_BY_ROOM, roman, hexNumber,
-    shelfWall } = ctx;
+    shelfWall, instances } = ctx;
   // ── Furniture ─────────────────────────────────────────────────────────────
   // What gives a person's scale back to a room whose every wall is eleven
   // metres of books: a gallery overhead that you are not on, a ladder left
@@ -687,12 +687,14 @@ export function* buildFurniture(ctx) {
   // depthTest OFF so it can lie over the stone it lights; within about sixty
   // units of where a reader stands that becomes a hundred-unit disc of light in
   // FRONT of the room, and the gallery goes milky. Lamps near a stand turn it down.
-  const lamp = (p, { y = LAMP_Y, lightY = y - 4, light: power = 0, priority = 0, color = '#ffb466', strength = 1, pool = 0.3, poolSize = 200, poolY = 6.6, poolAt = p, r = 9, beam = true, out = false, haze = 1, chain = Infinity, link = 1 } = {}) => {
+  const lamp = (p, { y = LAMP_Y, lightY = y - 4, light: power = 0, priority = 0, color = '#ffb466', strength = 1, pool = 0.3, poolSize = 200, poolY = 6.6, poolAt = p, r = 9, beam = true, out = false, haze = 1, chain = Infinity, link = 1, globeMaterial = null } = {}) => {
     // One opal globe, with no clear shell round it: a lit globe is the light
     // (makeLampGlobeMaterial), a dead one is the same globe in cold, dull
     // glass.
     const G = r * 0.55;
-    (out ? deadGlobes : globes).push({ p: [p[0], y, p[1]], s: [G, G, G], ...(out ? {} : { color: '#fff3e2', k: 0.45 + strength * 0.5 }) });
+    const globe = { p: [p[0], y, p[1]], s: [G, G, G], ...(out ? {} : { color: '#fff3e2', k: 0.45 + strength * 0.5 }) };
+    if (globeMaterial && !out) instances(new THREE.SphereGeometry(1, 32, 20), globeMaterial, [globe], { cast: false, receive: false });
+    else (out ? deadGlobes : globes).push(globe);
     // The fitting sits ON the globe, outside it: a collar gripping its neck, a
     // bead of rim where the glass goes in, a cap, and a loop for the chain; a
     // small drop finishes the bottom of the glass.

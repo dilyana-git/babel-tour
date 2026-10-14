@@ -1647,13 +1647,10 @@
   color: var(--ink-2);
 }
 
-/* The Vertigo is the one room whose brightest place is bottom right: the lit
-   shelves of the pit, under the walk. The corner's pool ran out before it
-   reached "fall into", small and dimmed over lit spines (world/hudFix3.js, 3).
-   There it reaches further left and holds more of its dark as far as the
-   words go, and the verb is in full ink. */
+/* Keep a dark backing under the Vertigo's controls over the lit spines,
+   with its top close to the words so the hanging globe keeps its light. */
 .entry-map:not([data-hud-old~='3']) .room-hud[data-room='vertigo'] .room-nav::before {
-  inset: -6rem -2.5rem -2.2rem -15rem;
+  inset: -1.4rem -2.5rem -2.2rem -15rem;
   background: radial-gradient(ellipse 100% 100% at 100% 100%, var(--pool-far));
 }
 

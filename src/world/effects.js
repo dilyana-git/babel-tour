@@ -659,15 +659,16 @@ export function makeGlowMaterial() {
 // colour through the tone curve and the bloom does the rest. Built on the unit
 // sphere: `position` is the globe's own coordinates, instance colour × k is its
 // strength.
-export function makeLampGlobeMaterial() {
+export function makeLampGlobeMaterial({ diffused = false } = {}) {
+  const glint = LP_GLINT && !diffused;
   return new THREE.ShaderMaterial({
-    uniforms: LP_GLINT ? { uGlint: glintLights } : {},
+    uniforms: glint ? { uGlint: glintLights } : {},
     vertexShader: /* glsl */ `
       varying vec3 vN;
       varying vec3 vV;
       varying vec3 vC;
       varying vec3 vL;
-      ${LP_GLINT ? 'varying vec3 vW; varying vec3 vNW;' : ''}
+      ${glint ? 'varying vec3 vW; varying vec3 vNW;' : ''}
       void main() {
         vec4 local = vec4(position, 1.0);
         vec3 n = normal;
@@ -683,7 +684,7 @@ export function makeLampGlobeMaterial() {
         vec4 mv = modelViewMatrix * local;
         vN = normalMatrix * n;
         vV = -mv.xyz;
-        ${LP_GLINT ? 'vW = (modelMatrix * local).xyz; vNW = mat3(modelMatrix) * n;' : ''}
+        ${glint ? 'vW = (modelMatrix * local).xyz; vNW = mat3(modelMatrix) * n;' : ''}
         gl_Position = projectionMatrix * mv;
       }
     `,
@@ -692,7 +693,7 @@ export function makeLampGlobeMaterial() {
       varying vec3 vV;
       varying vec3 vC;
       varying vec3 vL;
-      ${LP_GLINT ? `varying vec3 vW; varying vec3 vNW;
+      ${glint ? `varying vec3 vW; varying vec3 vNW;
       uniform vec4 uGlint[${GLINT_N}];` : ''}
       void main() {
         float nLen = dot(vN, vN), vLen = dot(vV, vV);
@@ -708,14 +709,17 @@ export function makeLampGlobeMaterial() {
         // the globe prints as one flat cream disc. At ^8 and 1.05 it still did
         // from the Echo's crossing, fifty units off: a white plate a fifth of
         // the frame wide (2026-09-26).
-        vec3 col = limb * 0.24 + hot * 0.07 + hot * ${OLD_GLARE ? '1.05 * pow(through, 8.0)' : '0.9 * pow(through, 12.0)'};
+        // Diffusing opal carries the warm source across the whole globe.
+        vec3 col = ${diffused
+          ? 'mix(vec3(1.0, 0.52, 0.18), hot, 0.3 + 0.7 * through) * (0.8 + 0.8 * pow(through, 2.0))'
+          : `limb * 0.24 + hot * 0.07 + hot * ${OLD_GLARE ? '1.05 * pow(through, 8.0)' : '0.9 * pow(through, 12.0)'}`};
         // the collar's shade over the crown of the globe
-        col *= mix(1.0, 0.3, smoothstep(0.42, 0.9, vL.y));
+        col *= mix(1.0, ${diffused ? '0.8' : '0.3'}, smoothstep(0.42, 0.9, vL.y));
         // hand-blown: the wall is never quite even
         float w = sin(vL.x * 21.0 + sin(vL.y * 13.0) * 2.0) * sin(vL.z * 17.0 + vL.y * 9.0);
         col *= 1.0 + ${GLAZE ? '0.025' : '0.05'} * w;
         gl_FragColor = vec4(vC * col, 1.0);
-        ${GLAZE ? `
+        ${GLAZE && !diffused ? `
         // Glazed: the glass is shiny outside — a small sharp window of the
         // light above caught on it, and toward the limb, where it is seen at a
         // slant, it gives back more of the dark room and lets less of the light

@@ -191,6 +191,26 @@ export function navigationScenarios(driver, baseUrl, options = {}) {
       await choose(0);
       await room(0);
     }],
+    ['Vertigo starts down the stairs without pulling toward the broken rail', async () => {
+      await prepare(3);
+      await speed(1);
+      const before = (await read()).walk;
+      const radius = Math.hypot(before.camera[0] - before.pit.x, before.camera[2] - before.pit.z);
+      await key('w');
+      try {
+        await waitUntil(driver, async () => {
+          const w = (await read()).walk;
+          assert.equal(w.target, 3, 'Starting down the stairs unexpectedly committed the fall');
+          if (!w.body) return false;
+          const r = Math.hypot(w.body.feet[0] - w.pit.x, w.body.feet[2] - w.pit.z);
+          assert(Math.abs(r - radius) < 2, 'The first stair strides pulled the feet toward the open edge');
+          return w.body.feet[1] < before.camera[1] - 15 - 16;
+        }, 'Forward input did not descend the first several treads', TIMEOUT);
+      } finally { await key('w', 'keyUp'); }
+      await speed(SPEED);
+      await stopped();
+      await onStep('W descended the stair centreline and stopped safely after release');
+    }],
     ['held W/S, key release, and blur recovery', async () => {
       await prepare(0);
       await speed(1);

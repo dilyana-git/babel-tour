@@ -1,5 +1,26 @@
 # Design history
 
+### Vertigo: lit opal, worn tread fronts and a natural stair start
+
+*2026-10-14* · The hanging lamp had a warm halo but a grey surface and a hard
+glint; the foreground steps read as dark slabs, and setting off pulled toward
+the broken rail. The well's hanging lamps now use diffuse warm emission across
+the globe, a soft collar shadow and no sharp reflected glint. The controls'
+shadow backing starts 1.4rem above the words instead of 6rem, leaving the
+near globe's light visible.
+
+The initial spiral's tread fronts have rounded stone nosings with a 0.68-unit
+top strip, using the existing textured nosing stone. Their top lies 0.02 above
+the tread; the rest rounds down its front. They use no random draws.
+
+W from the composed Vertigo stand now takes the stair centreline, easing its
+gaze from the arrival view. The uninterrupted tour retains its passage to the
+broken rail, and the fall control and deliberate rail gaze remain available.
+A smoke scenario checks normal-speed descent through several treads, radial
+clearance from the open edge, and stopping on release. The final arrival
+preview is `.ux-review/shots/vertigo-final-room3.png`; the preceding frame is
+`.ux-review/shots/vertigo-before-room3.png`.
+
 ### Silence: approved continuous railing and front light
 
 *2026-10-14* · The user rejected both sets of front-rail options and asked

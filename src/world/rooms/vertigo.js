@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { LAMPS, stairSconce } from '../lampPass';
 import { makeRng } from '../textures';
-import { BOOKS_GIANT, shaftVolume, spineAt, titleAt } from '../effects';
+import { BOOKS_GIANT, shaftVolume, spineAt, titleAt, makeLampGlobeMaterial } from '../effects';
 import { WELL, vertigoOld, bookHash, MISSING, shelfLip } from '../vertigoFix';
 import { silenceOld, CROWN_BACK } from '../silenceFix';
 import { SPIRAL, GAPS, BRINK_OLD, makeEndlessSpiral, spiralAt, bookAt } from '../spiral';
@@ -275,6 +275,7 @@ export function* buildVertigo(ctx) {
       map: again(pale.map, 1), normalMap: again(pale.normalMap, 1), roughnessMap: again(pale.roughnessMap, 1),
       color: '#b3a796', roughness: 1, side: THREE.DoubleSide,
     }));
+    const nosings = new Batch(M.nosing, { project: true });
 
     // the dark wood at the back of the shelves
     // (5 behind the face for real books, 12 for the giants)
@@ -370,7 +371,16 @@ export function* buildVertigo(ctx) {
       if (s % 32 === 0) yield;
       const t = s / STEPS, y = 4 - t * DROP, rf = coneR(y), a = bearing(t), w = treadW(t);
       const len = ((2 * Math.PI * (rf - w / 2) * TURNS) / STEPS) * 1.08;
-      LB.step.add(placed(new THREE.BoxGeometry(w, 3, Math.max(1.5, len)), add(c, dir(a), rf - w / 2 - 1), y, -a * deg));
+      const run = Math.max(1.5, len), middle = add(c, dir(a), rf - w / 2 - 1);
+      LB.step.add(placed(new THREE.BoxGeometry(w, 3, run), middle, y, -a * deg));
+      // A rounded, worn arris catches the wall lantern along each tread front.
+      const profile = new THREE.Shape([
+        [-0.8, 1.52], [-0.12, 1.52], [0.08, 1.43], [0.18, 1.24],
+        [0.08, 1.03], [-0.12, 0.94], [-0.8, 0.94],
+      ].map(([z, h]) => new THREE.Vector2(run / 2 + z, h)));
+      const lip = new THREE.ExtrudeGeometry(profile, { depth: w - 0.3, bevelEnabled: false })
+        .rotateY(-Math.PI / 2).translate((w - 0.3) / 2, 0, 0);
+      nosings.add(placed(lip, middle, y, -a * deg));
       if (s % Math.round(STEPS / 12) === 5) {
         const la = a + 1, lp = add(c, dir(la), rf - 3.4), stem = add(c, dir(la), rf - 0.9);
         // a small lantern on a wall bracket (lampPass.js; ?wlampsoff=sconce:
@@ -602,8 +612,10 @@ export function* buildVertigo(ctx) {
     // should be the light at the bottom — and all of them on a chain of half
     // the gauge: from the stand a heavy one is the heaviest line in the
     // picture, cutting it from the corner to the middle.)
+    const opal = keep(makeLampGlobeMaterial({ diffused: true }));
     hanging.forEach(([b, off, y, r], i) => lamp(add(c, dir(b), off), {
       y, r, light: i === 0 ? 4800 : 4200, priority: -1, strength: i === 0 ? 0.85 : 1.1, pool: 0, beam: false, chain: 52, link: 0.55,
+      globeMaterial: opal,
     }));
 
     // The light at the bottom: a hot core in the throat, the funnel's floor
@@ -749,6 +761,7 @@ export function* buildVertigo(ctx) {
       dust.push({ p: [p[0], y, p[1]], s: Array(3).fill(rr(0.4, 0.9)), color: '#ffdca8', k: 0, phase: rr(0, 100) });
     }
     yield* carved.flushSteps('carved');
+    yield* nosings.flushSteps('nosing');
     yield* funnelRows.flushSteps('funnelRows');
     spiral = makeEndlessSpiral(c, {
       stone: LB.step.mat ?? carved.mat, bronze: LB.bronze.mat, books: funnelRowsMat,
