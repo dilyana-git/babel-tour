@@ -60,13 +60,12 @@ export function buildEcho(ctx) {
       // (The keystones stop under the deck, as the Silence's do under its
       // terrace: standing up through the crown they crossed as a raised X of
       // stone under the rose, and the rose had to float over them.)
-      // (the lips paler, the risers' shade lighter and a string up both
-      // flanks: echoFix.js, 2)
-      const VALUES = echoOld(2) ? {} : { nosing: LB.nosing, riser: LB.riserSoft, string: true };
+      // Wear is laid once on each tread below; the nosings remain solid stone.
+      const VALUES = { nosing: LB.nosing, riser: LB.riserSoft, string: true, worn: false };
       flightDress(c, ang, f, 7.9, CROSS_OLD
-        ? { gap: [-15, 15], worn: ROSE_OLD || notCrown, keyThrough: ROSE_OLD, plane: ECHO_ONE_FACE, face: ECHO_ONE_FACE ? LB.flank : LB.cap, ...VALUES }
+        ? { gap: [-15, 15], keyThrough: ROSE_OLD, plane: ECHO_ONE_FACE, face: ECHO_ONE_FACE ? LB.flank : LB.cap, ...VALUES }
         // (the other flight is cut on the same profile as this one)
-        : { cross: { c, ang: 60 - ang, f, half: 7.5 }, gapNewels: ang === 0, worn: ROSE_OLD || notCrown, keyThrough: ROSE_OLD, plane: ECHO_ONE_FACE, face: ECHO_ONE_FACE ? LB.flank : LB.cap, ...VALUES });
+        : { cross: { c, ang: 60 - ang, f, half: 7.5 }, gapNewels: ang === 0, keyThrough: ROSE_OLD, plane: ECHO_ONE_FACE, face: ECHO_ONE_FACE ? LB.flank : LB.cap, ...VALUES });
     }
     // ── The crossing ─────────────────────────────────────────────────────
     // The one piece of floor in this room a reader is ever brought to a stop on
@@ -310,7 +309,12 @@ export function buildEcho(ctx) {
         for (let k = 0; k < f.dims.steps; k++) {
           if (!ROSE_OLD && !notCrown(k)) continue;
           const u = -f.dims.span + (k + 0.5) * f.dims.run;
-          LB.wornStep.add(flatQuad(add(c, dir(ang), u), ang, f.dims.run - 0.6, 6.4, f.stepTop(k) + 0.03));
+          LB.wornStep.add(flatQuad(add(c, dir(ang), u), ang, f.dims.run - 1.2, 7.5, f.stepTop(k) + 0.03));
+          // Dirt collects at the higher riser, away from the polished centre.
+          const uphill = k < f.dims.steps / 2 ? 1 : -1;
+          const dirt = flatQuad(add(c, dir(ang), u + uphill * (f.dims.run / 2 - 0.45)), ang, 0.8, 13.8, f.stepTop(k) + 0.04);
+          dirt.deleteAttribute('uv1');
+          LB.riserSoft.add(dirt);
         }
       }
     }
@@ -409,7 +413,7 @@ export function buildEcho(ctx) {
     // An arcade storey: a colonnade carrying a run of arches and a cornice over.
     // What keeps it from being any arcade anywhere is entirely in the ornament —
     // a moulded ring round every arch, an impost for it to spring from, a
-    // roundel over every crown and a course of dentils under every cornice. Bare,
+    // keystone over every crown and a course of dentils under every cornice. Bare,
     // twelve identical openings in one pale stone read as a default.
     //
     // A column from the floor up: a square plinth, the base, the shaft, the
@@ -417,7 +421,6 @@ export function buildEcho(ctx) {
     // of entablature, as in a Florentine loggia — for the arch to spring from,
     // so the arches can stand on columns no thicker than a column should be.
     // (`ped`: a pedestal first, for a storey standing on a cornice.)
-    const KEY_OLD = echoOld(3);
     const arcade = ({ foot, ped = 0, top, rad, rise, band, wall }) => {
       const plinthH = rad * 0.55, baseH = rad * 0.75, capH = rad * 1.15, impH = rad * 1.3;
       const y0 = foot + ped, shaftY = y0 + plinthH + baseH, capY = top - impH - capH;
@@ -431,6 +434,39 @@ export function buildEcho(ctx) {
       const baseGeo = colLathe(BASE.map(([q, y]) => [q * rad, y * rad]), near ? 20 : 14);
       const capGeo = colLathe(CAP.map(([q, y]) => [q * rad, y * rad]), near ? 20 : 14);
       const shaftGeo = flutedShaft(rad, shaftH, near ? {} : { flutes: 16, rows: 4, fine: false });
+      const archWidth = rad * 0.72;
+      const archOutline = (inner, outer, a0 = 0, a1 = Math.PI, segments = 36) => {
+        const edge = (offset) => Array.from({ length: segments + 1 }, (_, n) => {
+          const a = a0 + (a1 - a0) * n / segments;
+          return [Math.cos(a) * (span + offset), top + Math.sin(a) * (rise + offset)];
+        });
+        return [...edge(inner), ...edge(outer).reverse()];
+      };
+      // A fillet, a sunk fascia, an ovolo and an outer bevel swept round the
+      // opening. The full-depth voussoirs behind them form the visible soffit.
+      const mould = [[0, 0], [0, 0.3], [0.14, 0.5], [0.28, 0.5], [0.34, 0.22],
+        [0.5, 0.22], [0.6, 0.42], [0.74, 0.55], [0.87, 0.46], [1, 0.28], [1, 0]];
+      const moulding = (face) => {
+        const pos = [], uv = [], idx = [], rows = 48, cols = mould.length;
+        for (let n = 0; n <= rows; n++) {
+          const a = Math.PI * n / rows;
+          for (const [r, depth] of mould) {
+            pos.push(Math.cos(a) * (span + r * archWidth), top + Math.sin(a) * (rise + r * archWidth), face * (wall / 2 + depth));
+            uv.push(a * span, r * archWidth);
+          }
+        }
+        for (let n = 0; n < rows; n++) for (let j = 0; j < cols - 1; j++) {
+          const a = n * cols + j, b = a + cols;
+          if (face > 0) idx.push(a, a + 1, b, a + 1, b + 1, b);
+          else idx.push(a, b, a + 1, a + 1, b, b + 1);
+        }
+        const g = new THREE.BufferGeometry();
+        g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+        g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+        g.setIndex(idx);
+        g.computeVertexNormals();
+        return g;
+      };
       for (let k = 0; k < BAYS; k++) {
         const a = 15 + k * (360 / BAYS);
         const p = add(c, dir(a), RING), ry = -a * deg;
@@ -458,28 +494,26 @@ export function buildEcho(ctx) {
         const arc = [];
         for (let n = 0; n <= 24; n++) {
           const th = Math.PI * (1 - n / 24);
-          arc.push([Math.cos(th) * span, top + Math.sin(th) * rise]);
+          arc.push([Math.cos(th) * (span + archWidth), top + Math.sin(th) * (rise + archWidth)]);
         }
         LB.mass.add(profileGeo(
-          [[-HALF, top], [-span, top], ...arc, [span, top], [HALF, top], [HALF, top + rise + band], [-HALF, top + rise + band]],
+          [[-HALF, top], ...arc, [HALF, top], [HALF, top + rise + band], [-HALF, top + rise + band]],
           wall, mid, turn,
         ));
-        // the archivolt: a moulded ring standing proud on each face of the arch
+        // Wedge-shaped stones carry a 28–30 cm reveal through the arcade.
+        for (let n = 0; n < 17; n++) {
+          const a0 = n * Math.PI / 17 + (n ? 0.003 : 0);
+          const a1 = (n + 1) * Math.PI / 17 - (n < 16 ? 0.003 : 0);
+          LB.cap.add(profileGeo(archOutline(0, archWidth, a0, a1, 3), wall, mid, turn));
+        }
+        // The moulded face returns into the reveal on both sides.
         const t = rad * 0.27;
         for (const face of [-1, 1]) {
-          const q = add(mid, dir(turn + 90), face * (wall / 2 + t * 0.45));
-          const ring2 = new THREE.TorusGeometry(span + t, t, 8, 36, Math.PI);
-          ring2.scale(1, (rise + t) / (span + t), 1);
-          LB.cap.add(placed(ring2.rotateY(-turn * deg), q, top));
-          // and a keystone at the crown
-          if (KEY_OLD) LB.cap.add(placed(new THREE.BoxGeometry(rad * 0.95, rad * 1.9, t * 2.2), q, top + rise + rad * 0.45, -turn * deg));
+          LB.cap.add(placed(moulding(face).rotateY(-turn * deg), mid, 0));
         }
-        // A carved keystone (echoFix.js, 3): a wedge through the archivolt
-        // that runs on up the spandrel as a console under the cornice, with a
-        // sunk panel down its face and a cap moulding where it meets the
-        // dentils. The short block with a bronze roundel standing on it read
-        // from the floor as a ring hung over every arch, a door's knocker.
-        if (!KEY_OLD) {
+        // A projecting keystone passes through the moulding and ends in a
+        // capped console under the cornice, with a sunk panel down its face.
+        {
           const capH = rad * 0.35, y0 = top + rise - rad * 0.35, y1 = top + rise + band - 1.45 - capH;
           const wb = rad * 0.42, wt = rad * 0.66, D = t * 1.9 + 0.15;
           const wedge = (w0, w1, a, b) => [[-w0, a], [w0, a], [w1, b], [-w1, b]];
@@ -497,13 +531,6 @@ export function buildEcho(ctx) {
             LB.cap.add(placed(new THREE.BoxGeometry(wt * 2 + rad * 0.12, capH * 0.4, D + 0.25), off(D + 0.25), y1 + capH * 0.2, -turn * deg));
             LB.cap.add(placed(new THREE.BoxGeometry(wt * 2 + rad * 0.34, capH * 0.6, D + 0.5), off(D + 0.5), y1 + capH * 0.7, -turn * deg));
           }
-          continue;
-        }
-        // a roundel over every crown, bronze in a pale surround
-        for (const face of [-1, 1]) {
-          const oc = add(mid, dir(turn + 90), face * (wall / 2 + 0.2));
-          LB.cap.add(placed(new THREE.CylinderGeometry(band * 0.34, band * 0.34, 0.6, 24).rotateX(Math.PI / 2), oc, top + rise + band * 0.5, -turn * deg));
-          LB.bronzeDim.add(placed(new THREE.CylinderGeometry(band * 0.25, band * 0.25, 0.9, 24).rotateX(Math.PI / 2), oc, top + rise + band * 0.5, -turn * deg));
         }
       }
       [baseGeo, capGeo, shaftGeo].forEach((g) => g.dispose());
@@ -533,8 +560,8 @@ export function buildEcho(ctx) {
     };
     // The lower storey springs its arches at 43.5, level with the crown; the
     // columns are 4.2 across and 8 diameters tall.
-    const upper = arcade({ foot: FLOOR, top: 43.5, rad: 2.1, rise: 12, band: 8, wall: 4.6 });
-    arcade({ foot: upper, ped: 3, top: upper + 20, rad: 1.15, rise: 10, band: 6, wall: 3.2 });
+    const upper = arcade({ foot: FLOOR, top: 43.5, rad: 2.1, rise: 12, band: 8, wall: 3.2 });
+    arcade({ foot: upper, ped: 3, top: upper + 20, rad: 1.15, rise: 10, band: 6, wall: 3 });
     // The upper arcade's bays stand open: a low case of books in each, on the
     // cornice between the columns, looked up at from the floor reads as
     // cabinets left out in a loggia, not as library. A sconce on every other
@@ -593,7 +620,7 @@ export function buildEcho(ctx) {
     // upper storey's arches.)
     lamp(add(c, dir(150), 44), { light: 8500, priority: 7, strength: 1.2, pool: 0.32, haze: 0.45 });
     // In a little from the arcade and down in strength: at 52 it hung a dozen
-    // units from the keystone and roundel over its bay and blew them out, and
+    // units from the keystone over its bay and blew it out, and
     // with the moon the room had two brightest things. The moon wins now.
     lamp(add(c, dir(30), 45), { strength: 0.85, pool: 0.26, haze: 0.45 });
   }

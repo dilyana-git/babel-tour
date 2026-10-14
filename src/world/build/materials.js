@@ -1004,6 +1004,38 @@ export function buildMaterials(ctx) {
     flower: keep(makeFlowerMaterial()),
   };
 
+  // Three stones in the Echo: warm grey masonry, pale limestone carving and
+  // treads, and a cooler grey-green column stone. Keep the shared texture scale
+  // and the materials' lighting; the tint ends at this room's walls.
+  for (const [name, color] of Object.entries({
+    mass: '#77736c', cap: '#d9d6c9', step: '#cbc8ba', carve: '#dedbce',
+    column: '#919f99', nosing: '#e5dfd0', wornStep: '#eee7d6',
+  })) {
+    const mat = M[name], compile = mat.onBeforeCompile, cacheKey = mat.customProgramCacheKey;
+    const tint = new THREE.Color(color);
+    tint.r /= mat.color.r; tint.g /= mat.color.g; tint.b /= mat.color.b;
+    mat.onBeforeCompile = function (sh, renderer) {
+      compile.call(this, sh, renderer);
+      sh.uniforms.uEchoAt = workAt;
+      sh.uniforms.uEchoTint = { value: tint };
+      sh.vertexShader = sh.vertexShader
+        .replace('#include <common>', '#include <common>\nvarying vec3 vEchoW;')
+        .replace('#include <begin_vertex>', `#include <begin_vertex>
+          vec4 echoAt = vec4(transformed, 1.0);
+          #ifdef USE_INSTANCING
+            echoAt = instanceMatrix * echoAt;
+          #endif
+          vEchoW = (modelMatrix * echoAt).xyz;`);
+      sh.fragmentShader = sh.fragmentShader
+        .replace('#include <common>', '#include <common>\nvarying vec3 vEchoW; uniform vec3 uEchoAt; uniform vec3 uEchoTint;')
+        .replace('#include <color_fragment>', `#include <color_fragment>
+          float echoStone = (1.0 - smoothstep(112.0, 122.0, distance(vEchoW.xz, uEchoAt.xy)))
+            * (1.0 - smoothstep(118.0, 120.0, vEchoW.y));
+          diffuseColor.rgb *= mix(vec3(1.0), uEchoTint, echoStone);`);
+    };
+    mat.customProgramCacheKey = function () { return `${cacheKey.call(this)}-echo-stone`; };
+  }
+
   const root = new THREE.Group();
   root.name = 'world';
 

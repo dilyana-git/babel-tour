@@ -10,7 +10,6 @@ import { LAMPS } from '../lampPass';
 import { buildFinale } from '../finale';
 import { makeDoorway } from '../doorway';
 import { vestOld } from '../vestFix';
-import { echoOld, ECHO_STAND_R } from '../echoFix';
 import { vertigoOld, STAND_TURN, STAND_PITCH } from '../vertigoFix';
 import { forkOld, STAND as FORK_STAND } from '../forkFix';
 import { pavOld, standOn, STAND as PAV_STAND } from '../pavilionFix';
@@ -80,9 +79,8 @@ export function buildStands(ctx) {
   // standing at the stair's open edge, just short of the drop
   const onEdge = (t) => { const st = stairAt(t); return at(add(PIT, dir(st.a), st.edge + 1.4), st.tread + EYE - 0.5); };
   const spot = [
-    // Rest on the centreline too; the Echo faces its first tread squarely.
-    // (the Echo's a few strides in from the aisle's middle: echoFix.js, 1)
-    vestibuleMiddle(150), echoOld(1) ? echoMiddle(180) : ring(C1, 180, ECHO_STAND_R), silenceMiddle(90), null,
+    // The Echo's stand is set on its flight after the treads are laid out.
+    vestibuleMiddle(150), null, silenceMiddle(90), null,
     // The Web of Time: in the corridor a few paces short of the court's gate,
     // looking in at the heart. (The step into the court is the finale's.)
     // (the Fork's back at the pergola's end and a little left, where both ways
@@ -113,16 +111,17 @@ export function buildStands(ctx) {
     const at0 = s === 0 ? ECHO_RUN - 2.5 : s === ECHO_STEPS - 1 ? 2.5 : ECHO_RUN / 2 - 0.3;
     echoStair.push(eye(add(C1, dir(0), -ECHO_SPAN + s * ECHO_RUN + at0), echoFlight.stepTop(s)));
   }
-  // The floor just short of the first nosing. The stand is back from the foot,
-  // and without this the eye would begin to rise the moment it left the stand,
-  // up a ramp that is not there. (Only where the foot IS in front of the stand:
-  // with the old tread, ?wecho=old, it is behind it.)
-  const footU = -ECHO_SPAN - 1.5;
-  const echoFoot = footU > spot[1][0] - C1[0] + 1 ? [eye(add(C1, dir(0), footU), FLOOR)] : [];
+  // Stand on the third tread, about 2.5 m forward of the outer aisle: the two
+  // nearest columns are behind the eye when looking across either side.
+  // The arrival walks the first treads; onward and vantage walks start here.
+  const echoStandStep = 2, echoStandEye = echoStair[echoStandStep];
+  spot[1] = [echoStandEye[0], echoStandEye[2]];
+  const echoArrival = [eye(add(C1, dir(0), -ECHO_SPAN - 1.5), FLOOR), ...echoStair.slice(0, echoStandStep + 1)];
+  const echoOnward = echoStair.slice(echoStandStep + 1);
   return { EYE, FLOOR, GRAVEL, DECK, MAZE, C0, C1, C2, ring, vestibuleMiddle, echoMiddle,
     silenceMiddle, vertigoMiddle, doorLane, unit, eye, way, hug, bridgeEntry,
     heartFrom, turnAbout, onStair, onEdge, spot, echoFlight, ECHO_SPAN, ECHO_STEPS, echoStair,
-    echoFoot };
+    echoStandEye, echoArrival, echoOnward };
 }
 
 export function buildCrossing(ctx) {
@@ -130,7 +129,7 @@ export function buildCrossing(ctx) {
     mazeRoute, PERGOLA0, J, PV, SHORE, BRIDGE, MAZE_ENTRY, HEART, N_SHORE, NORTH_BRIDGE, at,
     EYE, FLOOR, GRAVEL, DECK, MAZE, C0, C1, C2, ring, vestibuleMiddle, echoMiddle, silenceMiddle,
     vertigoMiddle, doorLane, unit, eye, way, hug, bridgeEntry, turnAbout, onStair,
-    onEdge, spot, echoFlight, ECHO_SPAN, ECHO_STEPS, echoStair, echoFoot } = ctx;
+    onEdge, spot, echoFlight, ECHO_SPAN, ECHO_STEPS, echoStandEye, echoArrival, echoOnward } = ctx;
   // ── The crossing, over the middle of the Echo (VANTAGES) ───────────────────
   // The crown of a flight is its two middle treads, level over the well —
   // asked of flightProfile rather than written out again here, so a flight that
@@ -147,7 +146,7 @@ export function buildCrossing(ctx) {
     look: at(add(C1, dir(60), 70), CROWN - 4),
     // Up the flight the walk to the Silence climbs, and no further: whatever
     // the climb is, it is the one the room already has.
-    points: [eye(spot[1], FLOOR), ...echoFoot, ...echoStair.slice(0, ECHO_STEPS / 2), at(C1, CROWN + EYE)],
+    points: [echoStandEye, ...echoOnward.slice(0, ECHO_STEPS / 2 - 3), at(C1, CROWN + EYE)],
   };
   const stands = [
     { eye: eye(spot[0], FLOOR), look: at(ring(C0, 30, 16), 24) },
@@ -155,7 +154,7 @@ export function buildCrossing(ctx) {
     // are a heap, and from the foot of one they are a stair you could climb.
     // The crossing itself is up there to be stood on (`vantage`), because from
     // the floor you can only ever see one of the two flights.
-    { eye: eye(spot[1], FLOOR), look: at(add(C1, dir(0), 34), 34), vantage: crossing },
+    { eye: echoStandEye, look: at(add(C1, dir(0), 34), 40), vantage: crossing },
     // across the well at the two broken flights, with the one lamp behind them
     { eye: eye(spot[2], FLOOR), look: at(ring(C2, 285, 26), 37) },
     // Face the next steps. A chord across the funnel looked well away from
@@ -221,12 +220,14 @@ export function buildCrossing(ctx) {
     ...pavilionVisit.slice(0, -1).reverse(), ...pavilionIn.slice(0, -1).reverse(),
   ];
   const legs = [
-    { kind: 'walk', points: way(FLOOR, [spot[0], ...[135, 120, 105, 90, 75, 60, 45, 30, 15, 0, -15, -30].map(vestibuleMiddle), ring(C0, 330, 84), hallMid(0, 0, 5), ring(C1, 150, ECHO_A - 2.6), ...[150, 165].map(echoMiddle), spot[1]]) },
     { kind: 'walk', points: [
-      eye(spot[1], FLOOR),
-      ...echoFoot,
+      ...way(FLOOR, [spot[0], ...[135, 120, 105, 90, 75, 60, 45, 30, 15, 0, -15, -30].map(vestibuleMiddle), ring(C0, 330, 84), hallMid(0, 0, 5), ring(C1, 150, ECHO_A - 2.6), ...[150, 165, 180].map(echoMiddle)]),
+      ...echoArrival,
+    ] },
+    { kind: 'walk', points: [
+      echoStandEye,
       // Finish the flight along its axis before turning into the aisle.
-      ...echoStair,
+      ...echoOnward,
       ...way(FLOOR, [add(C1, [ECHO_SPAN + 3, 0]), ...[-15, -30].map(echoMiddle), ring(C1, 330, ECHO_A - 2.6), hallMid(1, -1, 5), ring(C2, 150, 84), ...[150, 135, 120, 105].map(silenceMiddle), spot[2]]),
     ] },
     { kind: 'walk', points: [

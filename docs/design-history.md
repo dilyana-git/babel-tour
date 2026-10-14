@@ -1,5 +1,32 @@
 # Design history
 
+### Echo stone, arcade reveals and arrival
+
+*2026-10-14* · The room's stone sat within one beige band, the arcade faces
+read as thin straps, and turns of 70 degrees put a nearby shaft in the
+middle of the view.
+
+The Echo now uses warm grey masonry (`#77736c`), pale limestone treads and
+balustrades (`#cbc8ba`, `#dedbce`), and cooler grey-green columns (`#919f99`).
+The existing shared stone texture and course scale remain. The tread centres
+are paler (`#eee7d6`), the chamfered nosings lighter (`#e5dfd0`), and a narrow
+dark strip collects against each uphill riser. Wear is laid once per tread.
+
+Both arcades have full-depth limestone voussoirs and moulded faces: an inner
+fillet, sunk fascia, ovolo and outer bevel, with a panelled keystone under
+the cornice. The lower reveal is 3.2 units (30 cm), the upper 3 units (28 cm).
+The stand moves from radius 72 to the third tread at radius 45.8, about 2.5 m
+forward along the stair axis. Arrival walks the first three treads; the
+crossing and onward paths continue from the same eye height without retracing
+them. The closest pair of shafts now stands behind the eye.
+
+The older stand, stair-value and keystone comparisons (`wechofix` points
+1–3) were removed. Commit `6d0c9e5` retains their code: point 1 compared
+the aisle midpoint with radius 72; point 2 compared ordinary stone nosings
+and 0.4-opacity riser shade with pale nosings, 0.2 shade and wall strings;
+point 3 compared block keys and roundels with panelled console keys.
+The moonlight comparison remains independent.
+
 ### Vestibule stone size options
 
 *2026-10-14* · The 36-course Vestibule stone was too thin and did not

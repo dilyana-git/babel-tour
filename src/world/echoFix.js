@@ -1,26 +1,11 @@
-// The Echo's arrival frame, reviewed 2026-10-08: the stand, the stair's
-// values, the keystones, the moon's column, books over
-// the ways out.
+// The Echo's moonlight comparison.
 // What each point was, and why: docs/design-history.md.
 //
-// ?wechofix=old puts all of them back as they were; ?wechofix=old:3,4 only
-// those. (?wecho=old is the flights' old tread, and is its own.)
+// ?wechofix=old or ?wechofix=old:4 restores the lower moonlight column.
+// (?wecho=old is the flights' old tread, and is its own.)
 const Q = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('wechofix') : null;
 const ONLY = Q && Q.startsWith('old:') ? new Set(Q.slice(4).split(',').map(Number)) : null;
 export const echoOld = (n) => Q === 'old' || (ONLY ? ONLY.has(n) : false);
-
-// 1. How far from the middle of the room the reader stands, on the flight's
-// axis. In the aisle's middle (80.4) the colonnade's two nearest shafts stood
-// 20 ahead and 16 to either side, and took the frame's outer seventh each.
-// At 72 they stand just outside a 16:10 frame and come in at the very edges
-// of a wider one; the first riser is nine units off.
-// And 5: the "specular sliver" on the left balustrade was no highlight. It is
-// the lamp hung in the hallway to the Silence, 180 away, seen through the last
-// gap before the far flight's newel. Which gap it falls in is a matter of
-// where the eye is, so it is settled here: from 72.5 in, the newel covers the
-// whole globe (rays to the globe's disc, every quarter unit from 69 to 78:
-// none seen to 72.5, a few from 72.75, a third of it from 75).
-export const ECHO_STAND_R = 72;
 
 // 4. The column of moonlight, ending in the air above the lower arcade (the
 // gallery's rail) rather than hanging over the stair in front of the reader,
