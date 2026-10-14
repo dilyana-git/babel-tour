@@ -20,15 +20,10 @@ import { MASS_H, ROUTE_LIGHT, CAP } from './common';
 
 const CASE_HEADS = { moon: 0, tint: TONE.quiet };
 
-export function buildLight(ctx) {
-  const { light, M, root, lightWishes, globes } = ctx;
-  // ── Light ───────────────────────────────────────────────────────────────
-  // The ground half of it is the bounce: warm light coming back UP off a stone
-  // floor the lamps are standing on. Left near-black, every surface a lamp did
-  // not reach went to nothing — a third of some rooms and three-quarters of the
-  // map sat below 0.06, where the plates it answers to hold 2-8%.
+// Created before construction so shader preparation uses the final light count
+// and shadow configuration. The same objects are attached when light is built.
+export function makeLights({ light = false } = {}) {
   const hemi = new THREE.HemisphereLight('#7f97a6', '#4a3728', 0.32);
-  root.add(hemi);
   const moon = new THREE.DirectionalLight('#c8dcea', light ? 0.8 : 0.95);
   moon.position.set(720 - 700, 1600, 450 - 900);
   moon.target.position.set(720, 0, 450);
@@ -37,7 +32,27 @@ export function buildLight(ctx) {
   Object.assign(moon.shadow.camera, { left: -1500, right: 1500, top: 1500, bottom: -1500, near: 10, far: 6000 });
   moon.shadow.bias = -0.0003;
   moon.shadow.normalBias = 0.5;
-  root.add(moon, moon.target);
+  const lampShadows = !light && typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('wlampshadow') === '1';
+  const pool = Array.from({ length: lightPoolSize() }, (_, i) => {
+    const l = new THREE.PointLight('#ffffff', 0, 0, 2);
+    if (lampShadows && i < 2) {
+      l.castShadow = true;
+      l.shadow.mapSize.set(512, 512);
+      l.shadow.camera.near = 2;
+      l.shadow.camera.far = 240;
+      l.shadow.bias = -0.004;
+      l.shadow.normalBias = 0.25;
+      l.shadow.autoUpdate = false;
+    }
+    return l;
+  });
+  return { hemi, moon, pool };
+}
+
+export function buildLight(ctx) {
+  const { M, root, lightWishes, globes } = ctx;
+  const { hemi, moon, pool } = ctx.lights ?? makeLights(ctx);
+  root.add(hemi, moon, moon.target);
   // A pool of real lights, handed to the lamps that matter from where the camera
   // is: over the map, the walk's own lamps by priority; down among the walls,
   // the nearest — so every lamp a reader walks under lights the stone round it,
@@ -54,7 +69,7 @@ export function buildLight(ctx) {
     [...globes].sort((a, b) => Math.hypot(a.p[0] - mid[0], a.p[2] - mid[1]) - Math.hypot(b.p[0] - mid[0], b.p[2] - mid[1]))
       .slice(0, GLINT_N).forEach((g, i) => glintLights.value[i].set(g.p[0], g.p[1], g.p[2], g.s[0]));
   }
-  const POOL = lightPoolSize();
+  const POOL = pool.length;
   const byPriority = [...lightWishes].sort((a, b) => b.priority - a.priority);
   // ?wlampshadow=1: the first two of them cast shadows — the rails, the
   // balusters, the readers and the stairs laid across the lamplight on the
@@ -64,19 +79,8 @@ export function buildLight(ctx) {
   // cube-map lookup for each into every lit material, and on the AMD integrated
   // GPU this piece is made on, ANGLE's shader compiler does not come back from
   // the programs that makes — the frame stops dead.
-  const LAMP_SHADOWS = !light && typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('wlampshadow') === '1';
   let shadowRequest = false;
-  const lightPool = Array.from({ length: POOL }, (_, i) => {
-    const l = new THREE.PointLight('#ffffff', 0, 0, 2);
-    if (LAMP_SHADOWS && i < 2) {
-      l.castShadow = true;
-      l.shadow.mapSize.set(512, 512);
-      l.shadow.camera.near = 2;
-      l.shadow.camera.far = 240;
-      l.shadow.bias = -0.004;
-      l.shadow.normalBias = 0.25;
-      l.shadow.autoUpdate = false;
-    }
+  const lightPool = pool.map((l) => {
     root.add(l);
     return { light: l, wish: null, level: 0 };
   });

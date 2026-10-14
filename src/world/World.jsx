@@ -40,6 +40,7 @@ import * as THREE from 'three';
 import { SPIRAL, spiralAt, railIntent, atBreak, BRINK_OLD } from './spiral';
 import { assembleWorld, PAINTED } from './buildWorld';
 import { makePainter } from './paint';
+import { makeLights } from './build/light';
 import { GradeEffect, gradePlace } from './Grade';
 import { TONE } from './mapFix6';
 import { SanitizeEffect } from './Sanitize';
@@ -955,9 +956,8 @@ const programShape = (o) => {
     Object.keys(a).sort().join(','), a.color?.itemSize, Object.keys(m).map((k) => `${k}${m[k].length}`).join(','),
   ].join('|');
 };
-const standIns = (root) => {
+const standIns = (root, { lights = null, seen = new Set() } = {}) => {
   const stand = new THREE.Group();
-  const seen = new Set();
   const add = (o) => {
     const p = Object.create(o);
     p.children = [];
@@ -970,14 +970,15 @@ const standIns = (root) => {
     seen.add(key);
     add(o);
   });
-  root.traverseVisible((o) => { if (o.isLight) add(o); });
+  if (lights) lights.forEach(add);
+  else root.traverseVisible((o) => { if (o.isLight) add(o); });
   return stand;
 };
-const startShaders = async (gl, root, camera, scene, alive) => {
+const startShaders = async (gl, root, camera, scene, alive, options) => {
   const target = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType });
   const was = gl.getRenderTarget();
   try {
-    const stand = standIns(root);
+    const stand = standIns(root, options);
     const objects = stand.children.filter((o) => !o.isLight);
     const lights = stand.children.filter((o) => o.isLight);
     const materials = new Set();
@@ -1076,7 +1077,20 @@ function WorldContent({ rooms = false, onProgress, onHold, onAssembled, onPlan, 
       if (!alive) return;
       say(SHARE.setup);
 
-      made.steps = assembleWorld({ light: LIGHT_MESH, paintings: !rooms, painter: made.painter });
+      // Start programs while geometry is still being made, using the actual
+      // lights and environment that the finished world will draw with.
+      const lights = makeLights({ light: LIGHT_MESH });
+      let buildingRoot = null;
+      const warmed = new Set();
+      const finishEnvironment = () => {
+        if (made.environment) return;
+        made.environment = made.prepared.finish();
+        made.prepared = null;
+        scene.environment = made.environment.texture;
+        mark('environment');
+      };
+      made.steps = assembleWorld({ light: LIGHT_MESH, paintings: !rooms, painter: made.painter, lights,
+        onRoot: (root) => { buildingRoot = root; } });
       let k = 0, since = performance.now();
       for (;;) {
         const step = made.steps.next();
@@ -1084,6 +1098,12 @@ function WorldContent({ rooms = false, onProgress, onHold, onAssembled, onPlan, 
         if (step.value) k += 1;
         say(SHARE.setup + (SHARE.build - SHARE.setup) * Math.min(1, k / BUILD_STEPS));
         if (performance.now() - since > SLICE_MS) {
+          if (buildingRoot) {
+            finishEnvironment();
+            await startShaders(gl, buildingRoot, camera, scene, () => alive,
+              { lights: [lights.hemi, lights.moon, ...lights.pool], seen: warmed });
+            if (!alive) return;
+          }
           await breathe();
           if (!alive) return;
           since = performance.now();
@@ -1095,11 +1115,7 @@ function WorldContent({ rooms = false, onProgress, onHold, onAssembled, onPlan, 
       // what the map will frame, for the opening's camera to come to rest on
       planRef.current?.(framePointsOf(world.overlay));
       // (before the world's shaders: which environment they light by is part of them)
-      const environment = made.prepared.finish();
-      made.prepared = null;
-      made.environment = environment;
-      scene.environment = environment.texture;
-      mark('environment');
+      finishEnvironment();
       await breathe();
       if (!alive) return;
 

@@ -67,11 +67,12 @@ export function buildWorld(options) {
 // unnamed yields let its longer loops pause, and the return value is the world.
 // `painter` hands out the
 // PAINTED surfaces (paint.js); without one they are painted here and now.
-export function* assembleWorld({ light = false, paintings = true, painter = paintNow(PAINTED) } = {}) {
-  const ctx = { light, paintings, painter };
+export function* assembleWorld({ light = false, paintings = true, painter = paintNow(PAINTED), lights = null, onRoot = null } = {}) {
+  const ctx = { light, paintings, painter, lights };
   Object.assign(ctx, yield* buildKit(ctx));
   yield 'Materials';
   Object.assign(ctx, buildMaterials(ctx));
+  onRoot?.(ctx.root);
   yield 'The honeycomb';
   Object.assign(ctx, buildHoneycomb(ctx));
   yield 'The dressing on a flight';

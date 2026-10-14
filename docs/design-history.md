@@ -268,6 +268,12 @@ Checks cover dry route centre lines, separation of pond and maze, and nonzero pl
 
 ## The map's tone (2026-10-12)
 
+### Preparing shaders during construction
+
+*2026-10-14* · The user reported a pause around 70%, when the garden's green drawing begins. Startup profiling placed this in shader preparation, followed by texture uploads. The world now creates its final lights before construction and submits shaders in short batches while sections are built, using the final environment. Construction order and random draws are unchanged.
+
+A repeated GPU profile measured the post-build shader wait at 2.2 seconds, compared with 2.8 seconds for the original loader; total startup in those repeat runs was about 14 seconds. The first, colder reference was 26 seconds, so that difference is not treated as the optimization's gain. Scene fingerprints retain identical geometry, light configuration and material shader code; animated transforms/uniforms differ with time, and early compilation retains two superseded shader sources in the cache. Profiles and reference pictures are under `.ux-review/shots/loading-*`.
+
 The user said of the map: "it looks too reddish". Measured on their
 screenshot, the stone round the walk sat at hue ~23 (a quarter of it under 17:
 red-brown), where the palette the Library was re-keyed to puts its lamplight
