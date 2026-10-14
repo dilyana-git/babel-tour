@@ -1,5 +1,14 @@
 # Design history
 
+### Removing the Door's bright strip
+
+*2026-10-14* · A raycast of the reported bright seam identified two pale
+decorative cap pieces over the portal, rather than the lamp inside the arch.
+Those pieces are removed. The spandrel joins the wall directly, and the portal
+stone uses the surrounding coping's map lighting. The hood, gable, pinnacles
+and passage remain. The map and Door interior were inspected, and the real
+navigation smoke and garden journey passed.
+
 ### Readable turns in the Vertigo
 
 *2026-10-14* · Room IV still disappeared into the map's shadows. Its local

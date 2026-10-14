@@ -974,8 +974,8 @@ export function buildFlightDressing(ctx) {
     carve: new Batch(M.carve), dressed: new Batch(M.dressed, P), marble: new Batch(M.marble),
     // the Door's portal, in the same stones, its reveals and soffits darkened
     // in the shader (doorFix.js, 3)
-    portalCarve: new Batch(doorOld(3) ? M.carve : keep(revealShade(stoneShade(M.carve.clone()), PORTAL_FRAME, PORTAL, 'carve'))),
-    portalDressed: new Batch(doorOld(3) ? M.dressed : keep(revealShade(stoneShade(M.dressed.clone(), { weather: true }), PORTAL_FRAME, PORTAL, 'dressed')), P),
+    portalCarve: new Batch(doorOld(3) ? M.carve : keep(revealShade(stoneShade(M.carve.clone(), { quiet: true, route: true }), PORTAL_FRAME, PORTAL, 'carve'))),
+    portalDressed: new Batch(doorOld(3) ? M.dressed : keep(revealShade(stoneShade(M.dressed.clone(), { weather: true, quiet: true, route: true }), PORTAL_FRAME, PORTAL, 'dressed')), P),
     // The Echo's flights' flanks, in the stone the flights themselves are cut
     // from (their steps and the arch under them): one stone, its joints running
     // every way, so no single course runs level across both flights. Its own

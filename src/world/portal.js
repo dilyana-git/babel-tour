@@ -531,10 +531,8 @@ export function buildPortal({ light = false } = {}) {
 
   // ── the spandrels, and the wall over the arch ──
   D(upright(aboveArch(HW + JAMB, JAMB + 1.4, 120), Z0 - 1.25, ZS));
-  // a cap on it, level with the top of the wall behind, and the cap along the
-  // top of the wall itself, where the breach had taken it off
-  C(box(-(HW + JAMB) - 0.2, HW + JAMB + 0.2, 120, 121.3, Z0 - 1.25, ZS + 1.1));
-  C(box(-24.6, 24.6, 120, 123, -WALL, 0));
+  // The spandrel meets the wall without a projecting cap. The hood, gable
+  // and pinnacles carry the arch's carved outline.
 
   // ── the hood ──
   const hood = profile()
