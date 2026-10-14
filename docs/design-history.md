@@ -1,5 +1,15 @@
 # Design history
 
+### Readable turns in the Vertigo
+
+*2026-10-14* · Room IV still disappeared into the map's shadows. Its local
+upper-gallery diffuse bounce is now 0.6. A soft warm map fill (2.2) reveals
+the upper stairs and shelves, fading with camera height between 150 and 500
+and with surface height between -260 and -20. The map's well fade is reduced
+to 0.12 at the rim and 0.32 below, with shaft attenuation 0.65. The deep throat
+retains its darker falloff. Strict desktop, phone and eye-level pictures were
+inspected; the required checks and navigation smoke scenarios passed.
+
 ### Woodland around the lake and labyrinth
 
 *2026-10-14* · The compact groves were still too sparse beside the chosen A

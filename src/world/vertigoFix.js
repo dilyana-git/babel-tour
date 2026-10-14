@@ -65,8 +65,14 @@ if (!vertigoOld(4) && !THREE.ShaderChunk.lights_fragment_end.includes('wellGrade
 		// the lamps retain their highlights. It fades at the rooms' doorways.
 		float libraryRoomFill = 0.85 * (1.0 - smoothstep(82.0, 140.0,
 			length(wellP.xz - vec2(${f(silenceCentre[0])}, ${f(silenceCentre[1])}))))
-			+ 0.35 * wellIn * smoothstep(-80.0, 6.0, wellP.y);
+			+ 0.6 * wellIn * smoothstep(-80.0, 6.0, wellP.y);
 		reflectedLight.indirectDiffuse += libraryRoomFill * vec3(1.0, 0.82, 0.63)
+			* BRDF_Lambert(material.diffuseContribution);
+		// From above, open sky reveals the upper turns. The extra fill fades
+		// as the camera enters the gallery and toward the well's deep throat.
+		float wellMapFill = 2.2 * wellIn * smoothstep(150.0, 500.0, cameraPosition.y)
+			* smoothstep(-260.0, -20.0, wellP.y);
+		reflectedLight.indirectDiffuse += wellMapFill * vec3(1.0, 0.86, 0.66)
 			* BRDF_Lambert(material.diffuseContribution);
 	}
 #endif
