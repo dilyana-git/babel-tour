@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { makePaperMaterial, makeFlameMaterial, waxGlowMaterial, LAMPS, floorPoolPatch, shadeLit, floorPools } from '../lampPass';
 import { bayPlates, shelfEdge, FOLIAGE_KINDS, HANGING_KINDS } from '../textures';
-import { makeBookMaterial, makeGlowMaterial, makeLampGlobeMaterial, makeFoliageMaterial, makeFoliagePrepass, makeHangingMaterial, GRAZE } from '../effects';
+import { makeBookMaterial, makeGlowMaterial, makeLampGlobeMaterial, makeFoliageMaterial, makeFoliagePrepass, makeHangingMaterial } from '../effects';
 import { WATER_Y } from '../water';
 import { makeFlowerMaterial } from '../pond';
 import { LIP_COLOR } from '../vertigoFix';
@@ -728,25 +728,21 @@ export function buildMaterials(ctx) {
     books: keep(makeBookMaterial(spines, titles?.map)),
     bookRows: Std({ map: bookRowsSet.map, roughness: 0.85 }),
     vestBookRows: Std({ map: vestBookRowsSet.map, roughness: 0.85 }),
-    // the same paint on a gallery's top two tiers: washed by its lamp-rail as
-    // the books' shader washes them (aLit.x, the room's graze), and greyed in
-    // the Silence (aLit.y) as its bindings are
+    // The top tiers' painted books share the Silence's grey, dusty bindings.
     bookRowsLit: (() => {
       const m = Std({ map: bookRowsSet.map, roughness: 0.85 });
       m.onBeforeCompile = (sh) => {
         sh.vertexShader = sh.vertexShader
           .replace('#include <common>', `#include <common>
-          attribute vec2 aLit;
-          varying vec2 vLit;`)
+          attribute float aDust;
+          varying float vDust;`)
           .replace('#include <begin_vertex>', `#include <begin_vertex>
-          vLit = vec2(aLit.x * pow(smoothstep(78.0, 111.0, (modelMatrix * vec4(transformed, 1.0)).y), 1.6), aLit.y);`);
+          vDust = aDust;`);
         sh.fragmentShader = sh.fragmentShader
           .replace('#include <common>', `#include <common>
-          varying vec2 vLit;`)
+          varying float vDust;`)
           .replace('#include <map_fragment>', `#include <map_fragment>
-          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114))), 0.6 * vLit.y) * (1.0 - 0.2 * vLit.y);`)
-          .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
-          totalEmissiveRadiance += diffuseColor.rgb * vec3(1.0, 0.7, 0.42) * vLit.x * ${GRAZE.toFixed(3)};`);
+          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114))), 0.6 * vDust) * (1.0 - 0.2 * vDust);`);
       };
       m.customProgramCacheKey = () => 'babel-rows-lit';
       return m;
@@ -754,7 +750,8 @@ export function buildMaterials(ctx) {
     // the dressing of a bookcase (see shelfWall)
     frieze: Std({ map: friezeTex, roughness: 0.55, metalness: 0.25 }),
     plate: Std({ map: keep(bayPlates()), roughness: 0.35, metalness: 0.05 }),
-    letters: Std({ map: gilt.map, roughness: 0.45, metalness: 0.35, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }),
+    // Shallow tooling and worn gold take a raking highlight from the lamps.
+    letters: Std({ map: gilt.map, bumpMap: gilt.map, bumpScale: 0.12, roughness: 0.34, metalness: 0.6, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }),
     // (in the gallery's own leather, where the Library's colour is carried by
     // its things too — libFix3.js, 1c: by which of the first three rooms the
     // edge hangs in)
@@ -779,7 +776,6 @@ export function buildMaterials(ctx) {
       m.customProgramCacheKey = () => `babel-scallop-${bounceRooms.value.length}`;
       return m;
     })(Std({ map: keep(shelfEdge()), color: '#6a3c26', alphaTest: 0.5, roughness: 0.8, side: THREE.DoubleSide })),
-    railGlow: keep(new THREE.MeshBasicMaterial({ color: new THREE.Color('#ffc07a').multiplyScalar(0.75), toneMapped: false })),
     // A darker stone for the band a floor keeps along its walls, so a room
     // has an edge to it and not one grid from wall to well.
     floorBand: lpPool(paveShade(Std({ map: flag.map, normalMap: flag.normalMap, roughnessMap: flag.roughnessMap, color: '#5a554c', roughness: 1, side: THREE.DoubleSide }))),

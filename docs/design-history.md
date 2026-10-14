@@ -1,5 +1,21 @@
 # Design history
 
+### Door, Echo and Vestibule: lamp-lit gilt cornices
+
+*2026-10-14* · The continuous bright cornice line read as LED tape. Removed
+the shelf cornices' luminous strips, their bronze carrier rods and brackets,
+and the artificial warm wash on the top shelves. The existing inscriptions
+remain in gilt, with shallow bump relief (0.12), roughness 0.34 and metalness
+0.6 so their strokes catch the room's lamps. No emission is added to the
+letters. Book placement and random draws are unchanged.
+
+The foreground-tread note referred to the Vertigo; the user confirmed that
+the worn nosings already committed in `34cc95a` cover it.
+
+Previews: `.ux-review/shots/door-detail-before-room4.png` and
+`.ux-review/shots/door-cornice-after-door.png`, with the Echo and an upward
+Vestibule view captured in the same final browser session.
+
 ### Vertigo: lit opal, worn tread fronts and a natural stair start
 
 *2026-10-14* · The hanging lamp had a warm halo but a grey surface and a hard

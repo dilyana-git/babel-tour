@@ -433,7 +433,6 @@ export function buildVestibule(ctx) {
           g.setAttribute('aSpine', new THREE.InstancedBufferAttribute(Float32Array.from(list, (b) => spineAt([b.p.x, b.p.y, b.p.z])), 1));
           g.setAttribute('aTitle', new THREE.InstancedBufferAttribute(Float32Array.from(list, (b) => titleAt([b.p.x, b.p.y, b.p.z])), 1));
           g.setAttribute('aDim', new THREE.InstancedBufferAttribute(Float32Array.from(list, (b) => b.dim ?? 1), 1));
-          g.setAttribute('aGraze', new THREE.InstancedBufferAttribute(new Float32Array(list.length), 1));
           g.setAttribute('aDust', new THREE.InstancedBufferAttribute(new Float32Array(list.length), 1));
         }
         const mesh = new THREE.InstancedMesh(g, mat, list.length);

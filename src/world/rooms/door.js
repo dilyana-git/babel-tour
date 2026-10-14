@@ -532,7 +532,7 @@ export function* buildArch(ctx) {
   }
   const ENTRANCE = hallMid(0, 0, 2);
 
-  const bookAttrs = { aSpine: (it) => it.spine ?? spineAt(it.p), aTitle: (it) => it.title ?? titleAt(it.p), aGraze: (it) => it.graze ?? 0, aDust: (it) => it.dust ?? 0 };
+  const bookAttrs = { aSpine: (it) => it.spine ?? spineAt(it.p), aTitle: (it) => it.title ?? titleAt(it.p), aDust: (it) => it.dust ?? 0 };
   yield;
   instances(new THREE.BoxGeometry(1, 1, 1), M.books, books, { chunked: true, attrs: bookAttrs });
   yield;

@@ -1003,7 +1003,7 @@ export function buildFlightDressing(ctx) {
     frame: new Batch(M.frame), gilt: new Batch(M.gilt, { cast: false }), giltDeep: new Batch(M.giltDeep, { cast: false }), iron: new Batch(M.iron, { cast: false }), rail: new Batch(M.wallTop, P),
     shafts: new Batch(shaftMaterial, { cast: false, receive: false }),
     frieze: new Batch(M.frieze, P), plate: new Batch(M.plate), letters: new Batch(M.letters, { cast: false }), scallop: new Batch(M.scallop, { cast: false }),
-    railGlow: new Batch(M.railGlow, { cast: false, receive: false }), floorBand: new Batch(M.floorBand, { cast: false, ...P }),
+    floorBand: new Batch(M.floorBand, { cast: false, ...P }),
     bronzeWorn: new Batch(M.bronzeWorn), oak: new Batch(M.oak, G), shade: new Batch(M.shade, { cast: false }),
     shadeDead: new Batch(M.shadeDead), paper: new Batch(M.paper), wax: new Batch(M.wax), leather: new Batch(M.leather), tuft: new Batch(M.tuft, { cast: false }),
     shelfWorn: new Batch(M.shelfWorn, { cast: false, ...G }), dust: new Batch(M.dust, { cast: false }),

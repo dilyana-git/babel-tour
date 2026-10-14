@@ -52,9 +52,6 @@ export function buildBooks(ctx) {
   ];
   const kindCell = (kind, r) => { const [lo, hi] = SPINE_KINDS[kind]; return lo + Math.floor(r * (hi - lo)); };
   const LAID = 1000;   // aSpine for a book lying flat (see makeBookMaterial)
-  // How much of the lamp-rails' wash each lit room has: none in the Silence,
-  // "where the lamps grow faint".
-  const GRAZE_BY_ROOM = { 0: 1, 1: 0.7, 2: 0, 4: 0.8 };
   // Numbered plates for the bays: a box whose every face shows cell `i`.
   const plateGeo = (i) => {
     const g = new THREE.BoxGeometry(3.4, 2.1, 0.3);
@@ -78,10 +75,10 @@ export function buildBooks(ctx) {
   // A wall of shelves, tier above tier, from `from` to `to` (tier indexes).
   // `detail`: 0 for the far honeycomb, 1 near the walk (pilasters, the frieze
   // board, the ledge), 2 in the rooms themselves (flutes, dentils, numbered
-  // plates, leather shelf-edges, the lamp-rail).
+  // plates and leather shelf-edges).
   // `stream`: the length of wall the world's stream is drawn for, when that is
   // not this wall's (the Echo's are longer than the walls it was drawn for).
-  const shelfWall = (a, b, inward, { from = 0, to = TIERS - 1, room, detail = 0, graze = 0, words = null, stream } = {}) => {
+  const shelfWall = (a, b, inward, { from = 0, to = TIERS - 1, room, detail = 0, words = null, stream } = {}) => {
     const len = dist(a, b);
     const t = [(b[0] - a[0]) / len, (b[1] - a[1]) / len];
     const s0 = 12, s1 = len - 12;
@@ -183,8 +180,8 @@ export function buildBooks(ctx) {
       // (a gallery's top tiers, painted where they stand)
       const lit = {
         add: (g) => {
-          const n = g.attributes.position.count, v = [graze, room === 2 ? 1 : 0];
-          g.setAttribute('aLit', new THREE.Float32BufferAttribute(Array.from({ length: n }, () => v).flat(), 2));
+          const n = g.attributes.position.count;
+          g.setAttribute('aDust', new THREE.Float32BufferAttribute(Array(n).fill(room === 2 ? 1 : 0), 1));
           (room === 0 ? LB.vestBookRowsLit : LB.bookRowsLit).add(g);
         },
       };
@@ -225,7 +222,7 @@ export function buildBooks(ctx) {
                 shelved.push({
                   wall,
                   p: [q[0], lie + th / 2, q[1]], rot: [0, face + (br() - 0.5) * 0.1, 0], s: [wn, th, dn],
-                  color: pickBinding().cols[0], k: 0.85 + br() * 0.2, spine: LAID + kindCell(B.kind === 'vellum' ? 'vellum' : 'label', br()), graze, dust,
+                  color: pickBinding().cols[0], k: 0.85 + br() * 0.2, spine: LAID + kindCell(B.kind === 'vellum' ? 'vellum' : 'label', br()), dust,
                   title: newTitle(),
                 });
                 lie += th;
@@ -241,7 +238,7 @@ export function buildBooks(ctx) {
           const w = R.w * (1 + (br() - 0.5) * 0.06), hh = R.h * (1 + (br() - 0.5) * 0.025);
           if (u + w > ub) break;
           const inset = R.front - R.d / 2;
-          const book = { color: R.color, k: R.k * (0.96 + br() * 0.08), spine: R.spine, graze, dust, title: R.title + (R.n > 1 ? 1000 * (R.n - run + 1) : 0) };
+          const book = { color: R.color, k: R.k * (0.96 + br() * 0.08), spine: R.spine, dust, title: R.title + (R.n > 1 ? 1000 * (R.n - run + 1) : 0) };
           if (lean) {
             // Pivoted on its foot at the edge of the gap and resting its head on
             // the book across it.
@@ -313,7 +310,7 @@ export function buildBooks(ctx) {
               const q = on(u + w2 / 2 + (br() - 0.5) * 0.8, 10.2 - dn / 2);
               books.push({
                 p: [q[0], lie + th / 2, q[1]], rot: [0, face + (br() - 0.5) * 0.1, 0], s: [wn, th, dn],
-                color: pickBinding().cols[0], k: 0.85 + br() * 0.2, spine: LAID + kindCell(B.kind === 'vellum' ? 'vellum' : 'label', br()), graze, dust,
+                color: pickBinding().cols[0], k: 0.85 + br() * 0.2, spine: LAID + kindCell(B.kind === 'vellum' ? 'vellum' : 'label', br()), dust,
                 title: newTitle(),
               });
               lie += th;
@@ -329,7 +326,7 @@ export function buildBooks(ctx) {
         const w = R.w * (1 + (br() - 0.5) * 0.06), hh = R.h * (1 + (br() - 0.5) * 0.025);
         if (u + w > s1) break;
         const inset = R.front - R.d / 2;
-        const book = { color: R.color, k: R.k * (0.96 + br() * 0.08), spine: R.spine, graze, dust, title: R.title + (R.n > 1 ? 1000 * (R.n - run + 1) : 0) };
+        const book = { color: R.color, k: R.k * (0.96 + br() * 0.08), spine: R.spine, dust, title: R.title + (R.n > 1 ? 1000 * (R.n - run + 1) : 0) };
         if (lean) {
           // Pivoted on its foot at the edge of the gap and resting its head on
           // the book across it.
@@ -458,17 +455,6 @@ export function buildBooks(ctx) {
         const q = on((s0 + s1) / 2, 15.8);
         LB.contact.add(g.translate(q[0], 6.14, q[1]));
       }
-      // The lamp-rail: a bronze rod under the frieze on little arms, a line of
-      // light along its underside washing down the top shelves (the wash is
-      // in the books' own shader — see makeBookMaterial).
-      if (graze > 0) {
-        const r0 = on(s0, 14.4), r1 = on(s1, 14.4);
-        LB.bronze.add(rodGeo([r0[0], FRIEZE_Y - 0.9, r0[1]], [r1[0], FRIEZE_Y - 0.9, r1[1]], 0.34));
-        LB.railGlow.add(boxGeo(on(s0 + 0.5, 14.4), on(s1 - 0.5, 14.4), 0.22, 0.4, FRIEZE_Y - 1.5));
-        for (const u of bayEnds.slice(0, 3).map((e, i) => (e + bayEnds[i + 1]) / 2)) {
-          LB.bronze.add(placed(new THREE.BoxGeometry(0.4, 0.4, 1.6), on(u, 13.6), FRIEZE_Y - 0.9, turn));
-        }
-      }
     }
     // a brass rail for a ladder, along the full walls
     if (from === 0) {
@@ -481,7 +467,7 @@ export function buildBooks(ctx) {
       }
     }
   };
-  return { LAID, GRAZE_BY_ROOM, roman, hexNumber, shelfWall };
+  return { LAID, roman, hexNumber, shelfWall };
 }
 
 export function* buildFurniture(ctx) {
@@ -489,7 +475,7 @@ export function* buildFurniture(ctx) {
     root, slabGeo, boxGeo, placed, rodGeo, barGeo, decal, halo, POOL_DIAL, point, R, A, GAP, RC,
     HALL, ARCH_SPRING, ARCH_R, WAY_IN, cellC, rimAt, deepAt, NB, cells, inFrame, routeDist, hallway,
     edgeFrame, hallMid, BRIDGE_LEVEL, ECHO_KERB, mouldGeo, wallRing, mirrors, LB, posts, links,
-    balusters, books, globes, deadGlobes, dust, glows, LAID, GRAZE_BY_ROOM, roman, hexNumber,
+    balusters, books, globes, deadGlobes, dust, glows, LAID, roman, hexNumber,
     shelfWall, instances } = ctx;
   // ── Furniture ─────────────────────────────────────────────────────────────
   // What gives a person's scale back to a room whose every wall is eleven
@@ -909,7 +895,7 @@ export function* buildFurniture(ctx) {
     // Shelves: every tier in the lit galleries, fewer as the Library recedes.
     const topTier = lit ? TIERS - 1 : framed ? (light ? 1 : (near > 0.3 ? 4 : 2)) : 0;
     const fromTier = lit ? 0 : TIERS - 1 - topTier;
-    const dress = { room, detail: lit ? 2 : near > 0.5 ? 1 : 0, graze: GRAZE_BY_ROOM[room] ?? 0 };
+    const dress = { room, detail: lit ? 2 : near > 0.5 ? 1 : 0 };
     const hexNo = lit ? hexNumber(cell.i, cell.j) : null;
     const wallWords = (k) => hexNo && [`HEXAGON ${hexNo} · WALL ${roman(k + 1)}`, `HEXAGON ${hexNo}`];
     for (let k = 0; k < 6; k++) {

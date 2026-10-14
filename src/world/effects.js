@@ -49,12 +49,6 @@ const GLAZE = !(typeof window !== 'undefined' && new URLSearchParams(window.loca
 const LP_GLINT = LAMPS.glint;
 export const GLINT_N = 40;
 export const glintLights = { value: Array.from({ length: GLINT_N }, () => new THREE.Vector4(0, -1e6, 0, 0)) };
-// ?wgraze=0..: how strongly the lamp-rails under the cornices wash the top
-// shelves (see makeBookMaterial); 0 turns the wash off to compare.
-export const GRAZE = (() => {
-  const v = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('wgraze');
-  return v !== null && v !== false && v !== '' && Number.isFinite(+v) ? +v : 0.75;
-})();
 
 // ── The bindings ──────────────────────────────────────────────────────────────
 
@@ -401,13 +395,11 @@ export function makeBookMaterial(atlas, titles = null) {
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `#include <common>
         attribute float aSpine;
-        attribute float aGraze;
         attribute float aDust;
         uniform vec3 uLabelRoom;
         varying float vLabelRoom;
         varying vec2 vSpineUv;
         varying float vFace;
-        varying float vGraze;
         varying float vDust;
         varying float vDeep;
         varying vec2 vHideUv;
@@ -468,22 +460,18 @@ export function makeBookMaterial(atlas, titles = null) {
         vec3 faceN = abs(normal);
         vec2 faceSize = faceN.x > 0.5 ? bookSize.zy : faceN.y > 0.5 ? bookSize.xz : bookSize.xy;
         vHideUv = uv * faceSize / ${HIDE_TILE}.0 + bookHash;
-        // The wash from a lamp-rail under the cornice: strongest on the top
-        // shelf, gone by the middle of the wall. aGraze says how much of it a
-        // book's room has (none in the Silence).
         #ifdef USE_INSTANCING
-          float grazeY = (modelMatrix * instanceMatrix * vec4(transformed, 1.0)).y;
+          float bookY = (modelMatrix * instanceMatrix * vec4(transformed, 1.0)).y;
           vec2 labelAt = (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xz;
         #else
-          float grazeY = (modelMatrix * vec4(transformed, 1.0)).y;
+          float bookY = (modelMatrix * vec4(transformed, 1.0)).y;
           vec2 labelAt = (modelMatrix * vec4(transformed, 1.0)).xz;
         #endif
         vLabelRoom = uLabelRoom.z > 0.0 && distance(labelAt, uLabelRoom.xy) < uLabelRoom.z ? 1.0 : 0.0;
-        vGraze = aGraze * pow(smoothstep(78.0, 111.0, grazeY), 1.6);
         vDust = aDust;
         // Only the Vertigo's books go this far down: the light at the bottom
         // of the funnel climbing its last few turns (see the Vertigo).
-        vDeep = pow(smoothstep(-150.0, -440.0, grazeY), 1.5);`);
+        vDeep = pow(smoothstep(-150.0, -440.0, bookY), 1.5);`);
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>
         uniform sampler2D uSpineDetail;
@@ -493,7 +481,6 @@ export function makeBookMaterial(atlas, titles = null) {
         uniform vec2 uSpineTexel;
         varying vec2 vSpineUv;
         varying float vFace;
-        varying float vGraze;
         varying float vDust;
         varying float vDeep;
         varying vec2 vHideUv;
@@ -539,12 +526,7 @@ export function makeBookMaterial(atlas, titles = null) {
       // (And calf takes a little polish where hands have rubbed it.)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
         roughnessFactor = mix(${BOOKS_TITLED ? '(abs(vFace - 1.0) < 0.5 || abs(vFace - 3.0) < 0.5) ? bookRough : roughnessFactor' : 'roughnessFactor'}, 0.42, spineMask.r) - polish;`)
-      // Light raking down from the rail: returned by what it lands on, so it
-      // is the binding's own colour (and the gilt's) that brightens, on the
-      // spines far more than on the tops of the pages it barely reaches.
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
-        totalEmissiveRadiance += diffuseColor.rgb * vec3(1.0, 0.7, 0.42) * vGraze * ${GRAZE.toFixed(3)}
-          * ((vFace > 0.5 && vFace < 1.5) ? 1.0 + spineMask.r * 0.8 : 0.25);
         totalEmissiveRadiance += diffuseColor.rgb * vec3(1.0, 0.62, 0.32) * vDeep * 0.9;`)
       .replace('#include <metalnessmap_fragment>', `#include <metalnessmap_fragment>
         metalnessFactor = mix(metalnessFactor, 0.78, spineMask.r);`)
@@ -591,7 +573,7 @@ export function makeBookMaterial(atlas, titles = null) {
           normal = bumpLen > 1e-12 ? bumped * inversesqrt(bumpLen) : normal;
         }`);
   };
-  material.customProgramCacheKey = () => `babel-books-${GRAZE}-${BOOK_UNIT}${OLD_BOOKS ? '-old' : BOOKS_TITLED ? '-titled' : ''}`;
+  material.customProgramCacheKey = () => `babel-books-${BOOK_UNIT}${OLD_BOOKS ? '-old' : BOOKS_TITLED ? '-titled' : ''}`;
   return material;
 }
 
