@@ -16,6 +16,9 @@
 
 // The page's dials for the opening (DEV): ?ink=20 makes it take at least 20
 // seconds, to watch it; ?ink=0 leaves it out, to time the assembly without it.
+import { POND, PAVILION, MAZE_BOUNDS as MAZE, MAZE_OUTLINE, FORK, SHORE,
+  PAVILION_PATH, BRIDGE, SHORE_PATH, MAZE_ENTRY, HEART, MAZE_PATH } from './world/gardenPlan';
+
 const INK_DIAL = import.meta.env.DEV && typeof window !== 'undefined'
   ? new URLSearchParams(window.location.search).get('ink')
   : null;
@@ -86,8 +89,8 @@ export const GUESS = [
   ...[0, 1, 2, DOOR].flatMap((r) => hexAt(cellC(...ROUTE[r]), TOP, rimOf(...ROUTE[r]))),
   ...ring(cellC(...ROUTE[VERTIGO]), PIT_R, PIT_R, TOP),
   ...[[1085, 255], [1150, 180], [1240, 185], [1255, 275], [1175, 330], [1100, 335]].map(([x, z]) => [x, 30, z]),
-  ...ring([1300, 118], 118, 90, 8),
-  ...[[1170, 305], [1430, 305], [1430, 535], [1170, 535]].map(([x, z]) => [x, 22, z]),
+  ...ring(POND.c, POND.rx, POND.rz, 8),
+  ...MAZE_OUTLINE.map(([x, z]) => [x, 22, z]),
   [135.4, 8, 840.8],
 ];
 
@@ -302,16 +305,11 @@ const layCells = (seen) => {
 // the pond and the maze traced round; and all the while the paths that fork
 // off the walk, forking again and again, round the water and the hedges,
 // until the garden runs out.
-const POND = { c: [1300, 118], rx: 118, rz: 90 };
-const PAVILION = [1305, 110];
-const MAZE = { x0: 1170, z0: 305, x1: 1430, z1: 535 };
 const layGarden = () => {
   const rnd = stream(1899);
   const gardenCells = [...GARDEN].map((k) => cellC(...k.split(',').map(Number)));
   const doorC = cellC(...ROUTE[DOOR]);
   const gate = [doorC[0] + A * Math.cos(330 * DEG), doorC[1] + A * Math.sin(330 * DEG)];
-  const fork = [1186, 236];
-  const shore = [1238, 196];
   const strokes = [];
   const stroke = (pts, y, u, kind) => {
     let len = 0;
@@ -324,8 +322,8 @@ const layGarden = () => {
   };
   const loop = (n, at) => Array.from({ length: n + 1 }, (_, k) => at((k % n) / n));
   // the walk, and the leg down into the maze
-  stroke([gate, fork, [1216, 218], shore, [1262, 186], [1252, 166], [1276, 156], [1285, 137], PAVILION], 8, 0.3, 'walk');
-  stroke([shore, [1315, 212], [1311, 266], [1300, MAZE.z0], [1300, 420]], 8, 0.5, 'walk');
+  stroke([gate, ...PAVILION_PATH, ...BRIDGE.slice(1), PAVILION], 8, 0.3, 'walk');
+  stroke([SHORE, ...SHORE_PATH, MAZE_ENTRY, HEART], 8, 0.5, 'walk');
   // the pond, the pavilion in it, and the maze (outer hedge, and two rings in, each with its way through)
   stroke(loop(48, (f) => [POND.c[0] + POND.rx * Math.cos(f * 2 * Math.PI + 2.4), POND.c[1] + POND.rz * Math.sin(f * 2 * Math.PI + 2.4)]), 8, 0.45, 'water');
   stroke(loop(8, (f) => [PAVILION[0] + 24 * Math.cos(f * 2 * Math.PI), PAVILION[1] + 24 * Math.sin(f * 2 * Math.PI)]), 30, 0.55, 'pavilion');
@@ -355,7 +353,7 @@ const layGarden = () => {
   const forks = [];
   // (from every turn of the walk, a way or two off it: a net of paths
   // rather than one tree of them)
-  const turns = [gate, fork, [1216, 218], shore, [1262, 186], [1276, 156], [1315, 212], [1311, 266]];
+  const turns = [gate, FORK, PAVILION_PATH[2], SHORE, BRIDGE[1], BRIDGE[3], SHORE_PATH[3], MAZE_PATH[0]];
   const queue = turns.flatMap((p, i) => [0, 1].map(() => ({ p, a: rnd() * 2 * Math.PI, depth: 0, dist: i * 26 })));
   while (queue.length && forks.length < 190) {
     const { p, a, depth, dist } = queue.shift();

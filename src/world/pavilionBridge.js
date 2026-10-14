@@ -1,11 +1,10 @@
 import * as THREE from 'three';
 import { makeWalkCurve } from './walkPath.js';
+import { PAVILION } from './gardenPlan.js';
 
-// The original zigzag footprints. Navigation rounds the walking line inside
-// the existing deck; it never moves the deck, rails, bays or steps.
-export const PAVILION = [1305, 110];
-export const PAVILION_BRIDGE = [[1238, 196], [1262, 186], [1252, 166], [1276, 156], [1285, 137]];
-export const PAVILION_NORTH_BRIDGE = [[1310, 10], [1298, 38], [1306, 63]];
+// Geometry and navigation share the footprints. The walking line rounds each
+// bend inside the deck, clear of its rails, bays and steps.
+export { PAVILION, BRIDGE as PAVILION_BRIDGE, NORTH_BRIDGE as PAVILION_NORTH_BRIDGE } from './gardenPlan.js';
 export const PAVILION_BRIDGE_HALF_WIDTH = 8.4;
 
 // Continue along the bridge's axis through its stone step and threshold,

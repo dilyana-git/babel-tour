@@ -4,12 +4,13 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { PAVILION_BRIDGE_HALF_WIDTH } from '../pavilionBridge';
+import { PAVILION_PATH, gardenWalks } from '../gardenPlan';
 import { makeRng, FOLIAGE_KINDS } from '../textures';
 import { makeSparkles, makeFoliageDepthMaterial, crossedCards, makeBackdropFoliage } from '../effects';
 import { Wood, growTree } from '../trees';
 import { WATER_Y } from '../water';
 import { lilyFlowerGeometry, lilyBudGeometry } from '../pond';
-import { BANK_VARY, forkOld } from '../forkFix';
+import { BANK_VARY, forkOld, WAYMARK } from '../forkFix';
 import { WILLOW_BROAD } from '../pavilionFix';
 import { propsOld, BLOSSOM_NIGHT, FINIALS, LAWN } from '../forkProps';
 import { pavPropsOld, WILLOW } from '../pavilionProps';
@@ -22,8 +23,8 @@ import { ONE_TREE, SHORE_OLD, FORK_OLD, NO_BOUND } from './common';
 
 export function buildTrees(ctx) {
   const { light, paintings, rnd, rr, pick, dir, add, dist, keep, M, root, chunkKey, inGarden, hangs,
-    GATE, foliage, beltFoliage, beltWood, LEAF, BLOSSOM, PERGOLA0, J, POND, PV, SHORE, BRIDGE, MZ,
-    MAZE_ENTRY, POOLS, PATHS, segDist, pathDist, NORTH_OPEN, wayDist, onNorthBridge, boundaryDist } = ctx;
+    GATE, foliage, beltFoliage, beltWood, LEAF, BLOSSOM, PERGOLA0, J, POND, MZ,
+    POOLS, PATHS, segDist, pathDist, NORTH_OPEN, wayDist, onNorthBridge, boundaryDist } = ctx;
   // ── Trees (trees.js) ──────────────────────────────────────────────────────
   // (the cedars behind the maze, in a group of their own: webProps.js, 2)
   let beltGroup = null;
@@ -41,13 +42,10 @@ export function buildTrees(ctx) {
       || ((p[0] - POND.c[0]) / (POND.rx + 22 + m)) ** 2 + ((p[1] - POND.c[1]) / (POND.rz + 22 + m)) ** 2 < 1
       || (p[0] > MZ.x0 - 16 - m && p[0] < MZ.x0 + MZ.cols * MZ.cw + 16 + m && p[1] > MZ.z0 - 16 - m && p[1] < MZ.z0 + MZ.rows * MZ.ch + 16 + m)
       || segDist(p, PATHS[0].pts[0], J) < 36 + m
-      || dist(p, add(J, dir(279), 30)) < 40
+      || dist(p, add(J, dir(WAYMARK.bearing), WAYMARK.dist)) < 40
       || POOLS.some((pool) => dist(p, pool.c) < pool.r + 24 + m);
     // the line the walk takes through the garden, and how far off it a place is
-    const WALK = [
-      [GATE, PERGOLA0, J, [1216, 218], SHORE, ...BRIDGE.slice(1), PV],
-      [SHORE, [1256, 208], [1290, 216], [1315, 212], [1311, 266], MAZE_ENTRY],
-    ];
+    const WALK = gardenWalks(GATE, PERGOLA0);
     const walkDist = (p) => Math.min(...WALK.flatMap((pts) => pts.slice(1).map((b, i) => segDist(p, pts[i], b))));
     const pondGap = (p) => (Math.hypot((p[0] - POND.c[0]) / POND.rx, (p[1] - POND.c[1]) / POND.rz) - 1) * ((POND.rx + POND.rz) / 2);
     const tr = makeRng(5150), trr = (a, b) => a + (b - a) * tr(), tpick = (xs) => xs[Math.floor(tr() * xs.length)];
@@ -457,7 +455,7 @@ export function* buildMist(ctx) {
     // line onto the Pavilion's: in from the path, then square up the run)
     const approaches = bridges.map((BR) => {
       const t = unit2(BR[0], BR[1]);
-      return BR === BRIDGE ? [[1216, 218], add(BR[0], t, -10), add(BR[0], t, -7.4)] : [add(BR[0], t, -18), add(BR[0], t, -7.4)];
+      return BR === BRIDGE ? [PAVILION_PATH.at(-2), add(BR[0], t, -10), add(BR[0], t, -7.4)] : [add(BR[0], t, -18), add(BR[0], t, -7.4)];
     });
     const approachD = (p) => Math.min(...approaches.map((pts) => lineDist(p, pts)));
     const deckD = (p) => Math.min(...bridges.flatMap((BR) => BR.slice(1).map((b, i) => segDist(p, BR[i], b))));

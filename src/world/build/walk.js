@@ -5,6 +5,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { pavilionCrossing, pavilionRound, pavilionInterior } from '../pavilionBridge';
+import { PAVILION_PATH, SHORE_PATH } from '../gardenPlan';
 import { LAMPS } from '../lampPass';
 import { buildFinale } from '../finale';
 import { makeDoorway } from '../doorway';
@@ -22,7 +23,7 @@ import { BRINK_OLD } from '../spiral';
 import { deg, OLD_GLARE } from './common';
 
 export function buildStands(ctx) {
-  const { paintings, dir, add, dist, Q, A, cellC, ECHO_A, BRIDGE_LEVEL, flightProfile, ECHO_FLIGHT,
+  const { paintings, dir, add, dist, A, cellC, ECHO_A, BRIDGE_LEVEL, flightProfile, ECHO_FLIGHT,
     ECHO_RING, PIT, stairAt, DOOR, mazeRoute, PERGOLA0, J, SHORE, BRIDGE, BRIDGE_STAND, MAZE_ENTRY,
     HEART, COURT_HALF, at } = ctx;
   // ── Where a reader stands, and the ways on ────────────────────────────────
@@ -68,7 +69,6 @@ export function buildStands(ctx) {
     eye(add(SHORE, bridgeAxis, -3.6), 6.7),
     eye(SHORE, DECK),
   ];
-  const SHORE_WALK_OLD = Q.get('wshoreway') === 'old';
   const pergola = unit(PERGOLA0, J);
   const heartFrom = unit(mazeRoute[mazeRoute.length - 2] ?? MAZE_ENTRY, HEART);
   // `p` turned about `o` by `a` degrees (to the right, seen from above the way the walk faces)
@@ -120,16 +120,16 @@ export function buildStands(ctx) {
   const footU = -ECHO_SPAN - 1.5;
   const echoFoot = footU > spot[1][0] - C1[0] + 1 ? [eye(add(C1, dir(0), footU), FLOOR)] : [];
   return { EYE, FLOOR, GRAVEL, DECK, MAZE, C0, C1, C2, ring, vestibuleMiddle, echoMiddle,
-    silenceMiddle, vertigoMiddle, doorLane, unit, eye, way, hug, bridgeEntry, SHORE_WALK_OLD,
+    silenceMiddle, vertigoMiddle, doorLane, unit, eye, way, hug, bridgeEntry,
     heartFrom, turnAbout, onStair, onEdge, spot, echoFlight, ECHO_SPAN, ECHO_STEPS, echoStair,
     echoFoot };
 }
 
 export function buildCrossing(ctx) {
   const { paintings, dir, add, lerp2, dist, Q, A, ECHO_A, hallMid, walkers, PIT, stairAt, GATE,
-    mazeRoute, PERGOLA0, J, PV, SHORE, BRIDGE, MAZE_ENTRY, HEART, PATHS, N_SHORE, NORTH_BRIDGE, at,
+    mazeRoute, PERGOLA0, J, PV, SHORE, BRIDGE, MAZE_ENTRY, HEART, N_SHORE, NORTH_BRIDGE, at,
     EYE, FLOOR, GRAVEL, DECK, MAZE, C0, C1, C2, ring, vestibuleMiddle, echoMiddle, silenceMiddle,
-    vertigoMiddle, doorLane, unit, eye, way, hug, bridgeEntry, SHORE_WALK_OLD, turnAbout, onStair,
+    vertigoMiddle, doorLane, unit, eye, way, hug, bridgeEntry, turnAbout, onStair,
     onEdge, spot, echoFlight, ECHO_SPAN, ECHO_STEPS, echoStair, echoFoot } = ctx;
   // ── The crossing, over the middle of the Echo (VANTAGES) ───────────────────
   // The crown of a flight is its two middle treads, level over the well —
@@ -260,26 +260,16 @@ export function buildCrossing(ctx) {
       ...way(GRAVEL, [doorLane(A), ...[0.2, 0.5, 0.8].map((t) => lerp2(PERGOLA0, J, t)).filter((p) => dist(p, J) > dist(spot[5], J) + 4), spot[5]]),
     ] },
     { kind: 'walk', points: [
-      ...way(GRAVEL, [spot[5], J, [1216, 218]]),
+      ...way(GRAVEL, [spot[5], ...PAVILION_PATH.slice(0, -1)]),
       ...bridgeEntry, ...(paintings ? hug(DECK, [SHORE, BRIDGE[1], spot[6]]).slice(1) : pavilionIn.slice(1)),
     ] },
     { kind: 'walk', points: [
       // Through the room and onto its other bridge, with continuous guidance.
       ...(paintings ? hug(DECK, [spot[6], BRIDGE[1], SHORE]) : pavilionThrough),
       ...bridgeEntry.slice(0, -1).reverse(),
-      // Off the deck by its steps and round onto the shore. Turned straight
-      // back from the deck's end toward the maze, the way would float the eye
-      // out over the bridge's rail and the strip of water beside it, and a
-      // reader walking it on their own feet (World.jsx's free walk follows this
-      // way by default) would stand at the rail and go no further. (Not out
-      // onto the middle of the shore's own gravel, SHORE_WAY, and round with
-      // it: that way runs a pace and a half from the end of the bridge's stone
-      // step, whose corner a reader's foot comes up onto and stands on, and it
-      // meets the way to the maze at a right angle and more, walked at a crawl.
-      // ?wshoreway=old)
-      ...(SHORE_WALK_OLD
-        ? way(GRAVEL, [[1231, 203], [1239, 208.5], [1256, 208], [1290, 216], ...PATHS[2].pts.slice(0, -1)])
-        : way(GRAVEL, [[1227.5, 204.5], [1231, 208.5], [1238, 211], [1262, 213], [1290, 218], [1302, 220.5], [1310, 228], [1311.6, 240], PATHS[2].pts[1]])),
+      // Clear the bridge's stone step along its axis before following the
+      // shore path. End on the maze's approach, square to its entrance.
+      ...way(GRAVEL, SHORE_PATH),
       // (no further in than the stand: the court is the finale's)
       ...hug(MAZE, [[MAZE_ENTRY[0], MAZE_ENTRY[1] - 6], ...pathToPoint(mazeRoute, spot[7])], 4),
     ] },

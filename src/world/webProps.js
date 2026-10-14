@@ -5,6 +5,7 @@
 //
 // ?wwebprops=old puts all of them back as they were; ?wwebprops=old:2,7 only those.
 import * as THREE from 'three';
+import { HEART } from './gardenPlan';
 
 const Q = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
 const V = Q.get('wwebprops');
@@ -70,7 +71,7 @@ export const SPIRE = { taper: qn('wwbtaper', 0.92), belly: 0.1, close: qn('wwbcl
 // stone, then `step` nearer at a time), tall enough that the height wanted is
 // `at` of the way up it, where it is still `cover` of its reach wide.
 export const CLOSE = {
-  eye: [1315, 20, 366], over: 1, at: [0.6, 0.74], cover: 0.8, back: 16, step: 9, least: 150,
+  eye: [HEART[0], 20, HEART[1] - 57], over: 1, at: [0.6, 0.74], cover: 0.8, back: 16, step: 9, least: 150,
   skyline: [
     [-44, 7.5, 738], [-41, 8, 703], [-38, 10.5, 532], [-35, 12, 536], [-32, 12.5, 517], [-29, 12, 479], [-26, 13, 491],
     [-24.5, 16.5, 338], [-21.5, 17.5, 358], [-18.5, 18, 348], [-15.5, 18.5, 340], [-12.5, 18.5, 338], [-9.5, 19, 332],
@@ -188,5 +189,5 @@ export function graduatedRing(which, merge, opts = {}) {
 export const GLOW = {
   on: !webPropsOld(7),
   dir: [0, 1], k: qn('wwglow', 0.9), rise: [0.26, 0.44, qn('wwglowtop', 0.84)], wide: qn('wwglowwide', 0.8),
-  heart: [1315, 423], near: 150, far: 330,
+  heart: HEART, near: 150, far: 330,
 };

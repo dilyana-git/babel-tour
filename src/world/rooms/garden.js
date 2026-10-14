@@ -4,6 +4,8 @@
 
 import * as THREE from 'three';
 import { PAVILION, PAVILION_BRIDGE, PAVILION_NORTH_BRIDGE } from '../pavilionBridge';
+import { FORK, POND as POND_PLAN, MAZE, MAZE_ENTRY as ENTRY, HEART as MAZE_HEART,
+  PAVILION_PATH, MAZE_PATH, SHORE_PATH, FORK_TO_MAZE, LANTERNS, BOUNDARY } from '../gardenPlan';
 import { LAMPS } from '../lampPass';
 import { makeRng } from '../textures';
 import { growHedge, stripLoop } from '../hedges';
@@ -17,7 +19,7 @@ import { ivyLeafGeometry, leafletGeometry, twineWisteria, compoundLeaf } from '.
 import { SHORE_OLD, FORK_OLD, HEDGE_DIAL, PERGOLA_OLD, IVY_OLD } from '../build/common';
 
 export function buildGarden(ctx) {
-  const { paintings, light, rnd, rr, pick, dir, add, lerp2, unit2, dist, hexPts, circlePts, rot3,
+  const { paintings, light, rnd, dir, add, lerp2, unit2, dist, hexPts, circlePts,
     keep, shorePond, M, root, Batch, slabGeo, RC, cells, P, G, GATE } = ctx;
   // ── The garden ────────────────────────────────────────────────────────────
   const GB = {
@@ -94,29 +96,30 @@ export function buildGarden(ctx) {
   for (const cell of cells) if (cell.garden) GB.grass.add(slabGeo(hexPts(cell.c, RC + 0.5), [], 4, 0));
 
   const PERGOLA0 = add(GATE, dir(150), 10);
-  const J = [1186, 236];
-  const POND = { c: [1300, 118], rx: 118, rz: 90 };
+  const J = FORK;
+  const POND = POND_PLAN;
   Object.assign(shorePond, POND);
   const PV = PAVILION;
-  const SHORE = [1238, 196];
+  const SHORE = PAVILION_BRIDGE[0];
   const BRIDGE = PAVILION_BRIDGE;
   const BRIDGE_STAND = lerp2(BRIDGE[1], BRIDGE[2], 0.6);
-  const MZ = { x0: 1180, z0: 318, cols: 8, rows: 7, cw: 30, ch: 30 };
-  const MAZE_ENTRY = [MZ.x0 + 4.5 * MZ.cw, MZ.z0];
-  const HEART = [MZ.x0 + 4.5 * MZ.cw, MZ.z0 + 3.5 * MZ.ch];
+  const MZ = MAZE;
+  const MAZE_ENTRY = ENTRY;
+  const HEART = MAZE_HEART;
   // the nine cells round the heart, cleared into one court (the world tour only)
   const COURT = { c0: 3, c1: 5, r0: 2, r1: 4 };
   const COURT_HALF = 1.5 * MZ.cw;
   const POOLS = [{ c: [1088, 482], r: 26 }, { c: [955, 150], r: 22 }];
   const PATHS = [
     { pts: [PERGOLA0, J], w: 18 },
-    { pts: [J, [1216, 218], SHORE], w: 16 },
-    { pts: [[1315, 212], [1311, 266], [MAZE_ENTRY[0], MAZE_ENTRY[1] - 4]], w: 14 },
+    { pts: PAVILION_PATH, w: 16 },
+    { pts: MAZE_PATH, w: 14 },
     { pts: [J, [1120, 160], [1000, 88], [890, 30], [840, -40]], w: 14, fading: true },
   ];
   const segDist = (p, a, b) => {
     const vx = b[0] - a[0], vz = b[1] - a[1];
-    const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * vx + (p[1] - a[1]) * vz) / (vx * vx + vz * vz)));
+    const length2 = vx * vx + vz * vz;
+    const t = length2 ? Math.max(0, Math.min(1, ((p[0] - a[0]) * vx + (p[1] - a[1]) * vz) / length2)) : 0;
     return dist(p, [a[0] + vx * t, a[1] + vz * t]);
   };
   const lineDist = (p, pts) => Math.min(...pts.slice(1).map((b, i) => segDist(p, pts[i], b)));
@@ -136,7 +139,7 @@ export function buildGarden(ctx) {
   // road round the north of the pond to a second, shorter bridge into the
   // Pavilion's north bay, and no way along the shore. The second bridge stays,
   // and comes down onto a landing of its own.)
-  const N_SHORE = [1310, 10];
+  const N_SHORE = PAVILION_NORTH_BRIDGE[0];
   const NORTH_BRIDGE = PAVILION_NORTH_BRIDGE;
   const NORTH_OPEN = !paintings || FORK_OLD;
   const wayThrough = (ctrl, w) => {
@@ -146,10 +149,10 @@ export function buildGarden(ctx) {
   };
   const ROAD = FORK_OLD
     ? wayThrough([J, [1120, 160], [1082, 92], [1092, 28], [1140, -22], [1215, -46], [1285, -38], N_SHORE], 14)
-    : wayThrough([J, [1214, 246], [1250, 258], [1284, 266], PATHS[2].pts[1]], 14);
+    : wayThrough(FORK_TO_MAZE, 14);
   // from the last leg of the way to the bridge, round the abutment and along
   // the shore, into the way to the maze where it leaves the water
-  const SHORE_WAY = FORK_OLD ? null : wayThrough([[1228, 206], [1242, 211], [1262, 213], [1290, 218], [1314, 220]], 14);
+  const SHORE_WAY = FORK_OLD ? null : wayThrough(SHORE_PATH, 14);
   // and where the road does not come to it, the second bridge's foot stands on
   // gravel all the same: a few paces of it, out past the step to the lawn
   const LANDING = FORK_OLD || !NORTH_OPEN ? null : (() => {
@@ -170,11 +173,14 @@ export function buildGarden(ctx) {
   // outside but grass going on into the dark, and a reader could walk out into
   // it. (Both ends stand in the Library's stone. The trees beyond it are the
   // skyline they always were.)
-  const BOUNDARY = [[865, 140], [985, 70], [1030, -20], [1100, -80], [1210, -102], [1310, -92], [1400, -58],
-    [1468, 12], [1490, 120], [1482, 232], [1470, 330], [1472, 470], [1455, 572], [1262, 592]];
   const boundaryDist = (p) => Math.min(...BOUNDARY.slice(1).map((b, i) => segDist(p, BOUNDARY[i], b)));
 
-  for (const path of PATHS) {
+  // Keep the shared random budget fixed for the relocated approaches; their
+  // edging uses its own stream so longer paths do not move later sections.
+  const edgeDraws = [0, 180, 270, 0];
+  for (const [pathIndex, path] of PATHS.entries()) {
+    const edgeRnd = edgeDraws[pathIndex] ? makeRng(9161 + pathIndex * 6) : rnd;
+    const edgeRr = (a, b) => a + (b - a) * edgeRnd();
     // (the first road not taken: its draws, and nothing laid — ROAD is laid
     // below)
     const old = path === PATHS[3], edging = old ? [] : rocks;
@@ -186,14 +192,16 @@ export function buildGarden(ctx) {
       if (!old) GB.gravel.add(slabGeo([add(a, n, path.w / 2), add(p, n, path.w / 2), add(p, n, -path.w / 2), add(a, n, -path.w / 2)], [], 1.2, 4));
       for (let u = 0; u < L; u += 7) {
         for (const side of [-1, 1]) {
-          if (path.fading && rnd() < 0.5) continue;
-          const rp = add(add(a, t, u + rr(-2, 2)), n, side * (path.w / 2 + rr(0, 1.5)));
-          const stone = { p: [rp[0], 5, rp[1]], rot: rot3(), s: [rr(1.2, 2.3), rr(0.8, 1.6), rr(1.2, 2.3)], color: pick(['#5f5b55', '#4e4b46', '#6b665f']) };
+          if (path.fading && edgeRnd() < 0.5) continue;
+          const rp = add(add(a, t, u + edgeRr(-2, 2)), n, side * (path.w / 2 + edgeRr(0, 1.5)));
+          const stone = { p: [rp[0], 5, rp[1]], rot: [edgeRr(0, 3), edgeRr(0, 3), edgeRr(0, 3)],
+            s: [edgeRr(1.2, 2.3), edgeRr(0.8, 1.6), edgeRr(1.2, 2.3)], color: ['#5f5b55', '#4e4b46', '#6b665f'][Math.floor(edgeRnd() * 3)] };
           // (in groups, laid below: these draws spent as they always were)
           if (forkOld(4)) edging.push(stone);
         }
       }
     });
+    for (let n = 0; n < edgeDraws[pathIndex]; n++) rnd();
   }
   // The ways' stones set in groups, a big one and smaller ones against it,
   // some sunk, gaps between — not one of a size every seven paces, like beads
@@ -616,7 +624,7 @@ export function buildPergola(ctx) {
 
 export function buildLanterns(ctx) {
   const { light, add, unit2, detail, lanternPoolTex, lampHaloTex, decal, halo, POOL_DIAL,
-    waterLamps, GATE, GB, plantHedge, J, SHORE, standing, lawnLamps } = ctx;
+    waterLamps, GATE, GB, plantHedge, J, standing, lawnLamps } = ctx;
   // ── Lanterns ─────────────────────────────────────────────────────────────
   // Tōrō of the Kasuga kind: a six-sided foot under a ring of lotus petals
   // turned down; a round post with a knot at its middle; a platform on petals
@@ -838,10 +846,7 @@ export function buildLanterns(ctx) {
   // (the road to the Heart leaves the Fork where the first stood, and the way
   // along the shore passes where the second did: each stepped back onto the
   // lawn beside its way, still facing what it lit)
-  toro(FORK_OLD ? [1206, 252] : [1201, 262], true, J);
-  toro(FORK_OLD ? [1262, 222] : [1264, 234], true, SHORE);
-  toro([1342, 262], true, [1311, 266]);
-  toro([1290, 292], true, [1311, 266]);
+  for (const { at, toward } of LANTERNS) toro(at, true, toward);
   toro([1098, 140], false, J);
   toro([1030, 60], false, J);
 

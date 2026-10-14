@@ -250,9 +250,21 @@ The question was how to fill the empty upper-right map area:
 - `tilt`: change the wide-screen yaw from 9° to −6°. This changed the camera framing, with no change to the garden's positions.
 - `trees`: retain the 9° yaw, extend the dotted road through `[[1150,176],[1132,100],[1140,15],[1175,-70],[1230,-190],[1300,-340],[1380,-520],[1460,-720],[1530,-900]]`, fade its opacity from 0.55 to 0, lift the veil from 0.75 to 0.3, with a reach of 230 world units.
 
-The user rejected the dotted road and asked to spread the Pavilion, lake and labyrinth away from the library walls. Neither camera/road option was migrated to main. Screenshot-based layout concepts precede any relocation of the actual garden.
+The user rejected the dotted road and asked to spread the Pavilion, lake and labyrinth away from the library walls. Neither camera/road option was migrated to main.
 
 The small recovered fixes retained on main are the nearest-cell construction optimization, the distant roof normals, quieter wall coping and bookcase heads, and the foliage comments and cloud-session instructions. The lookup uses unique coordinate keys to preserve its outside-world fallback; its results were compared with the original lookup across 21,184 sample points, including boundaries and ties.
+
+### The garden spread into the map's upper right
+
+*2026-10-14* · `src/world/gardenPlan.js`. The user chose **A** from three generated screenshot concepts: A put the lake and Pavilion above the maze, B used a wider lake beside the maze, and C put the maze above the lake. These were image mockups, not alternate code paths. Their previews are retained locally under `.ux-review/layout-options/`.
+
+The chosen layout moves actual geometry while retaining the wide map's 9° yaw and the library's positions. The pond moved from centre `[1300,118]`, radii `[118,90]`, to `[1300,-174]`, radii `[148,112]`; the Pavilion moved from `[1305,110]` to `[1305,-182]`. The maze moved from origin `[1180,318]` to `[1240,195]`, keeping its 8 × 7 cells at 30 units each. The enlarged pond is separated from the maze by ground for the shore walk, and both bridge landings extend to dry banks.
+
+The shared plan supplies the physical paths, walking legs, light positions, camera hit areas, opening drawing and still-map outlines. The Fork's arrival yaw is 315°, with its waymark at bearing 306° and distance 40 from the fork, so the relocated Pavilion and paths can be seen. The dotted road overlay was removed. The earlier `wshoreway` comparison was retired; commit `fc82316` retains the prior approach code and scene.
+
+The original maze's random-stream state at its construction was measured as `-923889612` in that reference scene. Its corridors now use a separate stream at that seed, preserving the maze and its arrival direction when pond density or path lengths change. The actual arrival eye moved from `[1315,20,366]` to `[1375,20,243]`, exactly the maze's translation. New path edging uses separate streams, retaining the shared path-dressing draw budget.
+
+Checks cover dry route centre lines, separation of pond and maze, and nonzero planting-route segments; the bridge clearance, turning and landing assertions retain their existing limits. Rendered map, phone and room pictures accompany real-input garden journeys and the navigation smoke suite under `.ux-review/`.
 
 ## The map's tone (2026-10-12)
 

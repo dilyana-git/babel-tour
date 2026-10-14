@@ -2,8 +2,9 @@
 // fireflies, and the court at its heart.
 
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { makeRng } from '../textures';
+import { MAZE_SEED } from '../gardenPlan';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { rectUnionLoops } from '../hedges';
 import { FINIALS } from '../forkProps';
 import { webOld, openGate, pedestalGeometry, pedestalLetters, FLIES } from '../webFix';
@@ -13,7 +14,7 @@ import { garden5Old, NICHE, BEAD } from '../gardenFix5';
 import { deg, MASS_H, CAP, IVY_OLD } from '../build/common';
 
 export function buildWeb(ctx) {
-  const { paintings, light, rr, pick, dir, add, lerp2, unit2, circlePts, keep, gilt, lampHaloTex, M,
+  const { paintings, light, rnd, rr, pick, dir, add, lerp2, unit2, circlePts, keep, gilt, lampHaloTex, M,
     root, slabGeo, placed, profileGeo, rodGeo, wornRibbon, decal, halos, halo, lightWishes,
     POOL_DIAL, point, A, RC, NB, cells, isGardenAt, inGarden, edgeFrame, mounts, hangPainting, DOOR,
     GATE, GB, ivy, fireflies, moreFlies, mazeRoute, heartParts, plantHedge, finial, MZ, HEART,
@@ -26,6 +27,9 @@ export function buildWeb(ctx) {
     const { x0, z0, cols, rows, cw, ch } = MZ;
     GB.mazeFloor.add(slabGeo([[x0 - 6, z0 - 6], [x0 + cols * cw + 6, z0 - 6], [x0 + cols * cw + 6, z0 + rows * ch + 6], [x0 - 6, z0 + rows * ch + 6]], [], 1, 4));
     const grid = Array.from({ length: rows }, () => Array.from({ length: cols }, () => ({ n: 1, s: 1, e: 1, w: 1, v: 0 })));
+    // The maze keeps its corridors when the pond and its planting change.
+    // Its own stream chooses the passages; the shared draw budget is retained.
+    const mazeRnd = makeRng(MAZE_SEED);
     const stack = [[4, 3]];
     grid[3][4].v = 1;
     while (stack.length) {
@@ -36,7 +40,8 @@ export function buildWeb(ctx) {
       if (cc < cols - 1 && !grid[r][cc + 1].v) opts.push(['e', cc + 1, r, 'w']);
       if (cc > 0 && !grid[r][cc - 1].v) opts.push(['w', cc - 1, r, 'e']);
       if (!opts.length) { stack.pop(); continue; }
-      const [d, nc, nr, opp] = pick(opts);
+      const [d, nc, nr, opp] = opts[Math.floor(mazeRnd() * opts.length)];
+      rnd();
       grid[r][cc][d] = 0;
       grid[nr][nc][opp] = 0;
       grid[nr][nc].v = 1;

@@ -18,6 +18,7 @@ import { propsOld, HEDGE_SHEEN } from '../forkProps';
 import { DARK_GILT, CAIHUA, pavPropsOld, WILLOW } from '../pavilionProps';
 import { bladeLit } from '../lawn';
 import { WALLS } from '../webFix';
+import { HEART } from '../gardenPlan';
 import { FILLET_BRASS, deadOpal } from '../auditFix';
 import { webPropsOld } from '../webProps';
 import { FEATHER, signLit, SIGN, garden5Old, plinthLit, PLINTH } from '../gardenFix5';
@@ -233,9 +234,8 @@ export function buildMaterials(ctx) {
             // the honeycomb's walls standing round the maze, let fall into
             // the night: from the court at its heart they were blank brick
             // filling the sky behind the hedges, and the walk ended against a
-            // warehouse. (The heart at 1315, 423; the Door's own cell, at
-            // 1005, 339, kept as it was — its walls are a room from inside.)
-            float stoneNight = (1.0 - 0.88 * smoothstep(290.0, 160.0, distance(stoneP.xz, vec2(1315.0, 423.0)))
+            // warehouse. The Door's own cell stays a room from inside.
+            float stoneNight = (1.0 - 0.88 * smoothstep(290.0, 160.0, distance(stoneP.xz, vec2(${HEART[0].toFixed(1)}, ${HEART[1].toFixed(1)})))
               * smoothstep(100.0, 118.0, distance(stoneP.xz, vec2(1005.2, 338.6))))
             // and behind the maze, out past that reach, the stone the cedars
             // stand in front of (webFix.js, 2): what shows between their

@@ -209,13 +209,6 @@
 .map-chevrons.is-library { stroke: var(--lamp-3); }
 .map-chevrons.is-garden { stroke: var(--jade-lit); }
 
-.map-route .map-not-taken {
-  stroke: color-mix(in srgb, var(--jade) 55%, transparent);
-  stroke-width: 2.6;
-  stroke-dasharray: 0.5 8;
-  stroke-linecap: round;
-}
-
 .map-fall,
 .map-route .map-fall {
   fill: none;

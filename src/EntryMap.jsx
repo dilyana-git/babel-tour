@@ -37,6 +37,7 @@ import { noteHere, sharedSlug, writeSlug } from './memory';
 import { useWorldSound } from './worldSound';
 import OpenBook, { READ_PREVIEW } from './OpenBook';
 import { LOOK, map3Old } from './world/mapFix3';
+import { POND, MAZE_BOUNDS, FORK, PAVILION_PATH, BRIDGE, PAVILION, SHORE_PATH, MAZE_PATH, MAZE_ENTRY, HEART } from './world/gardenPlan';
 import { HUD_OLD, SUB } from './world/hudFix3';
 import { fin6Old, ENDING, SKIP } from './world/finaleFix6';
 import { ENDIN, ENDIN_LINE, ENDIN_ALONE } from './world/endingIn';
@@ -107,9 +108,12 @@ const ROOMS = [
   { circle: [811.9, 450.2, 101], label: [871, 552] },
   { hex: [1005.2, 338.6], label: [946, 236] },
   { poly: [[1085, 255], [1150, 180], [1240, 185], [1255, 275], [1175, 330], [1100, 335]], label: [1160, 164] },
-  { ellipse: [1300, 118, 118, 90], label: [1350, 36] },
-  { rect: [1170, 305, 260, 230], label: [1300, 556] },
+  { ellipse: [...POND.c, POND.rx, POND.rz], label: [POND.c[0] + 50, POND.c[1] - POND.rz + 8] },
+  { rect: [MAZE_BOUNDS.x0, MAZE_BOUNDS.z0, MAZE_BOUNDS.x1 - MAZE_BOUNDS.x0, MAZE_BOUNDS.z1 - MAZE_BOUNDS.z0],
+    label: [HEART[0], MAZE_BOUNDS.z1 + 21] },
 ];
+
+const gardenChevron = (a, b) => `translate(${(a[0] + b[0]) / 2} ${(a[1] + b[1]) / 2}) rotate(${Math.atan2(b[1] - a[1], b[0] - a[0]) * 180 / Math.PI})`;
 
 function RoomShape({ room, grow = 0, className }) {
   if (room.hex) return <polygon className={className} points={toAttr(hexPoints(room.hex, 100 + grow))} />;
@@ -1030,14 +1034,13 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
           <use href="#map-chevron" transform="translate(715.3 506) rotate(-30)" />
         </g>
         <path className="map-fall" d="M811.9 450.2 Q 925 318 1005.2 338.6" />
-        <polyline className="is-garden" points="1005.2,338.6 1080.2,295.3 1186,236 1216,218 1238,196 1262,186 1252,166 1276,156 1285,137 1305,110" />
-        <polyline className="is-garden" points="1315,212 1311,266 1315,318 1315,423" />
+        <polyline className="is-garden" points={toAttr([[1005.2, 338.6], [1080.2, 295.3], ...PAVILION_PATH, ...BRIDGE.slice(1), PAVILION])} />
+        <polyline className="is-garden" points={toAttr([...SHORE_PATH, MAZE_ENTRY, HEART])} />
         <g className="map-chevrons is-garden">
-          <use href="#map-chevron" transform="translate(1133.1 265.7) rotate(-29.3)" />
-          <use href="#map-chevron" transform="translate(1313 239) rotate(94.2)" />
-          <use href="#map-chevron" transform="translate(1315 370.5) rotate(90)" />
+          <use href="#map-chevron" transform={gardenChevron([1080.2, 295.3], FORK)} />
+          <use href="#map-chevron" transform={gardenChevron(MAZE_PATH[0], MAZE_ENTRY)} />
+          <use href="#map-chevron" transform={gardenChevron(MAZE_ENTRY, HEART)} />
         </g>
-        <polyline className="map-not-taken" points="1186,236 1120,160 1000,88 890,30 840,-40" />
         <g transform="translate(811.9 450.2)">
           <circle className="map-pit-rim" r="18" />
           <path className="map-pit-spiral" d={SPIRAL} transform="translate(-2.4 0) scale(1.08)" />

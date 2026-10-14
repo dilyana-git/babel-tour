@@ -6,6 +6,8 @@
 // ?wmap3=old puts all of them back as they were; ?wmap3=old:3,5 only those.
 // ?wmapink=b|c puts one of the other two hand-overs (2) in a's place; `off`
 // is the stone of point 3 with nothing of the options on it.
+import { LANTERNS } from './gardenPlan';
+
 const Q = typeof location !== 'undefined' ? new URLSearchParams(location.search) : new URLSearchParams();
 const V = Q.get('wmap3');
 const ONLY = V && V.startsWith('old:') ? new Set(V.slice(4).split(',').map((s) => s.trim())) : null;
@@ -29,7 +31,7 @@ export const GARDEN_MAP = {
   pavilion: { r: 86 / Math.sqrt(3), k: 1.2 },
   moon: { road: 0.8, wash: 0.2, k: 0.6 },
   wisteria: { along: [28, 124], across: 36, y: 52, k: 0.85 },
-  lanterns: { at: [[1201, 262], [1264, 234], [1342, 262], [1290, 292]], r: 19, y: 24, k: 0.5 },
+  lanterns: { at: LANTERNS.map((lamp) => lamp.at), r: 19, y: 24, k: 0.5 },
 };
 
 // 2. The hand-over, three ways.

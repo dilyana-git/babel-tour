@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { makeWalkCurve, makeWalkPace, hexAislePoint, roundAislePoint, pathToPoint } from '../src/world/walkPath.js';
 import { makeBody, RADIUS, ROOM_STAND } from '../src/world/body.js';
 import { PAVILION, PAVILION_BRIDGE, PAVILION_NORTH_BRIDGE, PAVILION_BRIDGE_HALF_WIDTH, pavilionCrossing } from '../src/world/pavilionBridge.js';
+import { POND, MAZE, MAZE_ENTRY, SHORE, FORK, PAVILION_PATH, SHORE_PATH, MAZE_PATH, FORK_TO_MAZE, gardenWalks } from '../src/world/gardenPlan.js';
 
 const points = (a) => a.map((p) => new THREE.Vector3(...p));
 const material = new THREE.MeshBasicMaterial();
@@ -77,9 +78,9 @@ test('zigzag bridge corners stay within 0.6 of the centreline in both directions
   }
 });
 
-test('Pavilion navigation rounds bends inside the original zigzag deck', () => {
-  assert.deepEqual(PAVILION_BRIDGE, [[1238, 196], [1262, 186], [1252, 166], [1276, 156], [1285, 137]]);
-  assert.deepEqual(PAVILION_NORTH_BRIDGE, [[1310, 10], [1298, 38], [1306, 63]]);
+test('Pavilion navigation rounds bends inside the relocated zigzag deck', () => {
+  assert.deepEqual(PAVILION_BRIDGE, [[1214, -70], [1262, -106], [1252, -126], [1276, -136], [1285, -155]]);
+  assert.deepEqual(PAVILION_NORTH_BRIDGE, [[1312, -309], [1298, -254], [1306, -229]]);
   assert.equal(PAVILION_BRIDGE_HALF_WIDTH, 8.4);
   const walk = points(pavilionCrossing(PAVILION_BRIDGE));
   const deck = walk.filter(p => Math.abs(p.y - 23.6) < 1e-6);
@@ -93,6 +94,29 @@ test('Pavilion navigation rounds bends inside the original zigzag deck', () => {
   const landing = walk.at(-1);
   assert(Math.hypot(landing.x - PAVILION[0], landing.z - PAVILION[1]) < 25);
   assert.equal(landing.y, 27.1);
+});
+
+test('garden routes keep the expanded lake separate from the maze and dry approaches', () => {
+  assert(POND.c[1] + POND.rz + 150 < MAZE.z0);
+  assert.deepEqual(PAVILION_PATH[0], FORK);
+  assert.deepEqual(PAVILION_PATH.at(-1), SHORE);
+  assert.equal(MAZE_PATH[0][0], MAZE_ENTRY[0]);
+  assert.equal(MAZE_PATH.at(-1)[0], MAZE_ENTRY[0]);
+  for (const route of [PAVILION_PATH, SHORE_PATH, MAZE_PATH, FORK_TO_MAZE]) {
+    for (let i = 1; i < route.length; i++) {
+      for (let k = 0; k <= 100; k++) {
+        const p = route[i].map((x, j) => route[i - 1][j] + (x - route[i - 1][j]) * k / 100);
+        assert(((p[0] - POND.c[0]) / POND.rx) ** 2 + ((p[1] - POND.c[1]) / POND.rz) ** 2 > 1.01,
+          `garden ground route enters the pond at ${p}`);
+      }
+    }
+  }
+  for (const route of gardenWalks([1080.2, 295.3], [1071.5, 300.3])) {
+    for (let i = 1; i < route.length; i++) {
+      assert(Math.hypot(route[i][0] - route[i - 1][0], route[i][1] - route[i - 1][1]) > 0.01,
+        'planting routes must not contain a zero-length segment');
+    }
+  }
 });
 
 test('the maze arrival retains its final corner and square approach', () => {

@@ -881,7 +881,6 @@ const layoutFor = (overlay, width, height, points, reserveLeft, tall) => {
     walk,
     gardenWalk,
     mazeLeg,
-    notTaken: line(overlay.notTaken),
     fall: line(overlay.fall),
     pit: px(overlay.pit),
     entrance: { ...chevron(walk, 0), x: walk[0][0], y: walk[0][1] },

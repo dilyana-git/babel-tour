@@ -13,6 +13,7 @@ import { BELT } from '../webProps';
 import { mapOld, PIT_FADE } from '../mapFix';
 import { map3Old, GARDEN_MAP } from '../mapFix3';
 import { TONE } from '../mapFix6';
+import { PAVILION_PATH, MAZE_PATH, SHORE_PATH, MAZE_OUTLINE } from '../gardenPlan';
 import { readerGeometry, ROBES } from '../readers';
 import { lightPoolSize } from '../../capability';
 import { MASS_H, ROUTE_LIGHT, CAP } from './common';
@@ -505,7 +506,7 @@ export function buildCulling(ctx) {
 
 export function buildOverlay(ctx) {
   const { hexPts, circlePts, R, cellC, ECHO_R, hallMid, PIT, DOOR, GATE, ENTRANCE, J, POND, PV,
-    SHORE, BRIDGE, MAZE_ENTRY, HEART, ROAD } = ctx;
+    BRIDGE, MAZE_ENTRY, HEART } = ctx;
   // ── What the camera and the overlay need ─────────────────────────────────
   const top = MASS_H + CAP;
   const at = (p, y) => [p[0], y, p[1]];
@@ -529,7 +530,7 @@ export function buildOverlay(ctx) {
       hexPts(DOOR, R).map((p) => at(p, top)),
       [[1085, 255], [1150, 180], [1240, 185], [1255, 275], [1175, 330], [1100, 335]].map((p) => at(p, 30)),
       Array.from({ length: 36 }, (_, k) => at([POND.c[0] + Math.cos((k / 36) * Math.PI * 2) * POND.rx, POND.c[1] + Math.sin((k / 36) * Math.PI * 2) * POND.rz], 8)),
-      [[1170, 305], [1430, 305], [1430, 535], [1170, 535]].map((p) => at(p, 22)),
+      MAZE_OUTLINE.map((p) => at(p, 22)),
     ],
     // What the map stands a room's numeral over, where that is not the top
     // of everything a reader may point at (mapFix3.js, 5): the Fork is the
@@ -544,9 +545,8 @@ export function buildOverlay(ctx) {
       circlePts(HEART, COURT_MARK, 24).map((p) => at(p, 8)),
     ],
     walk: [ENTRANCE, cellC(0, 0), hallMid(0, 0, 5), cellC(1, -1), hallMid(1, -1, 5), cellC(2, -2), hallMid(2, -2, 5), PIT].map((p) => at(p, 8)),
-    gardenWalk: [DOOR, GATE, J, [1216, 218], SHORE, ...BRIDGE.slice(1), PV].map((p) => at(p, 8)),
-    mazeLeg: [[1315, 212], [1311, 266], MAZE_ENTRY, HEART].map((p) => at(p, 8)),
-    notTaken: ROAD.pts.map((p) => at(p, 8)),
+    gardenWalk: [DOOR, GATE, ...PAVILION_PATH, ...BRIDGE.slice(1), PV].map((p) => at(p, 8)),
+    mazeLeg: [SHORE_PATH.at(-2), MAZE_PATH[0], MAZE_ENTRY, HEART].map((p) => at(p, 8)),
     fall: fallPts,
     pit: at(PIT, 8),
   };

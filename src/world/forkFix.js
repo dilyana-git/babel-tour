@@ -5,6 +5,7 @@
 //
 // ?wforkfix=old puts all of them back as they were; ?wforkfix=old:2,4 only those.
 import { makeRng } from './textures';
+import { FORK_VIEW } from './gardenPlan';
 
 const Q = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
 const V = Q.get('wforkfix');
@@ -21,7 +22,7 @@ const qn = (k, d) => (Q.get(k) !== null && Q.get(k) !== '' && Number.isFinite(+Q
 // off right to the two lanterns at the maze's mouth — and the moon, which
 // hangs over the Pavilion at seventeen degrees, is in the sky with room
 // above it. (Much further down and its top is cut off by the frame again.)
-export const STAND = { back: qn('wfback', 28), side: qn('wfside', -5), yaw: qn('wfyaw', 342), pitch: qn('wfpitch', -5) };
+export const STAND = { back: qn('wfback', 28), side: qn('wfside', -5), yaw: qn('wfyaw', FORK_VIEW.yaw), pitch: qn('wfpitch', -5) };
 
 // 3. The waymark: where it stands, by bearing and distance from the Fork's
 // stone — out in the lawn between the two ways, where they have parted, so
@@ -32,7 +33,7 @@ export const STAND = { back: qn('wfback', 28), side: qn('wfside', -5), yaw: qn('
 // The Pavilion's board goes up over the bracket (`boards`: the heights of
 // THE PAVILION and THE HEART), where the lantern hung across its name.
 export const WAYMARK = {
-  bearing: qn('wfpostb', 356), dist: qn('wfpostd', 34), arm: qn('wfarm', 252),
+  bearing: qn('wfpostb', FORK_VIEW.postBearing), dist: qn('wfpostd', FORK_VIEW.postDistance), arm: qn('wfarm', 252),
   // a squared timber post, tapering a little, weathered dark
   post: { r0: 0.95, r1: 0.82, top: 28.2 },
   boards: [qn('wfboard1', 26.4), qn('wfboard2', 17.9)],

@@ -5,6 +5,7 @@
 // ?wwebfix=old puts all of them back as they were; ?wwebfix=old:2,5 only those.
 import * as THREE from 'three';
 import { webPropsOld, BELT } from './webProps';
+import { MAZE } from './gardenPlan';
 
 const Q = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
 const V = Q.get('wwebfix');
@@ -35,7 +36,8 @@ export const SCREEN = {
 // `spec`: and its sheen with it. The heart's falloff only ever darkened the
 // stone's colour, and blank brick painted black was still brick in the sky's
 // reflection off it.
-export const WALLS = { k: webOld(2) ? 0 : qn('wwwall', 0.93), z: [470, 545], x: [1060, 1130], spec: !webOld(2) };
+export const WALLS = { k: webOld(2) ? 0 : qn('wwwall', 0.93),
+  z: [MAZE.z0 + 152, MAZE.z0 + 227], x: [MAZE.x0 - 120, MAZE.x0 - 50], spec: !webOld(2) };
 // Where they stand: `MZ` the maze's grid, `ok(p)` the garden's say (inside it,
 // off its hedge, a crown's reach off the Library's stone). The rows run the
 // width of the maze and a cell past each side, because from the stand the
