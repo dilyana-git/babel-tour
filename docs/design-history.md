@@ -1,5 +1,14 @@
 # Design history
 
+### Echo newel carving
+
+*2026-10-14* · The stair's newels read as square boxes with flat caps.
+Echo newels now have a plinth with an ogee transition into the shaft, a
+bevelled panel recessed 18 mm on every face, and a cornice with a neck
+fillet, ovolo, fascia and sloping weathering. The cap and base retain their
+existing maximum widths and the handrail still meets the cornice. The
+other rooms retain their existing pedestal detail.
+
 ### Echo columns warmed into the room's palette
 
 *2026-10-14* · The grey-green columns (`#919f99`, commit `8bbb57a`) felt

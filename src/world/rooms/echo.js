@@ -61,7 +61,7 @@ export function buildEcho(ctx) {
       // terrace: standing up through the crown they crossed as a raised X of
       // stone under the rose, and the rose had to float over them.)
       // Wear is laid once on each tread below; the nosings remain solid stone.
-      const VALUES = { nosing: LB.nosing, riser: LB.riserSoft, string: true, worn: false };
+      const VALUES = { nosing: LB.nosing, riser: LB.riserSoft, string: true, worn: false, panelledNewels: true };
       flightDress(c, ang, f, 7.9, CROSS_OLD
         ? { gap: [-15, 15], keyThrough: ROSE_OLD, plane: ECHO_ONE_FACE, face: ECHO_ONE_FACE ? LB.flank : LB.cap, ...VALUES }
         // (the other flight is cut on the same profile as this one)

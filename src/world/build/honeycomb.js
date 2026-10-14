@@ -263,23 +263,65 @@ export function buildHoneycomb(ctx) {
   // (and `sunk` below the foot, so a rake or a string under it never shows
   // daylight), a die with a raised panel on each face, and a cornice — capped
   // with a low weathering, or with a ball where a bridge ends.
-  const pedestalGeo = (w, base, die, { ball = false, sunk = 0.5, shift = [0, 0] } = {}) => {
+  const pedestalGeo = (w, base, die, { ball = false, sunk = 0.5, shift = [0, 0], panelled = false } = {}) => {
     // (each block let a hair down into the one under it: two faces on one
     // plane, in a stone drawn from both sides, flicker as a dashed line
     // along every joint)
     const LAP = 0.03;
     const box = (x, h, y0) => new THREE.BoxGeometry(x, h + LAP, x).translate(0, y0 + (h - LAP) / 2, 0);
-    const parts = [
+    const parts = panelled ? [] : [
       box(w + 0.3, base + sunk, -sunk), box(w + 0.16, 0.28, base), box(w, die - base - 0.28, base + 0.28),
       box(w + 0.22, 0.3, die), box(w + 0.56, 0.55, die + 0.3), box(w + 0.3, 0.2, die + 0.85),
     ];
     const ph = die - base - 1.4;
-    if (ph > 1) {
+    if (panelled) {
+      // Square mouldings retain the pedestal's footprint: a plinth and ogee
+      // below the die, then a neck fillet, ovolo and weathered cornice above.
+      const squareProfile = (profile) => {
+        const points = [[0, profile[0][1]], ...profile, [0, profile.at(-1)[1]]];
+        const g = new THREE.LatheGeometry(points.map(([width, y]) => new THREE.Vector2(width / Math.SQRT2, y)), 4)
+          .rotateY(Math.PI / 4).toNonIndexed();
+        g.computeVertexNormals();
+        return g;
+      };
+      parts.push(squareProfile([
+        [w + 0.3, -sunk], [w + 0.3, base * 0.5], [w + 0.26, base * 0.72],
+        [w + 0.12, base + 0.03], [w - 0.04, base + 0.16], [w - 0.08, base + 0.3], [w, base + 0.42],
+      ]), squareProfile([
+        [w, die - 0.03], [w + 0.1, die + 0.08], [w + 0.1, die + 0.22],
+        [w + 0.22, die + 0.24], [w + 0.25, die + 0.37], [w + 0.4, die + 0.52],
+        [w + 0.5, die + 0.64], [w + 0.56, die + 0.7], [w + 0.56, die + 0.94],
+        [w + 0.34, die + 1.04], [w + 0.3, die + 1.1], [w * 0.35, die + 1.4],
+      ]));
+      // Each face is a solid frame, a bevel down into the opening, and the
+      // recessed stone field. The recess is cut 18 mm behind the die's face.
+      const y0 = base + 0.3, y1 = die + 0.03, bottom = base + 1, top = die - 0.6;
+      const half = w / 2, panel = half - 0.32, bevel = 0.1, depth = 0.19;
+      const rect = (x, lo, hi, z) => [[-x, lo, z], [x, lo, z], [x, hi, z], [-x, hi, z]];
+      const rings = [rect(half, y0, y1, half), rect(panel, bottom, top, half),
+        rect(panel - bevel, bottom + bevel, top - bevel, half - depth)];
+      const pos = [];
+      const quad = (a, b, c, d) => pos.push(...a, ...b, ...c, ...a, ...c, ...d);
+      for (let ring = 0; ring < rings.length - 1; ring++) {
+        for (let k = 0; k < 4; k++) {
+          const next = (k + 1) % 4;
+          quad(rings[ring][k], rings[ring][next], rings[ring + 1][next], rings[ring + 1][k]);
+        }
+      }
+      quad(...rings[2]);
+      const face = new THREE.BufferGeometry();
+      face.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      face.computeVertexNormals();
+      for (let k = 0; k < 4; k++) parts.push(face.clone().rotateY(k * Math.PI / 2));
+      face.dispose();
+    } else if (ph > 1) {
       for (let k = 0; k < 4; k++) {
         parts.push(new THREE.BoxGeometry(w - 0.8, ph, 0.16).translate(0, base + 0.84 + ph / 2, w / 2).rotateY((k * Math.PI) / 2));
       }
     }
-    if (ball) {
+    if (panelled) {
+      // The weathering is part of the cornice profile above.
+    } else if (ball) {
       const r = w * 0.32;
       parts.push(box(w * 0.62, 0.3, die + 1.05),
         new THREE.CylinderGeometry(r * 0.42, r * 0.72, 0.42, 14).translate(0, die + 1.56 - LAP, 0),
@@ -291,6 +333,7 @@ export function buildHoneycomb(ctx) {
       cap.computeVertexNormals();
       parts.push(cap);
     }
+    parts.forEach((g) => carveUv(g, shift));
     const flat = parts.map((g) => (g.index ? g.toNonIndexed() : g));
     const g = carveUv(mergeGeometries(flat), shift);
     parts.forEach((p) => p.dispose());
@@ -399,7 +442,7 @@ export function buildFlightDressing(ctx) {
   // (`nosing`, `riser`: where the lips and the risers' shade go, when not
   // `stone` and LB.riserShade; `string`: a wall string up the inside of both
   // flanks — the Echo's, echoFix.js point 2)
-  const flightDress = (c, ang, f, halfW, { gap = null, ends = [true, true], stone = LB.cap, worn = true, keyThrough = true, cross = null, gapNewels = true, plane = false, face = stone, nosing = stone, riser = LB.riserShade, string = false } = {}) => {
+  const flightDress = (c, ang, f, halfW, { gap = null, ends = [true, true], stone = LB.cap, worn = true, keyThrough = true, cross = null, gapNewels = true, plane = false, face = stone, nosing = stone, riser = LB.riserShade, string = false, panelledNewels = false } = {}) => {
     const { run, span, spring, steps, from, to } = f.dims;
     const { u0, u1, soffit, pitch, stepTop, stepAt, crown } = f;
     const ax = dir(ang), px = dir(ang + 90);
@@ -823,7 +866,7 @@ export function buildFlightDressing(ctx) {
         // higher, and dies into the cornice there rather than over it. Let
         // down into the kerb, whose top the coping is set back from on the
         // stair's side.
-        carve.add(placed(pedestalGeo(FLIGHT_RAIL.ped, FLIGHT_RAIL.baseH - FLIGHT_RAIL.sink, railY(u) + 0.35 - y, { sunk: 0.9, shift: patchOf(q) }), q, y, r));
+        carve.add(placed(pedestalGeo(FLIGHT_RAIL.ped, FLIGHT_RAIL.baseH - FLIGHT_RAIL.sink, railY(u) + 0.35 - y, { sunk: 0.9, shift: patchOf(q), panelled: panelledNewels }), q, y, r));
         return;
       }
       stone.add(placed(new THREE.BoxGeometry(2.2, 0.9, 2.2), q, y + 0.45, r));
