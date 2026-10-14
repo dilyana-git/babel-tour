@@ -1,25 +1,13 @@
-// The Silence's arrival frame, reviewed 2026-10-09: the lamp beside the
-// reader's hood (1), the reader lit from below (2), the dead globes (3), the
-// arches under the flights (4), the sky through the hallway (5).
-// What each point was, and why: docs/design-history.md.
-//
-// ?wsilfix=old puts all of them back as they were; ?wsilfix=old:2,4 only
-// those.
+// The Silence's reader, dead glass, arch bounce and blind hallway crown.
+// ?wsilfix=old restores the earlier reader fill, globe placement, arches and
+// hallway crown; old:n selects those individual details (2–5).
+import * as THREE from 'three';
 const Q = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
 const V = Q.get('wsilfix');
 const ONLY = V && V.startsWith('old:') ? new Set(V.slice(4).split(',').map(Number)) : null;
 export const silenceOld = (n) => V === 'old' || (ONLY ? ONLY.has(n) : false);
 
-// 1. Where the one lamp hangs, round the room's middle: [bearing, radius]. At
-// dir(258)·9 it was six degrees from the reader's head as the stand sees it,
-// and globe and hood touched — one dark lump with a light in its shoulder.
-// Hung on over the 240° flight's crown it is a body-width clear of the head,
-// and still over the place where the stairs stop. [bearing, radius, height]:
-// higher than it was, so from the stand the globe clears the terrace's rail
-// instead of sitting on it (at 56 it was still tangent to the rail's top).
 const qn = (k, d) => (Q.get(k) !== null && Q.get(k) !== '' && Number.isFinite(+Q.get(k)) ? +Q.get(k) : d);
-const LAMP_Y = qn('wslampy', 61);
-export const LAMP_AT = [233, 12.5, LAMP_Y];
 
 // 2. The light the lamp's pool on the terrace throws back up: warm, from the
 // stone at the reader's feet, onto the robe's front, the hands and the book,
@@ -44,23 +32,23 @@ export const ROBE = Q.get('wsrobe') ? `#${Q.get('wsrobe')}` : '#231a14';
 // else, and went to black.
 export const ARCH_LIFT = { lift: 14, side: 1 };
 
-// 3. The dead glass: soot laid inside the globe from the top down, where the
-// flame's smoke rose, and the glass gone dull — at roughness 0.07 every lamp
-// in the room put a pin of light in each dead globe and they read as soap
-// bubbles. (The bearings the two that hung in the stand's frame move to are
-// in buildWorld.js.)
+// Smoked opal glass with dust collected under the collar. Its intact glaze
+// reflects the one burning lamp; the dust softens that reflection at the top.
 export function deadGlassPatch(mat) {
-  if (silenceOld(3)) return mat;
-  mat.roughness = 0.36;
-  mat.envMapIntensity = 0.22;
-  mat.color.set('#5e5246');
+  mat.roughness = 0.16;
+  mat.envMapIntensity = 0;
+  mat.color.set('#39312b');
+  const lamp = { value: new THREE.Vector4() };
+  mat.userData.lamp = lamp;
   mat.onBeforeCompile = (sh) => {
+    sh.uniforms.uDeadLamp = lamp;
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vDeadL;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvDeadL = position;');
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>
         varying vec3 vDeadL;
+        uniform vec4 uDeadLamp;
         float deadHash(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
         float deadNoise(vec3 x) {
           vec3 i = floor(x), f = fract(x);
@@ -71,16 +59,34 @@ export function deadGlassPatch(mat) {
             f.z);
         }`)
       .replace('#include <color_fragment>', `#include <color_fragment>
-        // soot from the top down, heaviest under the collar and streaked
-        // where it ran; the bottom of the bowl left a dull amber
-        float deadSoot = smoothstep(-0.55, 0.75, vDeadL.y + 0.35 * (deadNoise(vDeadL * vec3(5.0, 1.4, 5.0)) - 0.5));
-        diffuseColor.rgb *= mix(1.0, 0.3, deadSoot);
-        diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(1.12, 0.98, 0.8), 1.0 - deadSoot);`)
+        float deadSoot = smoothstep(-0.35, 0.82, vDeadL.y + 0.3 * (deadNoise(vDeadL * vec3(5.0, 1.4, 5.0)) - 0.5));
+        float deadDust = smoothstep(0.25, 0.85, vDeadL.y)
+          * (0.55 + 0.45 * deadNoise(vDeadL * 34.0));
+        diffuseColor.rgb *= mix(1.0, 0.38, deadSoot);
+        diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.085, 0.069, 0.052), deadDust * 0.5);`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
-        // (and the soot is matt: what gloss the glass keeps is low on the bowl)
-        roughnessFactor = mix(roughnessFactor, 0.9, smoothstep(-0.2, 0.6, vDeadL.y));`);
+        roughnessFactor = mix(roughnessFactor, 0.62, deadDust);`)
+      .replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
+        // The room's environment includes other galleries' lamps. Keep its
+        // diffuse fill, and reserve the glass reflection for this room's lamp.
+        reflectedLight.directSpecular = vec3(0.0);
+        reflectedLight.indirectSpecular = vec3(0.0);`)
+      .replace('#include <opaque_fragment>', `
+        // The reflected lamp has its actual angular size, feathered by a
+        // pixel so a distant highlight remains a small spot as the eye moves.
+        vec3 deadV = normalize(vViewPosition);
+        vec3 deadP = (viewMatrix * vec4(uDeadLamp.xyz, 1.0)).xyz + vViewPosition;
+        float deadD = max(length(deadP), 0.001);
+        float deadFacing = dot(reflect(-deadV, normal), deadP / deadD);
+        float deadEdge = cos(min(0.22, uDeadLamp.w / deadD));
+        float deadWidth = max(fwidth(deadFacing), 0.00015);
+        float deadPin = smoothstep(deadEdge - deadWidth, deadEdge + deadWidth, deadFacing);
+        float deadFresnel = pow(1.0 - max(dot(normal, deadV), 0.0), 3.0);
+        outgoingLight *= 1.0 - 0.28 * deadFresnel;
+        outgoingLight += vec3(0.8, 0.56, 0.3) * deadPin * (1.0 - 0.85 * deadDust) * step(0.01, uDeadLamp.w);
+        #include <opaque_fragment>`);
   };
-  mat.customProgramCacheKey = () => 'babel-dead-glass';
+  mat.customProgramCacheKey = () => 'babel-dead-glass-lamp';
   return mat;
 }
 

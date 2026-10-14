@@ -1,5 +1,24 @@
 # Design history
 
+### Silence: the reader in the one lamp's light
+
+*2026-10-14* · The arrival view still showed a silhouetted reader sliced by
+the terrace's balusters, while the dead globes read as matte beige balls.
+The lamp now hangs by the front arc, beside the open book: offset `[-3, 20]`
+from the room centre, globe centre 10.2 units above the terrace, radius
+parameter 3 (glass radius 1.65), light power 1100 and halo 0.3. Its actual
+light shares the globe's height. The front balustrade is reduced to the
+existing 2.45-unit kerb and coping. The book rests nearly flat across the
+lap (0.12 radians tipped toward the reader), letting the side light reach
+the pages. The reader's seat and the flights retain their positions.
+
+The dead glass is smoked brown (`#39312b`), with soot inside and dust under
+the bronze collar. It reflects only the burning lamp, at that lamp's actual
+position and angular size; the environment's extra points of light are
+suppressed. The beige `deadOpal` override and the old rear lamp placement
+are removed. Commit `175d724` retains those earlier looks. Inspected from
+the arrival view, beside the reader and near the dead globes.
+
 ### Echo newel carving
 
 *2026-10-14* · The stair's newels read as square boxes with flat caps.

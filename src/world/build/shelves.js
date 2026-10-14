@@ -687,7 +687,7 @@ export function* buildFurniture(ctx) {
   // depthTest OFF so it can lie over the stone it lights; within about sixty
   // units of where a reader stands that becomes a hundred-unit disc of light in
   // FRONT of the room, and the gallery goes milky. Lamps near a stand turn it down.
-  const lamp = (p, { y = LAMP_Y, light: power = 0, priority = 0, color = '#ffb466', strength = 1, pool = 0.3, poolSize = 200, poolY = 6.6, poolAt = p, r = 9, beam = true, out = false, haze = 1, chain = Infinity, link = 1 } = {}) => {
+  const lamp = (p, { y = LAMP_Y, lightY = y - 4, light: power = 0, priority = 0, color = '#ffb466', strength = 1, pool = 0.3, poolSize = 200, poolY = 6.6, poolAt = p, r = 9, beam = true, out = false, haze = 1, chain = Infinity, link = 1 } = {}) => {
     // One opal globe, with no clear shell round it: a lit globe is the light
     // (makeLampGlobeMaterial), a dead one is the same globe in cold, dull
     // glass.
@@ -724,7 +724,7 @@ export function* buildFurniture(ctx) {
     halo(p, y, r * 11 * (0.6 + strength * 0.4) * Math.sqrt(haze), '#ffc27a', (0.08 + strength * 0.52) * haze, lampHaloTex);
     // Every lamp may light its room; which ones do, at a given moment, is the
     // light pool's business (see updateLights).
-    point(p, y - 4, color, power || 2400 * strength, power ? priority : -1);
+    point(p, lightY, color, power || 2400 * strength, power ? priority : -1);
     // (`poolAt`: where it falls is a floor that stops short of under the lamp)
     if (pool) decal(poolAt, poolSize, poolSize, '#ffb060', pool * POOL_DIAL, poolY, 0.1, [p[0], y, p[1], G]);
   };

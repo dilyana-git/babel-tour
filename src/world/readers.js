@@ -595,9 +595,10 @@ export function readerGeometry({ seed = 1, color = ROBES[0], book = false, seate
     }
   };
   if (seated) {
-    // open in the lap, tipped up toward the bowed head
+    // Open across the lap, slightly tipped toward the bowed head so light
+    // arriving from beside the reader can reach both pages.
     openBook(new THREE.Matrix4().makeTranslation(0, LAP + 2.35, 3.4)
-      .multiply(new THREE.Matrix4().makeRotationX(-(Math.PI / 2 + 1.0)))
+      .multiply(new THREE.Matrix4().makeRotationX(-(Math.PI / 2 + 0.12)))
       .multiply(new THREE.Matrix4().makeRotationZ(R(-0.15, 0.15))));
   } else if (book) {
     // held at the chest, a forearm's length out, tipped toward the face

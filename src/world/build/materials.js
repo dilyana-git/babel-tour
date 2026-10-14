@@ -18,7 +18,7 @@ import { DARK_GILT, CAIHUA, pavPropsOld, WILLOW } from '../pavilionProps';
 import { bladeLit } from '../lawn';
 import { WALLS } from '../webFix';
 import { HEART } from '../gardenPlan';
-import { FILLET_BRASS, deadOpal } from '../auditFix';
+import { FILLET_BRASS } from '../auditFix';
 import { webPropsOld } from '../webProps';
 import { FEATHER, signLit, SIGN, garden5Old, plinthLit, PLINTH } from '../gardenFix5';
 import { mapOld } from '../mapFix';
@@ -872,9 +872,8 @@ export function buildMaterials(ctx) {
     wax: Std({ vertexColors: true, roughness: 0.42, emissive: '#3b2412', emissiveIntensity: 0.3 }),
     lpWax: keep(waxGlowMaterial()),
     // A globe that has gone out: the same opal glass with nothing behind it —
-    // dull, dark and opaque, catching only a highlight of the lamp still lit.
-    // (smoked and dulled: silenceFix.js, 3)
-    deadGlass: deadOpal(deadGlassPatch(Std({ color: '#5c544a', roughness: LAMPS.glint ? 0.07 : 0.3, metalness: 0, envMapIntensity: 0.7 }))),
+    // dark and opaque, with dust above and the burning lamp reflected below.
+    deadGlass: deadGlassPatch(Std({ metalness: 0 })),
     // (gardenFix5.js, 11: across the garden its cut edge is drawn soft)
     foliage: keep(makeFoliageMaterial(leaves, wind, FOLIAGE_KINDS, { prepassed: true, feather: FEATHER.on ? FEATHER : null, mapFill: mapWarm })),
     foliagePre: keep(makeFoliagePrepass(leaves, wind, FOLIAGE_KINDS, { feather: FEATHER.on ? FEATHER : null })),

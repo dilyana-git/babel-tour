@@ -4,14 +4,14 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { makeRng } from '../textures';
 import { readerMaterial } from '../walkers';
-import { silenceOld, LAMP_AT, ROBE, BOUNCE, SHEEN } from '../silenceFix';
+import { silenceOld, ROBE, BOUNCE, SHEEN } from '../silenceFix';
 import { readerGeometry } from '../readers';
 import { deg, MASS_H } from '../build/common';
 
 export function buildSilence(ctx) {
   const { rr, pick, dir, add, dist, circlePts, rot3, keep, root, centre, slabGeo, placed,
-    profileGeo, rodGeo, Q, qNum, cellC, hallMid, RAIL_OLD, FLIGHT_RAIL, stoneRail, flightProfile,
-    flightDress, LB, links, balusters, lamp } = ctx;
+    profileGeo, Q, qNum, cellC, hallMid, flightProfile,
+    flightDress, LB, links, lamp, M } = ctx;
   // III — the Silence: "where the stairways stop crossing, a single lamp keeps
   // the dark honest". So the Echo's crossing is here too — and stilled: two
   // flights climb out over the well and, instead of crossing, come to rest on
@@ -32,6 +32,8 @@ export function buildSilence(ctx) {
     // (the landing as a terrace: see below)
     const TERRACE = Q.get('wterrace') !== 'old';
     const TERRACE_OUT = qNum('wterraceout', 6);
+    const TOP = flightProfile({ from: 9 }).pitch(0);
+    const seat = TERRACE ? add(add(c, dir(64), 11.5), dir(253), 3) : c;
     for (const ang of [240, 300]) {
       const f = flightProfile({ from: 9, to: 18 });
       LB.step.add(profileGeo(f.pts, 13, c, ang));
@@ -48,8 +50,8 @@ export function buildSilence(ctx) {
     // circle facing the room — is the flights' own dressing bent round it, the
     // same members at the same heights, so the stone reads as one stair that
     // arrives rather than two that were stopped: string and corona under the
-    // deck, a kerb and its coping, balusters and a rail from the outer newel
-    // of one flight to the outer newel of the other.
+    // deck, and a low kerb and coping from one outer newel to the other.
+    // The free edge stays below the seated reader's hands and open page.
     //
     // And it is a TERRACE: the free edge is carried out toward the room, so
     // there is somewhere up there to stand and look from. As a round floor no
@@ -61,11 +63,8 @@ export function buildSilence(ctx) {
     // springs from the same two newels, so the flights, their dressing and the
     // back of the landing (over the crowns) are the round landing's — but for
     // the two keystones, which would break up through the paving in an X where
-    // the stool hid them (`keyThrough`). ?wterrace=old puts the round landing,
-    // the reader and the lamp back.
+    // the stool hid them (`keyThrough`).
     {
-      const f = flightProfile({ from: 9 });
-      const TOP = f.pitch(0);
       // The free edge: from one flight's outer newel round to the other's. The
       // newels stand at u = OUTER, 7.5 off the axis (see flightDress).
       const RN = Math.hypot(OUTER, 7.5), half = Math.atan2(7.5, OUTER) / deg;
@@ -100,47 +99,14 @@ export function buildSilence(ctx) {
       // arris printed from the floor as a bright chipped crack along the whole
       // underside of the terrace.
       if (TERRACE) band(LF - 0.3, LF + 0.03, TOP - 3.4, 0.95, LB.capShade);
-      const railY = TOP + 9, base = TOP + 2.45;
-      // the flights' stone balustrade, carried round from newel to newel
-      if (!RAIL_OLD) {
-        const L = (B1 - B0) * deg * RF, bear = (s) => B0 + ((B1 - B0) * s) / L;
-        stoneRail(LB.balustradeShade, {
-          at: (s) => add(FC, dir(bear(s)), RF), foot: () => base, top: () => railY + 0.5,
-          knots: Array.from({ length: 41 }, (_, k) => (k / 40) * L), clear: [1.5, 1.5],
-          ry: (s) => -(bear(s) + 90) * deg, S: FLIGHT_RAIL,
-        });
-      }
-      const rail = RAIL_OLD ? arc(RF, 32) : [];
-      for (let i = 1; i < rail.length; i++) {
-        LB.bronze.add(rodGeo([rail[i - 1][0], railY, rail[i - 1][1]], [rail[i][0], railY, rail[i][1]], 0.44));
-      }
-      // at the flights' spacing of two to a tread, along the arc
-      const n = RAIL_OLD ? Math.round(((B1 - B0) * deg * RF) / 4) : 0;
-      for (let k = 1; k < n; k++) {
-        const q = add(FC, dir(B0 + ((B1 - B0) * k) / n), RF);
-        balusters.push({ p: [q[0], base, q[1]], s: [0.42, (railY - 0.55 - base) / 6.2, 0.42] });
-      }
       // a small boss under the middle, and no more
       LB.bronzeDim.add(placed(new THREE.CylinderGeometry(1.1, 0.7, 0.8, 16), FC, TOP - 3.8));
     }
-    // The one lamp still burning hangs over the landing, just off its middle
-    // toward where the flights come in — so what it lights is the place where
-    // the stairs stop. (Beyond them it only silhouettes them, and a dark shape
-    // over a dark well is not a stair.) With the terrace it hangs HIGHER: at 50
-    // its globe is at the eye of anyone standing up there, nine units off, and
-    // fills a third of the view with blown white. At 54 it is out of a level
-    // look from anywhere on the terrace, and from the floor it still stands
-    // behind the reader's head. (its pool on the landing, where it falls: the
-    // floor under it is a well — and on the terrace's middle, not on the
-    // lamp's: a pool laid round the lamp itself runs off the back of the
-    // landing and hangs over the treads) Its globe is the hallway lamps' size,
-    // not the galleries' (r 9 is a globe nearly ten units across, made to hang
-    // sixty up in a room's air): over a terrace, a head or two above the
-    // reader, that size reads as a second moon. (hung a body-width clear of the
-    // reader's head as the stand sees it: silenceFix.js, 1)
-    const LAMP = silenceOld(1) ? [258, 9, 54] : LAMP_AT;
-    if (TERRACE) lamp(add(c, dir(LAMP[0]), LAMP[1]), { y: LAMP[2], r: 5.5, light: 7000, priority: 6, color: '#ffc98e', strength: 0.95, pool: 0.3, poolSize: 20, poolAt: add(c, dir(90), 4), poolY: flightProfile({ from: 9 }).pitch(0) + 0.06, beam: false });
-    else lamp(add(c, dir(270), 9), { y: 50, light: 7000, priority: 6, color: '#ffc98e', strength: 0.95, pool: 0.3, poolSize: 24, poolY: flightProfile({ from: 9 }).pitch(0) + 0.06, beam: false });
+    // Along the free arc, beside the book: its light reaches the page and
+    // hood from the front, then falls down the coping and the slab's face.
+    const lampAt = add(c, [-3, 20]), lampY = TOP + 10.2, lampR = 3;
+    lamp(lampAt, { y: lampY, lightY: lampY, r: lampR, light: 1100, priority: 6, color: '#ffc98e', strength: 0.85, haze: 0.3, pool: 0.2, poolSize: 18, poolAt: add(seat, dir(90), 3), poolY: TOP + 0.06, beam: false });
+    M.deadGlass.userData.lamp.value.set(lampAt[0], lampY, lampAt[1], lampR * 0.55);
     // (the one toward the Echo is hung off its doorway, at 168: on 150 it
     // hung in the arch itself, the middle of the view from the terrace)
     // (the one at 122 hung at 210, in the stand's frame, and goes higher than
@@ -197,19 +163,11 @@ export function buildSilence(ctx) {
     // shared.)
     rr(0, Math.PI * 2);
     {
-      const top = flightProfile({ from: 9 }).pitch(0);
+      const top = TOP;
       const face = 112;   // toward the room, a little round from the stand
       const ry = Math.atan2(Math.cos(face * deg), Math.sin(face * deg));
-      // On the terrace, out toward its rail, between the lamp and the room: in
-      // the middle, where both flights arrive, the stool would be the first
-      // thing anyone who climbs up walks into, with the rail behind it. A
-      // little to one side, so from the floor the lamp burns beside the head
-      // instead of behind it (straight behind, the reader is a black cut-out
-      // with a halo), and the rest of the rail is free to stand at. (Drawn back
-      // three units from dir(64)·11.5: there, the feet and the hem of the robe
-      // run on through the kerb and stand out of the terrace's face, a shoe and
-      // a dark patch in the stone.)
-      const seat = TERRACE ? add(add(c, dir(64), 11.5), dir(253), 3) : c;
+      // The seat is clear of both arriving flights, with the feet and hem
+      // inside the kerb. The lamp hangs to its front and left.
       const set = (g) => g.rotateY(ry).translate(seat[0], top, seat[1]);
       // (in the darkest wool there is: a few units under the room's one lamp,
       // the dyes the walkers wear came up pale grey from behind)
