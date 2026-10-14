@@ -12,9 +12,12 @@ import { readerMaterial } from '../walkers';
 import { BELT } from '../webProps';
 import { mapOld, PIT_FADE } from '../mapFix';
 import { map3Old, GARDEN_MAP } from '../mapFix3';
+import { TONE } from '../mapFix6';
 import { readerGeometry, ROBES } from '../readers';
 import { lightPoolSize } from '../../capability';
 import { MASS_H, ROUTE_LIGHT, CAP } from './common';
+
+const CASE_HEADS = { moon: 0, tint: TONE.quiet };
 
 export function buildLight(ctx) {
   const { light, M, root, lightWishes, globes } = ctx;
@@ -385,6 +388,47 @@ export function buildUnexplored(ctx) {
     mat.customProgramCacheKey = () => `${prevKey.call(mat)}-route${bounceRooms.value.length}`;
   };
   if (ROUTE_ON) [M.shelf, M.shelfLip].forEach((m) => m && routeLit(m));
+  // In a cell off the walk, those heads go into the cell's dark: the stone
+  // round them is quiet over the map, and a case's cornice, lit
+  // by the moon as on the ground, would be the palest thing in the cell, and
+  // the same in every cell. They keep none of the moon's light, and the fill
+  // takes the unwalked stone's colour. The rooms of the walk keep theirs.
+  // (Chained on, as the others.)
+  const caseHeads = (mat) => {
+    const prev = mat.onBeforeCompile, prevKey = mat.customProgramCacheKey;
+    mat.onBeforeCompile = (sh, renderer) => {
+      prev?.call(mat, sh, renderer);
+      sh.uniforms.uHeadMap = mapWarm;
+      sh.uniforms.uHeadRooms = bounceRooms;
+      sh.vertexShader = sh.vertexShader
+        .replace('#include <common>', `#include <common>
+          varying vec3 vHeadW;`)
+        .replace('#include <begin_vertex>', `#include <begin_vertex>
+          #ifdef USE_INSTANCING
+            vHeadW = (modelMatrix * instanceMatrix * vec4(transformed, 1.0)).xyz;
+          #else
+            vHeadW = (modelMatrix * vec4(transformed, 1.0)).xyz;
+          #endif`);
+      sh.fragmentShader = sh.fragmentShader
+        .replace('#include <common>', `#include <common>
+          uniform float uHeadMap;
+          uniform vec3 uHeadRooms[${bounceRooms.value.length}];
+          varying vec3 vHeadW;`)
+        .replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
+          if (uHeadMap > 0.0) {${walkNearGlsl('vHeadW').replaceAll('uBounceRooms', 'uHeadRooms')}
+            float head = uHeadMap * (1.0 - walkNear)
+              * smoothstep(${(MASS_H + ROUTE_LIGHT.from[0]).toFixed(1)}, ${(MASS_H + ROUTE_LIGHT.from[1]).toFixed(1)}, vHeadW.y);
+            float headMoon = 1.0 - ${(1 - CASE_HEADS.moon).toFixed(3)} * head;
+            vec3 headFill = mix(vec3(1.0), vec3(${CASE_HEADS.tint.map((x) => x.toFixed(3)).join(', ')}), head);
+            reflectedLight.directDiffuse *= headMoon;
+            reflectedLight.directSpecular *= headMoon;
+            reflectedLight.indirectDiffuse *= headFill;
+            reflectedLight.indirectSpecular *= headFill;
+          }`);
+    };
+    mat.customProgramCacheKey = () => `${prevKey.call(mat)}-heads${bounceRooms.value.length}`;
+  };
+  [M.shelf, M.shelfLip].forEach((m) => m && caseHeads(m));
   // And the cone of lit air under the lamp hung in the drum, which was most of
   // that disc: looked down along its axis from the map it is a lit round foot
   // on the floor. Over the map it goes, inside the drum only and above the

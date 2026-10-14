@@ -235,6 +235,25 @@ What the design board on the opening and the map (2026-10-12, audit IV, board 1)
 What the design board on the map (2026-10-12) marked, where it is in the world:
 - **1** the Echo was the coldest, brightest cell: its wall tops read as wide pale blue-grey slabs with a checker of two tones on them, a different material library beside the warm Vestibule. Two things made it. The Echo's carved stone (libFix3.js, 4; stoneShade's `worked`) reached out over its coping — the paving's blocks toned one by one, their joints darkened, the faces that look up paled and polished, so the sky lay in them — and the warm bounce on the rims of the walk's rooms (mapFix.js, 8) was measured from a standard room's inner wall, so on the Echo's wider rim most of its coping was out past the warm. Now the worked stone stops under the wall tops, and the rim's warmth starts at each room's own inner wall: the same stone as the other cells' wall tops, at the same value.
 
+### The map: the unwalked cells
+
+*2026-10-13* · `src/world/build/light.js`, `CASE_HEADS`. The comparison is preserved in commit `26cee89`; the quieter heads became the sole behavior when the recovered fixes were audited for main on 2026-10-14 (`moon: 0`, `tint: TONE.quiet`).
+
+What the review of the map (2026-10-13) marked REFINE:
+- **1** every unwalked cell was the same cell: the same pale plank lying along the same two walls, lit the same way, thirty copies in one frame, and brighter than the ink outlines meant to be the quiet layer. The plank was the cornice along the top of each bookcase, just under the coping (shelves.js, `shelfWall`), seen from the map on the two shelved walls that face the camera. The stone round it had been made quiet over the map (mapFix3.js, 3; mapFix6.js `quiet`), but the wood had only taken the lamps' colour on the wall tops (mapFix4.js, 2) and kept the moon's full light, so it stood out more as the stone went down. The review offered two ways: drop the plank from the unwalked cells, or turn the cells by multiples of 60° so the repeat does not line up. Turning cannot help here: every cell's two hallways run along the walk, so the only turn that keeps them is 180°, and that puts the shelved walls back where they were. So over the map, in every cell off the walk, the heads of the cases (from 105 up, fading out by 96: the band the wall tops' lamplight already uses) keep none of the moon's light and take the unwalked stone's colour (`CASE_HEADS`): they go into the cell's dark. Nothing is taken out of the world, so the cells are as they were at eye level, and the change comes and goes with the rest of the map's look on the way down; the walk's own rooms keep their cornices as they were.
+
+### Garden framing proposals retired after the audit
+
+*2026-10-14* · The two earlier options are preserved together in commit `b2ec839`.
+The question was how to fill the empty upper-right map area:
+
+- `tilt`: change the wide-screen yaw from 9° to −6°. This changed the camera framing, with no change to the garden's positions.
+- `trees`: retain the 9° yaw, extend the dotted road through `[[1150,176],[1132,100],[1140,15],[1175,-70],[1230,-190],[1300,-340],[1380,-520],[1460,-720],[1530,-900]]`, fade its opacity from 0.55 to 0, lift the veil from 0.75 to 0.3, with a reach of 230 world units.
+
+The user rejected the dotted road and asked to spread the Pavilion, lake and labyrinth away from the library walls. Neither camera/road option was migrated to main. Screenshot-based layout concepts precede any relocation of the actual garden.
+
+The small recovered fixes retained on main are the nearest-cell construction optimization, the distant roof normals, quieter wall coping and bookcase heads, and the foliage comments and cloud-session instructions. The lookup uses unique coordinate keys to preserve its outside-world fallback; its results were compared with the original lookup across 21,184 sample points, including boundaries and ties.
+
 ## The map's tone (2026-10-12)
 
 The user said of the map: "it looks too reddish". Measured on their
