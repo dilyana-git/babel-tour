@@ -883,7 +883,7 @@ export function buildMaterials(ctx) {
     // (smoked and dulled: silenceFix.js, 3)
     deadGlass: deadOpal(deadGlassPatch(Std({ color: '#5c544a', roughness: LAMPS.glint ? 0.07 : 0.3, metalness: 0, envMapIntensity: 0.7 }))),
     // (gardenFix5.js, 11: across the garden its cut edge is drawn soft)
-    foliage: keep(makeFoliageMaterial(leaves, wind, FOLIAGE_KINDS, { prepassed: true, feather: FEATHER.on ? FEATHER : null })),
+    foliage: keep(makeFoliageMaterial(leaves, wind, FOLIAGE_KINDS, { prepassed: true, feather: FEATHER.on ? FEATHER : null, mapFill: mapWarm })),
     foliagePre: keep(makeFoliagePrepass(leaves, wind, FOLIAGE_KINDS, { feather: FEATHER.on ? FEATHER : null })),
     // the dead leaf a hedge stands in: its own leaf, browned, laid flat
     hedgeLitter: Std({

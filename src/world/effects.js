@@ -814,7 +814,7 @@ const featherCut = (feather, then) => `
     float cover = clamp((diffuseColor.a - alphaTest) / max(across, 1e-5) + 0.5, 0.0, 1.0);
     ${then}
   }`;
-export function makeFoliageMaterial(map, wind, kinds = 1, { prepassed = false, feather = null } = {}) {
+export function makeFoliageMaterial(map, wind, kinds = 1, { prepassed = false, feather = null, mapFill = null } = {}) {
   const material = new THREE.MeshStandardMaterial({ map, alphaTest: 0.42, side: THREE.DoubleSide, roughness: 0.86, depthWrite: !prepassed });
   const soft = prepassed && feather;
   if (soft) {
@@ -824,6 +824,7 @@ export function makeFoliageMaterial(map, wind, kinds = 1, { prepassed = false, f
   }
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uWind = wind;
+    if (mapFill) shader.uniforms.uFoliageMap = mapFill;
     shader.vertexShader = foliageVertex(kinds, true)(shader)
       .replace('#include <common>', `#include <common>
         varying float vDeep;
@@ -846,6 +847,7 @@ export function makeFoliageMaterial(map, wind, kinds = 1, { prepassed = false, f
         #endif`);
     shader.fragmentShader = foliageAlpha(shader)
       .replace('#include <common>', `#include <common>
+        ${mapFill ? 'uniform float uFoliageMap;' : ''}
         varying float vDeep;
         varying float vCrowned;`)
       .replace('#include <color_fragment>', `#include <color_fragment>
@@ -867,14 +869,18 @@ export function makeFoliageMaterial(map, wind, kinds = 1, { prepassed = false, f
       // snow-covered, and a willow's crown shone like palm fronds.
       .replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
         reflectedLight.indirectSpecular *= 0.0;
-        reflectedLight.directSpecular *= 0.2;`);
+        reflectedLight.directSpecular *= 0.2;
+        ${mapFill ? `// Diffuse sky fill keeps the planted crowns readable from above.
+        float leafTone = max(material.diffuseContribution.r, max(material.diffuseContribution.g, material.diffuseContribution.b));
+        reflectedLight.indirectDiffuse += uFoliageMap * vec3(10.0, 12.0, 10.0)
+          / (1.0 + 60.0 * leafTone) * mix(0.4, 1.0, vDeep) * BRDF_Lambert(material.diffuseContribution);` : ''}`);
     if (soft) {
       shader.fragmentShader = shader.fragmentShader.replace('#include <alphatest_fragment>', featherCut(feather, `
         if (cover < 0.03) discard;
         diffuseColor.a = cover;`));
     }
   };
-  material.customProgramCacheKey = () => `babel-foliage-${kinds}-${prepassed ? 'p' : 's'}${soft ? `-f${feather.near}-${feather.far}-${feather.wide}` : ''}`;
+  material.customProgramCacheKey = () => `babel-foliage-${kinds}-${prepassed ? 'p' : 's'}${soft ? `-f${feather.near}-${feather.far}-${feather.wide}` : ''}${mapFill ? '-map-fill' : ''}`;
   return material;
 }
 

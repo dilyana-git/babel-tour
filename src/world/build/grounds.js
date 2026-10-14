@@ -183,6 +183,53 @@ export function buildTrees(ctx) {
         hangs.push({ p: at, rot: [w.tilt?.[0] ?? 0, w.yaw, w.tilt?.[1] ?? 0], s: [w.wide, len, 1], kind: w.kind, color: weeping ? WILLOW.tone : '#d6dac4', k: w.shade });
       }
     }
+    // Plant compact groves around the relocated lake and maze. Their crowns
+    // stay outside the walking corridors; low shrubs and stones fill the gaps.
+    // A separate stream leaves the established trees and later sections alone.
+    if (!paintings && !ONE_TREE) {
+      const gr = makeRng(74192), range = (a, b) => a + (b - a) * gr();
+      const choose = (xs) => xs[Math.floor(gr() * xs.length)];
+      const groves = [[1144, -224], [1200, -323], [1300, -330], [1459, -246],
+        [1490, -122], [1470, 64], [1183, 71], [1210, 335], [1454, 456]];
+      const planted = [];
+      for (const [gi, centre] of groves.entries()) {
+        for (let tries = 0, count = 0; tries < 100 && count < (light ? 2 : 5); tries++) {
+          const p = [centre[0] + range(-42, 42), centre[1] + range(-34, 34)];
+          const walk = walkDist(p);
+          if (blocked(p) || wayDist(p) < 28 || boundaryDist(p) < 22 || walk < 37
+            || placedTrees.some((q) => dist(q, p) < 23) || planted.some((q) => dist(q, p) < 27)) continue;
+          const species = gi % 3 === 0 ? 'cherry' : gr() < 0.5 ? 'pine' : 'broad';
+          const H = species === 'pine' ? range(42, 58) : range(34, 52);
+          const S = Math.min(range(22, 31), walk - 15, boundaryDist(p) - 8);
+          const wood = new Wood(7);
+          const grown = growTree(species, gr, wood, { H, S, detail: false });
+          const geometry = wood.geometry().translate(p[0], GROUND_T, p[1]);
+          const key = chunkKey(...p);
+          if (!woodChunks.has(key)) woodChunks.set(key, []);
+          woodChunks.get(key).push(geometry);
+          const tint = new THREE.Color(choose(TINT[species]));
+          for (const sp of grown.sprays) {
+            const at = [sp.p[0] + p[0], sp.p[1] + GROUND_T, sp.p[2] + p[1]];
+            if (walkDist([at[0], at[2]]) < 9 + sp.s[0] * 0.5 && at[1] - sp.s[1] * 0.5 < 30) continue;
+            foliage.push({ p: at, rot: sp.rot, s: sp.s, color: tint.getHex(), k: sp.shade, kind: sp.kind,
+              crown: [sp.crown[0] + p[0], sp.crown[1] + GROUND_T, sp.crown[2] + p[1], sp.crown[3]] });
+          }
+          treeList.push({ p, species, H: +H.toFixed(1), grove: true });
+          planted.push(p);
+          count++;
+          for (let k = 0; k < 3; k++) {
+            const q = [p[0] + range(-18, 18), p[1] + range(-18, 18)];
+            if (blocked(q, -10) || wayDist(q) < 18 || walkDist(q) < 20 || boundaryDist(q) < 12) continue;
+            const size = range(9, 16);
+            foliage.push({ p: [q[0], range(7, 10), q[1]], rot: [0, range(0, Math.PI * 2), 0],
+              s: [size, size * 0.8, size], color: choose(TINT.broad), k: range(0.7, 0.9),
+              crown: [q[0], 5, q[1], size * 0.75] });
+            ctx.rocks.push({ p: [q[0] + 4, 4.5, q[1] - 3], rot: [0, range(0, 3), 0],
+              s: [range(2.5, 4), range(1.5, 2.5), range(2, 3.5)], color: '#aaa293' });
+          }
+        }
+      }
+    }
     // Behind the maze, a belt of cedars (webFix.js, 2). The Library's garden
     // faces stand three paces past the maze's far hedge and ten metres tall,
     // and from the heart, bare, they are the top half of the frame: a garden

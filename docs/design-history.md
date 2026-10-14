@@ -270,6 +270,12 @@ Checks cover dry route centre lines, separation of pond and maze, and nonzero pl
 
 ### Preparing shaders during construction
 
+### Planting around the relocated garden
+
+*2026-10-14* · The chosen concept had groves and small planting details that the relocated scene lacked. Nine clusters now put compact broad trees, pines and flowering cherries around the pond and maze, with shrubs and small granite stones beneath them. A separate random stream keeps the established planting and later sections unchanged. Roots and low crowns clear the real walking corridors, water banks and boundary hedges. The existing foliage and stone batches carry the additions.
+
+The map gives tree foliage a diffuse fill that fades away as the camera descends. Its response is limited by the leaf's brightness so pale blossom keeps its tone. Strict desktop, phone, Fork and Pavilion pictures were inspected; actual held-W garden walking and the Back controls passed.
+
 *2026-10-14* · The user reported a pause around 70%, when the garden's green drawing begins. Startup profiling placed this in shader preparation, followed by texture uploads. The world now creates its final lights before construction and submits shaders in short batches while sections are built, using the final environment. Construction order and random draws are unchanged.
 
 A repeated GPU profile measured the post-build shader wait at 2.2 seconds, compared with 2.8 seconds for the original loader; total startup in those repeat runs was about 14 seconds. The first, colder reference was 26 seconds, so that difference is not treated as the optimization's gain. Scene fingerprints retain identical geometry, light configuration and material shader code; animated transforms/uniforms differ with time, and early compilation retains two superseded shader sources in the cache. Profiles and reference pictures are under `.ux-review/shots/loading-*`.
