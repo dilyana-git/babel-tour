@@ -153,7 +153,8 @@ export function* buildTrees(ctx) {
         if (walkDist([at[0], at[2]]) < 8 + sp.s[0] * 0.5 && at[1] - sp.s[1] * 0.5 < 30) continue;
         tpick(palette);
       }
-      const tintOf = grown.was ? (xs) => xs[Math.floor(weeping() * xs.length)] : tpick;
+      const leafRng = grown.tintRng ?? (grown.was ? weeping : null);
+      const tintOf = leafRng ? (xs) => xs[Math.floor(leafRng() * xs.length)] : tpick;
       for (const [si, sp] of grown.sprays.entries()) {
         const at = [sp.p[0] + p[0], sp.p[1] + GROUND_T, sp.p[2] + p[1]];
         // nothing in the walk's way at head height
@@ -244,7 +245,7 @@ export function* buildTrees(ctx) {
         shapes.set(species, Array.from({ length: 3 }, (_, variant) => {
           const wood = new Wood(7);
           const grown = growTree(species, makeRng(94400 + si * 31 + variant * 7), wood, { H: 50, S: 30, detail: false });
-          return { geometry: wood.geometry(), sprays: grown.sprays, trees: [] };
+          return { geometry: wood.geometry(), sprays: grown.sprays, was: grown.was, trees: [] };
         }));
         yield;
       }
@@ -268,12 +269,21 @@ export function* buildTrees(ctx) {
           shape.trees.push({ p: [p[0], GROUND_T, p[1]], rot: [0, yaw, 0], s: [scale, scale, scale] });
           yawQ.setFromEuler(angles.set(0, yaw, 0));
           const palette = TINT[species], tint = new THREE.Color(choose(palette));
+          // Spend the established leaf-tint budget before dressing a curved
+          // maple, so later woodland trees keep their places and species.
+          for (const sp of shape.was ?? []) {
+            const position = at(sp.p), size = sp.s.map((s) => s * scale);
+            if (walkDist([position[0], position[2]]) < 9 + size[0] * 0.5 && position[1] - size[1] * 0.5 < 30) continue;
+            choose(palette);
+          }
+          const leafRng = shape.was ? makeRng(Math.round(p[0] * 1024) ^ Math.round(p[1] * 4096)) : null;
+          const tintOf = leafRng ? (xs) => xs[Math.floor(leafRng() * xs.length)] : choose;
           for (const sp of shape.sprays) {
             const position = at(sp.p), size = sp.s.map((s) => s * scale);
             if (walkDist([position[0], position[2]]) < 9 + size[0] * 0.5 && position[1] - size[1] * 0.5 < 30) continue;
             leafQ.setFromEuler(angles.set(...sp.rot)).premultiply(yawQ);
             angles.setFromQuaternion(leafQ);
-            tone.copy(tint).lerp(pickTone.set(choose(palette)), 0.25);
+            tone.copy(tint).lerp(pickTone.set(tintOf(palette)), 0.25);
             foliage.push({ p: position, rot: [angles.x, angles.y, angles.z], s: size, color: tone.getHex(),
               k: sp.shade, kind: sp.kind, crown: [...at(sp.crown), sp.crown[3] * scale] });
           }

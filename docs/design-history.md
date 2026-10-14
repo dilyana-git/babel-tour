@@ -1,5 +1,23 @@
 # Design history
 
+### Curved branching for the red maples
+
+*2026-10-14* · The red maple's straight leaders and nearly horizontal side
+branches read as a frame of poles. Its wood now follows cubic curves, with
+staggered forks that leave in the parent's direction before spreading out.
+Limbs taper into fine twigs, including a smaller fork on the shared woodland
+shapes, and small leaf sprays dress those tips. Thin twigs use fewer segments
+than the main limbs.
+
+The new growth and leaf colours use their own random streams. The established
+spray positions still account for the planting's colour draws; 200 fixtures
+preserve that budget and the leaf-spray count exactly, and all 438 planting
+records match the prior scene. Strict GPU close, map and Pavilion before/after
+pictures were inspected. The required check and all five navigation smoke
+scenarios passed.
+The comparison tool uses the preceding maple code from `8f0bc89` only inside
+`.ux-review/`; no production comparison flag is added.
+
 ### Soft mist around the garden's trunks
 
 *2026-10-14* · The garden's horizontal mist sheets drew straight colour

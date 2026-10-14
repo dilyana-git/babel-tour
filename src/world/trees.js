@@ -35,6 +35,7 @@
 // Everything is in the tree's own frame — the foot of the trunk at the origin,
 // y up — and drawn from the `rng` it is handed, never the world's stream.
 import * as THREE from 'three';
+import { makeRng } from './textures';
 
 export const LEAF = { broad: 0, maple: 1, pine: 2, blossom: 3, cedar: 4, willow: 5 };
 
@@ -119,6 +120,75 @@ export class Wood {
   }
 }
 
+// A maple divides into curved leaders, then smaller limbs and fine forks.
+// Cubic centre lines keep the tangent continuous along each limb; a side
+// branch starts toward its parent's tangent before opening out into the crown.
+function mapleWood(rng, wood, { H, S, r0, leaders, detail }) {
+  const R = (a, b) => a + (b - a) * rng();
+  const sprays = [], tint = new THREE.Color(BARK.maple);
+  const limb = (start, finish, enter, leave, r0, r1, flare = 0) => {
+    const length = start.distanceTo(finish);
+    const curve = new THREE.CubicBezierCurve3(start, start.clone().addScaledVector(enter, length * 0.32),
+      finish.clone().addScaledVector(leave, -length * 0.28), finish);
+    const segments = r0 < 0.25 ? 5 : 12;
+    const nodes = Array.from({ length: segments + 1 }, (_, i) => {
+      const t = i / segments;
+      return { p: curve.getPoint(t), d: curve.getTangent(t), r: r0 + (r1 - r0) * Math.pow(t, 0.8) };
+    });
+    wood.tube(nodes, r0 > 0.9 ? 8 : r0 > 0.25 ? 6 : 5, tint, { flare });
+    return nodes;
+  };
+  const along = (nodes, t) => {
+    const f = Math.min(nodes.length - 1.0001, t * (nodes.length - 1)), i = Math.floor(f), u = f - i;
+    const a = nodes[i], b = nodes[i + 1];
+    return { p: a.p.clone().lerp(b.p, u), d: a.d.clone().lerp(b.d, u).normalize(), r: a.r + (b.r - a.r) * u };
+  };
+  const leaf = (c, radius, count) => {
+    const crown = [c.x, c.y - radius * 0.25, c.z, radius * 1.35];
+    const turn = R(0, Math.PI * 2);
+    for (let k = 0; k < count; k++) {
+      const a = turn + k * Math.PI * 2 / count + R(-0.4, 0.4), reach = radius * R(0.2, 0.5);
+      const size = radius * R(1.3, 1.6);
+      sprays.push({ p: [c.x + Math.cos(a) * reach, c.y + radius * R(-0.1, 0.15), c.z + Math.sin(a) * reach],
+        s: [size, size * 0.55, size], rot: [R(-0.15, 0.15), R(0, Math.PI * 2), R(-0.15, 0.15)],
+        kind: LEAF.maple, crown });
+    }
+  };
+  const turn = R(0, Math.PI * 2), bend = heading(turn, 0);
+  const trunkEnd = bend.clone().multiplyScalar(H * R(0.025, 0.05)).add(V(0, H * R(0.17, 0.23), 0));
+  const trunk = limb(V(), trunkEnd, UP, UP.clone().addScaledVector(bend, 0.2).normalize(), r0, r0 * 0.75, 0.35);
+  for (let s = 0; s < leaders; s++) {
+    const bearing = turn + s * Math.PI * 2 / leaders + R(-0.4, 0.4);
+    const from = along(trunk, R(0.5 + s * 0.1, 0.65 + s * 0.1));
+    const reach = S * (s === 0 ? R(0.3, 0.5) : R(0.55, 0.8));
+    const finish = heading(bearing, 0).multiplyScalar(reach).add(V(0, H * (s === 0 ? R(0.76, 0.88) : R(0.55, 0.73)), 0));
+    const enter = from.d.clone().lerp(heading(bearing, R(0.8, 1.1)), 0.45).normalize();
+    const stem = limb(from.p, finish, enter, heading(bearing + R(-0.25, 0.25), R(0.15, 0.5)),
+      from.r * (s === 0 ? 0.66 : 0.53), 0.08);
+    const branches = detail ? 4 : 3;
+    for (let b = 0; b < branches; b++) {
+      const on = along(stem, R(0.25, 0.33) + b * (0.58 / (branches - 1)));
+      const bearing = bearingOf(on.d) + (b % 2 ? 1 : -1) * R(0.4, 0.95);
+      const outward = heading(bearing, R(0.08, 0.3));
+      const end = on.p.clone().addScaledVector(outward, S * R(0.28, 0.42));
+      const branch = limb(on.p, end, on.d.clone().lerp(heading(bearing, 0.6), 0.4).normalize(),
+        heading(bearing + R(-0.2, 0.2), R(-0.12, 0.2)), on.r * 0.5, 0.045);
+      const forks = detail ? [R(0.48, 0.62), R(0.72, 0.85)] : [R(0.55, 0.72)];
+      let leafTip;
+      for (const [i, t] of forks.entries()) {
+        const fork = along(branch, t), side = bearing + R(-0.8, 0.8);
+        const tip = fork.p.clone().addScaledVector(heading(side, R(0.15, 0.45)), S * R(0.1, 0.16));
+        limb(fork.p, tip, fork.d, heading(side, R(-0.05, 0.3)), Math.max(0.04, fork.r * 0.48), 0.025);
+        if (i === 0) leafTip = tip;
+      }
+      leaf(end, S * R(0.22, 0.28), b === branches - 1 ? 1 : 2);
+      leaf(leafTip, S * R(0.13, 0.2), 1);
+    }
+    leaf(finish, S * R(0.15, 0.2), 1);
+  }
+  return sprays;
+}
+
 // Grows a tree. `H` is its height, `S` how far its crown reaches out from the
 // trunk, `lean` the bearing it leans toward (a willow to the water), `detail`
 // false for one only ever seen across the garden: no twigs, fewer sprays.
@@ -132,7 +202,7 @@ export function growTree(species, rng, wood, { H, S, lean = null, detail = true,
   const R = (a, b) => a + (b - a) * rng();
   const tint = new THREE.Color(BARK[species]);
   const sprays = [], whips = [];
-  let willow = null;
+  let willow = null, maple = null, tintRng = null;
 
   // A limb from `from` along `dir`: `n` segments over `len`, radius r0 to r1,
   // `steer(d, t, i)` turning it at every node.
@@ -260,17 +330,18 @@ export function growTree(species, rng, wood, { H, S, lean = null, detail = true,
     }
     pad(top.p.clone().add(V(0, 1, 0)), R(5, 7) * Math.min(1.3, H / 50));
   } else if (species === 'maple') {
+    // Retain the established stream and spray positions for the planting's
+    // colour budget. The curved wood and its leaf use their own stream below.
     const r0 = R(1.0, 1.5) * Math.min(1.2, H / 36);
     const trunk = grow(V(), heading(rng() * 6.28, Math.PI / 2 - R(0, 0.15)), H * R(0.14, 0.22), r0, r0 * 0.8, 2, (d) => wobble(d, 0.1));
-    tube(trunk, { flare: 0.35 });
     const stems = 3 + Math.floor(rng() * 2), turn = rng() * 6.28;
+    maple = { r0, leaders: stems, seed: Math.round(r0 * 0x1000000) ^ Math.round(turn * 0x100000) ^ Math.round(end(trunk).p.y * 0x100000) };
     for (let s = 0; s < stems; s++) {
       const from = at(trunk, R(0.7, 1));
       const stem = grow(from.p, heading(turn + (s / stems) * 6.28 + R(-0.4, 0.4), R(0.75, 1.1)), H * R(0.55, 0.72), from.r * 0.62, 0.22, 5, (d) => {
         wobble(d, 0.3);
         d.y -= 0.05;
       });
-      tube(stem);
       const branches = detail ? 4 : 3;
       for (let b = 0; b < branches; b++) {
         const on = b === branches - 1 ? end(stem) : at(stem, R(0.3, 0.95));
@@ -278,7 +349,6 @@ export function growTree(species, rng, wood, { H, S, lean = null, detail = true,
         const bd = heading(bearingOf(on.d) + R(-1.1, 1.1), R(-0.05, 0.3));
         const reach = Math.min(S * R(0.35, 0.55), S * 0.8);
         const br = grow(on.p, bd, reach, Math.max(0.12, on.r * 0.55), 0.07, 3, (d) => { wobble(d, 0.3); d.y *= 0.7; });
-        tube(br);
         const tip = end(br), mid = at(br, 0.55);
         clump(tip.p, S * R(0.26, 0.34), 2, LEAF.maple, { flat: 0.55, drop: 0.25, size: 1.5 });
         clump(mid.p.clone().add(V(0, 1.2, 0)), S * R(0.2, 0.26), 1, LEAF.maple, { flat: 0.55, drop: 0.25, size: 1.6 });
@@ -461,6 +531,12 @@ export function growTree(species, rng, wood, { H, S, lean = null, detail = true,
   // handed back too. Whoever stands the tree up draws a tint for each spray
   // from the trees' stream, and must draw for those and not for these.)
   let was = null;
+  if (maple) {
+    was = sprays.slice();
+    tintRng = makeRng(maple.seed);
+    sprays.length = 0;
+    sprays.push(...mapleWood(tintRng, wood, { H, S, r0: maple.r0, leaders: maple.leaders, detail }));
+  }
   if (weeping && willow) {
     const { c, eave, Rd } = willow;
     const W = (a, b) => a + (b - a) * weeping();
@@ -513,5 +589,5 @@ export function growTree(species, rng, wood, { H, S, lean = null, detail = true,
     for (const sp of sprays) { lo = Math.min(lo, sp.p[1]); hi = Math.max(hi, sp.p[1]); }
     for (const sp of sprays) sp.shade = 0.5 + 0.42 * ((sp.p[1] - lo) / Math.max(1, hi - lo)) + 0.12 * Math.min(1, Math.hypot(sp.p[0] - c.x, sp.p[2] - c.z) / Rd);
   }
-  return { sprays, whips, was };
+  return { sprays, whips, was, tintRng };
 }
