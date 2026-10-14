@@ -1,0 +1,6 @@
+[
+  { "name": "stand", "room": 0 },
+  { "name": "reader-close", "room": 0, "eye": "170,21,749:179,19.5,754" },
+  { "name": "reader-folds", "room": 0, "eye": "179,18,774:179,15,754" },
+  { "name": "shelves", "room": 0, "eye": "246,24,764:282,34,785" }
+]

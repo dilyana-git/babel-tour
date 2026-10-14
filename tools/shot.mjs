@@ -28,6 +28,8 @@
 // scene (its geometry, transform and materials, each material's shader patch
 // and program key) and of every shader program the scene compiles to — and
 // --compare=a.json,b.json (no browser) says what differs between two of them.
+// --views=FILE reads saved [{ name, room, up, look, eye }] views in one page.
+// `eye` uses the same from:at syntax as --eye.
 // Transforms of things that move on their own (readers, water, lights) differ
 // between any two loads; geometry, materials and shaders should not.
 import { spawn } from 'node:child_process';
@@ -161,6 +163,9 @@ async function startApp() {
 // ── a shot ──────────────────────────────────────────────────────────────────
 async function run() {
   const rooms = args.room === undefined ? [null] : String(args.room).split(',').map(Number);
+  const views = typeof args.views === 'string'
+    ? JSON.parse(readFileSync(resolve(ROOT, args.views), 'utf8'))
+    : rooms.map((room) => ({ room, up: !!args.up, look: args.look, eye: args.eye }));
   const base = typeof args.query === 'string' ? args.query.replace(/^\?/, '') : '';
   const variants = typeof args.ab === 'string'
     ? [['a', base], ['b', [base, args.ab].filter(Boolean).join('&')]]
@@ -234,16 +239,18 @@ async function run() {
         await cdp.send('Target.closeTarget', { targetId });
         continue;
       }
-      for (const room of rooms) {
-        if (room !== null) await evaluate(`window.__worldJump(${room}, ${!!args.up})`);
-        if (typeof args.look === 'string') await evaluate(`window.__worldLook(${args.look})`);
-        if (typeof args.eye === 'string') {
-          const [from, at] = args.eye.split(':').map((v) => `[${v}]`);
+      for (const view of views) {
+        const { room = null, up = false, look, eye } = view;
+        await evaluate('window.__worldEye(null)');
+        if (room !== null) await evaluate(`window.__worldJump(${room}, ${up})`);
+        if (typeof look === 'string') await evaluate(`window.__worldLook(${look})`);
+        if (typeof eye === 'string') {
+          const [from, at] = eye.split(':').map((v) => `[${v}]`);
           await evaluate(`window.__worldEye({ from: ${from}, at: ${at} })`);
         }
         await frames();
         await pause(SETTLE);
-        const name = [args.name, room === null ? 'map' : `room${room}${args.up ? '-up' : ''}`, tag].filter(Boolean).join('-');
+        const name = [args.name, view.name ?? (room === null ? 'map' : `room${room}${up ? '-up' : ''}`), tag].filter(Boolean).join('-');
         const { data } = await page('Page.captureScreenshot', { format: 'png', optimizeForSpeed: true });
         const file = join(OUT, `${name}.png`);
         writeFileSync(file, Buffer.from(data, 'base64'));
