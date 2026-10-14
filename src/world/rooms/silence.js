@@ -10,7 +10,7 @@ import { deg, MASS_H } from '../build/common';
 
 export function buildSilence(ctx) {
   const { rr, pick, dir, add, dist, circlePts, rot3, keep, root, centre, slabGeo, placed,
-    profileGeo, Q, qNum, cellC, hallMid, flightProfile,
+    profileGeo, rodGeo, pedestalGeo, patchOf, Q, qNum, cellC, hallMid, flightProfile, stoneRail, FLIGHT_RAIL,
     flightDress, LB, links, lamp, M } = ctx;
   // III — the Silence: "where the stairways stop crossing, a single lamp keeps
   // the dark honest". So the Echo's crossing is here too — and stilled: two
@@ -34,6 +34,7 @@ export function buildSilence(ctx) {
     const TERRACE_OUT = qNum('wterraceout', 6);
     const TOP = flightProfile({ from: 9 }).pitch(0);
     const seat = TERRACE ? add(add(c, dir(64), 11.5), dir(253), 3) : c;
+    const railChoice = ['a', 'b', 'c'].includes(Q.get('wsilrail')) ? Q.get('wsilrail') : 'a';
     for (const ang of [240, 300]) {
       const f = flightProfile({ from: 9, to: 18 });
       LB.step.add(profileGeo(f.pts, 13, c, ang));
@@ -50,8 +51,8 @@ export function buildSilence(ctx) {
     // circle facing the room — is the flights' own dressing bent round it, the
     // same members at the same heights, so the stone reads as one stair that
     // arrives rather than two that were stopped: string and corona under the
-    // deck, and a low kerb and coping from one outer newel to the other.
-    // The free edge stays below the seated reader's hands and open page.
+    // deck, kerb and coping, with full balustrades wrapping the two sides.
+    // The central front section frames the reader and the open page.
     //
     // And it is a TERRACE: the free edge is carried out toward the room, so
     // there is somewhere up there to stand and look from. As a round floor no
@@ -99,6 +100,54 @@ export function buildSilence(ctx) {
       // arris printed from the floor as a bright chipped crack along the whole
       // underside of the terrace.
       if (TERRACE) band(LF - 0.3, LF + 0.03, TOP - 3.4, 0.95, LB.capShade);
+      const mid = (B0 + B1) / 2, front0 = mid - 45, front1 = mid + 45;
+      const base = TOP + 2.45, high = TOP + 9.5;
+      const railRun = (a0, a1, top, S = FLIGHT_RAIL) => {
+        const length = (a1 - a0) * deg * RF;
+        const bear = (s) => a0 + s / (RF * deg);
+        const segments = Math.ceil((a1 - a0) / 4);
+        stoneRail(LB.balustradeShade, {
+          at: (s) => add(FC, dir(bear(s)), RF), foot: () => base,
+          top: (s) => top(bear(s)),
+          knots: Array.from({ length: segments + 1 }, (_, k) => k / segments * length),
+          clear: [1.5, 1.5], ry: (s) => -(bear(s) + 90) * deg, S,
+        });
+      };
+      if (railChoice === 'b') {
+        // The rail slopes down on each shoulder, then remains level across
+        // the front, below the reader's hands and book.
+        const lowTop = (a) => {
+          const t = THREE.MathUtils.clamp((Math.abs(a - mid) - 45) / 15, 0, 1);
+          return TOP + 5.8 + 3.7 * t * t * (3 - 2 * t);
+        };
+        const lowRail = {
+          ...FLIGHT_RAIL, railH: 0.85, baseH: 0.4, sink: 0.2, r: 0.55,
+          rail: FLIGHT_RAIL.rail.map(([z, y, sharp]) => [z, y * 0.85 / FLIGHT_RAIL.railH, sharp]),
+          base: FLIGHT_RAIL.base.map(([z, y, sharp]) => [z, y * 0.4 / FLIGHT_RAIL.baseH, sharp]),
+        };
+        railRun(B0, front0 - 15, () => high);
+        railRun(front0 - 15, front1 + 15, lowTop, lowRail);
+        railRun(front1 + 15, B1, () => high);
+      } else {
+        railRun(B0, front0, () => high);
+        railRun(front1, B1, () => high);
+        for (const a of [front0, front1]) {
+          const p = add(FC, dir(a), RF);
+          LB.balustradeShade.add(placed(pedestalGeo(2.1, 0.85, 5.6, { shift: patchOf(p) }), p, base, -(a + 90) * deg));
+        }
+        if (railChoice === 'c') {
+          // A narrow bronze handrail and three posts retain a full-height
+          // boundary across the front without a screen of stone balusters.
+          const front = Array.from({ length: 25 }, (_, k) => add(FC, dir(front0 + (front1 - front0) * k / 24), RF));
+          for (let k = 1; k < front.length; k++) {
+            LB.bronze.add(rodGeo([front[k - 1][0], high, front[k - 1][1]], [front[k][0], high, front[k][1]], 0.13));
+          }
+          for (const a of [front0 + 4, mid, front1 - 4]) {
+            const p = add(FC, dir(a), RF);
+            LB.bronze.add(rodGeo([p[0], base, p[1]], [p[0], high, p[1]], 0.1));
+          }
+        }
+      }
       // a small boss under the middle, and no more
       LB.bronzeDim.add(placed(new THREE.CylinderGeometry(1.1, 0.7, 0.8, 16), FC, TOP - 3.8));
     }

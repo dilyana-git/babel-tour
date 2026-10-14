@@ -1,5 +1,24 @@
 # Design history
 
+### Silence front rail options
+
+*2026-10-14* · Removing the whole terrace balustrade was too much. Three
+temporary choices keep the full stone rails at the sides, at the existing
+9.5-unit height, and vary the central 90 degrees of the free arc:
+
+- `?wsilrail=a`: a kerb across the central front, with stone newels finishing
+  both full-height side balustrades.
+- `?wsilrail=b`: a continuous stone balustrade lowered to 5.8 units across
+  the front, sloping to the side height over 15 degrees on each shoulder.
+  Its front mouldings are shallower (rail 0.85, base 0.4), with slimmer
+  balusters (radius 0.55), keeping space for supports under the low rail.
+- `?wsilrail=c`: full-height side balustrades and newels, with a slender
+  bronze handrail (radius 0.13) and three posts (radius 0.1) across the front.
+
+The lamp, reader and dead glass are the same in all three. A is the temporary
+default. No choice has been made; retire the other paths and this query flag
+once the user picks one, recording the options commit here.
+
 ### Silence: the reader in the one lamp's light
 
 *2026-10-14* · The arrival view still showed a silhouetted reader sliced by
