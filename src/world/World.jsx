@@ -956,7 +956,7 @@ const programShape = (o) => {
     Object.keys(a).sort().join(','), a.color?.itemSize, Object.keys(m).map((k) => `${k}${m[k].length}`).join(','),
   ].join('|');
 };
-const standIns = (root, { lights = null, seen = new Set() } = {}) => {
+const standIns = (root, { lights = null, seen = new Set(), seenObjects = null } = {}) => {
   const stand = new THREE.Group();
   const add = (o) => {
     const p = Object.create(o);
@@ -965,6 +965,8 @@ const standIns = (root, { lights = null, seen = new Set() } = {}) => {
   };
   root.traverse((o) => {
     if (!(o.isMesh || o.isPoints || o.isLine || o.isSprite) || !o.material) return;
+    if (seenObjects?.has(o)) return;
+    seenObjects?.add(o);
     const key = `${(Array.isArray(o.material) ? o.material : [o.material]).map((m) => m.id).join('+')}#${programShape(o)}`;
     if (seen.has(key)) return;
     seen.add(key);
@@ -1006,6 +1008,23 @@ const startShaders = async (gl, root, camera, scene, alive, options) => {
 const shaderReady = (gl, material) => {
   const { programs, currentProgram } = gl.properties.get(material);
   return programs ? [...programs.values()].every((program) => program.isReady()) : !currentProgram || currentProgram.isReady();
+};
+// Driver reflection (uniform and attribute locations) is deferred beyond link
+// completion. Visit every compiled variant while the opening can still yield.
+const prepareUniforms = async (gl, materials, alive) => {
+  const programs = new Set();
+  for (const material of materials ?? []) {
+    for (const program of gl.properties.get(material).programs?.values() ?? []) programs.add(program);
+  }
+  let since = performance.now();
+  for (const program of programs) {
+    program.getUniforms();
+    if (performance.now() - since > SLICE_MS) {
+      await breathe();
+      if (!alive()) return;
+      since = performance.now();
+    }
+  }
 };
 // Send vertex and instance buffers in short slices before the first visible
 // frame. The one-pixel renders use the finished scene's shader configuration.
@@ -1052,6 +1071,12 @@ const prepareBuffers = async (gl, root, camera, scene, alive, progress) => {
         since = performance.now();
       }
     }
+    // The shadow renderer uses additional depth programs. A complete tiny
+    // render prepares those and the scene callbacks before the visible frame.
+    scratch.children = [root];
+    gl.shadowMap.needsUpdate = true;
+    gl.setRenderTarget(target);
+    gl.render(scratch, camera);
   } finally {
     gl.setRenderTarget(was);
     gl.shadowMap.autoUpdate = shadows.auto;
@@ -1134,6 +1159,7 @@ function WorldContent({ rooms = false, onProgress, onHold, onAssembled, onPlan, 
       const lights = makeLights({ light: LIGHT_MESH });
       let buildingRoot = null;
       const warmed = new Set();
+      const warmedObjects = new WeakSet();
       const finishEnvironment = () => {
         if (made.environment) return;
         made.environment = made.prepared.finish();
@@ -1153,7 +1179,7 @@ function WorldContent({ rooms = false, onProgress, onHold, onAssembled, onPlan, 
           if (buildingRoot) {
             finishEnvironment();
             await startShaders(gl, buildingRoot, camera, scene, () => alive,
-              { lights: [lights.hemi, lights.moon, ...lights.pool], seen: warmed });
+              { lights: [lights.hemi, lights.moon, ...lights.pool], seen: warmed, seenObjects: warmedObjects });
             if (!alive) return;
           }
           await breathe();
@@ -1205,6 +1231,8 @@ function WorldContent({ rooms = false, onProgress, onHold, onAssembled, onPlan, 
         if (!alive) return;
       }
       mark('textures-sent');
+      await prepareUniforms(gl, materials, () => alive);
+      if (!alive) return;
       mark('buffers-started');
       await prepareBuffers(gl, world.root, camera, scene, () => alive,
         (f) => say(SHARE.compile + (SHARE.upload - SHARE.compile) * f));

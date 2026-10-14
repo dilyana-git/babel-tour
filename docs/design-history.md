@@ -1,5 +1,24 @@
 # Design history
 
+### Preparing first-use driver work
+
+*2026-10-14* · Startup sampling located much of the remaining first-frame
+pause in deferred WebGL program reflection and shadow depth programs. The
+loader now visits linked programs' uniform interfaces in short slices and
+performs a small scene render with shadows before exposing the world.
+Incremental shader preparation also remembers visited objects, avoiding
+repeated geometry-shape inspection. Shader error checking remains enabled.
+
+With the fuller woodland, the reference's first-frame block was about 0.90
+seconds and the final measurement was 0.56 seconds. Total startup still ranged
+around 20–25 seconds on the local GPU; these profiles establish shorter
+freezes rather than an instant load or a guaranteed total-time improvement.
+All 334 shader sources and 182 final material sources match the reference,
+alongside unchanged geometry and material code. Strict rendered inspection,
+the required check and all five final navigation smoke scenarios passed.
+Profiles are `map-polish-pre-light-batch-startup.json` and
+`map-polish-driver-warm-startup.json` under `.ux-review/shots/`.
+
 ### Finer construction and floor-light batches
 
 *2026-10-14* · The fuller woodland exposed further uninterrupted work in tree
