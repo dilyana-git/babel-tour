@@ -1,5 +1,25 @@
 # Design history
 
+### Silence: approved continuous railing and front light
+
+*2026-10-14* · The user rejected both sets of front-rail options and asked
+to keep the original continuous stone balustrade, light it better, and make
+its members a little more delicate. A temporary render kept the original
+9.5-unit height; the user then asked for a slightly shorter rail and approved
+the second preview before implementation.
+
+The selected rail is 8.4 units above the terrace, about 10 cm below the
+original. The arc and baluster spacing remain the original ones. The
+handrail is 15% narrower and 1.0 unit high; the base is 10% narrower and
+0.72 high; the baluster radius is 0.56. The lamp retains its position by the
+reader, with power 2600. The reader's wrap and page bounce multipliers are
+1.2 and 1.6. The room stays dark around the lit stone, reader and book.
+
+The rejected choices and `wsilrail` selector are removed. Their initial
+values and code remain in `e726a93`, and their refinements in `ec0837e`.
+The approved preview is `.ux-review/shots/silence-original-shorter-preview/`,
+captured at the arrival view and saved reader close-up.
+
 ### Silence rail options refined
 
 *2026-10-14* · The first options (`e726a93`) were too blunt: A's end posts
@@ -17,8 +37,8 @@ the reader's hood in the arrival view. The revised choices still use
   34% of the stone profile, on five square posts with socket feet and collars.
   The stone shoulders descend over 22 degrees to compact end newels.
 
-The lamp, reader and dead glass retain their positions and finishes. No
-option is picked; the losing code paths and query flag go when one is chosen.
+The lamp, reader and dead glass retained their positions and finishes.
+All three were rejected; `ec0837e` retains their code and values.
 
 ### Silence front rail options
 
@@ -35,9 +55,9 @@ temporary choices keep the full stone rails at the sides, at the existing
 - `?wsilrail=c`: full-height side balustrades and newels, with a slender
   bronze handrail (radius 0.13) and three posts (radius 0.1) across the front.
 
-The lamp, reader and dead glass are the same in all three. A is the temporary
-default. No choice has been made; retire the other paths and this query flag
-once the user picks one, recording the options commit here.
+The lamp, reader and dead glass were the same in all three, with A as the
+temporary default. All three were rejected; `e726a93` retains their code
+and values.
 
 ### Silence: the reader in the one lamp's light
 

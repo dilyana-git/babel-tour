@@ -10,7 +10,7 @@ import { deg, MASS_H } from '../build/common';
 
 export function buildSilence(ctx) {
   const { rr, pick, dir, add, dist, circlePts, rot3, keep, root, centre, slabGeo, placed,
-    profileGeo, mouldGeo, pedestalGeo, patchOf, Q, qNum, cellC, hallMid, flightProfile, stoneRail, FLIGHT_RAIL,
+    profileGeo, Q, qNum, cellC, hallMid, flightProfile, stoneRail, FLIGHT_RAIL,
     flightDress, LB, links, lamp, M } = ctx;
   // III — the Silence: "where the stairways stop crossing, a single lamp keeps
   // the dark honest". So the Echo's crossing is here too — and stilled: two
@@ -34,7 +34,6 @@ export function buildSilence(ctx) {
     const TERRACE_OUT = qNum('wterraceout', 6);
     const TOP = flightProfile({ from: 9 }).pitch(0);
     const seat = TERRACE ? add(add(c, dir(64), 11.5), dir(253), 3) : c;
-    const railChoice = ['a', 'b', 'c'].includes(Q.get('wsilrail')) ? Q.get('wsilrail') : 'a';
     for (const ang of [240, 300]) {
       const f = flightProfile({ from: 9, to: 18 });
       LB.step.add(profileGeo(f.pts, 13, c, ang));
@@ -51,8 +50,8 @@ export function buildSilence(ctx) {
     // circle facing the room — is the flights' own dressing bent round it, the
     // same members at the same heights, so the stone reads as one stair that
     // arrives rather than two that were stopped: string and corona under the
-    // deck, kerb and coping, with full balustrades wrapping the two sides.
-    // The central front section frames the reader and the open page.
+    // deck, kerb and coping, with a continuous stone balustrade around the
+    // free arc. Its slender members leave the reader visible between them.
     //
     // And it is a TERRACE: the free edge is carried out toward the room, so
     // there is somewhere up there to stand and look from. As a round floor no
@@ -100,69 +99,26 @@ export function buildSilence(ctx) {
       // arris printed from the floor as a bright chipped crack along the whole
       // underside of the terrace.
       if (TERRACE) band(LF - 0.3, LF + 0.03, TOP - 3.4, 0.95, LB.capShade);
-      const mid = (B0 + B1) / 2, front0 = mid - 37.5, front1 = mid + 37.5;
-      const base = TOP + 2.45, high = TOP + 9.5;
-      const shoulderTop = (a, low, spread) => {
-        const t = THREE.MathUtils.clamp((Math.abs(a - mid) - 37.5) / spread, 0, 1);
-        return TOP + low + (9.5 - low) * t * t * (3 - 2 * t);
+      const base = TOP + 2.45, railY = TOP + 8.4;
+      const length = (B1 - B0) * deg * RF;
+      const bear = (s) => B0 + s / (RF * deg);
+      const delicate = {
+        ...FLIGHT_RAIL, railH: 1.0, baseH: 0.72, r: 0.56,
+        rail: FLIGHT_RAIL.rail.map(([z, y, sharp]) => [z * 0.85, y * 1.0 / FLIGHT_RAIL.railH, sharp]),
+        base: FLIGHT_RAIL.base.map(([z, y, sharp]) => [z * 0.9, y * 0.72 / FLIGHT_RAIL.baseH, sharp]),
       };
-      const railRun = (a0, a1, top, S = FLIGHT_RAIL) => {
-        const length = (a1 - a0) * deg * RF;
-        const bear = (s) => a0 + s / (RF * deg);
-        const segments = Math.ceil((a1 - a0) / 4);
-        stoneRail(LB.balustradeShade, {
-          at: (s) => add(FC, dir(bear(s)), RF), foot: () => base,
-          top: (s) => top(bear(s)),
-          knots: Array.from({ length: segments + 1 }, (_, k) => k / segments * length),
-          clear: [1.5, 1.5], ry: (s) => -(bear(s) + 90) * deg, S,
-        });
-      };
-      if (railChoice === 'b') {
-        // The rail slopes down on each shoulder, then remains level across
-        // the front, below the reader's hands and book.
-        const lowRail = {
-          ...FLIGHT_RAIL, railH: 0.65, baseH: 0.28, sink: 0.18, r: 0.45, step: 3.2,
-          rail: FLIGHT_RAIL.rail.map(([z, y, sharp]) => [z * 0.72, y * 0.65 / FLIGHT_RAIL.railH, sharp]),
-          base: FLIGHT_RAIL.base.map(([z, y, sharp]) => [z * 0.8, y * 0.28 / FLIGHT_RAIL.baseH, sharp]),
-        };
-        railRun(B0, front0 - 28, () => high);
-        railRun(front0 - 28, front1 + 28, (a) => shoulderTop(a, 5.4, 28), lowRail);
-        railRun(front1 + 28, B1, () => high);
-      } else {
-        const endHeight = railChoice === 'a' ? 7.2 : 6.6;
-        railRun(B0, front0, (a) => shoulderTop(a, endHeight, 22));
-        railRun(front1, B1, (a) => shoulderTop(a, endHeight, 22));
-        for (const a of [front0, front1]) {
-          const p = add(FC, dir(a), RF);
-          LB.balustradeShade.add(placed(pedestalGeo(1.5, 0.6, endHeight - 2.45 - 1.6, { shift: patchOf(p) }), p, base, -(a + 90) * deg));
-        }
-        if (railChoice === 'c') {
-          // A moulded bronze handrail rests on square posts with socket feet
-          // and collars. Its low arc keeps the hood and page above the rail.
-          const railY = TOP + 6.6, railH = 0.45;
-          const front = Array.from({ length: 25 }, (_, k) => {
-            const p = add(FC, dir(front0 + (front1 - front0) * k / 24), RF);
-            return [p[0], railY - railH, p[1]];
-          });
-          const section = FLIGHT_RAIL.rail.map(([z, y, sharp]) => [z * 0.34, y * railH / FLIGHT_RAIL.railH, sharp]);
-          LB.bronze.add(mouldGeo(front, section));
-          for (const offset of [-30, -15, 0, 15, 30]) {
-            const a = mid + offset, turn = -(a + 90) * deg;
-            const p = add(FC, dir(a), RF);
-            const postH = railY - railH - base;
-            LB.bronzeDim.add(placed(new THREE.BoxGeometry(0.28, postH, 0.34), p, base + postH / 2, turn));
-            LB.bronzeDim.add(placed(new THREE.BoxGeometry(0.64, 0.18, 0.72), p, base + 0.09, turn));
-            LB.bronze.add(placed(new THREE.BoxGeometry(0.45, 0.16, 0.5), p, railY - railH - 0.08, turn));
-          }
-        }
-      }
+      stoneRail(LB.balustradeShade, {
+        at: (s) => add(FC, dir(bear(s)), RF), foot: () => base, top: () => railY,
+        knots: Array.from({ length: 41 }, (_, k) => k / 40 * length), clear: [1.5, 1.5],
+        ry: (s) => -(bear(s) + 90) * deg, S: delicate,
+      });
       // a small boss under the middle, and no more
       LB.bronzeDim.add(placed(new THREE.CylinderGeometry(1.1, 0.7, 0.8, 16), FC, TOP - 3.8));
     }
     // Along the free arc, beside the book: its light reaches the page and
     // hood from the front, then falls down the coping and the slab's face.
     const lampAt = add(c, [-3, 20]), lampY = TOP + 10.2, lampR = 3;
-    lamp(lampAt, { y: lampY, lightY: lampY, r: lampR, light: 1100, priority: 6, color: '#ffc98e', strength: 0.85, haze: 0.3, pool: 0.2, poolSize: 18, poolAt: add(seat, dir(90), 3), poolY: TOP + 0.06, beam: false });
+    lamp(lampAt, { y: lampY, lightY: lampY, r: lampR, light: 2600, priority: 6, color: '#ffc98e', strength: 0.85, haze: 0.3, pool: 0.2, poolSize: 18, poolAt: add(seat, dir(90), 3), poolY: TOP + 0.06, beam: false });
     M.deadGlass.userData.lamp.value.set(lampAt[0], lampY, lampAt[1], lampR * 0.55);
     // (the one toward the Echo is hung off its doorway, at 168: on 150 it
     // hung in the arch itself, the middle of the view from the terrace)
@@ -243,6 +199,9 @@ export function buildSilence(ctx) {
         seatedLook.u.uGlow.value.set(g[0], top + BOUNCE.rise, g[1], BOUNCE.k);
         seatedLook.u.uSheen.value = SHEEN;
       }
+      // The lamp's light wraps onto the wool, and the lit page reflects a
+      // little more of it up into the bowed hood.
+      seatedLook.u.uLitK.value.set(1, 1.2, 1.6);
       seated.name = 'silence-reader';
       root.add(seated);
       const stool = [new THREE.BoxGeometry(4.3, 0.5, 3.5).translate(0, 4.2, 1.0)];
