@@ -71,7 +71,28 @@ export function buildHoneycomb(ctx) {
     .map(([i, j, r, hex]) => { const q = cellC(i, j); return new THREE.Vector4(q[0], q[1], hex ? r * Math.sqrt(3) / 2 : r, hex); });
   const inFrame = (p) => p[0] > -160 && p[0] < 1600 && p[1] > -260 && p[1] < 1080;
   const isGardenAt = (i, j) => GARDEN.has(key(i, j));
-  const nearestCell = (p) => cells.reduce((best, c) => (dist(c.c, p) < dist(best.c, p) ? c : best), cells[0]);
+  // The cell whose middle is nearest p (the first in `cells` of any as near).
+  // The garden asks it for every blade of grass, so it does not look at every
+  // cell: the honeycomb is a lattice, and the lattice point nearest p is one
+  // of the sixteen round the rhombus of it that p is in (any point is within
+  // 129 of one, and those sixteen are every point within 193 of the rhombus).
+  // Only where that point has no cell, past the honeycomb's edge, are all of
+  // them looked at.
+  const cellAt = new Map(cells.map((c, n) => [c.k, n]));
+  const nearestCell = (p) => {
+    const fi = (p[0] - O[0]) / E0[0], fj = (p[1] - O[1] - fi * E0[1]) / E1[1];
+    const i0 = Math.floor(fi), j0 = Math.floor(fj);
+    let best = -1, near = Infinity, lattice = Infinity;
+    for (let i = i0 - 1; i <= i0 + 2; i++) {
+      for (let j = j0 - 1; j <= j0 + 2; j++) {
+        const d = dist(cellC(i, j), p), n = cellAt.get(key(i, j));
+        lattice = Math.min(lattice, d);
+        if (n !== undefined && (d < near || (d === near && n < best))) { near = d; best = n; }
+      }
+    }
+    if (best >= 0 && near <= lattice) return cells[best];
+    return cells.reduce((b, c) => (dist(c.c, p) < dist(b.c, p) ? c : b), cells[0]);
+  };
   const inGarden = (p) => nearestCell(p).garden;
   const routeCenters = Object.keys(ROUTE).map((k) => cellC(...k.split(',').map(Number)));
   const routeDist = (p) => Math.min(...routeCenters.map((c) => dist(c, p)));
