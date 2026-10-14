@@ -1,0 +1,4 @@
+[
+  { "name": "stand", "room": 0 },
+  { "name": "stone-close", "room": 0, "eye": "300,26,760:330,35,778" }
+]

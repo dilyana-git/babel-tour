@@ -13,6 +13,9 @@ import { doorOld, FALLEN as DOOR_FALLEN_HEAPS, CRACKS as DOOR_CRACK_STYLE, DUST 
 import { WOOD_OLD } from '../woodGrain';
 import { rubbleLayout } from '../rubble';
 
+const VEST_STONE_OPTION = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('wveststone') : null;
+const VEST_STONE_COURSES = { a: 24, b: 18, c: 12 }[VEST_STONE_OPTION] ?? 36;
+
 export const FRAME = [1440, 900];
 // The palette (see World.jsx): the stone a neutral limestone grey, so the lamps
 // are what make it warm. ?wpal=old for the warm greige it replaced.
@@ -196,8 +199,8 @@ export const PAINTED = {
   // lays the old). Dressed with the punch, in courses and blocks of more than
   // one size, with lime under its joints: libFix3.js, 3.
   wall: vestOld(5) ? ['ashlar'] : ['ashlar', { courses: 12, blocks: 5, spread: 24, ...(lib3Old(3) ? {} : { dress: 'punched', spread: 26 }) }],
-  // Low, flat-faced courses with a single step of tone between stones.
-  vestWall: ['ashlar', { seed: 107, courses: 36, blocks: 5, joint: 1, strength: 0.65, spread: 18, dress: 'flat' }],
+  // Flat-faced courses with a single step of tone between stones.
+  vestWall: ['ashlar', { seed: 107, courses: VEST_STONE_COURSES, blocks: 5, joint: 1, strength: 0.65, spread: 18, dress: 'flat' }],
   // the caps' pale stone; the Door's dressed faces are the same stone, laid smaller
   pale: ['ashlar', { seed: 9, courses: 4, blocks: 2, tone: [158, 150, 136], strength: 2 }],
   // The wood: boards sawn from the log, grain along u (`timber`), or the

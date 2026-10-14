@@ -1,5 +1,21 @@
 # Design history
 
+### Vestibule stone size options
+
+*2026-10-14* · The 36-course Vestibule stone was too thin and did not
+match the scale of the next rooms. Three temporary `?wveststone=` options
+compare course heights while retaining the flat faces, narrow joints,
+block lengths, tone steps, seed and weathering:
+
+- `a`: 24 courses per 38-unit tile, approximately 15 cm per course.
+- `b`: 18 courses, approximately 20 cm per course.
+- `c`: 12 courses, approximately 30 cm, matching the other walls' base scale.
+
+The default remains at 36 courses until a choice is made. The selected
+option will become the sole path and the comparison flag will be removed.
+Matching stand and near-wall views are saved in
+`tools/views/vestibule-stone.json`.
+
 ### Vestibule stone, readers and sightlines
 
 *2026-10-14* · The large ashlar blocks and repeated bright arrises read as
