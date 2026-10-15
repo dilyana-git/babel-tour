@@ -1,5 +1,20 @@
 # Design history
 
+### Vertigo: continuous stair entrance
+
+*2026-10-15* · The landing's two square railing turns made the entrance read
+as an obstacle. The iron and walnut rail now curves continuously from the
+mouth to the stair newel, without the two intermediate corner posts. Its
+radius eases from 69.3 to the stair's inner rail between bearings 153° and
+170°, with tangent joins. The paving and stone edge follow the curve and
+meet the first tread without leaving a seam in the walking surface.
+
+The walking approach eases inward over bearings 150°–190°, then follows
+the existing spiral centreline. Collision checks exercise the landing in
+both directions; a browser smoke scenario walks in from the Silence using
+held W. Matching before/after views and the saved camera positions are in
+`.ux-review/qa/2026-10-15-vertigo-entry/`.
+
 ### Desktop captions: quieter treatment for review
 
 *2026-10-15* · Question: can the room's writing leave more of the architecture

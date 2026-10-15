@@ -19,6 +19,7 @@ import { doorPropsOld, STAND as DOOR_STAND, CANDLES as DOOR_CANDLES } from '../d
 import { VANTAGES } from '../vantages';
 import { hexAislePoint, roundAislePoint, pathToPoint, makeWalkCurve } from '../walkPath';
 import { BRINK_OLD } from '../spiral';
+import { vertigoApproach } from '../vertigoLanding';
 import { deg, OLD_GLARE } from './common';
 
 export function buildStands(ctx) {
@@ -43,7 +44,6 @@ export function buildStands(ctx) {
   };
   const echoMiddle = (a) => roundAislePoint(C1, a, ECHO_RING + 3, ECHO_A - 12);
   const silenceMiddle = (a) => hexAislePoint(C2, a, 42.8, A - 16.8);
-  const vertigoMiddle = (a) => ring(PIT, a, (70.6 + 89) / 2);
   // The folded bookcase occupies the left of the arch. Centre the walk in
   // the remaining opening, then join the pergola's own axis.
   const doorLane = (u) => add(add(DOOR, dir(330), u), dir(60), 4.2);
@@ -119,7 +119,7 @@ export function buildStands(ctx) {
   const echoArrival = [eye(add(C1, dir(0), -ECHO_SPAN - 1.5), FLOOR), ...echoStair.slice(0, echoStandStep + 1)];
   const echoOnward = echoStair.slice(echoStandStep + 1);
   return { EYE, FLOOR, GRAVEL, DECK, MAZE, C0, C1, C2, ring, vestibuleMiddle, echoMiddle,
-    silenceMiddle, vertigoMiddle, doorLane, unit, eye, way, hug, bridgeEntry,
+    silenceMiddle, doorLane, unit, eye, way, hug, bridgeEntry,
     heartFrom, turnAbout, onStair, onEdge, spot, echoFlight, ECHO_SPAN, ECHO_STEPS, echoStair,
     echoStandEye, echoArrival, echoOnward };
 }
@@ -128,7 +128,7 @@ export function buildCrossing(ctx) {
   const { paintings, dir, add, lerp2, dist, Q, A, ECHO_A, hallMid, walkers, PIT, stairAt, GATE,
     mazeRoute, PERGOLA0, J, PV, SHORE, BRIDGE, MAZE_ENTRY, HEART, N_SHORE, NORTH_BRIDGE, at,
     EYE, FLOOR, GRAVEL, DECK, MAZE, C0, C1, C2, ring, vestibuleMiddle, echoMiddle, silenceMiddle,
-    vertigoMiddle, doorLane, unit, eye, way, hug, bridgeEntry, turnAbout, onStair,
+    doorLane, unit, eye, way, hug, bridgeEntry, turnAbout, onStair,
     onEdge, spot, echoFlight, ECHO_SPAN, ECHO_STEPS, echoStandEye, echoArrival, echoOnward } = ctx;
   // ── The crossing, over the middle of the Echo (VANTAGES) ───────────────────
   // The crown of a flight is its two middle treads, level over the well —
@@ -231,13 +231,12 @@ export function buildCrossing(ctx) {
       ...way(FLOOR, [add(C1, [ECHO_SPAN + 3, 0]), ...[-15, -30].map(echoMiddle), ring(C1, 330, ECHO_A - 2.6), hallMid(1, -1, 5), ring(C2, 150, 84), ...[150, 135, 120, 105].map(silenceMiddle), spot[2]]),
     ] },
     { kind: 'walk', points: [
-      // Onto the stair square, a few degrees in from where it starts: the
-      // mouth is open from 156° but the stair only begins at 170°, and from
-      // 164° the way's last run cut across the corner of the open mouth.
-      ...way(FLOOR, [spot[2], ...[75, 60, 45, 30, 15, 0, -15, -30].map(silenceMiddle), ring(C2, 330, 84), hallMid(2, -2, 5), ring(PIT, 150, 94), ...[150, 163, 176].map(vertigoMiddle), ring(PIT, 176, 76)]),
+      ...way(FLOOR, [spot[2], ...[75, 60, 45, 30, 15, 0, -15, -30].map(silenceMiddle), ring(C2, 330, 84), hallMid(2, -2, 5), ring(PIT, 150, 94)]),
+      // Curve inward beside the rounded landing and join the stair's tangent.
+      ...vertigoApproach(PIT, (70.6 + 89) / 2, FLOOR, EYE),
       // Follow the spiral's middle closely instead of taking long chords
       // towards its open edge between a few widely spaced stair samples.
-      ...Array.from({ length: 11 }, (_, i) => onStair((i + 1) * 0.005)), stands[3].eye,
+      ...Array.from({ length: 8 }, (_, i) => onStair((i + 4) * 0.005)), stands[3].eye,
     ],
       // Free walking continues down the same stair after the composed stand.
       // The tour still arrives at the broken rail, where its fall begins.

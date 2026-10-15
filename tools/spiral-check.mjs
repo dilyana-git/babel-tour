@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { SPIRAL, spiralAt, railIntent, makeEndlessSpiral } from '../src/world/spiral.js';
 import { makeBody } from '../src/world/body.js';
 import { endlessRail } from '../src/world/vertigoRail.js';
+import { vertigoLanding, vertigoApproach } from '../src/world/vertigoLanding.js';
 
 const center = [80, 50];
 // buildWorld's moulding sweep, plainly: the section set off square to the
@@ -44,6 +45,54 @@ test('the continuing stair joins the initial flight and retains a full walking w
     const at = spiralAt(center, t);
     assert(at.radius - at.edge >= 7.5);
     assert(at.outer - at.radius >= 8.5);
+  }
+});
+
+test('the rounded entrance supports a reader walking onto the stair and back without hitting the rail', () => {
+  const root = new THREE.Group(), material = new THREE.MeshStandardMaterial({ side: THREE.DoubleSide });
+  const landing = vertigoLanding(center, SPIRAL.mouth, spiralAt(center, 0).edge - 0.9);
+  const slab = (points, holes = []) => {
+    const wound = (pts, clockwise) => {
+      const v = pts.map(([x, z]) => new THREE.Vector2(x, -z));
+      return THREE.ShapeUtils.isClockWise(v) === clockwise ? v : v.reverse();
+    };
+    const shape = new THREE.Shape(wound(points, false));
+    holes.forEach(h => shape.holes.push(new THREE.Path(wound(h, true))));
+    return new THREE.ExtrudeGeometry(shape, { depth: 6, bevelEnabled: false, curveSegments: 1 }).rotateX(-Math.PI / 2);
+  };
+  const ring = (r) => Array.from({ length: 80 }, (_, i) => [center[0] + Math.cos(i * Math.PI / 40) * r, center[1] + Math.sin(i * Math.PI / 40) * r]);
+  const add = (geometry, name) => { const mesh = new THREE.Mesh(geometry, material); mesh.name = name; root.add(mesh); };
+  add(slab(ring(89), [ring(SPIRAL.mouth)]), 'floor');
+  add(slab(landing.floor), 'floor');
+  const path = landing.rail.map(([x, z]) => [x, 6, z]);
+  add(mouldGeo(path, [[-1.06, 9.2], [1.06, 9.2], [1.06, 10.5], [-1.06, 10.5]]), 'vrailWood');
+  const string = Array.from({ length: 33 }, (_, i) => {
+    const at = spiralAt(center, i / 33 * 0.04), a = at.a * Math.PI / 180;
+    return [center[0] + Math.cos(a) * (at.outer - 0.3), Math.min(at.tread + 3.3, 5.9), center[1] + Math.sin(a) * (at.outer - 0.3)];
+  });
+  add(mouldGeo(string, [[-1.2, 0], [-1.2, -8], [1.2, -8], [1.2, 0]]), 'carved');
+  for (let s = 0; s < 9; s++) {
+    const at = spiralAt(center, s / SPIRAL.steps), a = at.a * Math.PI / 180;
+    const run = 2 * Math.PI * at.radius * SPIRAL.turns / SPIRAL.steps * 1.08;
+    add(new THREE.BoxGeometry(SPIRAL.width, 3, run).rotateY(-a).translate(at.p[0], at.tread - 1.5, at.p[1]), 'step');
+  }
+  const route = vertigoApproach(center, 79.8, 6, 15), body = makeBody(root);
+  const feet = new THREE.Vector3(route[0][0], 6, route[0][2]);
+  try {
+    for (const points of [route, [...route].reverse()]) {
+      for (let i = 1; i < points.length; i++) {
+        const a = points[i - 1], b = points[i];
+        for (let k = 1; k <= 20; k++) {
+          const x = a[0] + (b[0] - a[0]) * k / 20, z = a[2] + (b[2] - a[2]) * k / 20;
+          const result = body.step(feet, new THREE.Vector3(x - feet.x, 0, z - feet.z), 0);
+          assert(Math.hypot(feet.x - x, feet.z - z) < 0.1, `Entrance blocked at ${i}/${k}: ${result.stop}: ${body.why()}`);
+          const expected = a[1] + (b[1] - a[1]) * k / 20 - 15;
+          assert(Math.abs(feet.y - expected) < 2.2, `Unsupported entrance at ${i}/${k}: ${feet.y} / ${expected}`);
+        }
+      }
+    }
+  } finally {
+    body.dispose(); root.children.forEach(mesh => mesh.geometry.dispose()); material.dispose();
   }
 });
 

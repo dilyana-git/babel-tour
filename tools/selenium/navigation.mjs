@@ -191,6 +191,21 @@ export function navigationScenarios(driver, baseUrl, options = {}) {
       await choose(0);
       await room(0);
     }],
+    ['held W follows the rounded Vertigo entrance onto the stair', async () => {
+      await prepare(2); await speed(SPEED);
+      await key('w');
+      try {
+        await waitUntil(driver, async () => {
+          const w = (await read()).walk;
+          assert.notEqual(w.move?.kind, 'fall', 'The entrance led into a fall');
+          return w.place === 3 && w.body && w.body.feet[1] < -12;
+        }, 'Held W did not pass the landing and reach the Vertigo stair', 180000);
+      } finally { await key('w', 'keyUp'); }
+      await stopped();
+      const w = (await read()).walk;
+      assert.equal(w.target, 3, 'The entrance unexpectedly committed the fall');
+      await onStep('held W passed the rounded entrance and stopped on the stair');
+    }],
     ['Vertigo starts down the stairs without pulling toward the broken rail', async () => {
       await prepare(3);
       await speed(1);

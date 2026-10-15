@@ -18,6 +18,7 @@ const suite = option('suite') ?? 'baseline';
 const filter = option('scenario');
 const graphics = process.env.BABEL_BROWSER_GRAPHICS ?? 'software';
 const smokeNames = new Set(['normal entry and first-room boundary', 'combined walking and looking releases both inputs safely',
+  'held W follows the rounded Vertigo entrance onto the stair',
   'Vertigo starts down the stairs without pulling toward the broken rail',
   'walk interrupt, stop, and recovery to the destination', 'finale can be skipped with Escape',
   'finale can be skipped with M immediately after requesting it', 'map recovery during entry flight',

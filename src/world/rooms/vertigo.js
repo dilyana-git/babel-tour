@@ -10,6 +10,7 @@ import { WELL, vertigoOld, bookHash, MISSING, shelfLip } from '../vertigoFix';
 import { silenceOld, CROWN_BACK } from '../silenceFix';
 import { SPIRAL, GAPS, BRINK_OLD, makeEndlessSpiral, spiralAt, bookAt } from '../spiral';
 import { VLAND_OLD, VRAIL_OLD, buildVertigoRail, endlessRail } from '../vertigoRail';
+import { vertigoLanding } from '../vertigoLanding';
 import { WOOD_OLD, ringGrain } from '../woodGrain';
 import { deg, MASS_H, CAP, SHELVES, BOOK_ROWS, TIER_BASE, TIER_H, TIERS, shelvesOf, BOARD } from '../build/common';
 
@@ -497,29 +498,28 @@ export function* buildVertigo(ctx) {
         carved.add(new THREE.BoxGeometry(wide, h, depth).rotateY(facing(a)).translate(p[0], y + top - h / 2, p[1]));
       }
     }
-    // The stair's head. The stair's first tread begins at 166.5°, but the rim
-    // round the mouth stops at 153°: for a stride beside the newel the floor
-    // would just end over the drop, nothing to stand on, nothing to hold ("the
-    // staircase has a weird hole that makes it look unsafe"). The floor runs on
-    // over the pit to the first tread as a landing, carried on the stair's own
-    // carriage swept back level under it, and the rim turns in along the
-    // landing's end and runs on along its open edge to the newel. (?wvland=old:
-    // no landing.)
-    const LAND0 = 153;   // where the rim stops: a corner of the floor's 80-sided hole
+    // The landing curves from the mouth into the stair, with continuous
+    // paving and a stone edge underneath the rail all the way to the newel.
+    const LAND0 = 153;
     const beside = (a, r, off) => add(add(c, dir(a), r), dir(a + 90), off);
+    const landing = !VLAND_OLD && !VRAIL_OLD ? vertigoLanding(c, rMouth, inner(0) - 0.9) : null;
     if (!VLAND_OLD) {
-      // the paving, its outer edge on the hole's own corners (so the floor's
-      // joint is a joint, not a sliver of the two overlapping), and on a
-      // little way over the first tread's back
-      const back = 167.5, chord = (rMouth * Math.cos(2.25 * deg)) / Math.cos((back - 168.75) * deg), rIn = inner(0) + 0.1;
-      const outer = [153, 157.5, 162, 166.5].map((a) => add(c, dir(a), rMouth));
-      const edge = Array.from({ length: 9 }, (_, k) => add(c, dir(back - ((back - LAND0) * k) / 8), rIn));
-      LB.floor.add(slabGeo([...outer, add(c, dir(back), chord), ...edge], [], 6, 0));
-      // the carriage under it, level, closed at the landing's end
-      const tHead = (LAND0 - 170) / (TURNS * 360), level = (prof) => () => prof(0);
-      carved.add(sweep(level(carriage), tHead, 0, true));
-      carved.add(sweep(level(roll), tHead, 0));
-      carved.add(sweep(level(fillet), tHead, 0));
+      if (landing) {
+        LB.floor.add(slabGeo(landing.floor, [], 6, 0));
+        carved.add(mouldGeo(landing.rail.map(([x, z]) => [x, 6.2, z]), [
+          [-1.5, 0, true], [-1.5, -5.6, true], [-1.1, -6.2, true],
+          [1.1, -6.2, true], [1.5, -5.6, true], [1.5, 0, true],
+        ]));
+      } else {
+        const back = 167.5, chord = (rMouth * Math.cos(2.25 * deg)) / Math.cos((back - 168.75) * deg), rIn = inner(0) + 0.1;
+        const outer = [153, 157.5, 162, 166.5].map((a) => add(c, dir(a), rMouth));
+        const edge = Array.from({ length: 9 }, (_, k) => add(c, dir(back - ((back - LAND0) * k) / 8), rIn));
+        LB.floor.add(slabGeo([...outer, add(c, dir(back), chord), ...edge], [], 6, 0));
+        const tHead = (LAND0 - 170) / (TURNS * 360), level = (prof) => () => prof(0);
+        carved.add(sweep(level(carriage), tHead, 0, true));
+        carved.add(sweep(level(roll), tHead, 0));
+        carved.add(sweep(level(fillet), tHead, 0));
+      }
       for (const a of [157, 163]) {
         for (const [depth, h, top, wide] of [[5, 6, -4.2, 3.2], [3, 4, -10, 2.6]]) {
           const p = add(c, dir(a), coneR(4) + 0.5 - depth / 2);
@@ -533,18 +533,15 @@ export function* buildVertigo(ctx) {
       }
     }
     if (!VRAIL_OLD) {
-      // The rail, iron and walnut (vertigoRail.js): round the mouth from
-      // beside the stair to the landing, in along its end, along its edge to
-      // the newel; and down the stair's open edge, but for the gap.
+      // One continuous iron and walnut rail round the mouth and onto the
+      // stair; the stair's existing gaps remain open for the fall.
       const rimR = rMouth + 1.3, railR = inner(0) - 0.9;
-      const turnIn = beside(LAND0, Math.sqrt(rimR ** 2 - 0.81), 0.9), atEdge = beside(LAND0, railR, 0.9);
-      const rimTo = 360 + LAND0 + Math.asin(0.9 / rimR) / deg, edgeFrom = LAND0 + Math.atan2(0.9, railR) / deg;
-      const n = Math.ceil((rimTo - 184.5) / 2.25), m = Math.ceil((170 - edgeFrom) / 2.25);
-      // (with ?wvland=old there is no landing, and the rail stops at the rim's end)
-      const rim = [...Array.from({ length: n }, (_, k) => add(c, dir(184.5 + ((rimTo - 184.5) * k) / n), rimR)), turnIn];
-      const level = VLAND_OLD ? rim : [...rim, atEdge, ...Array.from({ length: m }, (_, k) => add(c, dir(edgeFrom + ((170 - edgeFrom) * (k + 1)) / m), railR))];
+      const rimTo = 360 + LAND0 + (VLAND_OLD ? Math.asin(0.9 / rimR) / deg : 0);
+      const n = Math.ceil((rimTo - 184.5) / 2.25);
+      const rim = Array.from({ length: n + 1 }, (_, k) => add(c, dir(184.5 + ((rimTo - 184.5) * k) / n), rimR));
+      const level = VLAND_OLD ? rim : [...rim.slice(0, -1), ...landing.rail];
       buildVertigoRail({
-        level, corners: VLAND_OLD ? [] : [n, n + 1], toHead: !VLAND_OLD, floor: 6, head: add(c, dir(170), railR),
+        level, corners: [], toHead: !VLAND_OLD, floor: 6, head: add(c, dir(170), railR),
         helix: {
           at: (t) => add(c, dir(bearing(t)), inner(t) - 0.9), tread: (t) => yAt(t) + 1.5, base: (t) => yAt(t) + 2.2,
           runs: RAILED, samples: STEPS * 3,
