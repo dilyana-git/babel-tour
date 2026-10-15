@@ -231,9 +231,9 @@ export function buildCrossing(ctx) {
       ...way(FLOOR, [add(C1, [ECHO_SPAN + 3, 0]), ...[-15, -30].map(echoMiddle), ring(C1, 330, ECHO_A - 2.6), hallMid(1, -1, 5), ring(C2, 150, 84), ...[150, 135, 120, 105].map(silenceMiddle), spot[2]]),
     ] },
     { kind: 'walk', points: [
-      ...way(FLOOR, [spot[2], ...[75, 60, 45, 30, 15, 0, -15, -30].map(silenceMiddle), ring(C2, 330, 84), hallMid(2, -2, 5), ring(PIT, 150, 94)]),
-      // Curve inward beside the rounded landing and join the stair's tangent.
-      ...vertigoApproach(PIT, (70.6 + 89) / 2, FLOOR, EYE),
+      ...way(FLOOR, [spot[2], ...[75, 60, 45, 30, 15, 0, -15, -30].map(silenceMiddle), ring(C2, 330, 84), hallMid(2, -2, 5)]),
+      // Continue from the corridor into the landing without turning sideways.
+      ...vertigoApproach(PIT, 110, FLOOR, EYE),
       // Follow the spiral's middle closely instead of taking long chords
       // towards its open edge between a few widely spaced stair samples.
       ...Array.from({ length: 8 }, (_, i) => onStair((i + 4) * 0.005)), stands[3].eye,

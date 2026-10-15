@@ -206,6 +206,45 @@ export function navigationScenarios(driver, baseUrl, options = {}) {
       assert.equal(w.target, 3, 'The entrance unexpectedly committed the fall');
       await onStep('held W passed the rounded entrance and stopped on the stair');
     }],
+    ['Vertigo entrance can be paused and resumed after looking around', async () => {
+      await prepare(2); await speed(SPEED);
+      const radius = w => w.body && Math.hypot(w.body.feet[0] - w.pit.x, w.body.feet[2] - w.pit.z);
+      await key('w');
+      try {
+        await waitUntil(driver, async () => {
+          const w = (await read()).walk;
+          return radius(w) && radius(w) < 132;
+        }, 'Walking did not reach the Vertigo corridor', TIMEOUT);
+        await speed(1);
+        await waitUntil(driver, async () => {
+          const w = (await read()).walk;
+          return radius(w) < 88 && w.body.feet[1] > 5;
+        }, 'Walking did not reach the entrance landing', TIMEOUT);
+      } finally { await key('w', 'keyUp'); }
+      await speed(SPEED); await stopped(); await speed(1);
+      await onStep('paused in the doorway with the stair entrance ahead');
+      const yaw = (await read()).walk.look.yaw;
+      await key('ArrowLeft');
+      try {
+        await waitUntil(driver, async () => (await read()).walk.look.yaw > yaw + 0.6,
+          'Could not look around at the landing', TIMEOUT);
+      } finally { await key('ArrowLeft', 'keyUp'); }
+      await key('ArrowRight');
+      try {
+        await waitUntil(driver, async () => (await read()).walk.look.yaw < yaw + 0.15,
+          'Could not face the entrance again', TIMEOUT);
+      } finally { await key('ArrowRight', 'keyUp'); }
+      await speed(SPEED); await key('w');
+      try {
+        await waitUntil(driver, async () => {
+          const w = (await read()).walk;
+          assert.equal(w.target, 3, 'Resuming the entrance walk unexpectedly committed the fall');
+          return w.place === 3 && w.body && w.body.feet[1] < -12;
+        }, 'Resuming W did not continue onto the stair', TIMEOUT);
+      } finally { await key('w', 'keyUp'); }
+      await stopped();
+      await onStep('resumed after looking around and reached the stair');
+    }],
     ['Vertigo starts down the stairs without pulling toward the broken rail', async () => {
       await prepare(3);
       await speed(1);

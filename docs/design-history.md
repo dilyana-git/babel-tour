@@ -1,5 +1,20 @@
 # Design history
 
+### Vertigo: a direct walking approach from the corridor
+
+*2026-10-15* · The curved rail still left a sideways corner in the walking
+route at bearing 150°. The approach now starts 110 units from the pit along
+the corridor axis and follows one cubic curve onto the stair at bearing
+190°. Its entry control lies 28 units ahead; the stair control is 14 units
+back along the stair tangent. This spreads the turn through the entrance
+and gives the shoulders clearance from the curved rail.
+
+Collision checks walk the approach down and back at its centre and two
+units to either side. The smoke suite covers an uninterrupted held W and a
+pause at the entrance to look around before continuing. Evidence is in
+`.ux-review/navigation/2026-10-15-vertigo-approach/`; a focused view from the
+new approach is in `.ux-review/qa/2026-10-15-vertigo-approach/`.
+
 ### Vertigo: continuous stair entrance
 
 *2026-10-15* · The landing's two square railing turns made the entrance read

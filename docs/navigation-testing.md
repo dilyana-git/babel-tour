@@ -96,6 +96,10 @@ the entry-flight return control and the room's map button, then requires a
 settled map and successful room re-entry. The ending retains its separate
 skip checks.
 
+The Vertigo entrance is walked from the Silence both continuously and with
+a pause to look around on the landing before resuming. Fast collision tests
+also cover its centreline and two-unit offsets on either side, down and back.
+
 Baseline coverage includes destination controls in both directions, held-W
 journeys through all library/garden rooms, simultaneous walking and looking,
 key release and focus loss, map selection, the Echo vantage, interruption,
