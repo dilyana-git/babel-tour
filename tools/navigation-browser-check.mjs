@@ -20,7 +20,8 @@ const graphics = process.env.BABEL_BROWSER_GRAPHICS ?? 'software';
 const smokeNames = new Set(['normal entry and first-room boundary', 'combined walking and looking releases both inputs safely',
   'Vertigo starts down the stairs without pulling toward the broken rail',
   'walk interrupt, stop, and recovery to the destination', 'finale can be skipped with Escape',
-  'finale can be skipped with M immediately after requesting it']);
+  'finale can be skipped with M immediately after requesting it', 'map recovery during entry flight',
+  'map recovery during walking and climbing', 'map recovery during the Vertigo fall']);
 const cases = (driver, url, options) => [
   ...navigationScenarios(driver, url, options).map(([name, run]) => ({ id: scenarioId(name), name, run, suite: 'baseline', smoke: smokeNames.has(name) })),
   ...navigationContracts(driver, url, options).map(([name, run]) => ({ id: scenarioId(name), name, run, suite: 'contracts' })),

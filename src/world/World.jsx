@@ -2062,6 +2062,11 @@ function LiveWorld({
   // `off`: leaving for the next room from the room's vantage, not its floor.
   const startMove = (to, aspect, up = false, off = false) => {
     const from = placeRef.current;
+    if (to === null) {
+      const here = { position: camera.position.clone(), quaternion: camera.quaternion.clone() };
+      zeroLook();
+      return { ...flightMove(rest, here, ROOM_FOV, true, RISE_S), to: null };
+    }
     if (from === null) {
       const end = rooms ? standPose(spotAt(world, to, false)) : eyePose(world.mounts[to], aspect);
       return { ...flightMove(rest, end, rooms ? ROOM_FOV : EYE_FOV, false, FLIGHT_S), to };
@@ -2082,7 +2087,7 @@ function LiveWorld({
       const points = asPoints(up ? v.points : [...v.points].reverse());
       return { ...walkMove(points, a.quaternion, b.quaternion), to, up, from };
     }
-    if (to === null || Math.abs(to - from) !== 1) {
+    if (Math.abs(to - from) !== 1) {
       // Up to the map (and, for a room that is not next door, down again from there).
       const here = { position: camera.position.clone(), quaternion: camera.quaternion.clone() };
       zeroLook();
@@ -2667,7 +2672,12 @@ function LiveWorld({
       place: placeRef.current, target: targetRef.current, last: world.finale?.room,
       up: upRef.current, moveKind: moveRef.current?.kind,
     });
-    if (!moveRef.current || endingIntent === 'skip') {
+    // Returning to the map preempts the current journey, including an entry
+    // flight whose room has not been reached yet. A rise already in progress
+    // keeps its course instead of restarting with each frame.
+    const mapIntent = rooms && targetRef.current === null && finaleRef.current === null
+      && moveRef.current && moveRef.current.to !== null;
+    if (!moveRef.current || endingIntent === 'skip' || mapIntent) {
       const begin = (to, up, off = false) => {
         const next = startMove(to, aspect, up, off);
         if (!next) {
@@ -2696,6 +2706,9 @@ function LiveWorld({
         };
         bodyRef.current = null;
         phaseRef.current = null;
+      } else if (mapIntent || (targetRef.current === null && placeRef.current !== null)) {
+        wishUpRef.current = false;
+        begin(null, false);
       } else if (placeRef.current !== null && wishUp !== upRef.current) {
         // Down off a vantage AND on to the next room: one walk from up there
         // (startMove, `off`), not down to the room's stand and away again.

@@ -412,6 +412,17 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
     if (to === 'heart') setFinale('play');
     else setTarget(to);
   }, []);
+  const returnToMap = useCallback(() => {
+    walkRef.current.hold = 0;
+    Object.keys(lookRef.current.keys).forEach((key) => { lookRef.current.keys[key] = false; });
+    setAfoot(false);
+    setHolding(false);
+    if (finale !== null) setFinale('skip');
+    else {
+      setToUp(false);
+      setTarget(null);
+    }
+  }, [finale]);
   // On foot. Holding the key IS the walking — wherever the reader is looking,
   // for as long as it is held. A new press commits a new course; releasing
   // stands them where they are.
@@ -816,17 +827,22 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
     };
   }, [worldRooms]);
   useEffect(() => {
-    if (!worldRooms || place === null) return undefined;
+    if (!worldRooms || (place === null && target === null)) return undefined;
     const keys = lookRef.current.keys;
     const HELD = HELD_KEYS, STEP = STEP_KEYS;
     const onDown = (e) => {
       if (e.altKey || e.ctrlKey || e.metaKey) return;
+      if (e.key === 'm' || e.key === 'M' || e.key === 'Escape') {
+        e.preventDefault();
+        returnToMap();
+        return;
+      }
       // While the heart plays, the map key is the only one: it ends it there.
       if (finale !== null) {
-        if (e.key === 'm' || e.key === 'M' || e.key === 'Escape') setFinale('skip');
         if (HELD[e.key] || STEP[e.key]) e.preventDefault();
         return;
       }
+      if (place === null) return;
       if (HELD[e.key]) {
         keys[HELD[e.key]] = true;
         e.preventDefault();
@@ -836,11 +852,10 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
         if (!e.repeat) foot(STEP[e.key]);
         e.preventDefault();
       } else if (e.key === 'e' || e.key === 'E') climb();
-      else if ((e.key === 'm' || e.key === 'M' || e.key === 'Escape') && !moving) setTarget(null);
     };
     window.addEventListener('keydown', onDown);
     return () => window.removeEventListener('keydown', onDown);
-  }, [worldRooms, place, moving, foot, climb, finale]);
+  }, [worldRooms, place, target, foot, climb, finale, returnToMap]);
 
   // The touch walk button let go of: stand where they are, as letting go of W.
   const standStill = () => {
@@ -1310,7 +1325,7 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
           <button
             type="button"
             className="map-enter"
-            disabled={opening !== null}
+            disabled={opening !== null || (worldRooms && !liveWorld)}
             onClick={() => choose(shown)}
           >
             {opening !== null ? 'Opening…' : `Enter ${node.title}`}
@@ -1319,6 +1334,15 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
         </aside>
       </div>
 
+      {worldRooms && place === null && target !== null && (
+        <button
+          type="button"
+          className="room-skip room-entry-map"
+          {...actionHandlers(returnToMap)}
+        >
+          Return to the map
+        </button>
+      )}
       {worldRooms && place !== null && (
         <div ref={hudRef} data-room={NODES[place].slug} className={`room-hud${isGarden(place) ? ' is-garden' : ''}${moving ? ' is-moving' : ''}${finale !== null ? ` is-finale is-finale-${finalePhase ?? 'walk'}` : ''}`}>
           <section
@@ -1423,10 +1447,10 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
             <button
               type="button"
               className="room-map"
-              disabled={moving}
+              disabled={finale !== null}
               aria-label="Map"
               title="Map (M)"
-              {...actionHandlers(() => setTarget(null))}
+              {...actionHandlers(returnToMap)}
             >
               <svg className="room-seal" viewBox="0 0 110 72" aria-hidden="true">
                 <defs>
@@ -1505,7 +1529,7 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
                   )
                   : (
                     <>
-                      <span className="room-key"><kbd>W</kbd>to walk</span>
+                      <span className="room-key">Hold <kbd>W</kbd>to walk</span>
                       <span className="room-key"><kbd>drag</kbd>to look</span>
                       <span className="room-key"><kbd>M</kbd>for the map</span>
                     </>

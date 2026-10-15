@@ -18,7 +18,7 @@ These scripts run locally without an AI model.
 | `npm run check:fast` | Lint, governor rules, deterministic geometry, generated movement cases, and harness checks |
 | `npm run dev:checked:fast` | Start Vite and rerun fast movement checks after each settled batch of edits |
 | `npm run check:navigation:watch:fast` | Watch and rerun fast checks without starting the development server |
-| `npm run check:navigation:smoke` | Entry, combined input/release, walking interruption, and both ending-skip keys |
+| `npm run check:navigation:smoke` | Entry, combined input/release, map recovery during travel, walking interruption, and both ending-skip keys |
 | `npm run check:major` | All baseline and acceptance browser scenarios, fast navigation tests, lint and build |
 | `npm run check:project` | The major-change gate (the plate tour's own checks went with it) |
 | `npm run check:navigation:contracts` | Focused acceptance checks for the controls and spiral passage |
@@ -89,6 +89,12 @@ Observational development hooks read outcomes and accelerate travel only.
 Arrival also waits for the room controls to finish becoming visible; a
 rendered title alone does not make a moving entrance-animation target ready
 for a touch gesture.
+
+Map recovery covers an entry flight, an automatic walk, the Echo's climb,
+the Vertigo fall, and personal walking with W still held. It uses M, Escape,
+the entry-flight return control and the room's map button, then requires a
+settled map and successful room re-entry. The ending retains its separate
+skip checks.
 
 Baseline coverage includes destination controls in both directions, held-W
 journeys through all library/garden rooms, simultaneous walking and looking,

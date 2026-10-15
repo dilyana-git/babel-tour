@@ -289,7 +289,7 @@ export function navigationScenarios(driver, baseUrl, options = {}) {
       await waitUntil(driver, async () => (await read()).walk.frame >= frame + 2,
         'No rendered frames after the repeated clicks', TIMEOUT);
       assert.equal((await read()).walk.target, 1, 'Repeated clicks changed the destination more than once');
-      assert.equal(await enabled('.room-map'), false, 'Map stayed enabled during travel');
+      assert.equal(await enabled('.room-map'), true, 'Travel must retain the map as a way out');
       assert.equal(await enabled('.room-step.is-back'), false, 'Back stayed enabled during travel');
       await speed(SPEED);
       await room(1);
@@ -379,6 +379,42 @@ export function navigationScenarios(driver, baseUrl, options = {}) {
         await tapKey(i % 2 ? 'Escape' : 'm'); await map();
       }
       await choose(0);
+    }],
+    ['map recovery during entry flight', async () => {
+      await prepare(); await speed(1);
+      await click('.map-enter');
+      await waitUntil(driver, async () => (await read()).walk.move?.kind === 'flight', 'Entry flight never began');
+      await tapKey('m'); await speed(SPEED);
+      await map(15000);
+      await speed(1); await click('.map-enter');
+      await waitUntil(driver, async () => (await read()).walk.move?.kind === 'flight', 'Second entry flight never began');
+      await click('.room-entry-map'); await speed(SPEED); await map(15000);
+      await choose(0);
+    }],
+    ['map recovery during walking and climbing', async () => {
+      await prepare(0); await speed(1);
+      await click('.room-step.is-on');
+      await waitUntil(driver, async () => (await read()).walk.move?.kind === 'walk', 'Automatic walk never began');
+      await tapKey('Escape'); await speed(SPEED); await map(15000);
+      await choose(1); await speed(1);
+      await click('.room-step.is-climb');
+      await waitUntil(driver, async () => (await read()).walk.move?.kind === 'walk', 'Climb never began');
+      await tapKey('m'); await speed(SPEED); await map(15000);
+      await choose(0); await speed(1); await key('w');
+      try {
+        await waitUntil(driver, async () => !!(await read()).walk.body, 'Personal walk never began');
+        await tapKey('Escape'); await speed(SPEED); await map(15000);
+        assert.equal((await read()).walk.hand, 0, 'Map return retained a held walking input');
+      } finally { await key('w', 'keyUp'); }
+      await choose(1);
+    }],
+    ['map recovery during the Vertigo fall', async () => {
+      await prepare(3); await speed(1);
+      await click('.room-step.is-on');
+      await waitUntil(driver, async () => (await read()).walk.move?.kind === 'fall', 'Fall never began');
+      assert.equal(await enabled('.room-map'), true, 'The fall disabled the map escape');
+      await click('.room-map'); await speed(SPEED); await map(15000);
+      await choose(4);
     }],
     ['walk interrupt, stop, and recovery to the destination', async () => {
       await prepare(0);
