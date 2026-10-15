@@ -1,5 +1,37 @@
 # Design history
 
+### Desktop captions: quieter treatment for review
+
+*2026-10-15* · Question: can the room's writing leave more of the architecture
+visible while keeping the existing literary voice and navigation?
+
+- Default: the current 27rem caption, title size `clamp(2rem, 3.2vw, 3.1rem)`,
+  and a reserved quotation block below the heading.
+- `?wcaption=quiet`: a 25rem caption, title size
+  `clamp(1.65rem, 2.2vw, 2.05rem)`, 1rem subtitle, and a smaller shadow backing.
+  Name and passage alternate in the same corner, using the existing phone
+  timing: first passage after 4.5 seconds, 12 seconds between passages, and
+  5 seconds after stopping. Passages recede during walking. The kicker and
+  subtitle recede after the introduction. The phone layout is unchanged.
+
+Selection is pending the user's screenshot review. The comparison commit
+must be recorded here when one treatment is selected, and the other path
+and temporary flag removed in that selection commit.
+
+Matching Echo and Pavilion views: `.ux-review/qa/2026-10-15-caption/`,
+`*-a.png` for the default and `*-b.png` for the quieter proposal.
+
+### Consistent map recovery
+
+*2026-10-15* · `553075c` keeps Map, M and Escape available during travel.
+An entry flight also offers a visible return action. Walking input is released
+before returning, so held W cannot reclaim the camera. The first walking hint
+says to hold W, the small-screen map keeps its label, the ending's idle skip
+control remains legible, and an unavailable loading entry cannot take focus.
+The nine-scenario smoke run, including entry/walk/climb/fall recovery and room
+re-entry, passed; evidence is in
+`.ux-review/navigation/2026-10-15-map-recovery-after/`.
+
 ### Door, Echo and Vestibule: lamp-lit gilt cornices
 
 *2026-10-14* · The continuous bright cornice line read as LED tape. Removed

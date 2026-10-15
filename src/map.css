@@ -2266,6 +2266,72 @@
   transition: opacity calc(var(--t-slow) * 2) var(--leave);
 }
 
+/* A compact desktop caption shares the phone's alternating name and passage.
+   The passage occupies the same corner, with its own shade only while shown,
+   instead of reserving a tall block below the room's name. */
+.entry-map[data-caption='quiet'] .room-plate {
+  width: min(25rem, 100%);
+}
+
+.entry-map[data-caption='quiet'] .room-plate::before {
+  inset: -1rem -3rem -2.2rem -2.5rem;
+}
+
+.entry-map[data-caption='quiet'] .room-title {
+  font-size: clamp(1.65rem, 2.2vw, 2.05rem);
+}
+
+.entry-map[data-caption='quiet'] .room-sub {
+  font-size: 1rem;
+}
+
+.entry-map[data-caption='quiet'] .room-voice {
+  position: absolute;
+  right: 0;
+  bottom: 0.2rem;
+  left: 0.2rem;
+  display: block;
+  min-height: 0;
+  margin: 0;
+  pointer-events: none;
+}
+
+.entry-map[data-caption='quiet'] .room-voice-line {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  isolation: isolate;
+}
+
+.entry-map[data-caption='quiet'] .room-voice-line::after {
+  content: '';
+  position: absolute;
+  inset: -0.7rem -0.5rem -0.4rem;
+  z-index: -1;
+  border-radius: 1.2rem;
+  background: var(--shade-mid);
+  box-shadow: 0 0 1.5rem 1.1rem var(--shade-mid);
+}
+
+.entry-map[data-caption='quiet'] .room-plate :is(.room-kicker, .room-title, .room-sub) {
+  transition: opacity var(--t-slow) var(--arrive) var(--t);
+}
+
+.entry-map[data-caption='quiet'] .room-plate.is-voiced :is(.room-kicker, .room-title, .room-sub) {
+  opacity: 0;
+  transition: opacity var(--t) var(--leave);
+}
+
+.entry-map[data-caption='quiet'] .room-plate.is-sunk :is(.room-kicker, .room-sub) {
+  opacity: 0;
+  transition: opacity var(--t-slow) var(--leave);
+}
+
+.entry-map[data-caption='quiet'] .room-hud.is-moving .room-voice {
+  opacity: 0;
+}
+
 /* --- Reduced motion ------------------------------------------------------------
    Nothing here travels, pulses or arrives a word at a time: the map does not
    zoom into the room it leaves for, the HUD fades in where it stands, a room's

@@ -225,6 +225,8 @@ const hexAt = ([x, y], r) => [-90, -30, 30, 90, 150, 210]
 const HELD_KEYS = { ArrowLeft: 'left', a: 'left', A: 'left', ArrowRight: 'right', d: 'right', D: 'right', ArrowUp: 'up', ArrowDown: 'down' };
 const STEP_KEYS = { w: 1, W: 1, s: -1, S: -1 };
 const TALL_QUERY = '(max-aspect-ratio: 1/1)';
+const QUIET_CAPTION = typeof window !== 'undefined'
+  && new URLSearchParams(window.location.search).get('wcaption') === 'quiet';
 // The tab's name on the map; in a room it is the room's, before this.
 const PIECE_TITLE = typeof document !== 'undefined' ? document.title : '';
 
@@ -233,6 +235,7 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
   const [tall, setTall] = useState(
     () => typeof window !== 'undefined' && window.matchMedia(TALL_QUERY).matches,
   );
+  const quietDesktop = QUIET_CAPTION && !tall;
   useEffect(() => {
     const mq = window.matchMedia(TALL_QUERY);
     const onChange = (e) => setTall(e.matches);
@@ -1169,7 +1172,9 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
   // where a thumb rests (`thumb`: world/phoneFix7.js, 2); on a wide touch
   // screen, under the hint.
   const thumb = COARSE && tall && !phone7Old(2);
-  const paged = tall && !phone7Old(3);
+  const paged = quietDesktop || (tall && !phone7Old(3));
+  const captionSunk = (quietDesktop && afoot)
+    || (!headUp && (quietDesktop || (tall && !phone7Old(5))));
   const holdButton = COARSE && (
     <button
       type="button"
@@ -1206,6 +1211,7 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
       data-hud-old={HUD_OLD || undefined}
       data-sub={SUB || undefined}
       data-phone-old={PHONE_OLD || undefined}
+      data-caption={quietDesktop ? 'quiet' : undefined}
       data-endin={(landing && ENDIN) || undefined}
       style={{ '--zoom-origin': origin, '--hud-h': `${hudHeight}px` }}
     >
@@ -1347,7 +1353,7 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
         <div ref={hudRef} data-room={NODES[place].slug} className={`room-hud${isGarden(place) ? ' is-garden' : ''}${moving ? ' is-moving' : ''}${finale !== null ? ` is-finale is-finale-${finalePhase ?? 'walk'}` : ''}`}>
           <section
             ref={plateRef}
-            className={`room-plate${paged && voiced ? ' is-voiced' : ''}${tall && !phone7Old(5) && !headUp ? ' is-sunk' : ''}`}
+            className={`room-plate${paged && voiced ? ' is-voiced' : ''}${captionSunk ? ' is-sunk' : ''}`}
             aria-live="polite"
             aria-labelledby="room-title"
             onClick={tall ? turnCaption : undefined}
