@@ -4,7 +4,7 @@
 // darkens the filter and leans on the drones, so the deep chapters *sound*
 // deeper. Crossing into the garden opens the air back up: a band-passed hush
 // of leaves gusts in while the stone drones recede. Everything stays very
-// quiet: this is atmosphere, not soundtrack.
+// quiet. The Pavilion's qin has its own close, woody resonance and score.
 //
 // It was the plate tour's, and is the world's now (worldSound.js drives it):
 // the same air and the same root for each room, and three things the world
@@ -74,7 +74,7 @@ function brownNoiseBuffer(ctx) {
 // where leaf-hiss lives. Same loop taper; the brief dip every eight seconds
 // reads as the wind drawing breath.
 // ── The room ─────────────────────────────────────────────────────────────────
-// What a footfall (and the qin) is heard IN: how much of it comes back from
+// What a footfall is heard IN: how much of it comes back from
 // far walls (`hall`, a long dark tail), how much from near ones (`room`, a
 // short one), how much is said again a third of a second later (`slap` — the
 // Echo's flights answering each other), and how far the air and the drone are
@@ -115,9 +115,10 @@ function tailBuffer(ctx, seconds, dark) {
 // silk under a fingertip, not wire under a pick — going round and losing a
 // little of its top each time. `rate` is what to play it at for the pitch to
 // be exact (the period is a whole number of samples).
-function pluckBuffer(ctx, freq, seconds = 4.5) {
+function pluckBuffer(ctx, freq, seconds = 7) {
   const sr = ctx.sampleRate;
-  const period = Math.max(2, Math.round(sr / freq));
+  // Averaging adds half a sample to the string's round trip.
+  const period = Math.max(2, Math.round(sr / freq - 0.5));
   const length = Math.floor(sr * seconds);
   const buffer = ctx.createBuffer(1, length, sr);
   const data = buffer.getChannelData(0);
@@ -125,14 +126,21 @@ function pluckBuffer(ctx, freq, seconds = 4.5) {
   for (let pass = 0; pass < 3; pass++) {
     for (let i = 1; i < period; i++) data[i] = 0.5 * (data[i] + data[i - 1]);
   }
-  // (the note rings about four seconds, whatever its pitch)
-  const keep = Math.exp(Math.log(0.001) / (freq * 4));
-  for (let i = period + 1; i < length; i++) data[i] = 0.5 * (data[i - period] + data[i - period - 1]) * keep;
+  let mean = 0;
+  for (let i = 0; i < period; i++) mean += data[i] / period;
+  for (let i = 0; i < period; i++) data[i] -= mean;
+  const keep = Math.exp(Math.log(0.001) / (freq * 5.5));
+  let previous = data[period - 1];
+  for (let i = period; i < length; i++) {
+    const delayed = data[i - period];
+    data[i] = 0.5 * (delayed + previous) * keep;
+    previous = delayed;
+  }
   let peak = 0;
   for (let i = 0; i < length; i++) peak = Math.max(peak, Math.abs(data[i]));
-  const fade = Math.floor(sr * 0.3);
-  for (let i = 0; i < length; i++) data[i] *= (1 / (peak || 1)) * Math.min(1, (length - i) / fade);
-  return { buffer, rate: (freq * period) / sr };
+  const fade = Math.floor(sr * 0.5), attack = Math.floor(sr * 0.003);
+  for (let i = 0; i < length; i++) data[i] *= (1 / (peak || 1)) * Math.min(1, i / attack, (length - i) / fade);
+  return { buffer, rate: (freq * (period + 0.5)) / sr };
 }
 
 function whiteNoiseBuffer(ctx) {
@@ -163,6 +171,9 @@ export default class AmbientSound {
     this.quietNow = 0;
     this.room = null;
     this.plucks = new Map(); // the qin's strings, each made when first played
+    this.qinVoices = new Set();
+    this.qinPresence = 0;
+    this.qinBearing = 0;
   }
 
   // Must be called from a user gesture (the entry-veil click).
@@ -197,7 +208,7 @@ export default class AmbientSound {
     this.master.gain.linearRampToValueAtTime(this.muted ? 0 : 1, now + 5);
     this.master.connect(this.dip);
 
-    // The room (setRoom). Footfalls and the qin are said into `stepBus`, which
+    // The room (setRoom). Footfalls are said into `stepBus`, which
     // is heard plain and is also sent to two tails and, in the Echo, round a
     // delay that says it again, darker and fainter each time.
     this.stepBus = ctx.createGain();
@@ -224,6 +235,31 @@ export default class AmbientSound {
     this.stepBus.connect(this.slapSend).connect(slap).connect(slapDark);
     slapDark.connect(slapAgain).connect(slap);
     slapDark.connect(this.master);
+
+    // The soundboard gives every string the same wooden body. Its short,
+    // dark stereo tail belongs to the instrument, independent of footsteps.
+    this.qinBus = ctx.createGain();
+    const body = ctx.createBiquadFilter();
+    body.type = 'peaking';
+    body.frequency.value = 190;
+    body.Q.value = 0.8;
+    body.gain.value = 3;
+    const wood = ctx.createBiquadFilter();
+    wood.type = 'peaking';
+    wood.frequency.value = 510;
+    wood.Q.value = 1.1;
+    wood.gain.value = 1.8;
+    this.qinPan = ctx.createStereoPanner ? ctx.createStereoPanner() : ctx.createGain();
+    this.qinGain = ctx.createGain();
+    this.qinGain.gain.value = 0;
+    this.qinBus.connect(body).connect(wood).connect(this.qinPan);
+    const bloom = ctx.createConvolver();
+    bloom.buffer = tailBuffer(ctx, 1.8, 0.12);
+    const bloomGain = ctx.createGain();
+    bloomGain.gain.value = 0.14;
+    wood.connect(bloom).connect(bloomGain).connect(this.qinPan);
+    this.qinPan.connect(this.qinGain).connect(this.master);
+    this.qinWave = ctx.createPeriodicWave(new Float32Array(4), new Float32Array([0, 1, 0.17, 0.05]));
 
     // Air: looping brown noise, filtered dark, gain slowly breathing via LFO.
     const noise = ctx.createBufferSource();
@@ -313,7 +349,7 @@ export default class AmbientSound {
     const q = this.quietNow;
     this.noiseFilter.frequency.value = (320 - d * 190 + g * 320) * (1 - q * 0.35);
     this.noiseGain.gain.value = 0.05 * (1 - q * 0.6);
-    this.droneGain.gain.value = (0.018 + d * 0.014) * (1 - g * 0.55) * (1 - q * 0.8);
+    this.droneGain.gain.value = (0.018 + d * 0.014) * (1 - g * 0.55) * (1 - q * 0.8) * (1 - this.qinPresence * 0.7);
     this.gardenGain.gain.value = g * 0.02;
     this.gustDepth.gain.value = g * 0.007;
   }
@@ -385,42 +421,99 @@ export default class AmbientSound {
     this.dip.gain.value = 0.35 + 0.65 * Math.min(Math.max(eye, 0), 1);
   }
 
-  // One note of the qin: a plucked string, soft, slid up into from just under
-  // the note as a finger does on silk (`slide`, in cents), placed a little to
-  // one side (`pan`), `at` seconds from now.
-  pluck(freq, { at = 0, level = 0.02, pan = 0, slide = 0 } = {}) {
+  // Distance and direction belong to the whole instrument, including notes
+  // already ringing. A soft approach also leaves room in the drone below it.
+  setQinPresence(level, pan, dt) {
+    if (!this.ctx) return;
+    const blend = 1 - Math.exp(-dt / 0.45);
+    this.qinPresence += (level - this.qinPresence) * blend;
+    this.qinBearing += (pan - this.qinBearing) * blend;
+    this.qinGain.gain.value = this.qinPresence;
+    if (this.qinPan.pan) this.qinPan.pan.value = this.qinBearing;
+  }
+
+  // Stop queued notes as well as ringing ones, without cutting their waveform.
+  stopQin() {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    for (const { source, gain } of this.qinVoices) {
+      const held = gain.gain.value;
+      gain.gain.cancelScheduledValues(t);
+      gain.gain.setValueAtTime(held, t);
+      gain.gain.linearRampToValueAtTime(0, t + 0.2);
+      source.stop(t + 0.22);
+    }
+  }
+
+  qinVoice(source, gain, nodes) {
+    const voice = { source, gain };
+    this.qinVoices.add(voice);
+    source.onended = () => {
+      for (const node of [source, gain, ...nodes]) node.disconnect();
+      this.qinVoices.delete(voice);
+    };
+  }
+
+  // Soft silk attacks, occasional finger slides and lightly touched harmonics.
+  pluck(freq, { at = 0, level = 0.02, slide = 0, harmonic = false } = {}) {
     if (!this.ctx || this.muted) {
       return;
     }
     const ctx = this.ctx;
     const t = ctx.currentTime + at;
-    let string = this.plucks.get(freq);
+    const stringFreq = harmonic ? freq / 2 : freq;
+    let string = this.plucks.get(stringFreq);
     if (!string) {
-      string = pluckBuffer(ctx, freq);
-      this.plucks.set(freq, string);
+      string = pluckBuffer(ctx, stringFreq);
+      this.plucks.set(stringFreq, string);
     }
     const src = ctx.createBufferSource();
     src.buffer = string.buffer;
     if (slide) {
       src.playbackRate.setValueAtTime(string.rate * 2 ** (-slide / 1200), t);
-      src.playbackRate.exponentialRampToValueAtTime(string.rate, t + 0.22);
+      src.playbackRate.exponentialRampToValueAtTime(string.rate, t + 0.38);
     } else {
       src.playbackRate.setValueAtTime(string.rate, t);
     }
     const body = ctx.createBiquadFilter();
-    body.type = 'lowpass';
-    body.frequency.value = 1500 + level * 30000;
+    body.type = harmonic ? 'bandpass' : 'lowpass';
+    body.frequency.value = harmonic ? freq : 1700 + level * 20000;
+    body.Q.value = harmonic ? 8 : 0.6;
+    if (harmonic) level *= 2;
     const g = ctx.createGain();
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(Math.max(level, 0.0002), t + 0.006);
-    const side = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
-    if (side) {
-      side.pan.value = pan;
-      side.connect(this.stepBus);
-    }
-    src.connect(body).connect(g).connect(side ?? this.stepBus);
+    g.gain.exponentialRampToValueAtTime(Math.max(level, 0.0002), t + 0.009);
+    const end = t + string.buffer.duration + 0.1;
+    g.gain.setValueAtTime(Math.max(level, 0.0002), end - 0.6);
+    g.gain.linearRampToValueAtTime(0, end);
+    src.connect(body).connect(g).connect(this.qinBus);
+    this.qinVoice(src, g, [body]);
     src.start(t);
-    src.stop(t + 4.6);
+    src.stop(end);
+  }
+
+  // A quiet halo of sympathetic strings. The voicings change beneath the
+  // melody; slow attacks leave the player's individual plucks in the foreground.
+  resonate(frequencies, { at = 0, duration = 11.5, level = 0.005 } = {}) {
+    if (!this.ctx || this.muted) return;
+    const ctx = this.ctx, t = ctx.currentTime + at;
+    frequencies.forEach((freq, i) => {
+      const source = ctx.createOscillator();
+      source.setPeriodicWave(this.qinWave);
+      source.frequency.value = freq;
+      source.detune.setValueAtTime(i % 2 ? 2 : -2, t);
+      source.detune.linearRampToValueAtTime(i % 2 ? -1 : 1, t + duration);
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(level * (1 - i * 0.18), t + 2.8 + i * 0.2);
+      gain.gain.setTargetAtTime(0, t + 5.5, 1.5);
+      gain.gain.setValueAtTime(level * (1 - i * 0.18) * Math.exp(-(duration - 5.75) / 1.5), t + duration - 0.25);
+      gain.gain.linearRampToValueAtTime(0, t + duration);
+      source.connect(gain).connect(this.qinBus);
+      this.qinVoice(source, gain, []);
+      source.start(t);
+      source.stop(t + duration + 0.05);
+    });
   }
 
   // (DEV: how loud it is at this instant, peak and RMS in dB below full scale —
@@ -722,6 +815,8 @@ export default class AmbientSound {
     if (this.ctx) {
       this.ctx.close();
       this.ctx = null;
+      this.qinVoices.clear();
+      this.plucks.clear();
     }
   }
 

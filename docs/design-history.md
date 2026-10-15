@@ -1,5 +1,22 @@
 # Design history
 
+### Pavilion: a composed qin passage
+
+*2026-10-15* · The user found the sound bland and generic. The first musical
+revision concentrates on the Pavilion: a minute of authored phrases in E minor,
+with the question E–G–F♯–B returning over E, C, G and D voicings before settling
+on E. Five phrases leave rests between them and ten seconds after the last
+attack before the 68-second cycle repeats.
+
+The instrument has a longer silk-string decay, tuned for the string filter's
+half-sample delay, a woody soundboard, occasional slides and isolated harmonics.
+Quiet sympathetic tones support the melody; the room drone recedes nearby.
+Distance and bearing follow the listener throughout a ringing note. The sound
+source uses the current Pavilion coordinates from gardenPlan rather than the
+older position at [1305, 110]. Leaving, muting or suspending cancels queued
+notes; returning begins the passage again. Missed notes after a drawing stall
+are skipped rather than played together.
+
 ### Vertigo: a direct walking approach from the corridor
 
 *2026-10-15* · The curved rail still left a sideways corner in the walking

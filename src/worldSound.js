@@ -23,6 +23,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import AmbientSound from './ambientSound';
 import { NODES } from './catalogue';
+import { PAVILION } from './world/gardenPlan';
+import { PavilionMusic } from './pavilionMusic';
 
 const Q = typeof location !== 'undefined' ? new URLSearchParams(location.search) : new URLSearchParams();
 export const SOUND_OFF = Q.get('wsound') === 'off'
@@ -43,11 +45,8 @@ const GROUND = {
   water: null,
 };
 
-// The qin: where it lies (world/pavilionBridge.js, PAVILION), and its notes —
-// E, G, A, B, D over the Pavilion's B, all of the piece's own A minor.
-const QIN_AT = [1305, 110];
+// The qin carries across the pond from the Pavilion itself.
 const QIN_NEAR = 120;
-const QIN_NOTES = [123.47, 146.83, 164.81, 196.0, 220.0, 246.94, 293.66, 329.63];
 
 export function useWorldSound({ on, place, target, finale, finalePhase, feetRef }) {
   const [muted, setMuted] = useState(() => {
@@ -84,7 +83,7 @@ export function useWorldSound({ on, place, target, finale, finalePhase, feetRef 
     if (!on || SOUND_OFF) return undefined;
     let raf = 0, last = performance.now();
     let station = null, was = null, walked = 0, said = {};
-    let qinNext = 0, qinAt = 2;
+    const music = new PavilionMusic();
     const tick = (t) => {
       raf = requestAnimationFrame(tick);
       const dt = Math.min(0.1, (t - last) / 1000);
@@ -132,30 +131,17 @@ export function useWorldSound({ on, place, target, finale, finalePhase, feetRef 
       }
       was = afoot ? { x: f.x, y: f.y, z: f.z } : null;
 
-      // The qin: in the garden, a phrase of one to four notes, then a long
-      // rest; as loud as the reader is near, on a wind that comes and goes.
+      // The composed passage remains in one place while the listener moves.
+      // Its gain and bearing follow the listener even during a ringing note.
+      let level = 0, pan = 0;
       if (station !== null && station > LIBRARY_LAST + 0.5 && f && f.eye > 0.98 && s.finale === null) {
-        const tx = QIN_AT[0] - f.x, tz = QIN_AT[1] - f.z, far = Math.hypot(tx, tz);
+        const tx = PAVILION[0] - f.x, tz = PAVILION[1] - f.z, far = Math.hypot(tx, tz);
         const near = 1 / (1 + (far / QIN_NEAR) ** 2);
-        const wind = 0.6 + 0.4 * Math.sin(t * 0.00021) * Math.sin(t * 0.000083 + 1.7);
-        const level = near * wind;
-        if (t > qinNext && level > 0.04) {
-          const pan = Math.max(-0.7, Math.min(0.7, ((f.fx * tz - f.fz * tx) / (far || 1)) * 0.7));
-          const notes = 1 + Math.floor(Math.random() * 4);
-          let at = 0;
-          for (let k = 0; k < notes; k++) {
-            qinAt = Math.max(0, Math.min(QIN_NOTES.length - 1, qinAt + Math.round((Math.random() - 0.5) * 4)));
-            engine.pluck(QIN_NOTES[qinAt], {
-              at,
-              level: 0.03 * level * (0.7 + Math.random() * 0.3),
-              pan,
-              slide: Math.random() < 0.45 ? 120 + Math.random() * 90 : 0,
-            });
-            at += 0.42 + Math.random() * 1.1;
-          }
-          qinNext = t + at * 1000 + 3500 + Math.random() * 7500;
-        }
+        const wind = 0.85 + 0.15 * Math.sin(t * 0.00021) * Math.sin(t * 0.000083 + 1.7);
+        level = near * wind;
+        pan = Math.max(-0.7, Math.min(0.7, ((f.fx * tz - f.fz * tx) / (far || 1)) * 0.7));
       }
+      music.update(engine, { level, pan, dt });
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
