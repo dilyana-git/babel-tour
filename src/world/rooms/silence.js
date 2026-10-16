@@ -38,7 +38,10 @@ export function buildSilence(ctx) {
       const f = flightProfile({ from: 9, to: 18 });
       LB.step.add(profileGeo(f.pts, 13, c, ang));
       const inner = ang === 240 ? 1 : -1;
-      flightDress(c, ang, f, 6.9, { ends: [false, true], gap: (side) => [-1, side === inner ? INNER : OUTER], stone: LB.capShade, worn: false, keyThrough: !TERRACE });
+      // The flanks are one face of the flights' own stone, as the Echo's are:
+      // dressed in the dark cap stone, the string, corona, ring course and kerb
+      // each stood proud of the next as a flat band of its own.
+      flightDress(c, ang, f, 6.9, { ends: [false, true], gap: (side) => [-1, side === inner ? INNER : OUTER], stone: LB.capShade, worn: false, keyThrough: !TERRACE, plane: true, face: LB.flank });
       // The draws of the rubble that broken flight ends once shed onto the
       // floor are still made, because the world's random stream is shared and
       // everything built after this would otherwise be shuffled.
