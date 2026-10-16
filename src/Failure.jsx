@@ -1,3 +1,5 @@
+import { useEffect, useState } from 'react';
+import './map.css';
 import './failure.css';
 
 // ── When the Library cannot be drawn ─────────────────────────────────────────
@@ -5,21 +7,33 @@ import './failure.css';
 // a machine that could not was shown a black rectangle with a working HUD over
 // it, the piece silently insisting that everything was fine.
 //
-// It is fine for this to be plain. What it must not be is blank.
+// It is fine for this to be plain. What it must not be is blank. It is the
+// map's sheet with nothing drawn on it: the map's title block, top left, and
+// the fault in the caption's place under it, in the caption's voice.
 
-// A still of the piece: the Vertigo from its stand, which is also the share
-// card (index.html). This page exists precisely because there is no live room
-// to show, and a reader who cannot be shown the Library is at least shown the
-// picture of it. (It asked for the plate tour's overture poster, which went
-// with the plates: the page stood on its bare ground.)
-const POSTER = '/og-card.jpg';
+// The map's portrait break (EntryMap.jsx, TALL_QUERY), where the title is
+// centred over the page and the caption stacks under it.
+const TALL_QUERY = '(max-aspect-ratio: 1/1)';
+
+function useTall() {
+  const [tall, setTall] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia(TALL_QUERY).matches,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia(TALL_QUERY);
+    const onChange = (e) => setTall(e.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+  return tall;
+}
 
 const FAULTS = {
   // No WebGL2. Checked BEFORE the canvas is mounted, so this is the one failure
-  // the reader meets instead of the veil rather than after it.
+  // the reader meets instead of the map rather than after it.
   webgl: {
     line: 'This browser cannot draw the Library.',
-    detail: 'The diorama is built in WebGL 2. Try a current Chrome, Edge, '
+    detail: 'The Library is drawn in WebGL 2. Try a current Chrome, Edge, '
       + 'Firefox or Safari — and if you are already in one, check that hardware '
       + 'acceleration has not been switched off.',
     retry: null,
@@ -30,7 +44,7 @@ const FAULTS = {
     line: 'The Library could not be assembled.',
     detail: 'Something in the scene failed to build. The console holds what it '
       + 'was.',
-    retry: 'try again',
+    retry: 'Try again',
   },
   // The GPU took the context back and never gave it to us. Common enough on a
   // laptop that sleeps, switches graphics, or is simply asked for more than it
@@ -39,38 +53,39 @@ const FAULTS = {
     line: 'The light went out.',
     detail: 'The browser reclaimed the graphics context and did not hand it '
       + 'back. Reloading rebuilds the Library.',
-    retry: 'rebuild',
+    retry: 'Rebuild',
   },
 };
 
 export function Failure({ kind, onRetry }) {
   const fault = FAULTS[kind] ?? FAULTS.crash;
+  const tall = useTall();
   return (
-    <div className="entry-veil is-failure" role="alert">
-      <div className="entry-film" aria-hidden="true">
-        {/* Under the poster, in case it is one more thing this browser cannot
-            fetch — the page must never be readable text on nothing. */}
-        <div className="entry-film-ground" />
-        <img className="entry-film-still" src={POSTER} alt="" />
-        <div className="entry-film-scrim" />
+    <section className={`entry-map is-failure${tall ? ' is-tall' : ''}`} role="alert">
+      <div className="map-head">
+        <header className="map-title">
+          <span className="map-title-rule" aria-hidden="true" />
+          <h1 className="map-title-name" lang="es">La Biblioteca de Babel</h1>
+          <span className="map-title-rule" aria-hidden="true" />
+          <div className="map-title-line">
+            <span className="map-title-eyebrow">Jorge Luis Borges · 1941</span>
+          </div>
+        </header>
+        <div className="map-card">
+          <p className="map-card-summary">{fault.line}</p>
+          <p className="map-card-summary failure-detail">{fault.detail}</p>
+          {fault.retry && (
+            <button
+              type="button"
+              className="map-enter"
+              onClick={onRetry ?? (() => window.location.reload())}
+            >
+              {fault.retry}
+            </button>
+          )}
+        </div>
       </div>
-      <div className="entry-eyebrow">J. L. Borges — 1941</div>
-      <h1 className="entry-title">La Biblioteca de Babel</h1>
-      <div className="entry-rule" />
-      <div className="entry-fault">
-        <p className="entry-fault-line">{fault.line}</p>
-        <p className="entry-fault-detail">{fault.detail}</p>
-      </div>
-      {fault.retry && (
-        <button
-          type="button"
-          className="entry-restart"
-          onClick={onRetry ?? (() => window.location.reload())}
-        >
-          {fault.retry}
-        </button>
-      )}
-    </div>
+    </section>
   );
 }
 
