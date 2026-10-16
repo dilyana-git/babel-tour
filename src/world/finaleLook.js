@@ -30,6 +30,13 @@ export const FLOOD = {
 // to `rest` of themselves — which is what of them is left over the map.
 export const RISE = { fade: [qn('wfrise0', 2.2), qn('wfrise1', 7.5)], rest: qn('wfrest', 0) };
 
+// The court's paving from above (finale.js): `stop` how much of its light is
+// taken off (a half: a stop), reached as the eye goes from `high`[0] to
+// `high`[1] above the ground — none of it where the reader stands, all of
+// it straight over the heart; `r` how far out from the heart (the kerb is
+// 35.2).
+export const PAVING = { stop: qn('wfpave', 0.5), high: [28, 70], r: 35.4 };
+
 // The step in. `to`: how far from the heart, along the way in, the reader
 // comes to — a little short of the gate's line (45), so its jamb stays in the
 // frame as a wing; `aside`: no further off that line than this, or the reader
@@ -65,7 +72,10 @@ export const STEP = { to: qn('wfstep', 40), aside: 16, from: 1.4, till: 5.0, bob
 // that such a light finds, and the rest stays in the dark. `cloth`: the same
 // for the inside of the cowl — it is lit beside the jaw and under it, and not
 // up beside the brow or behind the head (lit there, it drew the head on
-// itself as a black egg), `wool` times over: the dye is dark. `weave`: the wool's ribs, how many to a unit and how deep; `fleck`
+// itself as a black egg), `wool` times over: the dye is dark. `weave`: the
+// wool's twill, how many ribs to a unit and how deep (a unit is 9.4 cm: a
+// coarse homespun, so the rib can be told from the face-to-face distance,
+// where a finer one was smoothed to clay); `fleck`
 // how uneven its dye; `matt` how much of the smooth shine is taken off it.
 export const HOOD = {
   fold: qn('wfhfold', 2.4),
@@ -73,7 +83,23 @@ export const HOOD = {
   lining: 0.62,
   fray: [0.03, 0.11], threads: 64,
   lamp: { at: [0, -2.1, 1.35], k: qn('wfhlamp', 4.5), half: 2.2, color: [1.0, 0.7, 0.4], face: qn('wfhface', 0.5), reach: [0.6, 1.2], cloth: [0.85, 1.5], wool: qn('wfhwool', 1.7) },
-  weave: [qn('wfhweave', 26), qn('wfhrib', 0.5)], fleck: qn('wfhfleck', 0.2), matt: qn('wfhmatt', 0.92),
+  weave: [qn('wfhweave', 9), qn('wfhrib', 1)], fleck: qn('wfhfleck', 0.2), matt: qn('wfhmatt', 0.92),
+};
+
+// The body under the hood (readers.js, `close`). `slim`: how much narrower
+// the robe is from the hips to the shoulders, so the arms hang clear of it.
+// `cape`: the short cape's outline, [across, up, front to back] from its
+// hem to the neck — out from the neck at a shallow slope, round the
+// shoulder and down over the top of the arm. `sleeve`: shoulder, elbow,
+// wrist and the end of the cuff, [out, up, forward]; `r`: its radius at the
+// shoulder, the elbow and the cuff's mouth; `hang`: how much further the
+// cuff falls in front of the arm than behind it.
+export const ARMS = {
+  slim: 0.82,
+  cape: [[3.0, 12.65, 1.85], [3.05, 13.4, 1.85], [2.95, 13.95, 1.75], [2.65, 14.22, 1.6], [2.12, 14.42, 1.42], [1.6, 14.75, 1.25], [1.2, 15.3, 1.05]],
+  sleeve: [[2.15, 13.7, 0], [2.62, 10.5, 0.2], [2.58, 8.3, 0.75], [2.5, 7.3, 0.8]],
+  r: [0.6, 0.66, 1.05],
+  hang: 0.9,
 };
 
 // (how much of the page's light the face of the one seen from the side takes: FACE, below)

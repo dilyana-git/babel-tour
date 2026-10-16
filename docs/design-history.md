@@ -31,6 +31,22 @@ path, and this document in full (`git show 0857f2a:docs/design-history.md`).
 
 ## 2026-10-16
 
+- **The others' bodies, and the court from above.** "The hood is right. The
+  body under it is a sack … no shoulders: the cloth falls from the hood to
+  the ground as one rounded mass, with the arms merged into it … the court's
+  paving is so bright it clips to white." The empty hood stays as it was. For
+  the finale's figures (`close` in readers.js; dials `ARMS` in
+  finaleLook.js): the robe ×0.82 narrower from the hips up; the mantle a short
+  cape (hem 12.65 where it was 11.55) cut with a shoulder line, out from the
+  neck at about 25° and round the shoulder at 2.95; the sleeves, unless on a
+  book, hang from under it past the body and bell at the cuff (radius 0.6 →
+  0.66 → 1.05), clear of the waist, the cuff longer in front so its dark mouth
+  faces down and back (hanging longer behind, every hand read as a black
+  mitt). The twill went from 26 ribs a unit at depth 0.5 (smoothed to clay at
+  the close-up) to 9 at 1, each rib a ridge with a groove and threads across
+  it. The paving: a multiply disc over the court (`PAVING`, finale.js) takes
+  it down a stop as the eye rises from 28 to 70 above the ground; from where
+  the reader stands it is as it was.
 - **Old paths removed.** Every `?w…=old` switch and its code went, and the
   board modules were folded into one per room or subject: `mapLook.js`
   (mapFix, 3, 4, 5, 6), `mapMotion.js` (mapFix7), `phone.js` (phoneFix, 7),

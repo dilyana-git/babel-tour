@@ -43,7 +43,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { makeRng } from './textures';
-import { HOOD, FACE } from './finaleLook';
+import { HOOD, FACE, ARMS } from './finaleLook';
 
 const clamp01 = (x) => Math.min(1, Math.max(0, x));
 const smooth = (x) => { const t = clamp01(x); return t * t * (3 - 2 * t); };
@@ -166,7 +166,7 @@ const carry = (g, to, { color, kind, shape = null, flip = false }) => {
 // way up is), colour(t, u) round it; `sag` lets the underside hang. Its rings
 // are laid round the tangent the way a right hand turns, so it faces outward
 // as built, without asking.
-const UP = new THREE.Vector3(0, 1, 0);
+const UP = new THREE.Vector3(0, 1, 0), BACK = new THREE.Vector3(0, 0, -1);
 const tube = (pts, radius, colour, { cols = 10, rows = 24, sag = null, kind = K.WOOL, up = UP } = {}) => {
   const curve = new THREE.CatmullRomCurve3(pts.map((p) => (p.isVector3 ? p.clone() : new THREE.Vector3(...p))), false, 'centripetal');
   const T = new THREE.Vector3(), N = new THREE.Vector3(), B = new THREE.Vector3();
@@ -289,19 +289,24 @@ export function readerGeometry({ seed = 1, color = ROBES[0], book = false, seate
     : 0.05 + 0.1 * Math.sin(Math.PI * clamp01((y - BELT) / 4.5)));
   const hemPh = R(0, TAU);
   const hem = (u) => 0.22 * (0.5 + 0.5 * Math.sin(3 * u + hemPh)) + 0.08 * (0.5 + 0.5 * Math.sin(7 * u));
+  // (`close`: the body narrower from the hips up, so the arms hang beside it
+  // and not in it — as wide as the cape, the robe and the sleeves were one
+  // mass; and up to the neck, or its dark collar comes out through the cape
+  // where the shoulder runs in to the hood)
+  const slim = (y) => (close ? lerp(1, ARMS.slim, smooth((y - 7) / 2.6)) : 1);
   const robeAt = (v, u) => {
     let y = v * TOP;
     y += (1 - v) ** 10 * hem(u);
     y -= 0.75 * Math.max(0, Math.sin(u)) ** 2 * smooth((y - 13.6) / 1.5);   // its neck scooped as the mantle's
     const front = 0.55 + 0.45 * (0.5 + 0.5 * Math.sin(u));  // the back hangs straighter
     const d = depth(y) * front * fold(u, y);
-    return [(rx(y) + d) * Math.cos(u) * wide, y * tall, lean(y) + (rz(y) + d * 0.9) * Math.sin(u) * wide];
+    return [(rx(y) * slim(y) + d) * Math.cos(u) * wide, y * tall, lean(y) + (rz(y) + d * 0.9) * Math.sin(u) * wide];
   };
   const robe = faceOut(sheet(res(46), res(72), robeAt, (v, u) => {
     const y = v * TOP;
     const f = fold(u, y), deep = Math.min(1, depth(y) * 2.4);
     let k = 1 - (0.5 - 0.5 * f) * deep * 0.78;                // dark in the valleys
-    k *= 1 - 0.35 * Math.exp(-(((y - 11.1) / 0.9) ** 2));      // under the mantle's hem
+    k *= 1 - 0.35 * Math.exp(-(((y - (close ? ARMS.cape[0][1] - 0.3 : 11.1)) / 0.9) ** 2));   // under the mantle's hem
     const c = base.clone().multiplyScalar(k * grain());
     c.lerp(DUST, 0.5 * clamp01(1 - y / 2.2) ** 2);             // the dust of the paths
     if (heavyWool) c.multiplyScalar(1 - 0.42 * clamp01(1 - y / 2.8));
@@ -324,14 +329,21 @@ export function readerGeometry({ seed = 1, color = ROBES[0], book = false, seate
   // drawn in round the neck)
   const gather = (u, t) => (close ? 0.05 * Math.sin(13 * u + mPh) * smooth((t - 0.3) / 0.5) : 0);
   const mDeep = heavyWool ? 2.2 : close ? 1 + 0.25 * HOOD.fold : 1;
-  const mantle = faceOut(sheet(18, res(close ? 128 : 64), (v, u, i) => {
+  // (`close`: a shorter cape with shoulders to it — out from the neck at a
+  // shallow slope, round the shoulder and down over the top of the arm.
+  // Cut as a cone from the neck to a hem below the elbows, it made the body
+  // under the hood one rounded mass. ARMS.cape, finaleLook.js.)
+  const cape = close ? [0, 1, 2].map((c) => profile(ARMS.cape.map((p, k) => [k / (ARMS.cape.length - 1), p[c]]))) : null;
+  const mRows = close ? 26 : 18;
+  const mantle = faceOut(sheet(mRows, res(close ? 128 : 64), (v, u, i) => {
     // the first ring is the hem turned under, so the cape has an edge to it
-    const t = i === 0 ? 0 : (i - 1) / 16;
-    const y = lerp(mHem(u), 15.3, t) - scoop(u, t) + (i === 0 ? 0.08 : 0);
+    const t = i === 0 ? 0 : (i - 1) / (mRows - 2);
+    const y = (close ? cape[1](t) + (mHem(u) - 11.55) * (1 - t) : lerp(mHem(u), 15.3, t)) - scoop(u, t) + (i === 0 ? 0.08 : 0);
     const d = (0.07 + 0.17 * (1 - t) ** 1.5) * mFold(u) * mDeep + gather(u, t) - (i === 0 ? 0.16 : 0);
-    return [(mx(t) + d) * Math.cos(u) * wide, y * tall, lean(y) + (mz(t) + d) * Math.sin(u) * wide];
+    const x = close ? cape[0](t) : mx(t), z = close ? cape[2](t) : mz(t);
+    return [(x + d) * Math.cos(u) * wide, y * tall, lean(y) + (z + d) * Math.sin(u) * wide];
   }, (v, u, i) => {
-    const t = i === 0 ? 0 : (i - 1) / 16;
+    const t = i === 0 ? 0 : (i - 1) / (mRows - 2);
     const k = (i === 0 ? 0.6 : 1) * (0.72 + 0.28 * (0.5 + 0.5 * mFold(u))) * (1 - 0.2 * smooth((t - 0.8) / 0.2)) * (1 + 3.2 * gather(u, t));
     // (the collar, inside the hood: seen down its opening under the chin, lit,
     // it was a shelf)
@@ -614,11 +626,32 @@ export function readerGeometry({ seed = 1, color = ROBES[0], book = false, seate
   // (Slimmer over the arm than it first was — round and full the whole way
   // they read as bolsters — and the cloth of the cuff hanging well below the
   // wrist, as a wide sleeve's does.)
+  // (`close` and the hands not on a book: the arms hang, each sleeve falling
+  // from the shoulder under the cape past the side of the body, a little
+  // forward and clear of it at the waist, belling at the cuff, which hangs
+  // longer in front than behind and keeps the hand in its dark, the mouth
+  // turned down and back, out of sight (hanging longer behind, it turned its
+  // dark mouth to the front, and every hand was a black mitt). Folded across
+  // the belt, the two sleeves were lost in the front of the robe.)
+  const at = ([x, y, z], s) => [s * x * wide, y * tall, z + lean(y)];
+  const hang = close && !book && !seated;
   for (const s of [-1, 1]) {
-    let shoulder = [s * 1.72 * wide, 13.55 * tall, 0.05 + lean(13.55)];
+    let shoulder = close ? at(ARMS.sleeve[0], s) : [s * 1.72 * wide, 13.55 * tall, 0.05 + lean(13.55)];
     let elbow = book ? [s * 2.15 * wide, 11.2 * tall, 0.55 + lean(11.2)] : [s * 2.25 * wide, 11.2 * tall, 0.5 + lean(11.2)];
     // sitting, the forearms come down onto the thighs, the hands at the book
     if (seated) { shoulder = sit(shoulder); elbow = sit([s * 2.3 * wide, 10.9 * tall, 0.8 + lean(10.9)]); }
+    if (hang) {
+      const [, el, wr, cu] = ARMS.sleeve.map((p) => at(p, s));
+      const [r0, r1, r2] = ARMS.r;
+      const radius = (t) => (t < 0.45 ? lerp(r0, r1, t / 0.45) : lerp(r1, r2, smooth((t - 0.5) / 0.5))) * (t > 0.96 ? Math.max(0, 1 - (t - 0.96) / 0.04) : 1);
+      parts.push(tube([shoulder, el, wr, cu], radius, (t, u) => {
+        if (t > 0.965) return [...tone(base, 0.3), 1];
+        // (the inside of the arm, toward the body, in its shade)
+        const out = 0.5 + 0.5 * Math.cos(u) * s;
+        return tone(base, (0.62 + 0.38 * out) * (0.86 + 0.14 * Math.sin(4 * u + s + t * 6)));
+      }, { cols: res(26), rows: res(32), up: BACK, sag: (t) => ARMS.hang * smooth((t - 0.55) / 0.45) ** 1.3 }));
+      continue;
+    }
     let cuff, cuffR = 0.9, arm = [];
     if (wrists[s]) {
       const W = wrists[s], dir = W.clone().sub(new THREE.Vector3(...elbow)).normalize();
@@ -655,7 +688,7 @@ export function readerGeometry({ seed = 1, color = ROBES[0], book = false, seate
   const loop = Array.from({ length: 49 }, (_, k) => {
     const u = (k / 48) * TAU;
     const d = depth(beltY) * fold(u, beltY) + 0.1;
-    return [(rx(beltY) + d) * Math.cos(u) * wide, beltY * tall, lean(beltY) + (rz(beltY) + d) * Math.sin(u) * wide];
+    return [(rx(beltY) * slim(beltY) + d) * Math.cos(u) * wide, beltY * tall, lean(beltY) + (rz(beltY) + d) * Math.sin(u) * wide];
   });
   const hemp = (t, u) => tone(HEMP, 0.75 + 0.25 * Math.sin(u * 3 + t * 40));
   parts.push(tube(seated ? loop.map(sit) : loop, () => 0.12, hemp, { cols: 8, rows: res(60), kind: K.HEMP }));
@@ -900,10 +933,15 @@ export const clothShader = (sh, u) => {
       // — flecked, and in slow patches.
       if (uWool.x > 0.0 && vKind < 1.5) {
         float wFw = length(fwidth(vCloth));
-        float wRib = sin(dot(vCloth, vec3(0.64, 0.64, 0.43)) * uWool.x * 6.2831853) * (1.0 - smoothstep(0.2, 0.5, wFw * uWool.x));
+        // (each rib a rounded ridge with a dark groove between it and the
+        // next, and the threads that cross it finer still: a sine's even
+        // stripes read as corduroy)
+        float wPh = dot(vCloth, vec3(0.64, 0.64, 0.43)) * uWool.x;
+        float wRib = (pow(abs(sin(wPh * 3.1415927)), 0.6) - 0.7) * (1.0 - smoothstep(0.2, 0.5, wFw * uWool.x));
+        float wThr = sin(dot(vCloth, vec3(-0.69, 0.69, 0.22)) * uWool.x * 25.1327412) * (1.0 - smoothstep(0.2, 0.5, wFw * uWool.x * 4.0));
         float wFleck = clothNoise(vCloth * 12.0 + 5.0).x * 0.55 + clothNoise(vCloth * 43.0).x * 0.45 * (1.0 - smoothstep(0.25, 0.6, wFw * 43.0));
         float wPatch = clothNoise(vCloth * vec3(1.7, 0.8, 1.7) + 9.0).x;
-        diffuseColor.rgb *= max(0.0, 1.0 + uWool.z * (2.0 * (wFleck - 0.5) + 1.2 * (wPatch - 0.5)) + 0.07 * uWool.y * wRib);
+        diffuseColor.rgb *= max(0.0, 1.0 + uWool.z * (2.0 * (wFleck - 0.5) + 1.2 * (wPatch - 0.5)) + uWool.y * (0.22 * wRib + 0.05 * wThr));
       }`)
     .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
       {

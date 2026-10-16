@@ -27,7 +27,7 @@
 import * as THREE from 'three';
 import { makeRng } from './textures';
 import { readerGeometry, ROBES, clothShader } from './readers';
-import { FLOOD, RISE, STEP, HOOD, CAST, HOODED } from './finaleLook';
+import { FLOOD, RISE, STEP, HOOD, CAST, HOODED, PAVING } from './finaleLook';
 
 const clamp01 = (x) => Math.min(1, Math.max(0, x));
 const smooth = (a, b, x) => { const t = clamp01((x - a) / (b - a)); return t * t * (3 - 2 * t); };
@@ -527,6 +527,25 @@ export function* buildFinale({
   floor.renderOrder = 2;
   floor.name = 'finale-floor';
   group.add(floor);
+  // The court's paving taken down as the eye rises over it (finaleLook.js,
+  // PAVING): from straight above, the pale stone under the heart's lamp
+  // clipped to white and the others were brown shapes on it. Laid over the
+  // stone and the flood's light on it, multiplying what is drawn there; the
+  // others stand on it and are not under it.
+  const pavingMat = keep(new THREE.MeshBasicMaterial({
+    color: '#ffffff', blending: THREE.MultiplyBlending, premultipliedAlpha: true, transparent: true,
+    depthWrite: false, toneMapped: false, fog: false,
+  }));
+  const paving = new THREE.Mesh(keep(new THREE.CircleGeometry(PAVING.r, 96).rotateX(-Math.PI / 2)), pavingMat);
+  paving.position.set(heart[0], ground + 0.8, heart[1]);
+  paving.renderOrder = 4;
+  paving.name = 'finale-paving';
+  group.add(paving);
+  const setPaving = (camera) => {
+    const k = PAVING.stop * smooth(PAVING.high[0], PAVING.high[1], camera.position.y - ground);
+    pavingMat.color.setScalar(1 - k);
+    paving.visible = k > 0.001;
+  };
 
   // ── The fireflies ───────────────────────────────────────────────────────
   const flies = [];
@@ -947,6 +966,7 @@ export function* buildFinale({
       heartState.spin = spin(t);
       heartState.flare = flash(t);
       heartState.glow = smooth(FINALE.ignite - 2.5, FINALE.ignite, t) * (1 - 0.5 * smooth(FINALE.rise[0], FINALE.end, t));
+      setPaving(camera);
       return;
     }
     const level = done ? 1 - smooth(0.25, 0.75, eye) : 0;
@@ -959,6 +979,7 @@ export function* buildFinale({
       return;
     }
     setLevel(level, fliesLeft);
+    setPaving(camera);
     setFront(1e5, 1e5);
     placeHeads(1e5, camera, level);
     for (const o of others) placeOther(o, FINALE.end, level);
