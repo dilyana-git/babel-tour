@@ -72,7 +72,7 @@ scenarios. See `docs/navigation-testing.md`.
 ```
 npm run shot -- --room=1                  stand in the Echo
 npm run shot                              the map
-npm run shot -- --room=1 --ab=wmap5=old   the same frame without and with a flag
+npm run shot -- --room=1 --ab=wcaption=quiet   the same frame without and with a flag
 ```
 
 `tools/shot.mjs` starts its own Vite and headless browser (Edge or Chrome on
@@ -93,7 +93,7 @@ In a cloud session the user pulls the branch and looks on their own machine:
    push. Do not run `npm run shot` unless the user asks.
 2. For each commit, tell the user its hash, where to look (room, vantage,
    what should differ) and how to see it: `npm run dev`, or
-   `npm run shot -- --room=N`, with `--ab=<flag>=old` for a before/after.
+   `npm run shot -- --room=N`, with `--ab=<flag>=<value>` for a before/after.
    Independent changes can go up together as separate commits.
 3. Report a visual change as pushed and waiting for the user's look, not
    done. It is done when the user approves it. If they reject it, revert that
@@ -146,8 +146,8 @@ keep:
 3. Check the picked look with a before/after picture.
 
 Do not leave an unpicked variant in the code "for later": git history and the
-design history keep it. The older `?w…=old` flags from earlier boards
-(the `src/world/*Fix*.js` modules) are due the same treatment, room by room.
+design history keep it. Nor keep an "as it was" path for comparison once a
+change is approved: the commit before it is the comparison.
 
 ## Comments and design history
 

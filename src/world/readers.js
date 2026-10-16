@@ -43,9 +43,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { makeRng } from './textures';
-import { vestOld } from './vestFix';
-import { HOOD } from './finaleFix';
-import { FACE } from './finaleFix6';
+import { HOOD, FACE } from './finaleLook';
 
 const clamp01 = (x) => Math.min(1, Math.max(0, x));
 const smooth = (x) => { const t = clamp01(x); return t * t * (3 - 2 * t); };
@@ -223,7 +221,7 @@ const remap = (g, fn) => {
 // reader down with the book open in the lap; `detail` thins every sheet, and
 // below 1 leaves off the hands and feet, for readers only seen from afar.
 // `close`: one the reader will stand face to face with (the others at the
-// heart of the maze: finaleFix.js, 4) — the cowl and the mantle in deeper
+// heart of the maze: finaleLook.js) — the cowl and the mantle in deeper
 // folds that run to the hem, the hem thin, turned in and frayed, the inside
 // of the hood the wool's own colour going into the dark.
 export function readerGeometry({ seed = 1, color = ROBES[0], book = false, seated = false, detail = 1, close = false, plain = false, hollow = false, nod = 0, heavyWool = false } = {}) {
@@ -359,7 +357,7 @@ export function readerGeometry({ seed = 1, color = ROBES[0], book = false, seate
   // The edge: a hem, turned in. (It was a thick roll of cloth, which from below
   // read as the rim of a helmet; folded much tighter than this, its two faces
   // fought for the same depth and it flickered in pale dashes.)
-  // (`close`, finaleFix.js 4: turned in so far and so soon, the inside of the
+  // (`close`, finaleLook.js: turned in so far and so soon, the inside of the
   // edge was a band of its own round the opening, facing the eye and lit —
   // a tyre. Close, the hem is a thread's width and the dark begins behind it.)
   const rings = [
@@ -470,7 +468,7 @@ export function readerGeometry({ seed = 1, color = ROBES[0], book = false, seate
     if (y < 0) X *= 1 - 0.3 * smooth(-y / 0.95) ** 1.3 * (0.4 + 0.6 * front);
     Z -= 0.1 * front * (1 - y * y);   // the face flatter than the skull
     if (carved) {
-      // (finaleFix6.js, FACE) Carved: the brow a ridge over each socket and
+      // (finaleLook.js, FACE) Carved: the brow a ridge over each socket and
       // the sockets deep under it; the nose standing well out of the face, its
       // bridge narrow, its tip round, a wing either side, and cut under
       // sharply; the cheekbones; the fold from each wing down past the mouth;
@@ -519,7 +517,7 @@ export function readerGeometry({ seed = 1, color = ROBES[0], book = false, seate
   face.translate(H.x, (H.y + 0.12) * tall, H.z - 0.12);
   if (bow) remap(face, bowed);
 
-  // (`hollow`: nobody in it — the hood, and the dark it holds: finaleFix6.js, HOODED)
+  // (`hollow`: nobody in it — the hood, and the dark it holds: finaleLook.js, HOODED)
   const parts = hollow ? [robe, mantle, hood] : [robe, mantle, hood, face];
   if (hollow) face.dispose();
   if (fray) parts.push(fray);
@@ -704,6 +702,10 @@ export function readerGeometry({ seed = 1, color = ROBES[0], book = false, seate
   // where the light in the hood is (clothShader's uHood): under the chin and before it
   const lamp = [H.x + HOOD.lamp.at[0], (H.y + 0.12) * tall + HOOD.lamp.at[1], H.z - 0.12 + HOOD.lamp.at[2]];
   merged.userData.hood = bow ? bowed(lamp) : seated ? sit(lamp) : lamp;
+  // the face's middle and how far the head is bowed (readerNear.js: the
+  // hood's shadow on it)
+  const mid = [H.x, (H.y + 0.12) * tall, H.z - 0.12];
+  merged.userData.face = [...(bow ? bowed(mid) : seated ? sit(mid) : mid), bow];
   return merged;
 }
 
@@ -731,15 +733,6 @@ export function readerGeometry({ seed = 1, color = ROBES[0], book = false, seate
 // stay dark, sheen and all.) Leather takes a soft highlight, and a grain.
 const f3 = (x) => x.toFixed(3);
 const PAGE_BOUNCE = 0.2;   // how much of the page's light reaches the face (more than a page would give)
-// The review of 2026-10-08 (point 2; ?wvest=old:2): from the Vestibule's stand
-// the readers were holes in the picture, flat black against the lit shelves,
-// because every lamp hung behind or above them. Now the cloth is lit as cloth
-// in a lit room: a warm rim where a lamp behind them catches the wool's edge;
-// the lamps' light wrapped round onto the side turned from them (the room's
-// light, thrown back off its stone and books), so the robe reads as a dark
-// umber wool and not as nothing; and an open book's pages throw the light
-// that falls on them up into the hood, onto the hands and the chest.
-const LIT_CLOTH = !vestOld(2);
 // x the wool's edge against a lamp behind, y the light wrapped onto the dark
 // side, z the pages' light under the hood (one for every reader; DEV:
 // window.__readerLit)
@@ -754,7 +747,7 @@ export const clothShader = (sh, u) => {
   // for everyone but the Silence's, near its lamp and turned half from it,
   // where both together made the robe's shoulder pale plaster)
   if (!u.uSheen) u.uSheen = { value: 1 };
-  // `uWool`: the cloth seen close (finaleFix.js, 4; all 0 for everyone else) —
+  // `uWool`: the cloth seen close (finaleLook.js; all 0 for everyone else) —
   // x how many ribs of its weave to a unit, y how deep they are, z how uneven
   // its dye, w how much of the smooth shine every surface has is taken off it.
   // `uHood`: a light inside the hood, where (in the reader's own frame) and
@@ -768,12 +761,12 @@ export const clothShader = (sh, u) => {
   // everyone does. `uArch`: a lit opening behind the reader, as a light — a
   // broad one, where it is in the world and how strong; `uArchTint`: its
   // colour, and the distance it halves over (the file on the bridge, against
-  // the arch to the Echo: libFix3.js, 2; 0 for everyone else).
+  // the arch to the Echo: libraryProps.js; 0 for everyone else).
   if (!u.uLitK) u.uLitK = { value: new THREE.Vector3(1, 1, 1) };
   if (!u.uArch) u.uArch = { value: new THREE.Vector4() };
   if (!u.uArchTint) u.uArchTint = { value: new THREE.Vector4(1, 0.8, 0.54, 150) };
   // `uPage`: the open page as a light of its own (the one who is the reader,
-  // at the heart of the maze: finaleFix6.js, 1; 0 for everyone else) — x how
+  // at the heart of the maze: finaleLook.js; 0 for everyone else) — x how
   // bright the paper is itself, y how much it throws on what faces it beside
   // what the lamps overhead give it to throw, z how much of that light the
   // face takes (as a light on a form, not the wash the cloth has).
@@ -987,7 +980,7 @@ export const clothShader = (sh, u) => {
         outgoingLight += diffuseColor.rgb * cPage * ${f3(PAGE_BOUNCE)} * cFaces * clamp((0.97 - vDark) / 0.13, 0.0, 1.0);
       }
       #endif
-      ${LIT_CLOTH ? `#if NUM_POINT_LIGHTS > 0
+      ${`#if NUM_POINT_LIGHTS > 0
       {
         vec3 cV = normalize(vViewPosition);
         float cNV2 = clamp(dot(normal, cV), 0.0, 1.0);
@@ -1038,7 +1031,7 @@ export const clothShader = (sh, u) => {
           outgoingLight += diffuseColor.rgb * cOnPage * vec3(1.0, 0.86, 0.66) * cLit.z * cFall * cToward * cSpare;
         }
       }
-      #endif` : ''}
+      #endif`}
       // A lit opening behind the reader (uArch): a broad light, so it comes
       // a little way round the cloth, and brightest along the edge of whatever
       // is seen against it — the shoulder, the side of the hood, the sleeve.

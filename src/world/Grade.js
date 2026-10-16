@@ -21,6 +21,7 @@
 // — neither the library's amber nor the night's blue.
 import { Uniform, Vector3 } from 'three';
 import { Effect } from 'postprocessing';
+import { OPEN_GRADE } from './roomColour';
 
 const fragmentShader = /* glsl */ `
   uniform vec3 uShadow;
@@ -39,6 +40,8 @@ const fragmentShader = /* glsl */ `
   uniform float uMapGold;
   uniform float uMapDeep;
   uniform float uMapChroma;
+  uniform float uOpen;
+  uniform vec3 uOpenTo;
 
   void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor) {
     vec3 c = inputColor.rgb * uExposure;
@@ -54,12 +57,14 @@ const fragmentShader = /* glsl */ `
     // frames keep their dark wood red-brown and make the light gold, and pulled
     // all the way down every rail and shelf turned to brass.
     float warm = clamp((c.r - c.b) / max(c.r, 1e-4), 0.0, 1.0);
-    // (over the map, as its look has it — mapFix6.js — the gold can reach
+    // (over the map, as its look has it — mapLook.js — the gold can reach
     // down into the paving round the rooms, too dark for it here)
-    float gold = mix(uGold, uMapGold, uMap);
+    // (in the galleries the print opens toward uOpenTo: saturation, gold,
+    // the darks' chroma — roomColour.js 5)
+    float gold = mix(mix(uGold, uOpenTo.y, uOpen), uMapGold, uMap);
     float goldAt = mix(smoothstep(0.08, 0.45, l), smoothstep(0.01, 0.12, l), uMap * uMapDeep);
     c.g += (c.r - c.g) * gold * warm * goldAt;
-    float keep = mix(mix(uSaturation, uSaturationCool, uCool), 1.0, highs * 0.35);
+    float keep = mix(mix(mix(uSaturation, uOpenTo.x, uOpen), uSaturationCool, uCool), 1.0, highs * 0.35);
     // ...and the warm stone there can be let down toward grey, leaving what is
     // bright (the lit rooms) and what is not warm (the garden) their colour
     keep *= mix(1.0, uMapChroma, uMap * smoothstep(0.03, 0.2, warm) * (1.0 - highs));
@@ -67,7 +72,7 @@ const fragmentShader = /* glsl */ `
     // lamp-lit room is dark, not dark ORANGE. Without this, every shadow in a
     // room lit only by warm lamps printed as saturated brown. Library only —
     // the garden's night is meant to be a deep, saturated blue.
-    keep *= mix(1.0, mix(uShadowChroma, 1.0, smoothstep(0.02, 0.3, l)), 1.0 - uCool);
+    keep *= mix(1.0, mix(mix(uShadowChroma, uOpenTo.z, uOpen), 1.0, smoothstep(0.02, 0.3, l)), 1.0 - uCool);
     c = mix(vec3(l), c, keep);
     c = (c - 0.36) * uContrast + 0.36;
     c = c + uLift * (1.0 - smoothstep(0.0, 0.25, l)) * vec3(0.78, 0.88, 1.0);
@@ -86,7 +91,7 @@ const fragmentShader = /* glsl */ `
 // own three.js parent chain and the whole composer throws (the frame goes
 // black, silently, with nothing but a circular-structure error). The effect
 // reads this in its own update(), which is where per-frame values belong.
-export const gradePlace = { cool: 0, map: 0 };
+export const gradePlace = { cool: 0, map: 0, open: 0 };
 
 export class GradeEffect extends Effect {
   constructor({
@@ -124,6 +129,8 @@ export class GradeEffect extends Effect {
         ['uMapGold', new Uniform(mapGold)],
         ['uMapDeep', new Uniform(mapDeep)],
         ['uMapChroma', new Uniform(mapChroma)],
+        ['uOpen', new Uniform(0)],
+        ['uOpenTo', new Uniform(new Vector3(OPEN_GRADE.saturation, OPEN_GRADE.gold, OPEN_GRADE.shadowChroma))],
       ]),
     });
   }
@@ -131,5 +138,6 @@ export class GradeEffect extends Effect {
   update() {
     this.uniforms.get('uCool').value = gradePlace.cool;
     this.uniforms.get('uMap').value = gradePlace.map;
+    this.uniforms.get('uOpen').value = gradePlace.open;
   }
 }

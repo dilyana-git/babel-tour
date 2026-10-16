@@ -4,37 +4,30 @@
 
 import * as THREE from 'three';
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { makePaperMaterial, makeFlameMaterial, waxGlowMaterial, LAMPS, floorPoolPatch, shadeLit, floorPools } from '../lampPass';
+import { makePaperMaterial, makeFlameMaterial, waxGlowMaterial, floorPoolPatch, shadeLit, floorPools } from '../lampPass';
+import { ASHLAR, ASHLAR_ON, ledgeU, ledgeRU, sootU, LEDGES_MAX, SOOT_MAX } from '../ashlarSurface';
 import { bayPlates, shelfEdge, FOLIAGE_KINDS, HANGING_KINDS } from '../textures';
 import { makeBookMaterial, makeGlowMaterial, makeLampGlobeMaterial, makeFoliageMaterial, makeFoliagePrepass, makeHangingMaterial } from '../effects';
 import { WATER_Y } from '../water';
 import { makeFlowerMaterial } from '../pond';
-import { LIP_COLOR } from '../vertigoFix';
-import { silenceOld, ARCH_LIFT, deadGlassPatch } from '../silenceFix';
-import { forkOld, RAKE, WAYMARK } from '../forkFix';
-import { WILLOW_BROAD } from '../pavilionFix';
-import { propsOld, HEDGE_SHEEN } from '../forkProps';
-import { DARK_GILT, CAIHUA, pavPropsOld, WILLOW } from '../pavilionProps';
+import { LIP_COLOR } from '../vertigoProps';
+import { ARCH_LIFT, deadGlassPatch } from '../silenceProps';
+import { RAKE, WAYMARK, HEDGE_SHEEN } from '../forkProps';
+import { DARK_GILT, CAIHUA, WILLOW } from '../pavilionProps';
 import { bladeLit } from '../lawn';
-import { WALLS } from '../webFix';
+import { swardLawn, moonBlades, BANK_SWARD, FEATHER, signLit, SIGN, plinthLit, PLINTH } from '../gardenProps';
+import { WALLS } from '../webProps';
 import { HEART } from '../gardenPlan';
-import { FILLET_BRASS } from '../auditFix';
-import { webPropsOld } from '../webProps';
-import { FEATHER, signLit, SIGN, garden5Old, plinthLit, PLINTH } from '../gardenFix5';
-import { mapOld } from '../mapFix';
-import { map3Old, QUIET } from '../mapFix3';
-import { map4Old } from '../mapFix4';
-import { map5Old } from '../mapFix5';
-import { TONE } from '../mapFix6';
-import { lib3Old, ECHO_STONE, STRING, COLOUR } from '../libFix3';
-import { doorPropsOld } from '../doorProps';
+import { FILLET_BRASS, ECHO_STONE, STRING, COLOUR } from '../libraryProps';
+import { QUIET, TONE } from '../mapLook';
+import { ROOM_LEATHER } from '../roomColour';
 import { softGain } from '../lightModel';
-import { WOOD_OLD, uvGrain } from '../woodGrain';
+import { uvGrain } from '../woodGrain';
 import { crackSize, CRACK_SLOPE } from '../cracks';
 import { RUBBLE_TILE } from '../rubble';
 import { shoreRockLit, bankLit } from '../shore';
 import { backPaler, ivyLeafTexture } from '../ivy';
-import { DOOR_CRACKS, stoneTint, HEDGE_DIAL, ROUTE_LIGHT, MASS_H, CAP, RIM_WARM, FLOOR_OLD, CRACK_OLD, deg } from './common';
+import { DOOR_CRACKS, stoneTint, HEDGE_DIAL, ROUTE_LIGHT, MASS_H, CAP, RIM_WARM, deg } from './common';
 
 export function buildMaterials(ctx) {
   const { light, rr, dir, add, unit2, dist, keep, grassTex, GRAVEL_COLOR, gravelTex, starTex,
@@ -58,37 +51,15 @@ export function buildMaterials(ctx) {
   // By room (`bounceRooms`, filled once the honeycomb is laid out): strongest
   // in the Vestibule, least in the Silence.
   const bounceRooms = { value: [new THREE.Vector3(0, 0, 0)] };
-  // the Echo: its middle, and how far its worked stone reaches (libFix3.js, 4)
+  // the Echo: its middle, and how far its worked stone reaches (libraryProps.js)
   const workAt = { value: new THREE.Vector3(0, 0, -1) };
-  // the Vestibule's string course, and the wall it washes (libFix3.js, 6):
+  // the Vestibule's string course, and the wall it washes (libraryProps.js):
   // `a` the middle of the wall's face (x, z), the ledge's height, how much;
   // `b` the way along the wall (x, z) and half its length
   const stringWash = { a: { value: new THREE.Vector4(0, 0, 0, 0) }, b: { value: new THREE.Vector4(1, 0, 1, 0) } };
-  // And over the map, the coping round each of those rooms warmed from inside,
-  // most at its inner edge (mapFix.js, 8): `mapWarm` is how much of the map
-  // is showing — 1 over it, 0 among the walls (setVeil).
-  const RIM = !mapOld(8);
   const mapWarm = { value: 1 };
-  // (from each room's own inner wall: the Echo's stands further out, so its
-  // coping is that much further out too — `echoDeep`, set once the rooms are
-  // laid out — and its worked stone stops under the wall tops; mapFix5.js, 1)
-  const ECHO_TOPS = !map5Old(1);
   const echoDeep = { value: 0 };
-  // And the stone of every cell that is not a room of the walk, quiet over the
-  // map (mapFix3.js, 3): `quiet` stone loses its blocks, its relief and some
-  // of its light out past the walk's rooms, and `sink` stone — the balustrades
-  // on the wall tops — is let down into the coping there. (How dark, and how
-  // warm, is the hand-over's to say where one is picked: mapFix3.js, 2.)
-  // The wall tops are quiet round the walk's rooms too, so the map is one
-  // stone at one value from edge to edge, and the walk's rooms are told by
-  // their light and their warm rims rather than by a paler, colder, blocked
-  // coping round them (widest round the Echo, between two of them).
-  const QUIET_ON = !map3Old(3);
   const QUIET_TINT = TONE.quiet;
-  // And the light on the wall tops over the map, the lamps' colour (mapFix4.js,
-  // 2): what the moon's light on that stone is multiplied by to be the lamps'
-  // at the same brightness — `ROUTE_TINT` — before `k` or `far` of it is left.
-  const ROUTE_ON = !map4Old(2);
   const ROUTE_TINT = (() => {
     const lamp = new THREE.Color(ROUTE_LIGHT.color), sky = new THREE.Color(ROUTE_LIGHT.moon);
     const lum = (c) => 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
@@ -104,14 +75,14 @@ export function buildMaterials(ctx) {
             }`;
   // `lift`: how much more of that bounce this stone takes, and `side` how much
   // of it a face standing upright takes too — it sees half the floor that a
-  // soffit does (the Silence's arches over its well: silenceFix.js, 4)
+  // soffit does (the Silence's arches over its well: silenceProps.js)
   // `night`: the falloff into the night round the maze alone, without the
-  // weathering by height (the copings on the walls, webFix.js 2).
-  // `aged` (with `weather`; the galleries' walls, libFix3.js point 3): the
+  // weathering by height (the copings on the walls, webProps.js).
+  // `aged` (with `weather`; the galleries' walls, libraryProps.js point 3): the
   // weathering by height made uneven, as it is — the dirt climbing higher in
   // some places than others, the soot hanging from the top of the wall in
   // tongues, and lime bloomed pale on the faces between, in slow patches.
-  // `worked` (the Echo's carved stone, libFix3.js point 4; { polish, joints,
+  // `worked` (the Echo's carved stone, libraryProps.js point 4; { polish, joints,
   // foot }): inside the Echo (`workAt`) the stone is not one flat value — its
   // tone uneven, what faces down sooted, what faces up a little paler and worn
   // to a soft polish (`polish`: how much of ECHO_STONE's this stone takes),
@@ -121,22 +92,25 @@ export function buildMaterials(ctx) {
   // light up (`stringWash`).
   // `route`: the stone of the wall tops and of the heads of the walls under
   // them, which over the map takes the lamps' light for the moon's
-  // (mapFix4.js, 2).
+  // (mapLook.js).
+  // Every stone, its surface (ashlarSurface.js): darker in the bed under a
+  // projecting course (3), and sooted over a lamp that burns against it (4) —
+  // and, with `wash`, over the lamps of the string course's rail.
   const stoneShade = (mat, { weather = false, night = false, lift = 1, side = 0, quiet = false, sink = false, aged = false, worked = null, wash = false, route = false, vestibule = false } = {}) => {
-    wash = wash && !lib3Old(6);
-    route = route && ROUTE_ON;
-    quiet = quiet && QUIET_ON;
-    sink = sink && QUIET_ON;
-    aged = aged && weather && !lib3Old(3);
-    worked = lib3Old(4) ? null : worked;
+    aged = aged && weather;
+    const beds = ASHLAR_ON.beds, soot = ASHLAR_ON.soot, surf = beds || soot;
+    // (the stone's slow unevenness, a third of what it was: ashlarSurface.js, 1)
+    const tone = ASHLAR_ON.tone ? ASHLAR.tone : 1;
     // (where the stone stands, instance by instance)
     const placed = night || quiet || sink;
     mat.onBeforeCompile = (sh) => {
       sh.uniforms.uBounceRooms = bounceRooms;
-      if (RIM || quiet || sink || route) sh.uniforms.uMapWarm = mapWarm;
+      sh.uniforms.uMapWarm = mapWarm;
       sh.uniforms.uStoneLift = { value: lift };
       if (worked) sh.uniforms.uWorkAt = workAt;
       if (wash || vestibule) { sh.uniforms.uWashA = stringWash.a; sh.uniforms.uWashB = stringWash.b; }
+      if (beds) { sh.uniforms.uAshLedge = ledgeU; sh.uniforms.uAshLedgeR = ledgeRU; }
+      if (soot) sh.uniforms.uAshSoot = sootU;
       sh.uniforms.uStoneSide = { value: side };
       sh.vertexShader = sh.vertexShader
         .replace('#include <common>', `#include <common>
@@ -151,7 +125,7 @@ export function buildMaterials(ctx) {
           ${placed ? `
           // (where it stands, for the night: a post is an instance, and its
           // own vertices are a unit box at the origin — the balusters on the
-          // wall tops stayed white over the cedars: webProps.js, 1)
+          // wall tops stayed white over the cedars: webProps.js)
           vec4 stoneAt = vec4(transformed, 1.0);
           #ifdef USE_INSTANCING
             stoneAt = instanceMatrix * stoneAt;
@@ -175,7 +149,7 @@ export function buildMaterials(ctx) {
       sh.fragmentShader = sh.fragmentShader
         .replace('#include <common>', `#include <common>
           uniform vec3 uBounceRooms[${bounceRooms.value.length}];
-          ${RIM || quiet || route ? 'uniform float uMapWarm;' : ''}
+          ${'uniform float uMapWarm;'}
           uniform float uStoneLift;
           uniform float uStoneSide;
           varying vec3 vStoneW;
@@ -184,7 +158,10 @@ export function buildMaterials(ctx) {
           ${placed ? 'varying vec3 vStoneAt;' : ''}
           ${worked ? 'uniform vec3 uWorkAt;' : ''}
           ${wash || vestibule ? 'uniform vec4 uWashA, uWashB;' : ''}
-          ${aged || worked ? `float stoneHash3(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+          ${beds ? `uniform vec4 uAshLedge[${LEDGES_MAX}];
+          uniform vec2 uAshLedgeR[${LEDGES_MAX}];` : ''}
+          ${soot ? `uniform vec4 uAshSoot[${SOOT_MAX}];` : ''}
+          ${aged || worked || surf ? `float stoneHash3(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
           float stoneNoise3(vec3 x) {
             vec3 i = floor(x), f = fract(x);
             f = f * f * (3.0 - 2.0 * f);
@@ -193,7 +170,7 @@ export function buildMaterials(ctx) {
               mix(mix(stoneHash3(i + vec3(0, 0, 1)), stoneHash3(i + vec3(1, 0, 1)), f.x), mix(stoneHash3(i + vec3(0, 1, 1)), stoneHash3(i + vec3(1, 1, 1)), f.x), f.y),
               f.z);
           }` : ''}`)
-        // (the unwalked cells' stone over the map: mapFix3.js, 3)
+        // (the unwalked cells' stone over the map: mapLook.js)
         .replace('#include <map_fragment>', `#include <map_fragment>
           float mapQuiet = 0.0;
           ${quiet ? `
@@ -220,7 +197,7 @@ export function buildMaterials(ctx) {
             float stoneNight = (1.0 - 0.88 * smoothstep(290.0, 160.0, distance(stoneP.xz, vec2(${HEART[0].toFixed(1)}, ${HEART[1].toFixed(1)})))
               * smoothstep(100.0, 118.0, distance(stoneP.xz, vec2(1005.2, 338.6))))
             // and behind the maze, out past that reach, the stone the cedars
-            // stand in front of (webFix.js, 2): what shows between their
+            // stand in front of (webProps.js): what shows between their
             // spires is dark, not brick
               * (1.0 - ${WALLS.k.toFixed(3)} * smoothstep(${WALLS.z[0].toFixed(1)}, ${WALLS.z[1].toFixed(1)}, stoneP.z)
               * smoothstep(${WALLS.x[0].toFixed(1)}, ${WALLS.x[1].toFixed(1)}, stoneP.x));
@@ -233,7 +210,7 @@ export function buildMaterials(ctx) {
             float ageSoot = smoothstep(62.0 + 44.0 * ageA, 126.0, vStoneW.y) * (0.6 + 0.4 * ageB);
             float ageLime = smoothstep(0.56, 0.8, ageB * 0.65 + ageC * 0.35) * smoothstep(10.0, 26.0, vStoneW.y) * (1.0 - smoothstep(64.0, 96.0, vStoneW.y));
             diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * 1.22 + vec3(0.03, 0.029, 0.026), 0.55 * ageLime);
-            diffuseColor.rgb *= mix(0.6, 1.0, ageFoot) * (1.0 - 0.42 * ageSoot) * (0.9 + 0.2 * ageC) * stoneNight;` : `
+            diffuseColor.rgb *= mix(0.6, 1.0, ageFoot) * (1.0 - 0.42 * ageSoot) * (1.0 + ${(0.2 * tone).toFixed(3)} * (ageC - 0.5)) * stoneNight;` : `
             diffuseColor.rgb *= ${weather ? `mix(0.66, 1.0, smoothstep(6.0, 17.0, vStoneW.y))
             * (1.0 - 0.3 * smoothstep(88.0, 124.0, vStoneW.y))
             *` : ''} stoneNight;`}` : ''}
@@ -249,11 +226,11 @@ export function buildMaterials(ctx) {
           diffuseColor.rgb *= 1.0 - 0.26 * ledgeSoot;` : ''}
           ${worked ? `
           stoneWork = uWorkAt.z > 0.0 ? smoothstep(uWorkAt.z + 10.0, uWorkAt.z - 2.0, distance(vStoneW.xz, uWorkAt.xy)) : 0.0;
-          ${ECHO_TOPS ? `stoneWork *= 1.0 - smoothstep(${(MASS_H - 1).toFixed(1)}, ${(MASS_H - 0.2).toFixed(1)}, vStoneW.y);` : ''}
+          ${`stoneWork *= 1.0 - smoothstep(${(MASS_H - 1).toFixed(1)}, ${(MASS_H - 0.2).toFixed(1)}, vStoneW.y);`}
           if (stoneWork > 0.0) {
             float workA = stoneNoise3(vStoneW * 0.11 + 3.1), workB = stoneNoise3(vStoneW * 0.62 + 9.2);
             float workUp = max(0.0, 1.0 - vStoneSide - vStoneDown);
-            float workTone = (1.0 + ${ECHO_STONE.tone.toFixed(3)} * (workA - 0.5) + ${(ECHO_STONE.tone * 0.45).toFixed(3)} * (workB - 0.5))
+            float workTone = (1.0 + ${(ECHO_STONE.tone * tone).toFixed(3)} * (workA - 0.5) + ${(ECHO_STONE.tone * tone * 0.45).toFixed(3)} * (workB - 0.5))
               * (1.0 - ${ECHO_STONE.soffit.toFixed(3)} * smoothstep(0.12, 0.8, vStoneDown)) * (1.0 + ${ECHO_STONE.up.toFixed(3)} * workUp);
             // (and what has run down its upright faces over the years, in streaks)
             workTone *= 1.0 - ${ECHO_STONE.streak.toFixed(3)} * vStoneSide * smoothstep(0.5, 0.85, stoneNoise3(vStoneW * vec3(0.8, 0.06, 0.8) + 2.9));
@@ -262,11 +239,56 @@ export function buildMaterials(ctx) {
             #endif` : ''}
             ${worked.foot ? 'workTone *= mix(0.72, 1.0, smoothstep(6.0, 18.0 + 14.0 * workA, vStoneW.y));' : ''}
             diffuseColor.rgb *= mix(vec3(1.0), workTone * vec3(1.0 + 0.1 * (workA - 0.5), 1.0, 1.0 - 0.14 * (workA - 0.5)), stoneWork);
-          }` : ''}`)
+          }` : ''}
+          // What the years leave on the stone's surface (ashlarSurface.js),
+          // laid on the light it gives back, after the room's own colour.
+          float stoneSurf = 1.0;
+          ${beds ? `
+          // 3. the bed under a projecting course: dust and smoke kept in its
+          // lee, darkest against it, let down the face unevenly along it
+          for (int i = 0; i < ${LEDGES_MAX}; i++) {
+            vec4 ledge = uAshLedge[i];
+            if (ledge.w <= 0.0) continue;
+            float below = ledge.z - vStoneW.y;
+            if (below < -0.05 || below > ${ASHLAR.bed.reach.toFixed(1)}) continue;
+            float ledgeR = distance(vStoneW.xz, ledge.xy);
+            float under = smoothstep(uAshLedgeR[i].x - 0.6, uAshLedgeR[i].x, ledgeR) * (1.0 - smoothstep(uAshLedgeR[i].y, uAshLedgeR[i].y + 0.6, ledgeR));
+            float ledgeN = stoneNoise3(vec3(vStoneW.xz * 0.32, ledge.z));
+            stoneSurf *= 1.0 - ${ASHLAR.bed.k.toFixed(3)} * ledge.w * under * exp(-below / (${ASHLAR.bed.fall.toFixed(2)} * (0.55 + 0.9 * ledgeN)));
+          }` : ''}
+          ${soot ? 'float stoneSoot = 0.0;' : ''}
+          ${soot ? `
+          // 4. soot over a lamp that burns against the stone: a tongue rising
+          // from its top, widening, gone a metre or two up, never quite even
+          for (int i = 0; i < ${SOOT_MAX}; i++) {
+            vec4 lampTop = uAshSoot[i];
+            if (lampTop.w <= 0.0) continue;
+            vec3 d = vStoneW - lampTop.xyz;
+            if (d.y < -1.5 || d.y > ${(ASHLAR.soot.rise * 3.5).toFixed(1)}) continue;
+            float across = length(d.xz) / (${ASHLAR.soot.width[0].toFixed(2)} + ${ASHLAR.soot.width[1].toFixed(2)} * max(d.y, 0.0));
+            if (across > 3.0) continue;
+            float tongue = 0.55 + 0.9 * stoneNoise3(vStoneW * vec3(0.5, 0.09, 0.5) + float(i) * 3.7);
+            stoneSoot = max(stoneSoot, lampTop.w * smoothstep(-1.5, 1.5, d.y) * exp(-max(d.y, 0.0) / ${ASHLAR.soot.rise.toFixed(1)}) * exp(-across * across * tongue));
+          }` : ''}
+          ${wash && soot ? `
+          // and over the lamps on the string course's rail (one each
+          // ${ASHLAR.rail.pitch} units), up the face it washes
+          if (uWashA.w > 0.0) {
+            vec2 railD = vStoneW.xz - uWashA.xy;
+            float railUp = vStoneW.y - uWashA.z, railAlong = dot(railD, uWashB.xy);
+            float railCell = (fract(railAlong / ${ASHLAR.rail.pitch.toFixed(1)} + 0.5) - 0.5) * ${ASHLAR.rail.pitch.toFixed(1)};
+            float railAcross = railCell / (1.0 + 0.3 * max(railUp, 0.0));
+            float railOn = (1.0 - smoothstep(uWashB.z - 6.0, uWashB.z, abs(railAlong)))
+              * (1.0 - smoothstep(3.0, 5.0, abs(railD.x * uWashB.y - railD.y * uWashB.x)));
+            stoneSoot = max(stoneSoot, ${(ASHLAR.rail.k / ASHLAR.soot.k).toFixed(3)} * railOn * smoothstep(-0.5, 1.5, railUp) * exp(-max(railUp, 0.0) / ${ASHLAR.soot.rise.toFixed(1)})
+              * exp(-railAcross * railAcross * (0.55 + 0.9 * stoneNoise3(vStoneW * vec3(0.5, 0.09, 0.5)))));
+          }` : ''}
+          ${soot ? `stoneSurf *= 1.0 - ${ASHLAR.soot.k.toFixed(3)} * min(stoneSoot, 1.0);` : ''}
+          stoneSurf = mix(stoneSurf, 1.0, mapQuiet);`)
         .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
           ${worked?.polish ? `roughnessFactor = mix(roughnessFactor, ${ECHO_STONE.polish.toFixed(3)},
             stoneWork * ${worked.polish.toFixed(3)} * max(0.0, 1.0 - vStoneSide - vStoneDown) * (0.55 + 0.6 * stoneNoise3(vStoneW * 0.35 + 1.7)));` : ''}`)
-        // (and its gloss with it, webFix.js 2: let fall in its colour alone,
+        // (and its gloss with it, webProps.js: let fall in its colour alone,
         // the stone would keep the sky in its sheen and still read as brick)
         .replace('#include <aomap_fragment>', `#include <aomap_fragment>
           ${(weather || night) && WALLS.spec ? `reflectedLight.directSpecular *= stoneNight;
@@ -274,7 +296,7 @@ export function buildMaterials(ctx) {
           ${route ? `
           // the wall tops over the map: the light on them the lamps' colour,
           // and less of it — most taken round the rooms of the walk, where
-          // the paving was the brightest thing on the page (mapFix4.js, 2)
+          // the paving was the brightest thing on the page (mapLook.js)
           if (uMapWarm > 0.0) {
             float paved = uMapWarm * smoothstep(${(MASS_H + ROUTE_LIGHT.from[0]).toFixed(1)}, ${(MASS_H + ROUTE_LIGHT.from[1]).toFixed(1)}, ${placed ? 'vStoneAt' : 'vStoneW'}.y);
             vec3 routeLight = mix(vec3(1.0), vec3(${ROUTE_TINT.map((x) => x.toFixed(3)).join(', ')})
@@ -302,7 +324,7 @@ export function buildMaterials(ctx) {
           }` : ''}
           totalEmissiveRadiance += diffuseColor.rgb * vec3(1.0, 0.72, 0.46) * 0.2 * bounce * uStoneLift * (vStoneDown + uStoneSide * 0.5 * vStoneSide)
             * smoothstep(60.0, 20.0, vStoneW.y);
-          ${RIM ? `
+          ${`
           // the rims of the walk's rooms, over the map: by the flat (hexagon)
           // distance from the room's middle, warm from its inner wall out
           // across the coping, and only up at the wall tops
@@ -312,16 +334,17 @@ export function buildMaterials(ctx) {
               vec2 d = vStoneW.xz - uBounceRooms[i].xy;
               float hex = max(abs(d.y), max(abs(dot(d, vec2(0.8660254, 0.5))), abs(dot(d, vec2(-0.8660254, 0.5)))));
               // (the Echo's inner wall further out, its outer edge where every cell's is)
-              float rimIn = ${RIM_WARM.inner.toFixed(1)}${ECHO_TOPS ? ` + (i == 1 ? ${echoDeep.value.toFixed(2)} : 0.0)` : ''};
+              float rimIn = ${RIM_WARM.inner.toFixed(1)}${` + (i == 1 ? ${echoDeep.value.toFixed(2)} : 0.0)`};
               rim = max(rim, smoothstep(${RIM_WARM.outer.toFixed(1)}, rimIn, hex));
             }
             totalEmissiveRadiance += diffuseColor.rgb * vec3(${RIM_WARM.color.map((x) => x.toFixed(2)).join(', ')})
               * ${RIM_WARM.k.toFixed(3)} * rim * uMapWarm * smoothstep(${(MASS_H - 14).toFixed(1)}, ${(MASS_H - 2).toFixed(1)}, vStoneW.y);
-          }` : ''}`)
+          }`}`)
         .replace('#include <opaque_fragment>', `${vestibule ? 'outgoingLight *= 1.0 - 0.2 * vStoneDown;' : ''}
+          outgoingLight *= stoneSurf;
           #include <opaque_fragment>`);
     };
-    mat.customProgramCacheKey = () => `babel-stone-${weather ? 'w' : night ? 'n' : 'b'}${(weather || night) && WALLS.spec ? 's' : ''}-${bounceRooms.value.length}${RIM ? '-rim' : ''}${quiet ? '-quiet' : ''}${route ? '-route' : ''}${sink ? '-sink' : ''}${aged ? '-aged' : ''}${worked ? `-work${worked.polish ?? 0}${worked.joints ?? 0}${worked.foot ? 'f' : ''}` : ''}${wash ? '-wash' : ''}${vestibule ? '-vestibule' : ''}`;
+    mat.customProgramCacheKey = () => `babel-stone-${weather ? 'w' : night ? 'n' : 'b'}${(weather || night) && WALLS.spec ? 's' : ''}-${bounceRooms.value.length}${'-rim'}${quiet ? '-quiet' : ''}${route ? '-route' : ''}${sink ? '-sink' : ''}${aged ? '-aged' : ''}${worked ? `-work${worked.polish ?? 0}${worked.joints ?? 0}${worked.foot ? 'f' : ''}` : ''}${wash ? '-wash' : ''}${vestibule ? '-vestibule' : ''}${beds ? '-beds' : ''}${soot ? '-soot' : ''}${tone !== 1 ? '-tone' : ''}`;
     return mat;
   };
   // Less of the sky in a surface's gloss, `k` of it, and `direct` of the
@@ -336,7 +359,7 @@ export function buildMaterials(ctx) {
     mat.customProgramCacheKey = () => `babel-skydull-${k.toFixed(2)}-${direct.toFixed(2)}`;
     return mat;
   };
-  // The rails' lacquer, worn (pavilionProps.js, 10). What a member carries in
+  // The rails' lacquer, worn (pavilionProps.js). What a member carries in
   // its vertices' colour is not a colour: red is how clean the lacquer is
   // there, green how far it is rubbed through to the wood (`wornBar`). Both
   // are broken up by the place they are at — in patches a pace across, and
@@ -387,12 +410,12 @@ export function buildMaterials(ctx) {
     return mat;
   };
   // The moon on a hedge's shoulder and top, from across the garden only
-  // (forkProps.js, 6). Close to there is none: a pale band along every top is
+  // (forkProps.js). Close to there is none: a pale band along every top is
   // the first thing that looks wrong in a maze. Far off, without it, the hedge
   // that closes the garden is a stripe of black with nothing to say where its
   // top is. Laid on what the skyDull above left.
   const hedgeMoon = (mat) => {
-    if (propsOld(6) || HEDGE_SHEEN.k <= 0) return mat;
+    if (HEDGE_SHEEN.k <= 0) return mat;
     const inner = mat.onBeforeCompile, key = mat.customProgramCacheKey;
     mat.onBeforeCompile = (sh, renderer) => {
       inner(sh, renderer);
@@ -432,11 +455,10 @@ export function buildMaterials(ctx) {
     };
   })();
   const paveShade = (mat) => {
-    if (FLOOR_OLD) return mat;
     const texels = (mat.roughnessMap.image?.width ?? 1024).toFixed(1);
     const tile = (1 / mat.roughnessMap.repeat.x).toFixed(4);
     // (sampled with its own gradients: a pixel's neighbours may be off the map)
-    const cracks = CRACK_OLD ? '' : `
+    const cracks = `
           vec2 crackW = vRoughnessMapUv * ${tile} - uCrackO;
           vec2 crackUv = vec2(dot(crackW, uCrackAxes.xy), 1.0 - dot(crackW, uCrackAxes.zw));
           vec2 crackDx = dFdx(crackUv), crackDy = dFdy(crackUv);
@@ -457,7 +479,7 @@ export function buildMaterials(ctx) {
           }`;
     mat.onBeforeCompile = (sh) => {
       sh.uniforms.uPaveVary = pave.vary;
-      if (!CRACK_OLD) Object.assign(sh.uniforms, crackFrame);
+      Object.assign(sh.uniforms, crackFrame);
       sh.fragmentShader = sh.fragmentShader
         .replace('#include <common>', `#include <common>
           uniform float uPaveVary;
@@ -498,7 +520,7 @@ export function buildMaterials(ctx) {
     return mat;
   };
   // The lamps' pools read by the floor, not laid over it (lampPass.js)
-  const lpPool = (mat) => (LAMPS.pool ? floorPoolPatch(mat) : mat);
+  const lpPool = (mat) => (floorPoolPatch(mat));
   // The way, shown rather than explained: while the reader is on the piece's
   // own way (World.jsx, `follow`), the stone worn smooth along it catches a
   // little warm light a few strides ahead of them, and lets it go when they
@@ -646,12 +668,8 @@ export function buildMaterials(ctx) {
         .replace('#include <color_fragment>', `#include <color_fragment>
           vec3 flameN = normalize(vFlameN);
           float stoneLum = dot(diffuseColor.rgb, vec3(0.333));
-          ${propsOld(4) ? `
-          diffuseColor.rgb *= mix(0.6, 1.0, smoothstep(5.2, 9.5, vFlameW.y)) * (0.8 + 0.4 * flameNoise(vFlameW * 0.42));
-          float moss = smoothstep(0.4, 0.95, flameN.y)
-            * smoothstep(0.42, 0.72, flameNoise(vFlameW * 0.8) * 0.65 + flameNoise(vFlameW * 2.9) * 0.35);
-          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.062, 0.064, 0.026) * (0.7 + 2.0 * stoneLum), moss * 0.7);` : `
-          // (forkProps.js, 4: it was porcelain — one pale tone, clean to the
+          ${`
+          // (forkProps.js: it was porcelain — one pale tone, clean to the
           // ground. Granite that has stood out of doors: its grain, salt and
           // pepper; slow blotches of tone; the foot dark with damp, unevenly,
           // as high as the rain splashes; soot and wet under every ledge and
@@ -682,7 +700,7 @@ export function buildMaterials(ctx) {
           totalEmissiveRadiance += diffuseColor.rgb * uFlameColor * vFlame.w * flameNdl
             * mix(0.35, 1.0, flameAim * flameAim * flameAim) / (1.0 + 0.16 * flameD2);`);
     };
-    mat.customProgramCacheKey = () => `babel-flame-stone${propsOld(4) ? '' : '-granite'}`;
+    mat.customProgramCacheKey = () => `babel-flame-stone${'-granite'}`;
     return mat;
   };
   const sprite = (map) => Std({ map, alphaTest: 0.32, roughness: 0.9, side: THREE.DoubleSide });
@@ -709,7 +727,7 @@ export function buildMaterials(ctx) {
     mat.customProgramCacheKey = () => 'babel-well-stone';
     return mat;
   };
-  // where the Fork's signpost's lantern hangs, and how strong (gardenFix5.js, 3)
+  // where the Fork's signpost's lantern hangs, and how strong (gardenProps.js)
   const signLamp = { value: new THREE.Vector4(0, -1e6, 0, 0) };
   const M = {
     floor: lpPool(paveShade(Std({ map: flag.map, normalMap: flag.normalMap, roughnessMap: flag.roughnessMap, color: stoneTint('#8d7f6e', '#8a857b'), roughness: 1, side: THREE.DoubleSide }))),
@@ -719,11 +737,11 @@ export function buildMaterials(ctx) {
     // the same stone in the Silence's flights, where the lamp over the landing
     // reached in under it (no lamp casts a shadow) and drew a lit line along
     // every voussoir and string: a striped ziggurat in the quietest room
-    // (its undersides lifted by the floor's bounce: silenceFix.js, 4)
-    capShade: stoneShade(Std({ map: pale.map, normalMap: pale.normalMap, roughnessMap: pale.roughnessMap, color: stoneTint('#5e584d', '#5b5850'), roughness: 1, side: THREE.DoubleSide }), silenceOld(4) ? {} : ARCH_LIFT),
+    // (its undersides lifted by the floor's bounce: silenceProps.js)
+    capShade: stoneShade(Std({ map: pale.map, normalMap: pale.normalMap, roughnessMap: pale.roughnessMap, color: stoneTint('#5e584d', '#5b5850'), roughness: 1, side: THREE.DoubleSide }), ARCH_LIFT),
     shelf: Std({ map: wood.map, normalMap: wood.normalMap, roughnessMap: wood.roughnessMap, roughness: 1 }),
     shelfBack: Std({ map: wood.map, color: '#7a6754', roughness: 1 }),
-    // the Vertigo's shelves' moulded fronts, a darker walnut (vertigoFix.js, 3)
+    // the Vertigo's shelves' moulded fronts, a darker walnut (vertigoProps.js)
     shelfLip: Std({ map: wood.map, normalMap: wood.normalMap, roughnessMap: wood.roughnessMap, color: LIP_COLOR, roughness: 0.92 }),
     books: keep(makeBookMaterial(spines, titles?.map)),
     bookRows: Std({ map: bookRowsSet.map, roughness: 0.85 }),
@@ -753,12 +771,12 @@ export function buildMaterials(ctx) {
     // Shallow tooling and worn gold take a raking highlight from the lamps.
     letters: Std({ map: gilt.map, bumpMap: gilt.map, bumpScale: 0.12, roughness: 0.34, metalness: 0.6, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }),
     // (in the gallery's own leather, where the Library's colour is carried by
-    // its things too — libFix3.js, 1c: by which of the first three rooms the
+    // its things too — libraryProps.js: by which of the first three rooms the
     // edge hangs in)
     scallop: ((m) => {
-      if (!COLOUR?.dress) return m;
       const base = new THREE.Color('#6a3c26');
-      const tints = COLOUR.leathers.map((hex) => { const c = new THREE.Color(hex); return `vec3(${(c.r / base.r).toFixed(3)}, ${(c.g / base.g).toFixed(3)}, ${(c.b / base.b).toFixed(3)})`; });
+      // (and roomColour.js 1 may give a gallery another: the Echo's green went)
+      const tints = COLOUR.leathers.map((hex, i) => ROOM_LEATHER[i] ?? hex).map((hex) => { const c = new THREE.Color(hex); return `vec3(${(c.r / base.r).toFixed(3)}, ${(c.g / base.g).toFixed(3)}, ${(c.b / base.b).toFixed(3)})`; });
       m.onBeforeCompile = (sh) => {
         sh.uniforms.uBounceRooms = bounceRooms;
         sh.vertexShader = sh.vertexShader
@@ -786,14 +804,12 @@ export function buildMaterials(ctx) {
     // the cases', grained (in one flat colour a ladder's rail lights up under a
     // lamp like a rod of orange plastic). The cases' walnut, tinted up in
     // linear light, so it shares their compiled program.
-    oak: WOOD_OLD ? Std({ color: '#5e3f27', roughness: 0.55 })
-      : Std({ map: wood.map, normalMap: wood.normalMap, roughnessMap: wood.roughnessMap, color: new THREE.Color().setRGB(1.55, 1.36, 1.1), roughness: 1.1 }),
-    shade: ((m) => (LAMPS.corner ? shadeLit(m, 6 + 7.6 + 3.75, 6 + 7.6 + 5.55) : m))(Std({ color: '#7a4a22', emissive: '#ff9a48', emissiveIntensity: 1.3, roughness: 0.7, side: THREE.DoubleSide })),
+    oak: Std({ map: wood.map, normalMap: wood.normalMap, roughnessMap: wood.roughnessMap, color: new THREE.Color().setRGB(1.55, 1.36, 1.1), roughness: 1.1 }),
+    shade: ((m) => (shadeLit(m, 6 + 7.6 + 3.75, 6 + 7.6 + 5.55)))(Std({ color: '#7a4a22', emissive: '#ff9a48', emissiveIntensity: 1.3, roughness: 0.7, side: THREE.DoubleSide })),
     shadeDead: Std({ color: '#4d3e32', roughness: 0.85, side: THREE.DoubleSide }),
     paper: Std({ color: '#cdbf9e', roughness: 0.9 }),
     // the front edge of a shelf where books have gone in and out for centuries
-    shelfWorn: WOOD_OLD ? Std({ color: '#6e4d31', roughness: 0.45 })
-      : Std({ map: wood.map, normalMap: wood.normalMap, roughnessMap: wood.roughnessMap, color: new THREE.Color().setRGB(2.5, 2.3, 1.9), roughness: 0.8 }),
+    shelfWorn: Std({ map: wood.map, normalMap: wood.normalMap, roughnessMap: wood.roughnessMap, color: new THREE.Color().setRGB(2.5, 2.3, 1.9), roughness: 0.8 }),
     dust: Std({ color: '#8b857a', roughness: 1 }),
     // the soft dark line where a case stands on the floor
     contact: keep(new THREE.MeshBasicMaterial({ color: '#000000', transparent: true, opacity: 0.5, alphaMap: gradTex, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3 })),
@@ -807,7 +823,7 @@ export function buildMaterials(ctx) {
     wornStep: wayLit(Std({ map: again(flag.map, 1 / 22), color: '#c6c0b2', roughness: 0.58, transparent: true, depthWrite: false, alphaMap: wornTex, polygonOffset: true, polygonOffsetFactor: -2 }), 'step'),
     // a stair's risers, in the shadow of the lip over them; the joints of a parapet
     riserShade: keep(new THREE.MeshBasicMaterial({ color: '#000000', transparent: true, opacity: 0.4, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 })),
-    // The Echo's stair read by its values (echoFix.js, 2): the lip the palest
+    // The Echo's stair read by its values (echo.js): the lip the palest
     // stone on it, the riser only a shade under the tread — at 0.4 every riser
     // is a black slot and the flight a stack of separate slabs. (In the
     // balustrades' jointless limestone: the caps' ashlar puts a mortar joint
@@ -845,11 +861,11 @@ export function buildMaterials(ctx) {
     bank: shoreBankSet && bankLit(Std({
       map: shoreBankSet.map, normalMap: shoreBankSet.normalMap, normalScale: new THREE.Vector2(1, 1),
       color: '#c4baa8', roughness: 1,
-    }), { grass: grassTex, gravel: gravelTex, grassColor: '#5e6d63', gravelColor: GRAVEL_COLOR, grassRepeat: 1 / 46, gravelRepeat: 1 / 16 }),
+    }), { grass: grassTex, gravel: gravelTex, grassColor: '#5e6d63', gravelColor: GRAVEL_COLOR, grassRepeat: 1 / 46, gravelRepeat: 1 / 16, sward: BANK_SWARD }),
     bronze: Std({ color: '#7d5d38', roughness: 0.46, metalness: 0.8, side: THREE.DoubleSide }),
     bronzeDim: Std({ color: '#4e3d2b', roughness: 0.7, metalness: 0.3, side: THREE.DoubleSide }),
     inlay: Std({ color: '#9c7c3c', roughness: 0.4, metalness: 0.7, side: THREE.DoubleSide }),
-    // (the fillet round each floor, in its own duller brass: auditFix.js, 1)
+    // (the fillet round each floor, in its own duller brass: libraryProps.js)
     fillet: Std({ ...FILLET_BRASS, side: THREE.DoubleSide }),
     mirror: Std({ color: '#767c82', roughness: 0.34, metalness: 0.95, envMapIntensity: 2.4 }),
     liner: Std({ color: '#2a2219', roughness: 1, side: THREE.DoubleSide }),
@@ -863,14 +879,14 @@ export function buildMaterials(ctx) {
     // table panels, candle flames and the wax under them)
     lpPaper: keep(makePaperMaterial()),
     lpPanel: keep(Object.assign(makePaperMaterial({ lattice: true, flame: [0, -0.15, 0], gain: 0.62, near: 0.4 }), { side: THREE.DoubleSide })),
-    lpFlame: keep(makeFlameMaterial({ alive: !doorPropsOld(4) })),
-    // (the Door's candles: wax, its tone in its vertices, the flame showing a little through it — doorProps.js, 4)
+    lpFlame: keep(makeFlameMaterial({ alive: true })),
+    // (the Door's candles: wax, its tone in its vertices, the flame showing a little through it — doorProps.js)
     wax: Std({ vertexColors: true, roughness: 0.42, emissive: '#3b2412', emissiveIntensity: 0.3 }),
     lpWax: keep(waxGlowMaterial()),
     // A globe that has gone out: the same opal glass with nothing behind it —
     // dark and opaque, with dust above and the burning lamp reflected below.
     deadGlass: deadGlassPatch(Std({ metalness: 0 })),
-    // (gardenFix5.js, 11: across the garden its cut edge is drawn soft)
+    // (gardenProps.js: across the garden its cut edge is drawn soft)
     foliage: keep(makeFoliageMaterial(leaves, wind, FOLIAGE_KINDS, { prepassed: true, feather: FEATHER.on ? FEATHER : null, mapFill: mapWarm })),
     foliagePre: keep(makeFoliagePrepass(leaves, wind, FOLIAGE_KINDS, { feather: FEATHER.on ? FEATHER : null })),
     // the dead leaf a hedge stands in: its own leaf, browned, laid flat
@@ -887,17 +903,16 @@ export function buildMaterials(ctx) {
     bark: Std({ map: barkSet.map, normalMap: barkSet.normalMap, normalScale: new THREE.Vector2(1.4, 1.4), vertexColors: true, roughness: 0.95 }),
     glass: Std({ color: '#ffe2b8', transparent: true, opacity: 0.3, roughness: 0.04, metalness: 0, envMapIntensity: 2.2, depthWrite: false }),
     iron: Std({ color: '#2a2520', roughness: 0.6, metalness: 0.6 }),
-    grass: Std({ map: grassTex, color: '#5e6d63', roughness: 1, side: THREE.DoubleSide }),
+    // (its colour, patches and moonlight: gardenProps.js)
+    grass: swardLawn(Std({ map: grassTex, color: '#5e6d63', roughness: 1, side: THREE.DoubleSide })),
     gravel: Std({ map: gravelTex, color: GRAVEL_COLOR, roughness: 1, side: THREE.DoubleSide }),
     mazeFloor: Std({ map: gravelTex, color: '#635f57', roughness: 1, side: THREE.DoubleSide }),
     wood: Std({ map: timber.map, normalMap: timber.normalMap, roughnessMap: timber.roughnessMap, color: '#9d7d5e', roughness: 0.85 }),
-    plank: WOOD_OLD ? Std({ map: again(timber.map, 1 / 16), normalMap: again(timber.normalMap, 1 / 16), color: '#b59872', roughness: 0.85 })
-      : Std({ map: timber.map, normalMap: timber.normalMap, roughnessMap: timber.roughnessMap, color: '#b59872', roughness: 0.85 }),
+    plank: Std({ map: timber.map, normalMap: timber.normalMap, roughnessMap: timber.roughnessMap, color: '#b59872', roughness: 0.85 }),
     // Red lacquer over wood: the colour is the lacquer's, but the board under
     // it shows in the gloss — the grain a faint relief, the sheen a little
     // uneven along it. (A white map so it compiles as the garden's wood does.)
-    lacquer: WOOD_OLD ? Std({ color: '#5a2620', roughness: 0.45 })
-      : Std({ map: whiteTex, normalMap: timber.normalMap, normalScale: new THREE.Vector2(0.22, 0.22), roughnessMap: timber.roughnessMap, color: '#5a2620', roughness: 0.55 }),
+    lacquer: Std({ map: whiteTex, normalMap: timber.normalMap, normalScale: new THREE.Vector2(0.22, 0.22), roughnessMap: timber.roughnessMap, color: '#5a2620', roughness: 0.55 }),
     roof: Std({ map: roofTex, roughness: 0.55, flatShading: true }),
     // Ridge tiles: the rolls and hips laid over the roof shell. Glazed the same
     // green but darker, because a ridge is a doubled course and sits in its own
@@ -921,25 +936,24 @@ export function buildMaterials(ctx) {
     rakeDark: keep(new THREE.MeshBasicMaterial({ color: '#000000', transparent: true, opacity: 0.3, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3 })),
     // (unlit, like the furrow: one shader for both, and each new one costs the
     // world a fraction of a second more to compile before it can be shown)
-    rakeLit: keep(new THREE.MeshBasicMaterial({ color: '#9a9284', transparent: true, opacity: forkOld(2) ? 0.13 : RAKE.lit, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3 })),
-    // the Fork's furrows, fainter than the court's rings (forkFix.js, 2: the
+    rakeLit: keep(new THREE.MeshBasicMaterial({ color: '#9a9284', transparent: true, opacity: RAKE.lit, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3 })),
+    // the Fork's furrows, fainter than the court's rings (forkProps.js: the
     // same program, another opacity)
-    forkRakeDark: keep(new THREE.MeshBasicMaterial({ color: '#000000', transparent: true, opacity: forkOld(2) ? 0.3 : RAKE.dark, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3 })),
-    // the Fork's waymark, a post of weathered timber (forkFix.js, 3)
+    forkRakeDark: keep(new THREE.MeshBasicMaterial({ color: '#000000', transparent: true, opacity: RAKE.dark, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3 })),
+    // the Fork's waymark, a post of weathered timber (forkProps.js)
     forkPost: Std({ map: timber.map, normalMap: timber.normalMap, roughnessMap: timber.roughnessMap, color: WAYMARK.color, roughness: 0.9 }),
     // the same post turned, in the pergola's timber, and its boards gone grey:
-    // weathered, and lit by the lantern on its own arm (gardenFix5.js, 3)
+    // weathered, and lit by the lantern on its own arm (gardenProps.js)
     signPost: signLit(Std({ map: timber.map, normalMap: timber.normalMap, roughnessMap: timber.roughnessMap, color: SIGN.post, roughness: 0.85 }), signLamp),
     signBoard: signLit(Std({ map: timber.map, normalMap: timber.normalMap, roughnessMap: timber.roughnessMap, color: SIGN.board, roughness: 0.9 }), signLamp),
-    // the caps shod on the Pavilion's bracket arms, dark bronze (pavilionFix.js, 2)
+    // the caps shod on the Pavilion's bracket arms, dark bronze (pavilionProps.js)
     pavBronze: Std({ color: '#5c4630', roughness: 0.5, metalness: 0.65 }),
     // the armillary's pedestal, turned from one stone: the garden stone's tint
     // on the lanterns' jointless carving, so no mortar joints run down the
-    // lettered shaft (webFix.js, 7); and the paving's stone, weathered, lit by
+    // lettered shaft (webProps.js); and the paving's stone, weathered, lit by
     // the paving it stands on, since under its own lamp it takes only the sky
-    // (gardenFix5.js, 8)
-    pedestalStone: garden5Old(8) ? stoneShade(Std({ map: again(carveSet.map, 1 / 11), normalMap: again(carveSet.normalMap, 1 / 11), roughnessMap: again(carveSet.roughnessMap, 1 / 11), color: '#b9ae9f', roughness: 1 }))
-      : plinthLit(Std({ map: again(pale.map, 1 / 26), normalMap: again(pale.normalMap, 1 / 26), roughnessMap: again(pale.roughnessMap, 1 / 26), color: PLINTH.color, roughness: 1 })),
+    // (gardenProps.js)
+    pedestalStone: plinthLit(Std({ map: again(pale.map, 1 / 26), normalMap: again(pale.normalMap, 1 / 26), roughnessMap: again(pale.roughnessMap, 1 / 26), color: PLINTH.color, roughness: 1 })),
     // the Pavilion's own (pavilionProps.js): the dark gilt of its columns'
     // collars (13); the green and the chalk line painted on its bracket arms
     // (3); the cloth under the qin (4) — none with a map, so all of them the
@@ -948,8 +962,7 @@ export function buildMaterials(ctx) {
     pavGreen: Std({ color: CAIHUA.green, roughness: 0.82 }),
     pavChalk: Std({ color: CAIHUA.chalk, roughness: 0.88 }),
     brocade: Std({ color: '#39452e', roughness: 0.93 }),
-    lacquerWorn: wornLacquer(WOOD_OLD ? Std({ color: '#5a2620', roughness: 0.45, vertexColors: true })
-      : Std({ map: whiteTex, normalMap: timber.normalMap, normalScale: new THREE.Vector2(0.22, 0.22), roughnessMap: timber.roughnessMap, color: '#5a2620', roughness: 0.55, vertexColors: true })),
+    lacquerWorn: wornLacquer(Std({ map: whiteTex, normalMap: timber.normalMap, normalScale: new THREE.Vector2(0.22, 0.22), roughnessMap: timber.roughnessMap, color: '#5a2620', roughness: 0.55, vertexColors: true })),
     blackLacquer: Std({ color: '#17110d', roughness: 0.32 }),
     silk: Std({ color: '#e2d6bc', roughness: 0.6 }),
     // The guqin player's cushion: cloth, not lacquer. In the lacquer it took
@@ -963,21 +976,21 @@ export function buildMaterials(ctx) {
     // night round the maze with the walls and copings under them (webProps.js,
     // 1: or over the cedars it is a pale lit strip, the one thing of the
     // Library left in the court's sky)
-    wallTop: stoneShade(Std({ map: again(pale.map, 1 / 26), normalMap: again(pale.normalMap, 1 / 26), roughnessMap: again(pale.roughnessMap, 1 / 26), color: '#b9ae9f', roughness: 1 }), { night: !webPropsOld(1), quiet: true, sink: true, route: true }),
+    wallTop: stoneShade(Std({ map: again(pale.map, 1 / 26), normalMap: again(pale.normalMap, 1 / 26), roughnessMap: again(pale.roughnessMap, 1 / 26), color: '#b9ae9f', roughness: 1 }), { night: true, quiet: true, sink: true, route: true }),
     frame: Std({ color: '#7a5a30', roughness: 0.4, metalness: 0.6 }),
     // water gilding on the pier glasses' carving (mirror.js), burnished and old
     gilt: Std({ color: '#c2994c', roughness: 0.34, metalness: 0.9 }),
     giltDeep: Std({ color: '#6f5128', roughness: 0.62, metalness: 0.75 }),
     // The garden's stone lanterns: cut stone with no joints in it (a lantern
     // is carved from five blocks, not laid in courses), lit from inside.
-    lanternStone: flameLit(Std({ map: again(carveSet.map, 1 / 11), normalMap: again(carveSet.normalMap, 1 / 11), roughnessMap: again(carveSet.roughnessMap, 1 / 11), color: propsOld(4) ? '#b3ada2' : '#8d8a85', roughness: 1 })),
+    lanternStone: flameLit(Std({ map: again(carveSet.map, 1 / 11), normalMap: again(carveSet.normalMap, 1 / 11), roughnessMap: again(carveSet.roughnessMap, 1 / 11), color: '#8d8a85', roughness: 1 })),
     // the paper of their windows, coloured by the flame behind it (litPaper)
     lanternPaper: keep(new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide, fog: false })),
     paperDead: Std({ color: '#6f685c', roughness: 0.95, side: THREE.DoubleSide }),
     leather: Std({ color: '#4a2519', roughness: 0.62 }),
     tuft: Std({ color: '#4c5c33', roughness: 1, emissive: '#1f2b18', emissiveIntensity: 0.5 }),
-    // the lawn's blades in a lantern's light (lawn.js; forkProps.js, 10)
-    lawnBlade: bladeLit(Std({ vertexColors: true, roughness: 1, side: THREE.DoubleSide })),
+    // the lawn's blades in a lantern's light (lawn.js; forkProps.js)
+    lawnBlade: moonBlades(bladeLit(Std({ vertexColors: true, roughness: 1, side: THREE.DoubleSide }))),
     petal: Std({ color: '#cdbfe0', roughness: 0.8, side: THREE.DoubleSide, emissive: '#3a3348', emissiveIntensity: 0.45 }),
     wisteria: sprite(wisteriaTex),
     ivy: sprite(ivyTex),
@@ -993,18 +1006,19 @@ export function buildMaterials(ctx) {
     dressed: stoneShade(Std({ map: dressedSet.map, normalMap: dressedSet.normalMap, roughnessMap: dressedSet.roughnessMap, color: stoneTint('#b3a894', '#aca699'), roughness: 1, side: THREE.DoubleSide }), { weather: true }),
     marble: Std({ map: marbleSet.map, roughness: 0.24, metalness: 0, envMapIntensity: 1.3 }),
     column: stoneShade(Std({ map: columnSet.map, normalMap: columnSet.normalMap, roughnessMap: columnSet.roughnessMap, color: stoneTint('#b3a894', '#bab3a6'), roughness: 1 }), { worked: { polish: 0.3, foot: true } }),
-    hang: keep(makeHangingMaterial(hangTex, wind, HANGING_KINDS, { keepCoverage: WILLOW_BROAD, weep: pavPropsOld(6) ? null : WILLOW })),
+    hang: keep(makeHangingMaterial(hangTex, wind, HANGING_KINDS, { keepCoverage: true, weep: WILLOW })),
     // the lilies of the pond (pond.js): four kinds of leaf in one atlas, and the flowers
     lily: keep(lilyPads.material),
     flower: keep(makeFlowerMaterial()),
   };
 
-  // Three stones in the Echo: warm grey masonry, pale limestone carving and
-  // treads, and a muted taupe-grey column stone. Keep the shared texture scale
+  // Two stones in the Echo: warm grey masonry, and pale limestone for the
+  // carving, the treads and the columns (one stone with the arches and
+  // bridges they carry). Keep the shared texture scale
   // and the materials' lighting; the tint ends at this room's walls.
   for (const [name, color] of Object.entries({
     mass: '#77736c', cap: '#d9d6c9', step: '#cbc8ba', carve: '#dedbce',
-    column: '#a89f90', nosing: '#e5dfd0', wornStep: '#eee7d6',
+    column: '#d9d6c9', nosing: '#e5dfd0', wornStep: '#eee7d6',
   })) {
     const mat = M[name], compile = mat.onBeforeCompile, cacheKey = mat.customProgramCacheKey;
     const tint = new THREE.Color(color);
@@ -1048,11 +1062,13 @@ export function buildMaterials(ctx) {
     // `uvAt`: lay it as it lies that far off ([x, z]) — the way in, dressed as
     // the hallway its doorway opens as (see WAY_IN).
     add(geo, uvAt = null) {
-      const grain = geo.userData.grain;
+      const grain = geo.userData.grain, own = geo.userData.uvOwn;
       const flat = geo.index ? geo.toNonIndexed() : geo;
       if (flat !== geo) geo.dispose();
-      // (`project: 'grain'`: wood, laid along each piece — see woodGrain.js)
-      if (this.project === 'grain') uvGrain(flat, uvAt, grain);
+      // (`project: 'grain'`: wood, laid along each piece — see woodGrain.js;
+      // `uvOwn`: a piece that lays its own, e.g. the Silence's drum, silence.js)
+      if (own) { /* as it came */ }
+      else if (this.project === 'grain') uvGrain(flat, uvAt, grain);
       else if (this.project) uvWorld(flat, uvAt);
       flat.computeBoundingBox();
       flat.boundingBox.getCenter(centre);
@@ -1351,7 +1367,7 @@ export function buildMaterials(ctx) {
   const decal = ([x, z], sx, sz, color, opacity, y = 6.6, flicker = 0, src = null) => {
     // A pool on a Library floor goes into the floor's own light (lampPass.js;
     // the draw its breathing took is still taken)
-    if (LAMPS.pool && y > 5.9 && y < 6.7) {
+    if (y > 5.9 && y < 6.7) {
       floorPools.push({ x, z, sx, sz, c: new THREE.Color(color), o: opacity, src });
       if (flicker) rr(0, 100);
       return null;
@@ -1399,13 +1415,12 @@ export function buildMaterials(ctx) {
   //
   // A lamp is rescaled so that it lights a wall DECAY_AT away exactly as it
   // would at an inverse square; only nearer than that does the softer fall-off
-  // soften it, and further off it carries. ?wlight=old puts the hard light
-  // back; ?wdecay, ?wlamp and ?wpool dial each part of it.
+  // soften it, and further off it carries. ?wdecay, ?wlamp and ?wpool dial
+  // each part of it.
   const Q = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
   const qNum = (k, d) => (Q.get(k) !== null && Q.get(k) !== '' && Number.isFinite(+Q.get(k)) ? +Q.get(k) : d);
-  const HARD_LIGHT = Q.get('wlight') === 'old';
-  const LAMP_DECAY = qNum('wdecay', HARD_LIGHT ? 2 : 1.5), DECAY_AT = 32;
-  const LAMP_DIAL = qNum('wlamp', HARD_LIGHT ? 1 : 0.6), POOL_DIAL = qNum('wpool', HARD_LIGHT ? 1 : 0.55);
+  const LAMP_DECAY = qNum('wdecay', 1.5), DECAY_AT = 32;
+  const LAMP_DIAL = qNum('wlamp', 0.6), POOL_DIAL = qNum('wpool', 0.55);
   // (A lamp is a globe, not a point — lightModel.js — so it is given back what
   // the softer near field takes from it at DECAY_AT.)
   // `column` [x, z, radius]: whoever stands inside it keeps this light, however far off.
@@ -1422,7 +1437,7 @@ export function buildMaterials(ctx) {
   M.vestBookRowsLit.map = vestBookRowsSet.map;
   M.vestBookRowsLit.onBeforeCompile = M.bookRowsLit.onBeforeCompile;
   M.vestBookRowsLit.customProgramCacheKey = M.bookRowsLit.customProgramCacheKey;
-  return { Std, shorePond, bounceRooms, workAt, stringWash, mapWarm, echoDeep, ROUTE_ON, ROUTE_TINT,
+  return { Std, shorePond, bounceRooms, workAt, stringWash, mapWarm, echoDeep, ROUTE_ON: true, ROUTE_TINT,
     walkNearGlsl, stoneShade, skyDull, setWay, signLamp, M, root, chunkKey, centre, Batch, slabGeo,
     boxGeo, placed, profileGeo, rodGeo, flatPlane, wornRibbon, flatQuad, barGeo, brokenBlock,
     chunkGeo, stoneGeo, rockGeo, instances, pools, wells, decal, haloMaterial, halos, halo,

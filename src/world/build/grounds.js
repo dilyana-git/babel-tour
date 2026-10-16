@@ -11,23 +11,20 @@ import { Wood, growTree } from '../trees';
 import { bindSceneDepth } from '../softDepth';
 import { WATER_Y } from '../water';
 import { lilyFlowerGeometry, lilyBudGeometry } from '../pond';
-import { BANK_VARY, forkOld, WAYMARK } from '../forkFix';
-import { WILLOW_BROAD } from '../pavilionFix';
-import { propsOld, BLOSSOM_NIGHT, FINIALS, LAWN } from '../forkProps';
-import { pavPropsOld, WILLOW } from '../pavilionProps';
-import { lawnBlades, swardLit, lawnSward } from '../lawn';
-import { webOld, SCREEN, screenPlaces, GATE as WEB_GATE, FLIES } from '../webFix';
-import { webPropsOld, BELT, closeBelt, SPIRE } from '../webProps';
-import { garden5Old, GRASS, paintSward, FEATHER } from '../gardenFix5';
+import { WAYMARK, BLOSSOM_NIGHT, FINIALS, LAWN } from '../forkProps';
+import { WILLOW } from '../pavilionProps';
+import { lawnBlades, swardLit, lawnSward, edgeTufts } from '../lawn';
+import { MIST_COLOR, TUFTS, trackMist, SWARD, GRASS, paintSward, FEATHER } from '../gardenProps';
+import { SCREEN, screenPlaces, GATE as WEB_GATE, FLIES, BELT, closeBelt, SPIRE } from '../webProps';
 import { pondShore, rockVariants, guardStones } from '../shore';
-import { ONE_TREE, SHORE_OLD, FORK_OLD, NO_BOUND } from './common';
+import { ONE_TREE, NO_BOUND } from './common';
 
 export function* buildTrees(ctx) {
   const { light, paintings, rnd, rr, pick, dir, add, dist, keep, M, root, instances, chunkKey, inGarden, hangs,
     GATE, foliage, beltFoliage, beltWood, LEAF, BLOSSOM, PERGOLA0, J, POND, MZ,
     POOLS, PATHS, segDist, pathDist, NORTH_OPEN, wayDist, onNorthBridge, boundaryDist } = ctx;
   // ── Trees (trees.js) ──────────────────────────────────────────────────────
-  // (the cedars behind the maze, in a group of their own: webProps.js, 2)
+  // (the cedars behind the maze, in a group of their own: webProps.js)
   let beltGroup = null;
   // Where they stand is drawn from the world's stream, which this spends to the
   // draw exactly as the first trees did, so the shrubs, the mist and everything
@@ -119,9 +116,9 @@ export function* buildTrees(ctx) {
       // willows and pines by the water lean out over it
       const lean = gap < 135 ? Math.atan2(POND.c[1] - p[1], POND.c[0] - p[0]) + trr(-0.5, 0.5) : null;
       const wood = new Wood(7);
-      // (pavilionProps.js, 6: a willow is dressed as a weeping one, from a
+      // (pavilionProps.js: a willow is dressed as a weeping one, from a
       // stream of its own — the trees' stream is spent as it always was)
-      const weeping = species === 'willow' && !pavPropsOld(6) ? makeRng(6100 + placedTrees.length * 17) : null;
+      const weeping = species === 'willow' ? makeRng(6100 + placedTrees.length * 17) : null;
       const grown = growTree(species, tr, wood, { ...shape, lean, detail: !light && walk < 420, weeping });
       // (one on the road not taken, the way along the shore, the road's old
       // second bridge or the hedge that closes the garden is grown all the
@@ -134,13 +131,13 @@ export function* buildTrees(ctx) {
       if (gone) g.dispose();
       else woodChunks.get(key).push(g);
 
-      // (forkProps.js, 7: a cherry in flower at night. Lit all round in the
+      // (forkProps.js: a cherry in flower at night. Lit all round in the
       // palest pink, from across the water each tree is a puff of the one
       // saturated colour in the frame; so greyer and deeper, a third of its
       // sprays left off, so the dark limbs show through, and a spray under the
       // crown's middle in the crown's own shade — the moon is on its top. No
       // draws are spent on any of it: the stream does not move.)
-      const night = species === 'cherry' && !propsOld(7);
+      const night = species === 'cherry';
       const palette = species === 'maple' && tr() < 0.2 ? TINT.mapleTurning : night ? BLOSSOM_NIGHT.tints : TINT[species];
       const base = new THREE.Color(tpick(palette));
       // (A weeping willow has more sprays than the plain willow whose draws it
@@ -173,12 +170,12 @@ export function* buildTrees(ctx) {
         });
       }
       for (const [wi, w] of grown.whips.entries()) {
-        // (broad strands, pavilionFix.js 4: each now carries one or two ropes
+        // (broad strands, pavilionProps.js: each now carries one or two ropes
         // of leaf, which seen at all are seen as a wall of bars — so about
         // half the cards are left off. No draws are spent here: the stream
         // does not move.)
-        // (pavilionProps.js, 6: darker to their tips, fewer are left off)
-        if (WILLOW_BROAD && ((wi * 0.618034 + w.p[0] * 0.013) % 1) < (weeping ? WILLOW.skip : 0.45)) continue;
+        // (pavilionProps.js: darker to their tips, fewer are left off)
+        if (((wi * 0.618034 + w.p[0] * 0.013) % 1) < (weeping ? WILLOW.skip : 0.45)) continue;
         const at = [w.p[0] + p[0], w.p[1] + GROUND_T, w.p[2] + p[1]];
         let len = w.len;
         if (walkDist([at[0], at[2]]) < 8 + w.wide) len = Math.min(len, at[1] - 30);
@@ -308,25 +305,25 @@ export function* buildTrees(ctx) {
         }
       }
     }
-    // Behind the maze, a belt of cedars (webFix.js, 2). The Library's garden
+    // Behind the maze, a belt of cedars (webProps.js). The Library's garden
     // faces stand three paces past the maze's far hedge and ten metres tall,
     // and from the heart, bare, they are the top half of the frame: a garden
     // maze in a walled yard. Two and three deep, the back rows taller, their
     // spires are the skyline from the court and the stone is behind them.
     // (Their own stream: nothing above moves.)
-    if (!webOld(2) && !paintings) {
+    if (!paintings) {
       const sr = makeRng(SCREEN.seed), spick = (xs) => xs[Math.floor(sr() * xs.length)];
       const around = (p, r) => Array.from({ length: 8 }, (_, k) => add(p, [Math.cos(k * Math.PI / 4), Math.sin(k * Math.PI / 4)], r));
       const ok = (p, S) => inGarden(p) && around(p, S * 0.4).every(inGarden)
         && boundaryDist(p) > 8 && wayDist(p) > 24 && pathDist(p) > 24
         && !placedTrees.some((o) => dist(o, p) < 12);
-      // (webProps.js, 2: spires, of many heights; where the Library's stone
+      // (webProps.js: spires, of many heights; where the Library's stone
       // is close behind one, a tall one)
-      const walled = webPropsOld(2) ? null : (p) => BELT.beside.some((dx) => !inGarden([p[0] - dx, p[1] + BELT.behind]));
+      const walled = (p) => BELT.beside.some((dx) => !inGarden([p[0] - dx, p[1] + BELT.behind]));
       const belt = screenPlaces(sr, MZ, ok, walled);
       // (and closed, from where it is looked at: wherever the rows left the
       // Library's stone showing between two spires, one more)
-      if (!webPropsOld(2)) {
+      {
         const hedge = MZ.z0 + MZ.rows * MZ.ch, laneX = MZ.x0 + (WEB_GATE.col + 0.5) * MZ.cw;
         const clear = (p, S) => (p[1] > hedge + 9 || p[0] < MZ.x0 - 9 || p[0] > MZ.x0 + MZ.cols * MZ.cw + 9)
           && !(WEB_GATE.through && p[1] < hedge + 50 && Math.abs(p[0] - laneX) < S * WEB_GATE.lane[0] + WEB_GATE.lane[1]);
@@ -336,15 +333,10 @@ export function* buildTrees(ctx) {
       for (const [ti, t] of belt.entries()) {
         if (ti % 8 === 0) yield;
         const wood = new Wood(7);
-        const grown = growTree('cedar', sr, wood, { H: t.H, S: t.S, detail: !light && !t.far, skirt: SCREEN.skirt, spire: webPropsOld(2) ? null : SPIRE });
+        const grown = growTree('cedar', sr, wood, { H: t.H, S: t.S, detail: !light && !t.far, skirt: SCREEN.skirt, spire: SPIRE });
         treeList.push({ p: t.p, species: 'cedar', H: +t.H.toFixed(1), screen: true });
         const g = wood.geometry().translate(t.p[0], GROUND_T, t.p[1]);
-        const key = chunkKey(t.p[0], t.p[1]);
-        if (!webPropsOld(2)) beltWood.push(g);
-        else {
-          if (!woodChunks.has(key)) woodChunks.set(key, []);
-          woodChunks.get(key).push(g);
-        }
+        beltWood.push(g);
         const base = new THREE.Color(spick(TINT.cedar));
         for (const sp of grown.sprays) {
           tone.copy(base).lerp(pickTone.set(spick(TINT.cedar)), 0.3);
@@ -352,9 +344,9 @@ export function* buildTrees(ctx) {
           // at all, and from there the hedges stand across its foot — its
           // lowest whorls, the broadest cards it has, are not stood up. The
           // tint is drawn all the same.)
-          if (t.far && !webPropsOld(2) && sp.p[1] < BELT.foot) continue;
-          (webPropsOld(2) ? foliage : beltFoliage).push({
-            p: [sp.p[0] + t.p[0], sp.p[1] + GROUND_T, sp.p[2] + t.p[1]], rot: sp.rot, s: sp.s, color: tone.getHex(), k: sp.shade * (webPropsOld(2) ? 1 : 1 + (BELT.moon - 1) * (0.35 + 0.65 * Math.min(1, sp.p[1] / t.H))), kind: sp.kind,
+          if (t.far && sp.p[1] < BELT.foot) continue;
+          (beltFoliage).push({
+            p: [sp.p[0] + t.p[0], sp.p[1] + GROUND_T, sp.p[2] + t.p[1]], rot: sp.rot, s: sp.s, color: tone.getHex(), k: sp.shade * (1 + (BELT.moon - 1) * (0.35 + 0.65 * Math.min(1, sp.p[1] / t.H))), kind: sp.kind,
             crown: [sp.crown[0] + t.p[0], sp.crown[1] + GROUND_T, sp.crown[2] + t.p[1], sp.crown[3]],
           });
         }
@@ -413,12 +405,12 @@ export function* buildTrees(ctx) {
 
 export function* buildMist(ctx) {
   const { paintings, light, rr, add, lerp2, unit2, dist, keep, paint, tex, withRepeat, starTex,
-    radialTex, water, wind, lilyPads, leaves, M, root, flatPlane, stoneGeo, instances, lightWishes,
+    radialTex, water, wind, lilyPads, leaves, M, root, flatPlane, instances, lightWishes,
     R, RC, cells, inGarden, LB, hangs, dust, trialPaper, trialEaves, glows, PIT, GB, rocks, ivy,
     fireflies, moreFlies, lilies, blooms, foliage, beltFoliage, beltLight, topSprigs, faceSprigs,
     plantHedge, finial, J, POND, SHORE, BRIDGE, BRIDGE_STAND, HEART, PATHS, segDist, lineDist,
     NORTH_BRIDGE, NORTH_OPEN, WAYS, standing, lawnLamps, hedgeGround, BOUNDARY, boundaryDist,
-    offPond, pondEdge, beltGroup } = ctx;
+    offPond, pondEdge, beltGroup, MZ } = ctx;
   // ── Mist on the grass ─────────────────────────────────────────────────────
   let beltLeaf = null;
   // What a night garden has that a lit lawn has not: something between the eye
@@ -431,10 +423,10 @@ export function* buildMist(ctx) {
     const near = [POND.c, [1150, 300], [1090, 400], [1240, 200], SHORE, J, [980, 520], [1350, 60],
       [1420, 250], [900, 430], [1180, 120], [1500, 380], [820, 300], [1600, 150]];
     // Faint, with its centres kept away from the places a reader stands.
-    const mistMat = keep(new THREE.MeshBasicMaterial({
-      map: radialTex, color: '#9fc0d8', transparent: true, opacity: 0.055,
+    const mistMat = trackMist(keep(new THREE.MeshBasicMaterial({
+      map: radialTex, color: MIST_COLOR, transparent: true, opacity: 0.055,
       blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, side: THREE.DoubleSide,
-    }));
+    })));
     // And out of the Library. A sheet laid on the lawn beside the Door reaches
     // in over the breach, and from inside the gallery its far edge would meet
     // the walls at eye height: a razor-straight line across both walls of
@@ -505,20 +497,14 @@ export function* buildMist(ctx) {
     }
   }
 
-  // The garden's stones half sunk in the ground, the way a set stone sits; and
-  // round the pond, set as stones are set — a big one and two smaller beside
-  // it, then a gap of low ones — rather than one of a size every few paces.
-  // (The draws of stones of one size: only the size each is given differs.)
-  // (And pale: near-black greys read as holes at night.)
-  const BANK = [1.3, 0.85, 0.6, 0.42, 0.34];
-  const granite = new THREE.Color('#aaa293'), stoneTone = new THREE.Color(), paleStone = new THREE.Color('#ece6da');
+  const stoneTone = new THREE.Color(), paleStone = new THREE.Color('#ece6da');
   // Nothing left lying in the road not taken, the way along the shore or
   // across the hedge's line, nor half inside a post's or a lantern's foot
   // (their draws long spent: taking them up moves nothing else).
   for (let k = rocks.length - 1; k >= 0; k--) {
     const { p: [x, , z], s: [sx, , sz] } = rocks[k];
     const onWay = WAYS.some((way) => lineDist([x, z], way.pts) < way.w / 2 - 0.5);
-    const underFoot = !FORK_OLD && rocks[k].bank === undefined && standing.some((st) => dist([x, z], st.p) < st.r + Math.max(sx, sz) * 0.6);
+    const underFoot = rocks[k].bank === undefined && standing.some((st) => dist([x, z], st.p) < st.r + Math.max(sx, sz) * 0.6);
     if (onWay || underFoot || boundaryDist([x, z]) < 8) rocks.splice(k, 1);
   }
   {
@@ -534,7 +520,7 @@ export function* buildMist(ctx) {
     const area = loop.reduce((a, [x, z], i) => a + (x * loop[(i + 1) % loop.length][1] - loop[(i + 1) % loop.length][0] * z) / 2, 0);
     if (!NO_BOUND) plantHedge([area > 0 ? loop : loop.reverse()], { ground: 4, H: 24, seed: 31, detail: light ? 0.3 : 0.6 });
     // and its finials: one at each turn of it, and one along each long run
-    // between (forkProps.js, 6) — never at its two ends, which stand in stone
+    // between (forkProps.js) — never at its two ends, which stand in stone
     if (!NO_BOUND) {
       BOUNDARY.forEach((q, i) => {
         if (i > 0 && i < BOUNDARY.length - 1) finial(q, FINIALS.turn, 4, 24, 3101 + i);
@@ -543,9 +529,9 @@ export function* buildMist(ctx) {
     }
   }
   // The lawn's blades, round each lantern that stands on it (lawn.js;
-  // forkProps.js, 10): wherever there is lawn — not a way's gravel, nor the
+  // forkProps.js): wherever there is lawn — not a way's gravel, nor the
   // pond's bank, nor under a hedge or a lantern's own foot.
-  if (!propsOld(10) && !paintings) {
+  if (!paintings) {
     const inLoop = (p, loop) => {
       let hit = false;
       for (let i = 0, j = loop.length - 1; i < loop.length; j = i++) {
@@ -561,10 +547,39 @@ export function* buildMist(ctx) {
     const ok = (p) => inGarden(p) && ways.every((o) => lineDist(p, o.pts) > o.w / 2 + 0.4) && offPond(p, LAWN.bank)
       && !standing.some((st) => dist(p, st.p) < st.r + 0.2)
       && !hedged.some((h) => p[0] > h.x0 && p[0] < h.x1 && p[1] > h.z0 && p[1] < h.z1 && inLoop(p, h.loop));
-    // (gardenFix5.js, 5: clumped, broader, their tips a mid green, not needles;
+    // (gardenProps.js: clumped, broader, their tips a mid green, not needles;
     // and under them a mown sward for the lantern to fall on)
-    const clump = garden5Old(5) ? null : GRASS;
-    for (const g of lawnBlades({ lamps: lawnLamps, ok, ground: 4, density: LAWN.density * (light ? 0.5 : 1), height: LAWN.height, clump })) {
+    const clump = GRASS;
+    // (gardenProps.js: not sprinkled over the open lawn round each lantern
+    // but gathered along its edges, across the whole garden — the ways'
+    // sides, the hedges' feet, the bank's lip, round stones and posts)
+    const mazeRect = [[MZ.x0 - 6, MZ.z0 - 6], [MZ.x0 + MZ.cols * MZ.cw + 6, MZ.z0 - 6],
+      [MZ.x0 + MZ.cols * MZ.cw + 6, MZ.z0 + MZ.rows * MZ.ch + 6], [MZ.x0 - 6, MZ.z0 + MZ.rows * MZ.ch + 6]];
+    const offMaze = (p) => p[0] < mazeRect[0][0] - 0.3 || p[0] > mazeRect[1][0] + 0.3 || p[1] < mazeRect[0][1] - 0.3 || p[1] > mazeRect[2][1] + 0.3;
+    if (TUFTS.on) {
+      const bankRing = Array.from({ length: 120 }, (_, i) => {
+        const a = (i / 120) * Math.PI * 2;
+        return [POND.c[0] + Math.cos(a) * (POND.rx + LAWN.bank), POND.c[1] + Math.sin(a) * (POND.rz + LAWN.bank)];
+      });
+      const edges = [
+        ...ways.map((o) => ({ pts: o.pts, off: o.w / 2 + 0.15 })),
+        ...hedgeGround.map((loop) => ({ pts: loop, off: 0.6, closed: true })),
+        { pts: bankRing, off: 0, closed: true },
+        { pts: mazeRect, off: 0.2, closed: true },
+      ];
+      const rings = [
+        ...standing.map((st) => ({ p: st.p, r: st.r + 0.2 })),
+        ...rocks.filter((rk) => rk.bank === undefined).map((rk) => ({ p: [rk.p[0], rk.p[2]], r: Math.max(rk.s[0], rk.s[2]) * 0.8 })),
+      ];
+      for (const g of edgeTufts({ edges, rings, ok: (p) => ok(p) && offMaze(p), lamps: lawnLamps, ground: 4, t: TUFTS, density: light ? 0.5 : 1 })) {
+        const m = new THREE.Mesh(keep(g), M.lawnBlade);
+        m.receiveShadow = true;
+        m.name = 'lawnBlades';
+        root.add(m);
+        yield;
+      }
+    }
+    for (const g of TUFTS.on ? [] : lawnBlades({ lamps: lawnLamps, ok, ground: 4, density: LAWN.density * (light ? 0.5 : 1), height: LAWN.height, clump })) {
       const m = new THREE.Mesh(keep(g), M.lawnBlade);
       m.receiveShadow = true;
       m.name = 'lawnBlades';
@@ -573,7 +588,7 @@ export function* buildMist(ctx) {
     }
     if (clump) {
       const swardTex = tex(paint(512, 512, (g, s) => paintSward(g, s, makeRng(6619))), [1, 1]);
-      const swardMat = keep(swardLit(swardTex, GRASS.sward));
+      const swardMat = keep(swardLit(swardTex, { ...GRASS.sward, k: GRASS.sward.k * (SWARD.lampSward) }));
       for (const g of lawnSward({ lamps: lawnLamps, ok, ground: 4.04 })) {
         const m = new THREE.Mesh(keep(g), swardMat);
         // (named with the blades: not felt — body.js, UNFELT)
@@ -584,14 +599,7 @@ export function* buildMist(ctx) {
       }
     }
   }
-  if (SHORE_OLD) {
-    instances(stoneGeo(), M.gardenStone, rocks.map((r) => {
-      const k = r.bank === undefined ? 1 : BANK[r.bank % 5];
-      const sc = [r.s[0] * k, r.s[1] * k, r.s[2] * k];
-      const color = `#${stoneTone.set(r.color).lerp(granite, 0.55).getHexString()}`;
-      return { ...r, color, s: sc, rot: [r.rot[0] * 0.25, r.rot[1], r.rot[2] * 0.25], p: [r.p[0], r.p[1] - sc[1] * 0.3, r.p[2]] };
-    }), { cast: false, chunked: true });
-  } else {
+  {
     // ── The pond's edge (shore.js) ──────────────────────────────────────────
     // A bank the water lies in, its stones set along it, and pebbles; the plain
     // stones round it (`bank`) are left out — their draws are spent where they
@@ -626,9 +634,9 @@ export function* buildMist(ctx) {
       && deckD(p) > HWB + r + 0.6
       && approachD(p) > 5.5 + r
       && standing.every((st) => dist(p, st.p) > st.r + r + 0.5);
-    // (the pebbled bank coming and going round the pond: forkFix.js, 7; the
+    // (the pebbled bank coming and going round the pond: forkProps.js; the
     // kerb where a way comes to the water set in groups, 4)
-    const shore = pondShore({ edge: pondEdge, waterY: WATER_Y, world: { floorAt, gravelAt, under, clear, near: offWay }, light, bankVary: BANK_VARY, kerbVary: !forkOld(4) });
+    const shore = pondShore({ edge: pondEdge, waterY: WATER_Y, world: { floorAt, gravelAt, under, clear, near: offWay }, light, bankVary: true, kerbVary: true });
     for (const g of shore.arcs) GB.bank.add(g);
     for (const g of shore.stones) GB.shoreStone.add(g);
     // the stones that stand guard at each bridge's foot, either side of its
@@ -731,19 +739,11 @@ export function* buildMist(ctx) {
   // most of a metre of wandering, which at speed reads as flies, and the tiny
   // additive points wink in and out as they cross a pixel.
   const sparkles = [
-    // With ?wwebfix=old:5, a third of them, mostly low over the hedge tops, of
-    // uneven brightness and blinking slowly: big and even, at head height in
-    // front of everything, they read as dots on the lens, not as insects. (All
-    // still drawn from the stream; only these are shown. No mint ones: the
-    // garden takes no teal.) Otherwise (webFix.js, 5) all of them, and more
-    // over the maze, half the size, each flashing on a beat of its own and dark
-    // between: few, large and steady, they read as dust.
-    fireflies.length && (webOld(5)
-      ? makeSparkles(fireflies.filter((_, i) => i % 3 === 0).map((f, i) => ({
-        ...f, p: [f.p[0], 12 + (f.p[1] - 12) * 0.45, f.p[2]], k: (f.k ?? 1) * (0.4 + ((i * 0.618) % 1) * 0.9),
-        color: f.color === '#b8ffe6' ? '#eaf7a6' : f.color,
-      })), { drift: 5, rise: 0.5, pulse: 0.8, rate: 0.45, sizeOf: (f) => f.s[0] * 1.7 })
-      : makeSparkles([...fireflies, ...moreFlies].map((f, i) => ({
+    // All of them, and more over the maze, half the size, each flashing on a
+    // beat of its own and dark between (webProps.js): few, large and steady,
+    // they read as dust; big and even at head height, as dots on the lens. (No
+    // mint ones: the garden takes no teal.)
+    fireflies.length && (makeSparkles([...fireflies, ...moreFlies].map((f, i) => ({
         ...f, p: [f.p[0], 12 + (f.p[1] - 12) * 0.45, f.p[2]], k: (f.k ?? 1) * (0.5 + ((i * 0.618) % 1) * 0.8),
         color: f.color === '#b8ffe6' ? '#eaf7a6' : f.color,
       })), { drift: 5, rise: 0.5, rate: 0.45, blink: FLIES.blink, sizeOf: (f) => f.s[0] * 1.7 * FLIES.size })),

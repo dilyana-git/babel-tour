@@ -67,7 +67,7 @@ const BEHIND = -0.3;
 // (a flight's nosings are the parapet's stone, `cap` — `capShade` in the Silence;
 // and its treads are worn down the middle, `wornStep`, laid over them)
 // (`nosing`: the Echo's stair lips, in a paler stone of their own since
-// 2026-10-08 — echoFix.js)
+// 2026-10-08 — echo.js)
 const STAIRS = new Set(['step', 'carved', 'cap', 'capShade', 'wornStep', 'nosing', 'pavilionThreshold', 'pavilionStep', 'shoreStep']);
 const FOOT = 2.5;
 // Nor on a crest — a kerb, a coping, a rail, a beam: somewhere with the

@@ -7,13 +7,12 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { Wood } from '../trees';
 import { PORTAL } from '../portal';
 import { makeMirrors } from '../mirror';
-import { ECHO_STONE, lib3Old } from '../libFix3';
-import { doorOld, revealShade } from '../doorFix';
-import { WOOD_OLD } from '../woodGrain';
+import { ECHO_STONE } from '../libraryProps';
+import { revealShade } from '../doorProps';
 import { deg, PORTAL_FRAME } from './common';
 
 export function buildHoneycomb(ctx) {
-  const { light, dir, add, dist, bounceRooms, workAt, echoDeep, placed, wells, Q, qNum, M } = ctx;
+  const { light, dir, add, dist, bounceRooms, workAt, echoDeep, placed, wells, qNum, M } = ctx;
   // ── The honeycomb ─────────────────────────────────────────────────────────
   const R = 100, A = R * Math.sqrt(3) / 2, GAP = 50, D = 2 * A + GAP, AC = D / 2, RC = AC * 2 / Math.sqrt(3);
   const HALL = 36;
@@ -34,8 +33,8 @@ export function buildHoneycomb(ctx) {
   // grows, into its own walls: they stand 25 deep on each side of a hallway,
   // and the Echo takes ten of its twenty-five. Every cell stays where it is,
   // and so does every other room; the hallways into the Echo are shorter by
-  // what it took. ?wechoroom=old is the Echo at 100; ?wechor dials it.
-  const ECHO_R = qNum('wechor', Q.get('wechoroom') === 'old' ? R : 112), ECHO_A = (ECHO_R * Math.sqrt(3)) / 2;
+  // what it took. ?wechor dials it.
+  const ECHO_R = qNum('wechor', 112), ECHO_A = (ECHO_R * Math.sqrt(3)) / 2;
   const ECHO_C = cellC(1, -1);
   // a room's rim, centre to corner, and how much nearer the cell's edge its
   // walls stand than a standard room's (what its hallways lose at its end)
@@ -120,17 +119,11 @@ export function buildHoneycomb(ctx) {
   // spindles are a ship's rail and an office stair's, in rooms of ashlar, Doric
   // columns and walnut. It all goes in the stone of the coping it stands on, in
   // batches of its own: `balustrade` is not one of body.js's STAIRS, so no tall
-  // step is ever taken up onto it. ?wrail=old is the bronze.
-  const RAIL_OLD = Q.get('wrail') === 'old';
-  // The Vestibule's bridge level with the floor, the well's rail run round it
-  // (vestibuleBridge.js). ?wbridge=old: the raised bridge with the stone
-  // balustrade above, ?wrail=old the bronze before that.
-  const BRIDGE_LEVEL = !RAIL_OLD && Q.get('wbridge') !== 'old';
-  // The Echo's flights without their string course, flank and arch one face
-  // (?wline=old: the string), and its well ringed by a low stone kerb rather
-  // than the bronze rail every other well has (?wwell=old: the bronze).
-  const ECHO_ONE_FACE = Q.get('wline') !== 'old';
-  const ECHO_KERB = Q.get('wwell') !== 'old';
+  // step is ever taken up onto it. The Vestibule's bridge is level with the
+  // floor, the well's rail run round it (vestibuleBridge.js); the Echo's
+  // flights have no string course, flank and arch one face, and its well is
+  // ringed by a low stone kerb.
+  //
   // A moulding run along a line. `sec` is its section, [across, up, sharp]
   // round the outline, set off each point of `path` ([x, y, z]) across the
   // line in plan and straight up: on a rake the section stays plumb, as a
@@ -244,7 +237,7 @@ export function buildHoneycomb(ctx) {
     if (!balusterCache.has(key)) {
       const blk = BED + 0.34, L = h - 2 * blk, sq = 2.04 * r;
       // the turned part laid round it and up it, as it turns on the lathe
-      const turned = new THREE.LatheGeometry(BAL.map(([x, t]) => new THREE.Vector2(x * r, blk + t * L)), lib3Old(4) ? (light ? 7 : 10) : (light ? 10 : ECHO_STONE.sides));
+      const turned = new THREE.LatheGeometry(BAL.map(([x, t]) => new THREE.Vector2(x * r, blk + t * L)), (light ? 10 : ECHO_STONE.sides));
       const tp = turned.attributes.position, tuv = turned.attributes.uv;
       for (let i = 0; i < tuv.count; i++) tuv.setXY(i, tuv.getX(i) * 2 * Math.PI * r * CARVE_UV, tp.getY(i) * CARVE_UV);
       const parts = [
@@ -405,13 +398,13 @@ export function buildHoneycomb(ctx) {
   };
   return { R, A, GAP, D, AC, RC, HALL, ARCH_SPRING, ARCH_R, WAY_IN, cellC, ECHO_R, ECHO_A, rimAt,
     deepAt, NB, cells, inFrame, isGardenAt, inGarden, routeCenters, routeDist, hallway, edgeFrame,
-    hallMid, RAIL_OLD, BRIDGE_LEVEL, ECHO_ONE_FACE, ECHO_KERB, mouldGeo, patchOf, pedestalGeo,
+    hallMid, mouldGeo, patchOf, pedestalGeo,
     VEST_RAIL, FLIGHT_RAIL, stoneRail, flightProfile };
 }
 
 export function buildFlightDressing(ctx) {
   const { light, dir, add, keep, shaftMaterial, stoneShade, M, root, Batch, slabGeo, boxGeo, placed,
-    profileGeo, rodGeo, flatQuad, RAIL_OLD, patchOf, pedestalGeo, FLIGHT_RAIL, stoneRail } = ctx;
+    profileGeo, flatQuad, patchOf, pedestalGeo, FLIGHT_RAIL, stoneRail } = ctx;
   // ── The dressing on a flight ──────────────────────────────────────────────
   // A stepped block with a hole under it is not a bridge yet. This is what
   // makes it one. Almost none of it is written out in numbers of its own:
@@ -441,7 +434,7 @@ export function buildFlightDressing(ctx) {
   //                notes are where they are decided.
   // (`nosing`, `riser`: where the lips and the risers' shade go, when not
   // `stone` and LB.riserShade; `string`: a wall string up the inside of both
-  // flanks — the Echo's, echoFix.js point 2)
+  // flanks — the Echo's, echo.js point 2)
   const flightDress = (c, ang, f, halfW, { gap = null, ends = [true, true], stone = LB.cap, worn = true, keyThrough = true, cross = null, gapNewels = true, plane = false, face = stone, nosing = stone, riser = LB.riserShade, string = false, panelledNewels = false } = {}) => {
     const { run, span, spring, steps, from, to } = f.dims;
     const { u0, u1, soffit, pitch, stepTop, stepAt, crown } = f;
@@ -493,7 +486,6 @@ export function buildFlightDressing(ctx) {
     //     different stretch on each flank, and the two balustrades meet at a
     //     newel at each of the four corners (one span for both would leave each
     //     flank open over the well for ten units past the other flight).
-    // ?wcross=old is the old crossing.
     const crossTop = (p) => {
       if (!cross) return Infinity;
       const a = dir(cross.ang), n = dir(cross.ang + 90), d = [p[0] - cross.c[0], p[1] - cross.c[1]];
@@ -663,8 +655,7 @@ export function buildFlightDressing(ctx) {
       for (const side of [-1, 1]) {
         // One plain band, a hair proud of the flank. (Not with a fillet along
         // its top: that is a second bright line beside the coping, and from the
-        // stand the flank reads as three rails running down to the floor.
-        // ?wechofix=old:2 is without any string.)
+        // stand the flank reads as three rails running down to the floor.)
         const parts = [[-LIFT - 1.1, 0.6, D]];
         for (const [lo, hi, depth] of parts) {
           const lim = roof(side * (IN - depth), side * IN, gapOf(side));
@@ -810,7 +801,7 @@ export function buildFlightDressing(ctx) {
       // bridge in two along it — a balustraded wall standing on an arch.
       // Instead the flank comes out flush with the ring's face from the ring to
       // the coping, so arch and parapet are one face of one stone, broken only
-      // by the keystone and the springers. (?wline=old: the string.)
+      // by the keystone and the springers.
       if (plane) {
         for (const pts of cutTo(parapetTop(side), rake(-2.6), roof(side * FACE, side * (FACE + RING), g))) band(pts, FACE, FACE + RING, side);
       } else {
@@ -860,24 +851,13 @@ export function buildFlightDressing(ctx) {
     const carve = stone === LB.capShade ? LB.balustradeShade : LB.balustrade;
     const newel = (u, side) => {
       const q = spot(u, side * Z), y = copingTop(u), r = -ang * deg;
-      if (!RAIL_OLD) {
-        // A pedestal, its cornice at the height of the rail: a raking rail
-        // ending at its middle meets the uphill face a third of a unit
-        // higher, and dies into the cornice there rather than over it. Let
-        // down into the kerb, whose top the coping is set back from on the
-        // stair's side.
-        carve.add(placed(pedestalGeo(FLIGHT_RAIL.ped, FLIGHT_RAIL.baseH - FLIGHT_RAIL.sink, railY(u) + 0.35 - y, { sunk: 0.9, shift: patchOf(q), panelled: panelledNewels }), q, y, r));
-        return;
-      }
-      stone.add(placed(new THREE.BoxGeometry(2.2, 0.9, 2.2), q, y + 0.45, r));
-      stone.add(placed(new THREE.BoxGeometry(1.75, 0.45, 1.75), q, y + 1.12, r));
-      LB.bronze.add(placed(new THREE.CylinderGeometry(0.72, 0.72, 0.42, 12), q, y + 1.56));
-      LB.bronze.add(placed(new THREE.CylinderGeometry(0.44, 0.58, 4.9, 12), q, y + 4.22));
-      LB.bronze.add(placed(new THREE.CylinderGeometry(0.78, 0.52, 0.7, 12), q, y + 7.02));
-      // a plain turned cap: a ball and spike are the sharpest, brightest thing
-      // in the Echo's frame, and pull the eye off the arches
-      LB.bronze.add(placed(new THREE.CylinderGeometry(0.62, 0.8, 0.32, 14), q, y + 7.53));
-      LB.bronze.add(placed(new THREE.SphereGeometry(0.5, 14, 8).scale(1, 0.62, 1), q, y + 7.75));
+      
+      // A pedestal, its cornice at the height of the rail: a raking rail
+      // ending at its middle meets the uphill face a third of a unit
+      // higher, and dies into the cornice there rather than over it. Let
+      // down into the kerb, whose top the coping is set back from on the
+      // stair's side.
+      carve.add(placed(pedestalGeo(FLIGHT_RAIL.ped, FLIGHT_RAIL.baseH - FLIGHT_RAIL.sink, railY(u) + 0.35 - y, { sunk: 0.9, shift: patchOf(q), panelled: panelledNewels }), q, y, r));
     };
     // The balustrade runs from springing to springing — over the WELL, and no
     // further. Past the springing the flight is a low ramp a few feet above a
@@ -900,29 +880,15 @@ export function buildFlightDressing(ctx) {
         // for both: the other flight's, unless `gapNewels`)
         if (gapNewels || !g || ra !== g[1]) newel(ra, side);
         if (gapNewels || !g || rb !== g[0]) newel(rb, side);
-        if (!RAIL_OLD) {
-          // Stone, from newel to newel: the plinth on the coping, the rail
-          // raking with the pitch line. Balusters start clear of the newels
-          // at both ends — of the other flight's too, which stands at 60° to
-          // this one and so reaches further along it.
-          stoneRail(carve, {
-            at: (u) => spot(u, side * Z), foot: copingTop, top: (u) => railY(u) + 0.5,
-            knots, clear: [1.5, 1.5], ry: () => -ang * deg, S: FLIGHT_RAIL,
-          });
-          continue;
-        }
-        for (let i = 1; i < knots.length; i++) {
-          const a = spot(knots[i - 1], side * Z), b = spot(knots[i], side * Z);
-          LB.bronze.add(rodGeo([a[0], railY(knots[i - 1]), a[1]], [b[0], railY(knots[i]), b[1]], 0.44));
-        }
-        // Two to a tread. One reads as a fence with its pickets missing; four
-        // closes into a bronze band there is no seeing the room through.
-        for (let u = ra + run / 2; u < rb - 1.2; u += run / 2) {
-          const base = copingTop(u), h = railY(u) - 0.55 - base;
-          if (h < 2) continue;
-          const q = spot(u, side * Z);
-          balusters.push({ p: [q[0], base, q[1]], s: [0.42, h / 6.2, 0.42] });
-        }
+        
+        // Stone, from newel to newel: the plinth on the coping, the rail
+        // raking with the pitch line. Balusters start clear of the newels
+        // at both ends — of the other flight's too, which stands at 60° to
+        // this one and so reaches further along it.
+        stoneRail(carve, {
+          at: (u) => spot(u, side * Z), foot: copingTop, top: (u) => railY(u) + 0.5,
+          knots, clear: [1.5, 1.5], ry: () => -ang * deg, S: FLIGHT_RAIL,
+        });
       }
     }
 
@@ -988,7 +954,7 @@ export function buildFlightDressing(ctx) {
   // the pier glasses either side of each gallery's way out (mirror.js)
   const mirrors = makeMirrors({ root, keep, light });
   const P = { project: true };
-  const G = { project: WOOD_OLD || 'grain' };
+  const G = { project: 'grain' };
   const LB = {
     mass: new Batch(M.mass, P), cap: new Batch(M.cap, P), capShade: new Batch(M.capShade, P), floor: new Batch(M.floor, { cast: false, ...P }),
     vestMass: new Batch(M.vestMass, P),
@@ -1018,9 +984,9 @@ export function buildFlightDressing(ctx) {
     rubble: new Batch(M.rubble, { cast: false, ...P }),
     carve: new Batch(M.carve), dressed: new Batch(M.dressed, P), marble: new Batch(M.marble),
     // the Door's portal, in the same stones, its reveals and soffits darkened
-    // in the shader (doorFix.js, 3)
-    portalCarve: new Batch(doorOld(3) ? M.carve : keep(revealShade(stoneShade(M.carve.clone(), { quiet: true, route: true }), PORTAL_FRAME, PORTAL, 'carve'))),
-    portalDressed: new Batch(doorOld(3) ? M.dressed : keep(revealShade(stoneShade(M.dressed.clone(), { weather: true, quiet: true, route: true }), PORTAL_FRAME, PORTAL, 'dressed')), P),
+    // in the shader (doorProps.js)
+    portalCarve: new Batch(keep(revealShade(stoneShade(M.carve.clone(), { quiet: true, route: true }), PORTAL_FRAME, PORTAL, 'carve'))),
+    portalDressed: new Batch(keep(revealShade(stoneShade(M.dressed.clone(), { weather: true, quiet: true, route: true }), PORTAL_FRAME, PORTAL, 'dressed')), P),
     // The Echo's flights' flanks, in the stone the flights themselves are cut
     // from (their steps and the arch under them): one stone, its joints running
     // every way, so no single course runs level across both flights. Its own
@@ -1028,7 +994,7 @@ export function buildFlightDressing(ctx) {
     // (Not the carving's jointless limestone: on a face this big its soft
     // mottle reads as glossed plaster.)
     flank: new Batch(M.step, P),
-    // (the Echo's: echoFix.js, 2 and 6)
+    // (the Echo's: echo.js)
     nosing: new Batch(M.nosing, P), riserSoft: new Batch(M.riserSoft, { cast: false, receive: false }),
     column: new Batch(M.column), columnBox: new Batch(M.column, P),
     bookRows: new Batch(M.bookRows, { cast: false }), bookRowsLit: new Batch(M.bookRowsLit, { cast: false }),
@@ -1061,7 +1027,7 @@ export function buildFlightDressing(ctx) {
   // Declared up here because the Library uses it too (the Echo's sconces), not
   // only the garden's lanterns.
   const glows = [];
-  // (the Door's candelabra's lights, which breathe with their flames: doorProps.js, 4)
+  // (the Door's candelabra's lights, which breathe with their flames: doorProps.js)
   const candleLights = [];
   // Lights the pond may see that are not glows: a flame behind paper is drawn
   // as the paper (see the stone lanterns), but the water still wants a lamp.

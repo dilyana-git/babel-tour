@@ -7,17 +7,15 @@ import { MAZE_SEED } from '../gardenPlan';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { rectUnionLoops } from '../hedges';
 import { FINIALS } from '../forkProps';
-import { webOld, openGate, pedestalGeometry, pedestalLetters, FLIES } from '../webFix';
-import { auditOld } from '../auditFix';
-import { webPropsOld, graduatedRing } from '../webProps';
-import { garden5Old, NICHE, BEAD } from '../gardenFix5';
-import { deg, MASS_H, CAP, IVY_OLD } from '../build/common';
+import { openGate, pedestalGeometry, pedestalLetters, FLIES, graduatedRing } from '../webProps';
+import { NICHE, BEAD } from '../gardenProps';
+import { deg } from '../build/common';
 
 export function buildWeb(ctx) {
-  const { paintings, light, rnd, rr, pick, dir, add, lerp2, unit2, circlePts, keep, gilt, lampHaloTex, M,
+  const { paintings, light, rnd, rr, pick, add, unit2, circlePts, keep, gilt, lampHaloTex, M,
     root, slabGeo, placed, profileGeo, rodGeo, wornRibbon, decal, halos, halo, lightWishes,
-    POOL_DIAL, point, A, RC, NB, cells, isGardenAt, inGarden, edgeFrame, mounts, hangPainting, DOOR,
-    GATE, GB, ivy, fireflies, moreFlies, mazeRoute, heartParts, plantHedge, finial, MZ, HEART,
+    POOL_DIAL, point, A, NB, cells, isGardenAt, inGarden, mounts, hangPainting, DOOR,
+    GB, fireflies, moreFlies, mazeRoute, heartParts, plantHedge, finial, MZ, HEART,
     COURT, pathDist, tsuriDoro } = ctx;
   // VIII — the Web of Time: the maze, fireflies, and its painting at the heart.
   let armillary = null;
@@ -99,8 +97,8 @@ export function buildWeb(ctx) {
         if (!reachable()) set(c, r, d, 0);
       }
       // and a fifth way out, off the axis, that can be SEEN from the way in:
-      // the fourth gate is straight behind the armillary (webFix.js, 3)
-      if (!webOld(3)) openGate(grid, COURT, set, reachable);
+      // the fourth gate is straight behind the armillary (webProps.js)
+      openGate(grid, COURT, set, reachable);
     }
     // the one way through to the heart, for the walk
     {
@@ -136,13 +134,13 @@ export function buildWeb(ctx) {
         if (cc === cols - 1 && g.e) wall([X + cw, Z], [X + cw, Z + ch]);
       }
     }
-    // (gardenFix5.js, 10) Either side of where the reader stops for the Web of
+    // (gardenProps.js) Either side of where the reader stops for the Web of
     // Time — the cell before the court's way in — the hedge would be a blank
     // leaf wall a pace off. A niche is clipped into each, with a small iron
     // lantern hung in it on a crook, lit — the two of them a gate before the
     // court — and in the wider one a stone seat beside its lantern.
     const niches = [];
-    if (!paintings && !garden5Old(10)) {
+    if (!paintings) {
       const nc = 4, nr = 1, zc = z0 + (nr + 0.6) * ch + NICHE.ahead;
       for (const [has, face, into, wide] of [[grid[nr][nc].w, x0 + nc * cw + T / 2, -1, NICHE.wide[0]], [grid[nr][nc + 1]?.w, x0 + (nc + 1) * cw - T / 2, 1, NICHE.wide[1]]]) {
         if (!has) continue;
@@ -175,7 +173,7 @@ export function buildWeb(ctx) {
       const leg = [[-1.35, 5], [1.35, 5], [1.35, 5.5], [0.95, 6.1], [1.05, 7.2], [1.4, top - 1.08], [-1.4, top - 1.08], [-1.05, 7.2], [-0.95, 6.1], [-1.35, 5.5]];
       for (const s of [-1, 1]) GB.stone.add(profileGeo(leg, 1.1, [xc, sz + s * (w / 2 - 1.3)], 0));
     });
-    // its mouth between two clipped finials, and one on each corner (forkProps.js, 6)
+    // its mouth between two clipped finials, and one on each corner (forkProps.js)
     if (!paintings) {
       [[x0 + 4 * cw, z0], [x0 + 5 * cw, z0], [x0, z0], [x0 + cols * cw, z0], [x0, z0 + rows * ch], [x0 + cols * cw, z0 + rows * ch]]
         .forEach((p, i) => finial(p, FINIALS.mouth, 5, 20, 1101 + i));
@@ -222,15 +220,8 @@ export function buildWeb(ctx) {
       // An armillary of gold rings turning over a stone plinth — the size of a
       // thing a court is built round, not of a thing on a desk: rings 5 to 6.4
       // across read, at the end of the walk, as a toy.
-      if (webOld(7)) {
-        GB.stone.add(placed(new THREE.CylinderGeometry(6.2, 6.6, 1.4, 20), HEART, 5 + 0.7));
-        GB.stone.add(placed(new THREE.CylinderGeometry(3.2, 4.0, 8.6, 16), HEART, 6.4 + 4.3));
-        GB.stone.add(placed(new THREE.CylinderGeometry(4.2, 3.4, 1.1, 16), HEART, 15 + 0.55));
-        // the drum banded in gilt top and foot, as an instrument's stand is
-        GB.gold.add(placed(new THREE.TorusGeometry(3.86, 0.16, 6, 40).rotateX(Math.PI / 2), HEART, 7.8));
-        GB.gold.add(placed(new THREE.TorusGeometry(3.32, 0.14, 6, 40).rotateX(Math.PI / 2), HEART, 14.2));
-      } else {
-        // A carved stand (webFix.js, 7): three plain cylinders under the most
+      {
+        // A carved stand (webProps.js): three plain cylinders under the most
         // richly made thing in the garden read as a drainpipe under a clock. A
         // stepped plinth, a moulded base, a shaft reeded at foot and head, an
         // ovolo capital; and between the reeds, in two rings of gilt capitals,
@@ -238,8 +229,8 @@ export function buildWeb(ctx) {
         // to the way in.
         const { stone, gold } = pedestalGeometry();
         GB.pedestal.add(stone.translate(HEART[0], 0, HEART[1]));
-        // (gardenFix5.js, 8: its two bands in the collars' dark gilt, not bright gold)
-        for (const g of gold) (garden5Old(8) ? GB.gold : GB.pavGilt).add(g.translate(HEART[0], 0, HEART[1]));
+        // (gardenProps.js: its two bands in the collars' dark gilt, not bright gold)
+        for (const g of gold) (GB.pavGilt).add(g.translate(HEART[0], 0, HEART[1]));
         const from = mazeRoute.length > 1 ? unit2(HEART, mazeRoute[mazeRoute.length - 2]) : [0, -1];
         for (const L of pedestalLetters(gilt.glyphs, Math.atan2(from[1], from[0]))) {
           const G = gilt.glyphs[L.ch];
@@ -270,18 +261,10 @@ export function buildWeb(ctx) {
         parts.forEach((x) => x.dispose());
         return keep(g);
       };
-      // (webProps.js, 3: flat bands, the scale let into their faces; with
-      // ?wwebprops=old:3 the degrees and the hours are those `ticks`, gilt
-      // blocks stood out from the rims of round hoops, and the rings read as
-      // gears)
+      // (webProps.js: flat bands, the scale let into their faces)
       const ringed = (group, which, hoop, teeth, opts) => {
-        if (webPropsOld(3)) {
-          group.add(new THREE.Mesh(keep(hoop()), M.bronze));
-          group.add(new THREE.Mesh(teeth(), M.gold));
-          return;
-        }
-        // (gardenFix5.js, 8: and a bead at each edge of each face, the scale between)
-        const { band, scale } = graduatedRing(which, (parts) => mergeGeometries(parts), { ...opts, bead: garden5Old(8) ? null : BEAD });
+        // (gardenProps.js: and a bead at each edge of each face, the scale between)
+        const { band, scale } = graduatedRing(which, (parts) => mergeGeometries(parts), { ...opts, bead: BEAD });
         group.add(new THREE.Mesh(keep(band), M.bronze));
         group.add(new THREE.Mesh(keep(scale), M.gold));
       };
@@ -305,10 +288,9 @@ export function buildWeb(ctx) {
       armillary.add(equator);
       const ecliptic = new THREE.Group();
       {
-        // (gardenFix5.js, 8: the broad band's two rims rolled over, inside and out)
+        // (gardenProps.js: the broad band's two rims rolled over, inside and out)
         const roll = (r, y, way) => Array.from({ length: 7 }, (_, k) => [r + way * 0.1 * Math.sin((Math.PI * k) / 6), y - way * 0.1 * Math.cos((Math.PI * k) / 6)]);
-        const section = garden5Old(8) ? [[7.32, -0.85], [7.72, -0.85], [7.72, 0.85], [7.32, 0.85], [7.32, -0.85]]
-          : [[7.32, -0.85], [7.72, -0.85], [7.72, -0.85], ...roll(7.72, -0.73, 1), [7.72, -0.63], [7.72, 0.63], ...roll(7.72, 0.73, 1), [7.72, 0.85], [7.72, 0.85],
+        const section = [[7.32, -0.85], [7.72, -0.85], [7.72, -0.85], ...roll(7.72, -0.73, 1), [7.72, -0.63], [7.72, 0.63], ...roll(7.72, 0.73, 1), [7.72, 0.85], [7.72, 0.85],
             [7.32, 0.85], [7.32, 0.85], ...roll(7.32, 0.73, -1), [7.32, 0.63], [7.32, -0.63], ...roll(7.32, -0.73, -1), [7.32, -0.85]];
         const band = new THREE.LatheGeometry(section.map(([x, y]) => new THREE.Vector2(x, y)), 110);
         ecliptic.add(new THREE.Mesh(keep(band.rotateX(Math.PI / 2)), M.bronze));
@@ -352,8 +334,8 @@ export function buildWeb(ctx) {
       if (s >= 100 && (!inGarden(p) || pathDist(p) > 80)) continue;
       fireflies.push({ p: [p[0], rr(12, 46), p[1]], s: Array(3).fill(rr(0.7, 1.35)), color: pick(['#f4ff9c', '#fff2a4', '#b8ffe6']), k: rr(0.8, 1.4), phase: rr(0, 100) });
     }
-    // and more over the maze, from a stream of their own (webFix.js, 5)
-    if (!webOld(5)) {
+    // and more over the maze, from a stream of their own (webProps.js)
+    {
       const fr = makeRng(FLIES.seed), frr = (a, b) => a + (b - a) * fr();
       for (let s = 0; s < (light ? FLIES.extra / 2 : FLIES.extra); s++) {
         moreFlies.push({ p: [frr(x0 - 10, x0 + cols * cw + 10), frr(12, 40), frr(z0 - 10, z0 + rows * ch + 10)], s: Array(3).fill(frr(0.7, 1.35)), color: fr() < 0.5 ? '#f4ff9c' : '#fff2a4', k: frr(0.8, 1.4), phase: frr(0, 100) });
@@ -366,31 +348,16 @@ export function buildWeb(ctx) {
     if (cell.garden) continue;
     for (let k = 0; k < 6; k++) {
       if (!isGardenAt(cell.i + NB[k][0], cell.j + NB[k][1]) || (cell.k === '4,-4' && k === 5)) continue;
-      const e = edgeFrame(cell.c, k);
-      const o0 = add(cell.c, dir(60 * k), RC), o1 = add(cell.c, dir(60 * k + 60), RC);
-      for (let s = 0; s < 3; s++) {
-        const p = add(lerp2(o0, o1, rr(0.1, 0.9)), e.n, rr(-10, 4));
-        // (mats laid flat on the coping: from the Web of Time, over the
-        // cedars, a row of dark green discs. Drawn, not laid: auditFix.js, 2)
-        const mat = { p: [p[0], MASS_H + CAP + 0.6 + s * 0.3, p[1]], rot: [0, -Math.atan2(e.t[1], e.t[0]) + rr(-0.25, 0.25), 0], s: [rr(56, 90), 1, rr(22, 34)] };
-        if (auditOld(2)) ivy.push(mat);
-      }
+      // (the draws of mats once laid on the coping, only spent)
+      for (let s = 0; s < 3; s++) { rr(0.1, 0.9); rr(-10, 4); rr(-0.25, 0.25); rr(56, 90); rr(22, 34); }
     }
   }
   {
-    // Mats of it over the first bays of the pergola. (The draws of mats once
-    // laid across the breach at the height of the arch, laid out beyond the
-    // wall.)
-    const e = edgeFrame(DOOR, 5);
+    // (the draws of mats once hung over the pergola, only spent)
     for (let s = 0; s < 6; s++) {
-      const along = rr(-46, 46), out = rr(-16, 16);
-      const p = add(add(GATE, e.t, along * 0.32), e.n, 48 + out * 1.2);
-      const y = Math.abs(along) < 30 ? rr(46, 60) : rr(20, 60);
-      // (seen from under the pergola, a ceiling of painted green balls; the
-      // wisteria's own leaves lie over its rafters now — ivy.js — and the
-      // draws are only spent)
-      const mat = { p: [p[0], 47 + (y - 20) * 0.04, p[1]], rot: [0, rr(0, 6.28), 0], s: [rr(40, 64) * 0.7, 1, rr(26, 40) * 0.7] };
-      if (IVY_OLD) ivy.push(mat);
+      const along = rr(-46, 46); rr(-16, 16);
+      if (Math.abs(along) < 30) rr(46, 60); else rr(20, 60);
+      rr(0, 6.28); rr(40, 64); rr(26, 40);
     }
   }
 

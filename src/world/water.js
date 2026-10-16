@@ -57,7 +57,7 @@
 // Plus the shore: waves feel the bottom and shrink as they come in, the water
 // goes over to silt where you can see through it, and the mirror gives out.
 import * as THREE from 'three';
-import { POND } from './gardenFix5';
+import { POND } from './gardenProps';
 
 const MAX_LAMPS = 12;
 const WAVES = 6;
@@ -104,7 +104,7 @@ export const WATER = {
   // lying over it (buildWorld, the Pavilion), and nothing else could have
   // settled that: a surface with six terms on it cannot be read by eye.
   debug: 0,
-  // (gardenFix5.js, 7) The lamps, broken into the chop. From the Pavilion's
+  // (gardenProps.js) The lamps, broken into the chop. From the Pavilion's
   // bridge every lantern's true reflection falls below the frame — the eye
   // stands too high over the water for anything taller than a rail to show
   // in it — and the water round the most lit thing in the garden gave back
@@ -364,7 +364,7 @@ export function makeWater({ mirror = true } = {}) {
             float fall = 1.0 / (1.0 + d2 * 0.00045);
             wLit += uLampColor[i] * fall * (pow(s, wNe) * wGe + pow(s, 6.0) * uGlint.z);
           }
-          // (gardenFix5.js, 7) the same lamps again, off the steeper chop
+          // (gardenProps.js) the same lamps again, off the steeper chop
           if (uShatter.z > 0.0) {
             vec3 wN2 = normalize(vec3(-wSlope.x * uShatter.x, 1.0, -wSlope.y * uShatter.x));
             vec3 wR2 = reflect(-wV, wN2);
@@ -612,7 +612,7 @@ export function makeWater({ mirror = true } = {}) {
     shared.uShatterRing.value.set(WATER.glowFrom, WATER.glowFade, WATER.glowLean[0], WATER.glowLean[1]);
     shared.uShatterAt.value.w = WATER.glowK;
   };
-  // The lit Pavilion, as a glow the chop breaks up (gardenFix5.js, 7):
+  // The lit Pavilion, as a glow the chop breaks up (gardenProps.js):
   // where it stands and what colour it is.
   const setGlow = ([x, y, z], color) => {
     shared.uShatterAt.value.set(x, y, z, WATER.glowK);

@@ -25,7 +25,7 @@ npm run shot -- --room=0,1,2 --up            several rooms, at their vantages
 npm run shot -- --room=3 --look=0.6,-0.3     turn the head (yaw, pitch; radians)
 npm run shot -- --eye=0,200,300:0,0,0        look from a point at a point
 npm run shot                                 the map
-npm run shot -- --ab=wmap5=old --room=1      the same frame without and with a flag
+npm run shot -- --ab=wcaption=quiet --room=1  the same frame without and with a flag
 npm run shot -- --help                       every option
 ```
 
@@ -78,9 +78,9 @@ polled inside the page (`Runtime.evaluate` with `awaitPromise`), not from the dr
 
 ## Gotchas
 
-- Old looks sit behind `?w…=old[:n]` flags, one module per design board
-  (`src/world/*Fix*.js`). When the user picks between options, follow
-  "Variants of a look" in `AGENTS.md`.
+- Options for a look sit behind a temporary `?w…=a|b|c` flag. When the user
+  picks, follow "Variants of a look" in `AGENTS.md`. Earlier looks are in
+  git history and `docs/design-history.md`, not behind flags.
 - Never stop a server by its port number: the user's own `vite` may be on 5173.
   Stop only processes you started (`shot.mjs` cleans up after itself).
 - A still frame under software WebGL can show artifacts the GPU does not

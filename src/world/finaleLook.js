@@ -1,16 +1,10 @@
-// The ending, reviewed 2026-10-09 (audit II, board 13): the flood of
-// fireflies (2), where the film is watched from (3), the others' hoods (4),
-// the rise over the maze (5).
-// What each point was, and why: docs/design-history.md.
-//
-// ?wfin=old puts all of them back as they were; ?wfin=old:2,4 only those.
+// The ending's dials: the flood of fireflies and the rise over the maze, the
+// step in toward the heart, the others' hoods, the close-up and the ending on
+// the map.
 const Q = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
-const V = Q.get('wfin');
-const ONLY = V && V.startsWith('old:') ? new Set(V.slice(4).split(',').map(Number)) : null;
-export const finaleOld = (n) => V === 'old' || (ONLY ? ONLY.has(n) : false);
 const qn = (k, d) => (Q.get(k) !== null && Q.get(k) !== '' && Number.isFinite(+Q.get(k)) ? +Q.get(k) : d);
 
-// 2. The flood. `maze`: how many hang over the maze's ways ([as built, on a
+// The flood. `maze`: how many hang over the maze's ways ([as built, on a
 // light machine]), `court`: the share of those drawn over the court that are
 // kept (the column is the court's); `high`: how far off the ground they hang.
 // `column`: how many rise over the heart, from `foot` above the ground to
@@ -32,11 +26,11 @@ export const FLOOD = {
   gold: ['#ffac48', '#ffbd62', '#ffc978'], straw: ['#ffe2a2', '#ffd98e', '#ffecc0'], warm: [14, 78],
 };
 
-// 5. The rise: the motes go out between these seconds after it begins, down
+// The rise: the motes go out between these seconds after it begins, down
 // to `rest` of themselves — which is what of them is left over the map.
 export const RISE = { fade: [qn('wfrise0', 2.2), qn('wfrise1', 7.5)], rest: qn('wfrest', 0) };
 
-// 3. The step in. `to`: how far from the heart, along the way in, the reader
+// The step in. `to`: how far from the heart, along the way in, the reader
 // comes to — a little short of the gate's line (45), so its jamb stays in the
 // frame as a wing; `aside`: no further off that line than this, or the reader
 // is somewhere else and stays there; `from`, `till`: when in the film (the
@@ -52,7 +46,7 @@ export const RISE = { fade: [qn('wfrise0', 2.2), qn('wfrise1', 7.5)], rest: qn('
 // quarter of the frame; from 40 it is a twentieth.)
 export const STEP = { to: qn('wfstep', 40), aside: 16, from: 1.4, till: 5.0, bob: 0.2, heart: qn('wfheart', -0.3), gate: 0.5, edge: 4.5, give: 9 };
 
-// 4. The hood, close to. `fold`: how much deeper the cowl's and the mantle's
+// The hood, close to. `fold`: how much deeper the cowl's and the mantle's
 // folds hang (and they run to the hem, which was kept smooth). `hem`: the
 // edge turned in — [how far back along the hood, how much of its width, how
 // far into the dark] for each ring of the inside, the first a thread's width
@@ -81,3 +75,58 @@ export const HOOD = {
   lamp: { at: [0, -2.1, 1.35], k: qn('wfhlamp', 4.5), half: 2.2, color: [1.0, 0.7, 0.4], face: qn('wfhface', 0.5), reach: [0.6, 1.2], cloth: [0.85, 1.5], wool: qn('wfhwool', 1.7) },
   weave: [qn('wfhweave', 26), qn('wfhrib', 0.5)], fleck: qn('wfhfleck', 0.2), matt: qn('wfhmatt', 0.92),
 };
+
+// (how much of the page's light the face of the one seen from the side takes: FACE, below)
+const FACE_SIDE = qn('wffside', 3.2);
+
+// Close to, a face in one of these hoods was a smooth egg with a warm patch on its chin:
+// the head was hardly modelled (a nose a tenth of its depth, no lips), and the
+// light in the hood was laid on it flat. `FACE`: the head carved — `rows` by
+// `cols` of it where there were 26 by 34 — and the light in the hood falling
+// on it as a light does: `wrap` how far it comes round a form turned from it,
+// `gamma` how quickly it leaves one (higher, harder), `reach` from where to
+// where up the face it dies (in halvings of the lamp: the chin and the mouth
+// have it, the eyes a little, the brow none), `edge` how far a surface may be
+// turned from the eye and still be lit ([none, all] of the cosine: the old cut
+// took the whole profile with it), `k` how much of the lamp the skin has;
+// `fore`: how far round to the front of the face the light is brought (the
+// lamp is under the chin, and a light straight up a face lights the undersides
+// of things and nothing else: the mouth was three bright stripes).
+// `side`: for the one seen from the side (a), how much of the page's own light
+// its face takes, and how hard that light is.
+export const FACE = {
+  on: true, rows: 84, cols: 72,
+  wrap: qn('wffwrap', 0.12), gamma: qn('wffgamma', 1.5), reach: [qn('wffr0', 0.5), qn('wffr1', 1.3)], edge: [-0.2, 0.25], k: qn('wffk', 0.85), fore: qn('wfffore', 0.9),
+  side: { k: FACE_SIDE, gamma: qn('wffsg', 1.6) },
+};
+
+// Who stands behind the reader at the end: nobody, from further off — the
+// whole of the figure, to the hands in its sleeves, between the two
+// lanterns. `book`: one open in its hands; `cut`: how it is made (readers.js:
+// `hollow`, no head); `lamp`: the light in the hood, of the others'; `back`:
+// how far behind the reader it comes to stand.
+export const HOODED = { book: false, cut: { hollow: true }, lamp: 0, back: qn('wfhback', 10) };
+
+// The others. For each: the gate it comes in by and how many cells up that
+// way it starts; where it comes to stand — degrees round the heart (0 east, 90
+// south, straight across from the reader, who comes in from the north) and how
+// far out; when it appears, sets off, arrives; and what it is: how tall (of
+// the cut they all share), a book open in its hands, and where it looks once
+// there — at the reader (so many degrees off them), or `heart`: at the
+// armillary, which for one on the reader's side of it is its back to them.
+export const CAST = [
+  ['s', 1, 62, 26, 6.8, 7.2, 9.3, { tall: 1.05 }],
+  ['s', 1, 122, 32, 7.7, 8.1, 10.3, { tall: 0.93, book: true, gaze: 24 }],
+  ['e', 1, 20, 31, 7.1, 7.6, 11.0, { tall: 0.99, gaze: -12 }],
+  ['w', 1, 207, 22.5, 7.6, 8.1, 11.6, { tall: 1.08 }],
+  ['e', 3, 330, 33, 8.6, 9.1, 13.8, { tall: 0.96, book: true, gaze: 'heart' }],
+  ['w', 2, 155, 20.5, 8.3, 8.8, 13.2, { tall: 1.01, gaze: 'heart' }],
+];
+
+// The ending, on the map. The line is held alone for `hold` ms; the
+// colophon comes in, and after `then` ms the ways on.
+export const ENDING = { hold: qn('wfehold', 6500), then: qn('wfethen', 3500) };
+
+// The way out of the film: `after` ms without a hand on anything it sinks
+// to a trace (map.css, .room-skip.is-trace).
+export const SKIP = { after: qn('wfskip', 3000) };

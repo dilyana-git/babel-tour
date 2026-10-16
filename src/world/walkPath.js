@@ -81,23 +81,12 @@ class WalkCurve extends THREE.Curve {
 }
 
 // ── How a walk moves ─────────────────────────────────────────────────────────
-// Two things a walk felt abrupt by, measured on a fixed clock (World.jsx's
-// __worldSim): its pace was a sawtooth, and its eyes snapped.
-//   The eyes looked along the way, so every corner of the way swung them, and
-// the feet were held to whatever pace swung them no faster than a head turns:
-// a quarter of a stride at every corner, braked into at two metres a second
-// squared. The walk on from the Pavilion nearly stopped fifteen times in
-// seventy seconds, and across its zigzag bridge the view went ninety degrees
-// left and ninety right in six paces. And where the way doubled back the eyes
-// turned right round in one frame.
-//   Now the eyes have a track of their own (`makeGazeTrack`), laid along the
-// way before it is walked: where they looked before, but through a chicane
-// they look to where it comes out, they never turn more than GAZE.slope a
-// unit, and they cannot jump. The feet keep the pace a walker keeps round a
-// bend (a third power of its radius: under half a stride at the tightest),
-// slow only as much more as the eyes' own turning asks, and brake at a
-// walker's rate, from further back. ?wmotion=old: as it was.
-export const MOTION_OLD = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('wmotion') === 'old';
+// The eyes have a track of their own (`makeGazeTrack`), laid along the way
+// before it is walked: through a chicane they look to where it comes out, they
+// never turn more than GAZE.slope a unit, and they cannot jump. The feet keep
+// the pace a walker keeps round a bend (a third power of its radius: under half
+// a stride at the tightest), slow only as much more as the eyes' own turning
+// asks, and brake at a walker's rate, from far enough back.
 // Where the eyes go while the feet follow the path: not one point a few strides
 // on, but a blend of three — near, middle and far — each counted by direction
 // only (see World.jsx's walkMove, where this was tuned).
@@ -237,7 +226,6 @@ export function makeWalkPace(curve, speed, gaze = null) {
   if (length < 1e-8) return () => 0;
   const n = Math.max(1, Math.ceil(length / spacing));
   const pts = curve.getSpacedPoints(n);
-  const old = MOTION_OLD;
   const at = { yaw: 0, slope: 0 };
   const limits = pts.map((p, i) => {
     const a = pts[Math.max(0, i - 1)], b = pts[Math.min(n, i + 1)];
@@ -246,12 +234,11 @@ export function makeWalkPace(curve, speed, gaze = null) {
     const slope = Math.abs(b.y - a.y) / Math.max(0.1, horizontal);
     const angle = before.lengthSq() && after.lengthSq() ? before.setY(0).angleTo(after.setY(0)) : 0;
     const bend = angle / Math.max(0.1, horizontal / 2);
-    if (old) return Math.min(speed / (1 + slope * 1.5), Math.max(speed * 0.22, 0.8 / Math.max(1e-6, bend)));
     const feet = angle > 2.6 ? PACE.about : bendPace(1 / Math.max(1e-6, bend));
     const eyes = gaze ? viewPace(gaze.at((i / n) * (gaze.yaw.length - 1), at).slope, speed) : 1;
     return Math.min(speed / (1 + slope * 1.5), speed * feet, speed * eyes);
   });
-  const brake = old ? 22 : PACE.brake, reach = old ? 10 : Math.ceil(PACE.ahead / (length / n));
+  const brake = PACE.brake, reach = Math.ceil(PACE.ahead / (length / n));
   return (distance) => {
     const i = Math.min(n, Math.max(0, Math.floor(distance / length * n)));
     let pace = speed;

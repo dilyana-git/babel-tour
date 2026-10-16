@@ -12,7 +12,7 @@
 // wide soft corona. Written in linear light for the composer, bright enough in
 // its cores for the bloom to take them.
 import * as THREE from 'three';
-import { propsOld, MOON } from './forkProps';
+import { MOON } from './forkProps';
 import { GLOW } from './webProps';
 
 // The moon's radius in the sky (the sine of it: a degree and a half, six times
@@ -83,7 +83,7 @@ const fragmentShader = /* glsl */ `
     float dust = noise(d * 7.0) * 0.6 + noise(d * 19.0) * 0.4;
     col += vec3(0.034, 0.038, 0.05) * band * smoothstep(0.35, 0.75, dust) * smoothstep(-0.02, 0.25, up);
 
-    // Behind the cedars at the heart of the maze (webProps.js, 7): the sky
+    // Behind the cedars at the heart of the maze (webProps.js): the sky
     // there and the spires in front of it were both at nothing, and a tree
     // with no outline is a hole. Low haze with the moon on it — the horizon's
     // own grey carried up the sky that way, thinning as it climbs, uneven as
@@ -101,9 +101,8 @@ const fragmentShader = /* glsl */ `
 
     // a low moon, and the wide pale corona round it
     float m = max(dot(d, uMoonDir), 0.0);
-    ${propsOld(1) ? `col += vec3(1.0, 0.96, 0.88) * smoothstep(0.99955, 0.99972, m) * 3.2;
-    col += vec3(0.16, 0.2, 0.26) * pow(m, 90.0) * 0.9 + vec3(0.05, 0.065, 0.085) * pow(m, 8.0) * 0.6;` : `
-    // (forkProps.js, 1: an even white disc was a lamp. Its face now: the seas
+    ${`
+    // (forkProps.js: an even white disc was a lamp. Its face now: the seas
     // where they lie, their shores broken by a little noise, two rayed craters,
     // the limb a little darker, ivory — and no brighter than keeps them.)
     vec3 mRight = normalize(cross(vec3(0.0, 1.0, 0.0), uMoonDir)), mUp = cross(uMoonDir, mRight);

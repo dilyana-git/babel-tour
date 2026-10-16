@@ -10,14 +10,9 @@
 // without a joint. The well's low bronze rail goes round each half of the
 // well and along the deck's edge as one unbroken run, with the well's newels
 // where it comes onto the bridge. Under the deck the arch is as it was, from
-// the floor's level. (?wbridge=old: the raised bridge with its balustrade.)
-//
-// Then, the same evening, "a little bit unnatural": the well's balusters
-// hung off the rail like beads (their necks 3 cm thick, so only the bulbs
-// showed from the stand), and under the deck the bridge was a blank wall in
-// the well with nothing to say it spanned it. Shown three ways to mend it,
-// the user took two: balusters that stand the height of the rail, and each
-// face of the bridge dressed as an arch. (?wvb=old: S1 as first built.)
+// the floor's level. The well's balusters stand the height of the rail, and
+// each face of the bridge is dressed as an arch, so it reads as spanning the
+// well.
 import * as THREE from 'three';
 
 // The Vestibule's well as buildWorld cuts it: the floor's hole half a unit
@@ -29,7 +24,6 @@ const LIP = (SHAFT + 0.5) * COS30, RAIL_R = SHAFT + 1.4, RAIL = RAIL_R * COS30;
 // the floor, the deck's half width, and how far down its edge the nosing runs
 export const FLOOR = 6;
 const HALF = 8.5, NOSE = 1.8;
-const FIRST_BUILT = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('wvb') === 'old';
 
 // A turned baluster `h` tall: a foot and a head of fixed size, the vase
 // between them stretched to fit, and never thinner than 0.36 anywhere, so
@@ -146,7 +140,7 @@ function dressArch({ at, under, LB, mouldGeo }) {
 
 // `c` the bridge's middle (the well's), `ax` along it, `px` across it.
 // It lays the Vestibule's well rail as well: buildWorld lays no other there.
-export function buildVestibuleBridge({ c, ax, px, LB, placed, mouldGeo, balusters, wornRibbon }) {
+export function buildVestibuleBridge({ c, ax, px, LB, placed, mouldGeo, wornRibbon }) {
   const at = (u, w, y) => [c[0] + ax[0] * u + px[0] * w, y, c[1] + ax[1] * u + px[1] * w];
   // the arch's underside: two courses under the deck at the crown, springing
   // from the well's sides
@@ -181,65 +175,32 @@ export function buildVestibuleBridge({ c, ax, px, LB, placed, mouldGeo, baluster
   // rail every 3.4, a slim rail on their heads, and the handrail rubbed
   // bright, its top 69 cm up.
   const box = (half, h, y = 0) => [[-half, y, true], [half, y, true], [half, y + h, true], [-half, y + h, true]];
-  const handrail = Array.from({ length: 16 }, (_, k) => { const t = (k / 16) * 2 * Math.PI; return [1.3 * Math.cos(t), 5.8 + 0.78 * Math.sin(t)]; });
-  if (!FIRST_BUILT) {
-    dressArch({ at, under, LB, mouldGeo });
-    const LOW = 5.6;
-    const run = (path, h, gap) => {
-      LB.bronze.add(mouldGeo(path, box(0.85, 0.65)));
-      LB.bronze.add(mouldGeo(path, box(0.6, 0.25, 0.65)));
-      LB.bronzeDim.add(mouldGeo(path, box(0.48, 0.22, h)));
-      const rail = Array.from({ length: 16 }, (_, k) => { const t = (k / 16) * 2 * Math.PI; return [0.75 * Math.cos(t), h + 1 + 0.44 * Math.sin(t)]; });
-      LB.bronzeWorn.add(mouldGeo(path, rail));
-      for (let k = 0; k + 1 < path.length; k++) {
-        const a = path[k], b = path[k + 1], L = Math.hypot(b[0] - a[0], b[2] - a[2]);
-        const n = Math.max(1, Math.round((L - 3.2) / gap));
-        for (let i = 0; i <= n; i++) {
-          const t = (1.6 + (i * (L - 3.2)) / n) / L;
-          LB.bronze.add(placed(balusterGeo(h - 0.85).scale(0.58, 1, 0.58), [a[0] + (b[0] - a[0]) * t, a[2] + (b[2] - a[2]) * t], FLOOR + 1));
-        }
+  dressArch({ at, under, LB, mouldGeo });
+  const LOW = 5.6;
+  const run = (path, h, gap) => {
+    LB.bronze.add(mouldGeo(path, box(0.85, 0.65)));
+    LB.bronze.add(mouldGeo(path, box(0.6, 0.25, 0.65)));
+    LB.bronzeDim.add(mouldGeo(path, box(0.48, 0.22, h)));
+    const rail = Array.from({ length: 16 }, (_, k) => { const t = (k / 16) * 2 * Math.PI; return [0.75 * Math.cos(t), h + 1 + 0.44 * Math.sin(t)]; });
+    LB.bronzeWorn.add(mouldGeo(path, rail));
+    for (let k = 0; k + 1 < path.length; k++) {
+      const a = path[k], b = path[k + 1], L = Math.hypot(b[0] - a[0], b[2] - a[2]);
+      const n = Math.max(1, Math.round((L - 3.2) / gap));
+      for (let i = 0; i <= n; i++) {
+        const t = (1.6 + (i * (L - 3.2)) / n) / L;
+        LB.bronze.add(placed(balusterGeo(h - 0.85).scale(0.58, 1, 0.58), [a[0] + (b[0] - a[0]) * t, a[2] + (b[2] - a[2]) * t], FLOOR + 1));
       }
-    };
-    const newel = ([x, y, z], h) => {
-      LB.bronzeDim.add(placed(new THREE.CylinderGeometry(0.95, 1.25, h, 14), [x, z], y + h / 2));
-      LB.bronzeWorn.add(placed(new THREE.CylinderGeometry(1.15, 0.95, 0.55, 16), [x, z], y + h + 0.28));
-      LB.bronzeWorn.add(placed(new THREE.SphereGeometry(0.62, 14, 8).scale(1, 0.55, 1), [x, z], y + h + 0.62));
-    };
-    for (const s of [-1, 1]) {
-      const edge = s * (HALF - 1.2);
-      const ring = [[RAIL, edge], [RAIL, (s * RAIL_R) / 2], [0, s * RAIL_R], [-RAIL, (s * RAIL_R) / 2], [-RAIL, edge]].map(([u, w]) => at(u, w, FLOOR));
-      run([...ring, ring[0]], LOW, 5.8);
-      ring.forEach((p) => newel(p, LOW + 1.3));
     }
-    return;
-  }
-  // (?wvb=old) the rail as S1 was first built: the well's rail elsewhere,
-  // its balusters squat bulbs every 6.4 between a two-step plinth and a band
+  };
+  const newel = ([x, y, z], h) => {
+    LB.bronzeDim.add(placed(new THREE.CylinderGeometry(0.95, 1.25, h, 14), [x, z], y + h / 2));
+    LB.bronzeWorn.add(placed(new THREE.CylinderGeometry(1.15, 0.95, 0.55, 16), [x, z], y + h + 0.28));
+    LB.bronzeWorn.add(placed(new THREE.SphereGeometry(0.62, 14, 8).scale(1, 0.55, 1), [x, z], y + h + 0.62));
+  };
   for (const s of [-1, 1]) {
     const edge = s * (HALF - 1.2);
-    const loop = [[RAIL, edge], [RAIL, (s * RAIL_R) / 2], [0, s * RAIL_R], [-RAIL, (s * RAIL_R) / 2], [-RAIL, edge], [RAIL, edge]]
-      .map(([u, w]) => at(u, w, FLOOR));
-    LB.bronze.add(mouldGeo(loop, box(1.4, 1.4)));
-    LB.bronze.add(mouldGeo(loop, box(1, 0.7, 1.4)));
-    LB.bronzeDim.add(mouldGeo(loop, box(1.5, 0.6, 4.5)));
-    LB.bronzeWorn.add(mouldGeo(loop, handrail));
-    // (the run begins and ends at the first newel, which closes the joint)
-    for (const [x, y, z] of loop.slice(0, 5)) {
-      LB.bronzeDim.add(placed(new THREE.CylinderGeometry(0.95, 1.25, 5.4, 14), [x, z], y + 2.7));
-      // capped low and moulded, as the well's newels have always been
-      LB.bronzeWorn.add(placed(new THREE.CylinderGeometry(1.15, 0.95, 0.55, 16), [x, z], y + 6.75));
-      LB.bronzeWorn.add(placed(new THREE.SphereGeometry(0.62, 14, 8).scale(1, 0.55, 1), [x, z], y + 7.1));
-    }
-    // One baluster every 6.4 or so, clear of the newels. (At 4.2 the shafts
-    // closed up into a solid band across the bottom of the frame; see the
-    // well's rail in buildWorld.)
-    for (let k = 0; k + 1 < loop.length; k++) {
-      const a = loop[k], b = loop[k + 1], L = Math.hypot(b[0] - a[0], b[2] - a[2]);
-      const n = Math.max(1, Math.round((L - 3) / 6.4));
-      for (let i = 0; i < n; i++) {
-        const t = (1.5 + ((i + 0.5) * (L - 3)) / n) / L;
-        balusters.push({ p: [a[0] + (b[0] - a[0]) * t, FLOOR + 1.4, a[2] + (b[2] - a[2]) * t], s: [0.85, 0.5, 0.85] });
-      }
-    }
+    const ring = [[RAIL, edge], [RAIL, (s * RAIL_R) / 2], [0, s * RAIL_R], [-RAIL, (s * RAIL_R) / 2], [-RAIL, edge]].map(([u, w]) => at(u, w, FLOOR));
+    run([...ring, ring[0]], LOW, 5.8);
+    ring.forEach((p) => newel(p, LOW + 1.3));
   }
 }

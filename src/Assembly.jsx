@@ -32,8 +32,7 @@
 // DEV: ?ink=20 makes the opening take at least 20 seconds, to watch it;
 // window.__ink is the driver (u, ready, inked, gone).
 import { useEffect, useRef, useState } from 'react';
-import { mapOld } from './world/mapFix';
-import { MAP_TALL, phone7Old } from './world/phoneFix7';
+import { MAP_TALL } from './world/phone';
 import { VOICES } from './voices';
 import { DEV_PACE, GUESS, startInk, stream } from './ink';
 
@@ -119,9 +118,9 @@ export function AssemblyInk({ driver, progress, ready, shown, plan, reserveLeft,
       ink.set({
         size: { width, height, dpr },
         rest: {
-          target: rest.target.toArray(), distance: rest.distance, shift: rest.shift, fov: TILT_FOV, elevation: TILT_ELEVATION, yaw: rest.yaw, lensed: !mapOld('L2'),
+          target: rest.target.toArray(), distance: rest.distance, shift: rest.shift, fov: TILT_FOV, elevation: TILT_ELEVATION, yaw: rest.yaw, lensed: true,
           // (and, on a tall screen, how much of its hairlines the kept drawing keeps)
-          fine: upright && !phone7Old(4) ? MAP_TALL : null,
+          fine: upright ? MAP_TALL : null,
         },
         progress: props.current.progress,
         ready: props.current.ready,

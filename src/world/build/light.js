@@ -4,15 +4,13 @@
 
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { LAMPS, bakeFloorPools, POOL_SHADOW, makePoolShadowBake } from '../lampPass';
+import { bakeFloorPools, POOL_SHADOW, makePoolShadowBake } from '../lampPass';
 import { makeRng } from '../textures';
 import { GLINT_N, glintLights } from '../effects';
 import { WATER_Y } from '../water';
 import { readerMaterial } from '../walkers';
 import { BELT } from '../webProps';
-import { mapOld, PIT_FADE } from '../mapFix';
-import { map3Old, GARDEN_MAP } from '../mapFix3';
-import { TONE } from '../mapFix6';
+import { PIT_FADE, GARDEN_MAP, TONE } from '../mapLook';
 import { PAVILION_PATH, MAZE_PATH, SHORE_PATH, MAZE_OUTLINE } from '../gardenPlan';
 import { readerGeometry, ROBES } from '../readers';
 import { lightPoolSize } from '../../capability';
@@ -61,10 +59,10 @@ export function* buildLight(ctx) {
   // only once it has faded out, so nothing pops.
   // (lampPass.js) the floor's pools summed into its map, and the lit globes
   // nearest the walk handed to the glass to glint with
-  if (LAMPS.pool) yield* bakeFloorPools();
+  yield* bakeFloorPools();
   // ?wpoolshadow=1: and shadowed, once the world is up (World.jsx steps it)
   const poolShadows = POOL_SHADOW ? makePoolShadowBake({ root, exclude: [M.floor, M.floorBand], floorY: 6.05 }) : null;
-  if (LAMPS.glint) {
+  {
     const mid = [520, 640];
     [...globes].sort((a, b) => Math.hypot(a.p[0] - mid[0], a.p[2] - mid[1]) - Math.hypot(b.p[0] - mid[0], b.p[2] - mid[1]))
       .slice(0, GLINT_N).forEach((g, i) => glintLights.value[i].set(g.p[0], g.p[1], g.p[2], g.s[0]));
@@ -214,14 +212,14 @@ export function* buildUnexplored(ctx) {
   // by its own light, it is navy on black: the pavilion a grey disc, the
   // pergola a dark mat of leaves (the racemes hang under it), the lanterns four
   // dim dots, and the pond, which takes the sky only at a grazing angle, as
-  // dark as the lawn (mapFix3.js, 4). None of its lamps is among the few the
+  // dark as the lawn (mapLook.js). None of its lamps is among the few the
   // map's light pool carries. So over the map it is given what the rooms have,
   // as light laid on it and gone by the time a flight comes down among it
   // (setVeil): the Pavilion's reflection at its foot in the water shader,
   // the moon's road across the pond, the wisteria's violet along the
   // pergola, and the stone lanterns' amber.
   const gardenGlows = [];
-  if (!map3Old(4)) {
+  {
     const rngG = makeRng(1104), gr = (a, b) => a + (b - a) * rngG();
     const glow = (canvas, [x, z], [w, h], y, k, turn = 0) => {
       const mat = keep(new THREE.MeshBasicMaterial({
@@ -297,23 +295,25 @@ export function* buildUnexplored(ctx) {
     const amber = pool('255,176,84', [[0, 1], [0.25, 0.6], [0.6, 0.16], [1, 0]]);
     for (const p of GARDEN_MAP.lanterns.at) glow(amber, p, [GARDEN_MAP.lanterns.r * 2, GARDEN_MAP.lanterns.r * 2], GARDEN_MAP.lanterns.y, GARDEN_MAP.lanterns.k);
   }
-  const setVeil = (amount) => {
+  // `warm`: what is there only over the map, when it outlasts the veil
+  // (mapMotion.js)
+  const setVeil = (amount, warm = amount) => {
     veilMat.opacity = 0.72 * amount;
     veil.visible = amount > 0.01;
     for (const m of gardenGlows) {
       m.material.opacity = m.userData.k * amount;
       m.visible = amount > 0.01;
     }
-    // (and what is there only over the map: mapFix.js, 7 and 8)
-    mapWarm.value = amount;
-    // (and the belt of cedars, drawn down out of the map's way: webProps.js, 2)
+    // (and what is there only over the map: mapLook.js)
+    mapWarm.value = warm;
+    // (and the belt of cedars, drawn down out of the map's way: webProps.js)
     if (beltGroup) {
       const t = Math.min(1, Math.max(0, (amount - BELT.sink[0]) / (BELT.sink[1] - BELT.sink[0])));
       beltGroup.scale.y = 1 - (1 - BELT.map) * t * t * (3 - 2 * t);
     }
   };
 
-  // Over the map, the Vertigo has no floor (mapFix.js, 7). Seen from up there
+  // Over the map, the Vertigo has no floor (mapLook.js). Seen from up there
   // the stair's pale treads and carriage, the shelves and their lips at the
   // head of the well, and the ring of floor round its mouth, lit by the lamps
   // hanging in it, turned down the funnel as one beige disc. Inside the pit, below its floor, they darken
@@ -353,11 +353,11 @@ export function* buildUnexplored(ctx) {
     };
     mat.customProgramCacheKey = () => `${prevKey.call(mat)}-pitfade`;
   };
-  if (!mapOld(7)) [M.step, M.shelf, M.shelfLip, M.floor, M.inlay, pitCarved].forEach((m) => m && pitFade(m));
+  [M.step, M.shelf, M.shelfLip, M.floor, M.inlay, pitCarved].forEach((m) => m && pitFade(m));
   // And the tops of the bookcases, which stand to the head of the wall: from
   // the map each would be a pale band inside its cell's rim, timber gone grey
   // under the moon, the brightest cold thing left once the coping round it has
-  // the lamps' light (mapFix4.js, 2). They take it too. (Chained on, as the
+  // the lamps' light (mapLook.js). They take it too. (Chained on, as the
   // pit's is.)
   const routeLit = (mat) => {
     const prev = mat.onBeforeCompile, prevKey = mat.customProgramCacheKey;
@@ -438,7 +438,7 @@ export function* buildUnexplored(ctx) {
   // that disc: looked down along its axis from the map it is a lit round foot
   // on the floor. Over the map it goes, inside the drum only and above the
   // well's own light (the column standing up from the bottom stays).
-  if (!mapOld(7)) {
+  {
     const sh = shaftMaterial;
     sh.uniforms.uPitMap = mapWarm;
     const vert = sh.vertexShader
@@ -453,7 +453,7 @@ export function* buildUnexplored(ctx) {
       .replace('gl_FragColor = vec4(uColor, uStrength', `float pitOff = 1.0 - ${PIT_FADE.shaft.toFixed(2)} * uPitMap * step(-100.0, vShaftW.y)
           * step(distance(vShaftW.xz, vec2(${PIT[0].toFixed(2)}, ${PIT[1].toFixed(2)})), 104.0);
         gl_FragColor = vec4(uColor, pitOff * uStrength`);
-    if (vert === sh.vertexShader || frag === sh.fragmentShader) console.warn('mapFix 7: the shaft shader has changed; the cone in the drum is left lit');
+    if (vert === sh.vertexShader || frag === sh.fragmentShader) console.warn('mapLook: the shaft shader has changed; the cone in the drum is left lit');
     else Object.assign(sh, { vertexShader: vert, fragmentShader: frag, needsUpdate: true });
   }
 
@@ -538,12 +538,12 @@ export function buildOverlay(ctx) {
       MAZE_OUTLINE.map((p) => at(p, 22)),
     ],
     // What the map stands a room's numeral over, where that is not the top
-    // of everything a reader may point at (mapFix3.js, 5): the Fork is the
+    // of everything a reader may point at (mapLook.js): the Fork is the
     // place the gravel divides, and the Web of Time the court at the maze's
     // heart. (The Fork's numeral stood over the top of its ground, on dark
     // lawn left of the pond; the Web's at the maze's mouth.) Nothing is
     // drawn of them: a round of ground about the place, for its top.
-    marks: map3Old(5) ? [] : [
+    marks: [
       null, null, null, null, null,
       circlePts(J, FORK_MARK, 24).map((p) => at(p, 8)),
       null,

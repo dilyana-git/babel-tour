@@ -1,53 +1,18 @@
 // The world's constants and the flags read once from the address: shared by
 // every section of assembleWorld (buildWorld.js).
 
-import { CEDAR, CEDAR_WOOD } from '../textures';
-import { BOOKS_TITLED } from '../effects';
-import { vertigoOld } from '../vertigoFix';
-import { RIM_WARM as RIM_BASE } from '../mapFix';
-import { ROUTE_LIGHT as ROUTE_BASE } from '../mapFix4';
-import { TONE } from '../mapFix6';
-import { doorOld, FALLEN as DOOR_FALLEN_HEAPS, CRACKS as DOOR_CRACK_STYLE, DUST as DOOR_DUST } from '../doorFix';
-import { WOOD_OLD } from '../woodGrain';
+import { CEDAR_WOOD } from '../textures';
+import { RIM_WARM as RIM_BASE, ROUTE_LIGHT as ROUTE_BASE, TONE } from '../mapLook';
+import { FALLEN as DOOR_FALLEN_HEAPS, CRACKS as DOOR_CRACK_STYLE, DUST as DOOR_DUST } from '../doorProps';
 import { rubbleLayout } from '../rubble';
+import { ASHLAR, ASHLAR_ON } from '../ashlarSurface';
 
 export const FRAME = [1440, 900];
-// The palette (see World.jsx): the stone a neutral limestone grey, so the lamps
-// are what make it warm. ?wpal=old for the warm greige it replaced.
-export const OLD_PALETTE = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('wpal') === 'old';
-// ?wfloor=old: the Library's old floor — twelve slabs of one size in a brick
-// bond (`flagstones`) — not the pavement (`paving`).
-export const FLOOR_OLD = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('wfloor') === 'old';
-// ?wcrack=old: the Door's old cracks — dark strips laid on the pavement, a pale
-// lip beside each and knobs of moss along them — not the cracks painted into it
-// (cracks.js). (With the old floor, the old cracks: the painted ones follow the
-// pavement's joints.)
-export const CRACK_OLD = FLOOR_OLD || (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('wcrack') === 'old');
-// ?wrubble=old: the old rubble from the Door's wall (boxes with a dented end
-// and one twenty-faced chip, turned every way) — not the stones of rubble.js
-// and the shade at their feet.
-export const RUBBLE_OLD = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('wrubble') === 'old';
-// ?wshore=old: the pond's old edge — the water cut to an ellipse over the lawn
-// with a smooth stone at every other point of it, and the Pavilion's bridge
-// coming down onto two boxes of ashlar — not the bank, the set stones and the
-// granite pier and step of shore.js.
-export const SHORE_OLD = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('wshore') === 'old';
-export const stoneTint = (was, now) => (OLD_PALETTE ? was : now);
+export const stoneTint = (was, now) => (now);
 // The light on the wall tops and the rims' warm bounce over the map, as the
-// map's look has them (mapFix6.js).
+// map's look has them (mapLook.js).
 export const ROUTE_LIGHT = { ...ROUTE_BASE, ...TONE.route };
 export const RIM_WARM = { ...RIM_BASE, ...TONE.rim };
-// ?wivy=old: the Door's old ivy — cards of painted green blots on the arch's
-// garden face and the passage walls — and the pergola's vines as one plain tube
-// of timber, not the grown ivy and twined, barked, leaved wisteria of ivy.js.
-export const IVY_OLD = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('wivy') === 'old';
-// ?wglare=old: the lamps and the moon's shaft as they first were — halos sized
-// in the room, and light columns that stay whole with the eye inside them — to
-// compare against.
-export const OLD_GLARE = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('wglare') === 'old';
-// ?wglass=old: the Borges mirrors back in the hallways as they were (metal
-// panels that read as blackboards), and no pier glasses (mirror.js).
-export const GLASS_OLD = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('wglass') === 'old';
 // ?wtree=pine (DEV): every tree in the garden grown as the one kind, to judge
 // it; ?wtree=none, no trees at all, to measure what they cost (__worldBench).
 export const ONE_TREE = import.meta.env?.DEV && typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('wtree') : null;
@@ -57,14 +22,6 @@ export const ONE_TREE = import.meta.env?.DEV && typeof window !== 'undefined' ? 
 export const HEDGE_DIAL = import.meta.env?.DEV && typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('whedge') : null;
 // ?wbound=0: without the hedge that closes the garden (for weighing what it costs)
 export const NO_BOUND = import.meta.env?.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('wbound') === '0';
-// ?wfork=old: the garden's old ways — the road not taken leaving the Fork
-// through the pergola's last post and going round the north of the pond to the
-// second bridge, and only lawn between the Pavilion's bridge and the way to the
-// maze.
-export const FORK_OLD = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('wfork') === 'old';
-// ?wpergola=old: the old pergola, five frames running on to three paces short
-// of the Fork's stone, a lantern in each of four bays.
-export const PERGOLA_OLD = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('wpergola') === 'old';
 export const MASS_H = 120;   // how tall the galleries' walls stand
 export const CAP = 3;        // the pale stone laid on top of them
 
@@ -87,8 +44,7 @@ export const FRIEZE_Y = 111.5;
 // quartos, five each of octavos and of the small books at the top — and its
 // books are the size books are: a folio 38-50 cm, a quarto 28-37, an octavo
 // 21-27 (a unit is 9.4 cm). Thin boards between the tier's own heavy ones, and
-// a back to the case 4.6 deep. (?wbookscale=old for the giant folios of 1.6-1.8
-// m, a shelf to a tier.)
+// a back to the case 4.6 deep.
 export const SHELVES = [
   { n: 3, h: [4.0, 5.3], w: [0.5, 0.95], d: [3.0, 3.5] },
   { n: 4, h: [3.0, 3.9], w: [0.4, 0.78], d: [2.3, 2.8] },
@@ -144,11 +100,8 @@ export const BOOK_ROWS = {
 // (dir 150) from its middle, which is assembleWorld's GATE, worked out again
 // here from the honeycomb's numbers because the painting begins before the
 // world is built (assembleWorld checks that the two agree).
-// (in two heaps under the breach, wedged and bedded in the floor: doorFix.js,
-// 2; ?wdoorfix=old:2 for the six spread over the floor)
-export const DOOR_FALLEN = doorOld(2)
-  ? [[-42, 31, 11, 5.4, 7], [-24, 38, 8, 4.4, 6], [40, 38, 10, 5, 7.5], [47, 50, 7, 4, 5.5], [-50, 46, 6, 3.4, 5], [25, 46, 6.5, 3.6, 5]]
-  : DOOR_FALLEN_HEAPS;
+// (in two heaps under the breach, wedged and bedded in the floor: doorProps.js)
+export const DOOR_FALLEN = DOOR_FALLEN_HEAPS;
 export const DOOR_CRACKS = (() => {
   const A = (100 * Math.sqrt(3)) / 2, D = 2 * A + 50, E0 = [D * Math.cos(30 * deg), D * Math.sin(30 * deg)];
   const door = [232 + 4 * E0[0], 785 + 4 * E0[1] - 4 * D];
@@ -164,16 +117,16 @@ export const DOOR_CRACKS = (() => {
     breach: [-9, 12, 1.5, 6], blocks: DOOR_FALLEN.map(([along, into, w]) => [along, into, w]),
     // and where the blocks and the stones lie (rubble.js), for the shade at
     // their feet and the grit round them
-    rest: RUBBLE_OLD ? [] : rubbleLayout(DOOR_FALLEN, frame).rest,
-    // (doorFix.js: 5, cracks that taper all the way out; 2, more dust round
+    rest: rubbleLayout(DOOR_FALLEN, frame).rest,
+    // (doorProps.js: 5, cracks that taper all the way out; 2, more dust round
     // what fell)
     ...(DOOR_CRACK_STYLE.taper ? { taper: true } : {}),
-    ...(doorOld(2) ? {} : { dust: DOOR_DUST }),
+    ...({ dust: DOOR_DUST }),
   };
 })();
 // The Door's portal in the world (portal.js's frame: x along the wall, z into
 // the room, from the middle of the opening), for its stone's shader
-// (doorFix.js, 3). assembleWorld sets the portal there.
+// (doorProps.js). assembleWorld sets the portal there.
 export const PORTAL_FRAME = {
   origin: [DOOR_CRACKS.origin[0] + DOOR_CRACKS.along[0] * 1.5, DOOR_CRACKS.origin[1] + DOOR_CRACKS.along[1] * 1.5],
   x: DOOR_CRACKS.along, z: DOOR_CRACKS.into,
@@ -184,32 +137,32 @@ export const PORTAL_FRAME = {
 // in textures.js and what it is asked for. None of them draws on the world's
 // own stream, so where and when they are painted changes nothing they show.
 export const PAINTED = {
-  // the floor: a mason's pavement (`paving`), or the old tiles (?wfloor=old)
-  flag: FLOOR_OLD ? ['flagstones'] : ['paving'],
-  ...(CRACK_OLD ? {} : { cracks: ['floorCracks', DOOR_CRACKS] }),
+  // the floor: a mason's pavement
+  flag: ['paving'],
+  cracks: ['floorCracks', DOOR_CRACKS],
   // Shared wall stone: roughly 30 cm courses, varied lengths, flat faces
-  // and narrow joints, with a single step of tone between stones.
-  wall: ['ashlar', { seed: 107, courses: 12, blocks: 5, joint: 1, strength: 0.65, spread: 18, dress: 'flat' }],
+  // and narrow joints, with a single step of tone between stones — a third of
+  // the step it was, and the arrises weathered (ashlarSurface.js, 1 and 2).
+  wall: ['ashlar', { seed: 107, courses: 12, blocks: 5, joint: 1, strength: 0.65, spread: ASHLAR_ON.tone ? ASHLAR.spread : 18, dress: 'flat', arris: ASHLAR_ON.arris ? ASHLAR.arris : 0 }],
   // The massive pale stone of the caps.
   pale: ['ashlar', { seed: 9, courses: 4, blocks: 2, tone: [158, 150, 136], strength: 2 }],
-  // The wood: boards sawn from the log, grain along u (`timber`), or the
-  // striped walnut (?wwood=old, see woodGrain.js).
-  wood: WOOD_OLD ? ['walnut'] : ['timber'],
-  timber: WOOD_OLD ? ['walnut', { seed: 23, tone: CEDAR }] : ['timber', { seed: 23, tone: CEDAR_WOOD, ring: 9, knots: 2 }],
+  // The wood: boards sawn from the log, grain along u (`timber`).
+  wood: ['timber'],
+  timber: ['timber', { seed: 23, tone: CEDAR_WOOD, ring: 9, knots: 2 }],
   // the bindings, lettered (spineAtlas2 and its titles) unless ?wbook says
   // to see them as they were (see effects.js)
-  // (with the tooling varied down each back: vertigoFix.js, 2)
-  spines: BOOKS_TITLED ? ['spineAtlas2', { tooling: !vertigoOld(2) }] : ['spineAtlas'],
-  ...(BOOKS_TITLED ? { titles: ['spineTitles'] } : {}),
+  // (with the tooling varied down each back: vertigoProps.js)
+  spines: ['spineAtlas2', { tooling: true }],
+  ...({ titles: ['spineTitles'] }),
   // the far galleries' books, in painted rows (see shelfWall)
   bookRows: ['bookRows', BOOK_ROWS],
   vestBookRows: ['bookRows', { ...BOOK_ROWS, quietLabels: true }],
   hedge: ['hedgeLeaves'],
   carve: ['limestone'],
   // the Door's fallen stone (rubble.js), laid on by M.rubble
-  ...(RUBBLE_OLD ? {} : { rubble: ['rubbleStone'] }),
+  ...({ rubble: ['rubbleStone'] }),
   // the garden's granite and the pond's pebbled bank (shore.js)
-  ...(SHORE_OLD ? {} : { shoreRock: ['shoreRock'], shoreBank: ['shoreBank'] }),
+  ...({ shoreRock: ['shoreRock'], shoreBank: ['shoreBank'] }),
   column: ['limestone', { seed: 73, tone: [172, 165, 152], honed: true }],
   bark: ['bark'],
 };

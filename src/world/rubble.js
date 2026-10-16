@@ -201,7 +201,7 @@ export function rubbleStone({ size = 1024, seed = 83 } = {}) {
 // world (x, z) and its turn about the vertical there (`theta`, three's) — and
 // `rest`, what the crack painter shades the floor round:
 // [along, into, half length, half width, turn, how dark, round].
-// (A block's sixth entry, if it has one, is how it lies — doorFix.js, 2:
+// (A block's sixth entry, if it has one, is how it lies — doorProps.js:
 // `wedge` and `twist`, sheared to a wedge; `tilt`; `bury`, how far its high
 // edge is in the floor. Blocks that have one get big spalls round them.)
 export function rubbleLayout(fallen, { origin, along, into }) {
@@ -491,7 +491,7 @@ const lay = (g, { tilt, theta, x, z, floor, sink, ns, foot, near = [] }) => {
 // Built in its own frame (x its length, y its height, z across, the face that
 // was the room's at -z), then laid. Comes back in the world, its tone in its
 // vertex colours.
-// `crisp` (doorProps.js, 8): where it broke FRESH its arrises are sharp. Every
+// `crisp` (doorProps.js): where it broke FRESH its arrises are sharp. Every
 // arris of every block was spalled and worn alike, all the way round, and from
 // the room that read as foam. A stone that has just come out of a wall has
 // old arrises (worn, knocked) and new ones: the ridge of the slope a wedge was
@@ -583,7 +583,7 @@ export function fallenBlock({ w, h, d, tilt, end, wedge = 0, twist = 0, wside = 
     return [R(0.15, 0.8) + Math.abs(a) + Math.abs(b), a, b];
   });
   const bo = R(0, 50);
-  // Sheared to a wedge (doorFix.js, 2): what is left of it rises from `wedge`
+  // Sheared to a wedge (doorProps.js): what is left of it rises from `wedge`
   // of its height on one side to the arris on the other, the slope winding a
   // little along it (`twist`) and broken rough — in broad shallow steps, not
   // ridged: ridged as deep as the end's break, its edge ran in saw-teeth.

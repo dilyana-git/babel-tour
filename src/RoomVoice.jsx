@@ -13,7 +13,7 @@
 //
 // On a tall screen there is no room under the name for that (a phone's lowest
 // quarter was already all caption), and the lines were not shown at all. There
-// the voice is given a pace (`pace`, world/phoneFix7.js, 3): a line surfaces in
+// the voice is given a pace (`pace`, world/phone.js): a line surfaces in
 // the name's own place, EntryMap letting the name go while it is up
 // (`onSpeak`), holds as long as it does anywhere, and goes; the name stands
 // alone a while; then the next. Nothing surfaces while the reader is walking

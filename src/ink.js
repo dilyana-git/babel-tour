@@ -46,7 +46,7 @@ export const stream = (seed) => () => {
 // stone; DEV warns when the world's own frame disagrees with GUESS below.
 const R = 100;                       // a gallery's rim, centre to corner
 // ...but the Echo's: it stands out into its own walls (buildWorld.js, ECHO_R).
-// (Not ?wechoroom=old: the ink may be drawn in a worker, which has no query.)
+// (A constant, not ?wechor: the ink may be drawn in a worker, which has no query.)
 const ECHO_R = 112;
 const rimOf = (i, j) => (i === 1 && j === -1 ? ECHO_R : R);
 const A = (R * Math.sqrt(3)) / 2;    // centre to the middle of a wall
@@ -122,8 +122,7 @@ const PIT_RIMMED = 0.9;
 // and toward the title (in NDC, and gone by the time the camera rests): looking
 // down the walk put the Vestibule in the frame's middle and the Echo over the
 // top edge, so the first frame was lopsided, all its drawing up against the
-// top right and the first room after the Vestibule cut off (board 2 · L2;
-// `rest.lensed`, false with ?wmapfix=old:L2 — world/mapFix.js).
+// top right and the first room after the Vestibule cut off.
 const START = { yaw: -50, elevation: 38, near: 0.3, fov: 38, lensX: -0.12, lensY: 0.2 };
 // After the world is ready, whatever is left is drawn this much faster.
 const RUSH = 4;
@@ -415,7 +414,7 @@ export function startInk(canvas, { reducedMotion = false, devPace = 0 } = {}, em
   });
   // `keep`: what the drawing keeps of the galleries off the walk once it has
   // let go — { lines, dark, lamps }, each 0 to 1 — where the map is to go on
-  // being part drawing (world/mapFix3.js, 2). It then stops as it always did,
+  // being part drawing (world/mapLook.js). It then stops as it always did,
   // on a frame that is no longer blank, and draws that frame again only when
   // the window changes.
   const input = { progress: 0, ready: false, rest: null, shown: false, keep: null };
@@ -585,7 +584,7 @@ export function startInk(canvas, { reducedMotion = false, devPace = 0 } = {}, em
     const stays = cell.route < 0 ? input.keep : null;
     // (on a tall screen, more of a gallery's lines is kept where they are
     // hairlines: a cell small on the screen is drawn 0.6 px wide and holds
-    // half the ink a large one's lines do - world/phoneFix7.js, 4)
+    // half the ink a large one's lines do - world/phone.js)
     const hair = stays ? input.rest?.fine : null;
     const fine = hair ? smooth((hair.over - (cell.scale * 1.1) / dpr) / (hair.over - hair.under)) : 0;
     const keeps = !stays ? 0 : stays.lines + Math.max(0, hair ? hair.fine - stays.lines : 0) * fine;

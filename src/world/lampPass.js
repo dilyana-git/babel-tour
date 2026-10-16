@@ -1,6 +1,4 @@
-// The lamp pass of 2026-10-07: what was chosen from the "Lamps — what you
-// approve" canvas, now the lamps as they are. ?wlamps=old puts every lamp back
-// as it was; ?wlampsoff=flame,pool (any of the names below) just those.
+// The lamps: the light of each kind, as below.
 //
 //   flame    the Door's candle flames as flames, the wax lit under them
 //   paper    paper lanterns lit from their flame: the pergola, the Pavilion's eaves
@@ -18,10 +16,7 @@ import { sweep, curl, lathe } from './sconce';
 import { lanternPaneGeometry } from './sconce';
 
 const Q = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
-const OLD = Q.get('wlamps') === 'old';
-const OFF = new Set((Q.get('wlampsoff') ?? '').split(',').map((s) => s.trim()).filter(Boolean));
-export const LAMPS = Object.fromEntries(['flame', 'paper', 'table', 'sconce', 'pool', 'corner', 'glint', 'occlude'].map((k) => [k, !OLD && !OFF.has(k)]));
-export const POOL_SHADOW = LAMPS.pool && Q.get('wpoolshadow') === '1';
+export const POOL_SHADOW = Q.get('wpoolshadow') === '1';
 export const lpNum = (k, d) => {
   const v = Q.get(k);
   return v !== null && v !== '' && Number.isFinite(+v) ? +v : d;
@@ -104,7 +99,7 @@ export function makePaperMaterial({ lattice = false, flame = [0, -0.25, 0], gain
 // A candle flame: a teardrop (flameGeometry), hottest low in the middle where
 // the eye looks into it, orange to its tip, and soft at its edges — added to
 // the frame, never painted over it.
-// `alive` (doorProps.js, 4): it leans and draws up a little as the air moves,
+// `alive` (doorProps.js): it leans and draws up a little as the air moves,
 // each flame in its own time (`uTime`), and burns a little brighter and lower
 // with it. Slowly: a flame that changed faster than a breath read as blinking.
 export function makeFlameMaterial({ alive = false } = {}) {

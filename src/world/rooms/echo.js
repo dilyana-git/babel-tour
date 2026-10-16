@@ -5,13 +5,37 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { pierLantern, lanternPaneGeometry } from '../sconce';
 import { shaftVolume, makeShaftMaterial } from '../effects';
-import { echoOld, moonBeamPatch } from '../echoFix';
 import { deg } from '../build/common';
+import { ringLedge, sootOver } from '../ashlarSurface';
+
+// 4. The column of moonlight, ending in the air above the lower arcade (the
+// gallery's rail) rather than hanging over the stair in front of the reader,
+// and warmer at its edges, where the cool grey had read as a wedge of filter.
+// (The light it lays on the treads, moonLand, is the light that reaches the
+// stair; it stays.) Patched into the beam's own ShaderMaterial before it is
+// ever compiled.
+export const MOON_FROM = 60, MOON_FULL = 84;
+export function moonBeamPatch(material) {
+  material.vertexShader = material.vertexShader
+    .replace('varying float vOpen;', 'varying float vOpen;\n      varying float vMoonY;')
+    .replace('gl_Position = projectionMatrix * mv;', 'vMoonY = (modelMatrix * vec4(position, 1.0)).y;\n        gl_Position = projectionMatrix * mv;');
+  material.fragmentShader = material.fragmentShader
+    .replace('varying float vOpen;', 'varying float vOpen;\n      varying float vMoonY;')
+    .replace('gl_FragColor = vec4(uColor, uStrength * body * along * near * vOpen * intersection);', `
+        // (warm toward the silhouette, where the column is thinnest, and a
+        // little warm through: the stone's lamplight in the dust it lights)
+        vec3 moonCol = mix(uColor, vec3(0.93, 0.82, 0.66), 0.25 + 0.6 * pow(1.0 - facing, 1.5));
+        float moonRise = smoothstep(${MOON_FROM.toFixed(1)}, ${MOON_FULL.toFixed(1)}, vMoonY);
+        // (what is left of the column is the upper half, which was always the
+        // fainter: a little more of it, so the room still has its moon)
+        gl_FragColor = vec4(moonCol, 1.45 * uStrength * body * along * near * vOpen * intersection * moonRise);`);
+  return material;
+}
 
 export function buildEcho(ctx) {
   const { dir, add, dist, hexPts, circlePts, keep, radialTex, gilt, lampHaloTex, M, root, slabGeo,
-    placed, profileGeo, flatQuad, instances, halo, Q, qNum, R, cellC, ECHO_R, ECHO_ONE_FACE,
-    flightProfile, flightDress, LB, posts, globes, lamp } = ctx;
+    placed, profileGeo, flatQuad, instances, halo, qNum, R, cellC, ECHO_R,
+    flightProfile, flightDress, LB, posts, lamp } = ctx;
   // II — the Echo: two flights crossing over the shaft, a colonnade answering itself.
   //
   // The Echo's flights are cut on a tread of 7, not 8. At 8 each one runs 144
@@ -20,32 +44,19 @@ export function buildEcho(ctx) {
   // out of the shelves with the case at their back — "too little space when
   // ascending". At 7 every foot stands 9 further in, with the floor clear in
   // front of it (the parapet's corner 16 from the case, not 8), and the crown
-  // is where 8 puts it: only the going is shorter, not the rise. ?wecho=old
-  // cuts them on 8; ?wechorun dials it.
-  const ECHO_FLIGHT = { run: qNum('wechorun', Q.get('wecho') === 'old' ? 8 : 7) };
+  // is where 8 puts it: only the going is shorter, not the rise. ?wechorun
+  // dials it.
+  const ECHO_FLIGHT = { run: qNum('wechorun', 7) };
   // Keep the arcade and the walk on the same ring. Six units outward gives
   // the column bases about 23 cm clear of the stair coping (formerly 9 cm),
   // while leaving about a metre between their plinths and the bookcases.
   const ECHO_RING = qNum('wechoring', 62);
   {
     const c = cellC(1, -1);
-    // Each flight is ONE piece of stone: a stepped top, and under it the arc
-    // that carries it over the shaft — springing off the floor at the well's
-    // lip, thinnest at the crown. (As 36 separate slabs hung in the air with a
-    // gap under every one, it reads as a stack of packing crates: a room built
-    // out of cardboard.) A real arch under each flight, springing wide of the
-    // well: end-on, a flight is a wall across half the room, and the opening
-    // under it is what makes it a bridge instead.
-    //
-    // The crown both flights share is where the rose is laid (see the
-    // crossing), so its two treads are not worn: the rose is what the feet have
-    // worn there. ?wrose=old is the old rose.
-    const ROSE_OLD = Q.get('wrose') === 'old';
     const echoF = flightProfile(ECHO_FLIGHT);
     const CROWN_Y = Math.max(...echoF.top.map(([, h]) => h));
     const ROSE_R = 6.9;
     const notCrown = (k) => echoF.stepTop(k) < CROWN_Y;
-    const CROSS_OLD = Q.get('wcross') === 'old';
     for (const ang of [0, 60]) {
       const f = flightProfile(ECHO_FLIGHT);
       LB.step.add(profileGeo(f.pts, 15, c, ang));
@@ -55,17 +66,13 @@ export function buildEcho(ctx) {
       // something a reader does rather than something they look at. Each
       // flank opens only as far as the other deck really comes in over it, and
       // the balustrades meet at the four corners on one newel (`cross`; the
-      // flight at 0 sets the newels). ?wcross=old is one span of ±15 for both
-      // flanks, with each flight's flank standing up out of the other's treads.
+      // flight at 0 sets the newels).
       // (The keystones stop under the deck, as the Silence's do under its
       // terrace: standing up through the crown they crossed as a raised X of
       // stone under the rose, and the rose had to float over them.)
       // Wear is laid once on each tread below; the nosings remain solid stone.
       const VALUES = { nosing: LB.nosing, riser: LB.riserSoft, string: true, worn: false, panelledNewels: true };
-      flightDress(c, ang, f, 7.9, CROSS_OLD
-        ? { gap: [-15, 15], keyThrough: ROSE_OLD, plane: ECHO_ONE_FACE, face: ECHO_ONE_FACE ? LB.flank : LB.cap, ...VALUES }
-        // (the other flight is cut on the same profile as this one)
-        : { cross: { c, ang: 60 - ang, f, half: 7.5 }, gapNewels: ang === 0, keyThrough: ROSE_OLD, plane: ECHO_ONE_FACE, face: ECHO_ONE_FACE ? LB.flank : LB.cap, ...VALUES });
+      flightDress(c, ang, f, 7.9, { cross: { c, ang: 60 - ang, f, half: 7.5 }, gapNewels: ang === 0, keyThrough: false, plane: true, face: LB.flank, ...VALUES });
     }
     // ── The crossing ─────────────────────────────────────────────────────
     // The one piece of floor in this room a reader is ever brought to a stop on
@@ -92,7 +99,7 @@ export function buildEcho(ctx) {
     // the two surfaces out of each other's depth (see the well rings), too
     // little for the eye or a foot to find. No two pieces at one height
     // overlap.
-    if (!ROSE_OLD) {
+    {
       const Y = CROWN_Y;
       const FIELD = Y + 0.06, METAL = Y + 0.1, HEX_IN = Y + 0.13, HEX = Y + 0.16;
       const at = (a, r) => add(c, dir(a), r);
@@ -156,17 +163,6 @@ export function buildEcho(ctx) {
         LB.letters.add(g.rotateX(-Math.PI / 2).rotateY(-(a + Math.PI / 2)).translate(p[0], FIELD + 0.02, p[1]));
         s += G.adv + track;
       }
-    } else {
-      const y = 30.2 + 0.45;
-      // Inside 7.1, which is where the flanks of both flights stand: a wider
-      // ring runs into them at four bearings and reads as a broken circle.
-      LB.inlay.add(slabGeo(circlePts(c, 6.6, 40), [circlePts(c, 5.8, 40)], 0.5, y));
-      LB.inlay.add(slabGeo(circlePts(c, 5.2, 40), [circlePts(c, 4.95, 40)], 0.5, y));
-      for (let k = 0; k < 6; k++) {
-        const a = 60 * k;
-        LB.inlay.add(slabGeo([add(c, dir(a - 3), 1.4), add(c, dir(a), 4.8), add(c, dir(a + 3), 1.4)], [], 0.5, y));
-      }
-      LB.bronzeDim.add(placed(new THREE.CylinderGeometry(1.3, 1.3, 0.5, 20), c, y));
     }
     // ── The light down the well ───────────────────────────────────────────
     // The gallery stands open to the sky, and nothing in the room said so. A
@@ -185,47 +181,14 @@ export function buildEcho(ctx) {
       const beam = new THREE.Mesh(
         keep(shaftVolume(new THREE.CylinderGeometry(21, 35, 190, 30, 1, true),
           mid.clone().addScaledVector(up, -95).toArray(), 35, mid.clone().addScaledVector(up, 95).toArray(), 21)),
-        // (begun over the lower arcade and warmed at its edge: echoFix.js, 4)
+        // (begun over the lower arcade and warmed at its edge: echo.js)
         keep(moonBeamPatch(makeShaftMaterial('#c3cfd8', 0.09))),
       );
       beam.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), up);
       beam.position.copy(mid);
       beam.renderOrder = 2;
       root.add(beam);
-      // Where it LANDS. From the floor the column alone hangs in front of the
-      // stair as a grey sheet, and light in the air is the weakest way to say
-      // light. Laid on the treads it crosses, cut to the beam's own section at
-      // the height of each tread, it comes down the stair in steps.
-      //
-      // Light MULTIPLIES what it falls on. ADDED, a flat grey laid on top of
-      // the stone is the harshest thing on the bridge: each tread under the
-      // crown a sheet of white paper with a hard outline, the joints between
-      // its flags turned blue-grey, because added light lights the mortar
-      // exactly as much as the stone. So it brightens the stone it lands on in
-      // proportion to the stone (dst·(1 + k)): the joints stay dark, the stone
-      // keeps its warmth, and the edge is a penumbra several units wide, not a
-      // cut line. ?wmoon=old is the added sheet.
-      const moonOld = Q.get('wmoon') === 'old';
-      const moonLand = keep(moonOld ? new THREE.ShaderMaterial({
-        uniforms: {
-          uC: { value: new THREE.Vector2(c[0], c[1]) },
-          uD: { value: new THREE.Vector2(Math.cos(bear), Math.sin(bear)) },
-          uColor: { value: new THREE.Color('#e7ebee') },
-          uO: { value: 0.18 },
-        },
-        vertexShader: `varying vec3 vW;
-          void main() { vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,
-        fragmentShader: `uniform vec2 uC; uniform vec2 uD; uniform vec3 uColor; uniform float uO; varying vec3 vW;
-          void main() {
-            float t = (vW.y - 30.0) / ${Math.cos(tilt).toFixed(5)};
-            vec2 ctr = uC + uD * (t * ${Math.sin(tilt).toFixed(5)});
-            float r = 28.0 - 7.0 * t / 95.0;
-            float d = distance(vW.xz, ctr);
-            float m = (1.0 - smoothstep(r - 1.4, r + 0.3, d)) * (0.72 + 0.28 * (1.0 - d / r));
-            gl_FragColor = vec4(uColor * m * uO, 1.0);
-          }`,
-        transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2,
-      }) : new THREE.ShaderMaterial({
+      const moonLand = keep(new THREE.ShaderMaterial({
         uniforms: {
           uC: { value: new THREE.Vector2(c[0], c[1]) },
           uD: { value: new THREE.Vector2(Math.cos(bear), Math.sin(bear)) },
@@ -235,15 +198,15 @@ export function buildEcho(ctx) {
           // a different light, nearer the stone's own colour. Only a little: a
           // stronger cool cast on warm stone reads as a filter.
           uColor: { value: new THREE.Color().setRGB(0.84, 0.92, 1.0) },
-          // With the column begun over the lower arcade (echoFix.js, 4) the
+          // With the column begun over the lower arcade (below) the
           // light is what it lays on the stair, and the stair has to be the
           // brightest thing in the room: stronger where it falls, and a fainter
           // spill of it carried on down the flight to the floor, which the
           // stand looks up (the lower treads lie outside the column's section,
           // and from the floor the moon would light nothing seen).
-          uK: { value: qNum('wmoonk', echoOld(4) ? 0.8 : 1.3) },
+          uK: { value: qNum('wmoonk', 1.3) },
           uSoft: { value: qNum('wmoonsoft', 6) },
-          uSpill: { value: qNum('wmoonspill', echoOld(4) ? 0 : 0.8) },
+          uSpill: { value: qNum('wmoonspill', 0.8) },
         },
         vertexShader: `varying vec3 vW;
           void main() { vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,
@@ -271,8 +234,8 @@ export function buildEcho(ctx) {
           if (ang === 60 && Math.abs(u) < 9) continue;   // the crown both flights share, lit once
           const q = add(c, dir(ang), u);
           const off = (y - 30) * Math.tan(tilt), ctr = add(c, dir(52), off), r = 32 - (8 * ((y - 30) / Math.cos(tilt))) / 95;
-          if (dist(q, ctr) > (echoOld(4) ? r + 9 : 3.2 * r + 9)) continue;
-          if (!ROSE_OLD && y >= CROWN_Y) continue;   // (the crown: below)
+          if (dist(q, ctr) > (3.2 * r + 9)) continue;
+          if (y >= CROWN_Y) continue;   // (the crown: below)
           treads.push(flatQuad(q, ang, f.dims.run, 14.6, y + 0.05));
         }
       }
@@ -280,7 +243,7 @@ export function buildEcho(ctx) {
       // other treads are, the light would lie UNDER the inlay it falls on —
       // so it is laid round the rose at the crown's height, and over the rose
       // a little above the highest piece of it.
-      if (!ROSE_OLD) {
+      {
         const sheet = (pts, holes, y) => {
           const v2 = (p) => p.map(([x, z]) => new THREE.Vector2(x, -z));
           const shape = new THREE.Shape(v2(pts));
@@ -307,7 +270,7 @@ export function buildEcho(ctx) {
       const f = flightProfile(ECHO_FLIGHT);
       for (const ang of [0, 60]) {
         for (let k = 0; k < f.dims.steps; k++) {
-          if (!ROSE_OLD && !notCrown(k)) continue;
+          if (!notCrown(k)) continue;
           const u = -f.dims.span + (k + 0.5) * f.dims.run;
           LB.wornStep.add(flatQuad(add(c, dir(ang), u), ang, f.dims.run - 1.2, 7.5, f.stepTop(k) + 0.03));
           // Dirt collects at the higher riser, away from the polished centre.
@@ -556,54 +519,32 @@ export function buildEcho(ctx) {
       const ring = (r) => circlePts(c, r, 48);
       LB.cap.add(slabGeo(ring(RING + wall / 2 + 1.5), [ring(RING - wall / 2 - 1.5)], 2, top + rise + band));
       LB.cap.add(slabGeo(ring(RING + wall / 2 + 0.9), [ring(RING - wall / 2 - 0.9)], 1.4, top + rise + band + 2));
+      // and the bed under it darker, on both faces of the arcade's wall and
+      // whatever stands proud of them there (ashlarSurface.js, 3)
+      ringLedge(c, top + rise + band, RING - wall / 2 - 1.6, RING + wall / 2 + 1.6);
       return top + rise + band + 2.4;
     };
     // The lower storey springs its arches at 43.5, level with the crown; the
     // columns are 4.2 across and 8 diameters tall.
     const upper = arcade({ foot: FLOOR, top: 43.5, rad: 2.1, rise: 12, band: 8, wall: 3.2 });
     arcade({ foot: upper, ped: 3, top: upper + 20, rad: 1.15, rise: 10, band: 6, wall: 3 });
-    // The upper arcade's bays stand open: a low case of books in each, on the
-    // cornice between the columns, looked up at from the floor reads as
-    // cabinets left out in a loggia, not as library. A sconce on every other
-    // pier, so the light repeats with the arches. Not `lamp` — its halo is a
-    // sprite drawn with depthTest off, and at this size and this close it hangs
-    // in front of the arcade as a pale disc. Not on the two piers at the ends
-    // of the flight the walk climbs (165° and 345°): the walk steps onto the
-    // stair beside one and off it beside the other, a few units from the pier
-    // at the height of the eye, and a lit lamp that close sweeping past the
-    // lens is most of what makes going over the crossing feel like walking into
-    // the columns. A lantern on a console (sconce.js), fixed to a cast plate on
-    // the shaft's face; ?wmount=old: held by a band round the shaft instead;
-    // ?wsconce=old: the old sconce, a rod run through its globe under a pan.
-    // The shaft's radius at the plate is the lower storey's, entasis and all:
-    // arcade({ foot: FLOOR, top: 43.5, rad: 2.1 }).
-    const SCONCE_OLD = Q.get('wsconce') === 'old';
     const shaftR = (y) => {
       const rad = 2.1, from = FLOOR + rad * 1.3, h = 43.5 - rad * 2.45 - from + rad * 0.02, t = (y - from) / h;
       return rad * (t < 1 / 3 ? 1 : 1 - 0.16 * ((t - 1 / 3) / (2 / 3)) ** 1.6);
     };
     const lanternWash = [], lanternPanes = [];
     for (let k = 1; k < BAYS; k += 2) {
-      const a = 15 + k * 30, p = add(c, dir(a), RING - 2.1 - 1.5);
+      const a = 15 + k * 30;
       if (a === 165 || a === 345) continue;
-      if (!SCONCE_OLD) {
-        const s = pierLantern({ at: add(c, dir(a), RING), ry: (180 - a) * deg, R: shaftR, oldBand: Q.get('wmount') === 'old' });
-        s.bronze.forEach((g) => LB.bronze.add(g));
-        lanternPanes.push(s.pane);
-        lanternWash.push(s.wash);
-        halo(s.halo.p, s.halo.y, 16, '#ffbe78', 0.16, lampHaloTex);
-        continue;
-      }
-      LB.bronze.add(placed(new THREE.CylinderGeometry(0.4, 0.4, 3.4, 6).rotateZ(Math.PI / 2), p, 26, -a * deg));
-      LB.bronze.add(placed(new THREE.CylinderGeometry(1.9, 1.1, 0.8, 10), p, 28.4));
-      // A small opal globe, the hanging lamps' glass (makeLampGlobeMaterial): a
-      // glow-core, bright nearly to its rim, prints from the stand as a flat
-      // cream plate stuck on the pier. (And the lamps' hollow halo, which
-      // leaves the glass to be seen.)
-      globes.push({ p: [p[0], 26.5, p[1]], s: [1.55, 1.55, 1.55], color: '#ffe8c8', k: 0.85 });
-      halo(p, 26.6, 16, '#ffbe78', 0.16, lampHaloTex);
+      const s = pierLantern({ at: add(c, dir(a), RING), ry: (180 - a) * deg, R: shaftR });
+      s.bronze.forEach((g) => LB.bronze.add(g));
+      lanternPanes.push(s.pane);
+      lanternWash.push(s.wash);
+      halo(s.halo.p, s.halo.y, 16, '#ffbe78', 0.16, lampHaloTex);
+      // (and a little soot up the shaft over it: ashlarSurface.js, 4)
+      sootOver([s.halo.p[0], s.halo.y + 2.5, s.halo.p[1]]);
     }
-    if (!SCONCE_OLD) {
+    {
       // the panes, in the globes' own opal glass
       instances(lanternPaneGeometry(), M.globe, lanternPanes, { cast: false, receive: false, chunked: true, name: 'lantern-panes' });
       // the light each lays on its own column

@@ -20,12 +20,8 @@
 //
 // A ring of shelving (the Vertigo's, the Silence vault's) is not cut from one
 // straight plank: `ringGrain` marks a geometry whose grain runs round a centre.
-//
-// ?wwood=old puts the wood back as it was: the old striped walnut, projected.
 import { BufferAttribute } from 'three';
 
-const Q = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
-export const WOOD_OLD = Q.get('wwood') === 'old';
 
 // How much timber one tile of the painted texture is, in world units (a unit
 // is 9.4 cm): along the grain, across it. The canvas is 1024 × 512 (see

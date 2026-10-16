@@ -4,13 +4,11 @@
 
 import * as THREE from 'three';
 import { friezeBand, giltLetters, purbeck, hanging, glow as glowTexture, foliageAtlas, makeRng, bookRowsLayout, pavingLayout } from '../textures';
-import { BOOKS_TITLED, makeShaftMaterial } from '../effects';
+import { makeShaftMaterial } from '../effects';
 import { makeWater } from '../water';
 import { makeLilyPads } from '../pond';
-import { WILLOW_BROAD } from '../pavilionFix';
-import { propsOld } from '../forkProps';
-import { WOOD_OLD, WALNUT_TILE, CEDAR_TILE } from '../woodGrain';
-import { CRACK_OLD, RUBBLE_OLD, SHORE_OLD, deg, BOOK_ROWS, FLOOR_OLD } from './common';
+import { WALNUT_TILE, CEDAR_TILE } from '../woodGrain';
+import { deg, BOOK_ROWS } from './common';
 
 export function* buildKit(ctx) {
   const { light, painter } = ctx;
@@ -61,13 +59,6 @@ export function* buildKit(ctx) {
     return c;
   };
   const rgb = (r, g, b, a = 1) => `rgba(${Math.round(r)},${Math.round(g)},${Math.round(b)},${a})`;
-  const speckle = (g, w, h, n, dark, alpha, size = [0.6, 2.2]) => {
-    for (let k = 0; k < n * detail; k++) {
-      g.fillStyle = dark ? `rgba(0,0,0,${rr(0, alpha)})` : `rgba(255,236,205,${rr(0, alpha)})`;
-      const s = rr(...size);
-      g.fillRect(rr(0, w), rr(0, h), s, s);
-    }
-  };
   const blob = (g, x, y, r, [hh, ss, ll], alpha = 1, lightOff = 0.3) => {
     const grd = g.createRadialGradient(x - r * lightOff, y - r * lightOff, r * 0.08, x, y, r);
     grd.addColorStop(0, `hsla(${hh},${ss}%,${Math.min(95, ll + 9)}%,${alpha})`);
@@ -95,25 +86,17 @@ export function* buildKit(ctx) {
   }), [1 / 46, 1 / 46]);
   yield;
 
-  const gravelOldTex = tex(paint(512, 512, (g, s) => {
-    g.fillStyle = '#6f685c';
-    g.fillRect(0, 0, s, s);
-    for (let k = 0; k < 8000 * detail; k++) {
-      const l = rr(-30, 40);
-      g.fillStyle = rgb(158 + l, 150 + l, 134 + l, rr(0.6, 1));
-      g.beginPath(); g.ellipse(rr(0, s), rr(0, s), rr(0.8, 3.2), rr(0.6, 2.4), rr(0, 3), 0, Math.PI * 2); g.fill();
-    }
-    speckle(g, s, s, 8000, true, 0.35);
-  }), [1 / 16, 1 / 16]);
+  // The gravel first painted here drew from the world's stream: eleven draws
+  // a grain. They are still made, so everything laid out after keeps its place.
+  for (let k = 0; k < 8000 * detail; k++) for (let d = 0; d < 11; d++) rnd();
   yield;
-  // (forkProps.js, 8: pebbles, each a few millimetres to a centimetre and a
-  // half, rounded, lit a little on one side, a dozen shades apart, a little
-  // warm; and the bed they lie on shows dark only between them. A grain a pixel
-  // or two across, forty shades from the next, reads as white speckle on grey.
-  // Painted from its own stream — the old gravel is still painted above, for
-  // the draws it takes from the world's.)
-  const GRAVEL_COLOR = propsOld(8) ? '#6f6c66' : '#7b7367';
-  const gravelTex = propsOld(8) ? gravelOldTex : tex(paint(1024, 1024, (g, s) => {
+  // The gravel: pebbles, each a few millimetres to a centimetre and a half,
+  // rounded, lit a little on one side, a dozen shades apart, a little warm; and
+  // the bed they lie on shows dark only between them. A grain a pixel or two
+  // across, forty shades from the next, reads as white speckle on grey.
+  // Painted from its own stream.
+  const GRAVEL_COLOR = '#7b7367';
+  const gravelTex = tex(paint(1024, 1024, (g, s) => {
     const r = makeRng(8808), R = (a, b) => a + (b - a) * r();
     g.fillStyle = '#6c6458';
     g.fillRect(0, 0, s, s);
@@ -285,19 +268,19 @@ export function* buildKit(ctx) {
   // in world units — see uvWorld — so these numbers mean what they say.)
   const flag = scaled(painter.take('flag'), 1 / 32);
   // the Door's cracks, over the breach's frame (cracks.js; read by paveShade)
-  const crackMap = CRACK_OLD ? null : keep(painter.take('cracks').map);
+  const crackMap = keep(painter.take('cracks').map);
   const wall = scaled(painter.take('wall'), 1 / 38);
   const pale = scaled(painter.take('pale'), 1 / 42);
   // (the wood is a board's length of timber along u and its width across v:
   // WALNUT_TILE and CEDAR_TILE, laid by uvGrain along each piece)
-  const wood = WOOD_OLD ? scaled(painter.take('wood'), 1 / 7) : scaled(painter.take('wood'), 1 / WALNUT_TILE[0], 1 / WALNUT_TILE[1]);
+  const wood = scaled(painter.take('wood'), 1 / WALNUT_TILE[0], 1 / WALNUT_TILE[1]);
   const whiteTex = keep(new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1));
   whiteTex.colorSpace = THREE.SRGBColorSpace;
   whiteTex.needsUpdate = true;
-  const timber = WOOD_OLD ? scaled(painter.take('timber'), 1 / 12) : scaled(painter.take('timber'), 1 / CEDAR_TILE[0], 1 / CEDAR_TILE[1]);
+  const timber = scaled(painter.take('timber'), 1 / CEDAR_TILE[0], 1 / CEDAR_TILE[1]);
   const spines = painter.take('spines');
   Object.values(spines).forEach(keep);
-  const titles = BOOKS_TITLED ? painter.take('titles') : null;
+  const titles = painter.take('titles');
   // the far shelves' painted rows, and where on the strip each row lies (v
   // runs up the texture, the canvas down)
   const bookRowsSet = painter.take('bookRows');
@@ -322,10 +305,10 @@ export function* buildKit(ctx) {
   const carveSet = painter.take('carve');
   Object.values(carveSet).forEach(keep);
   // the grain of what came down in the Door (rubble.js; laid on by M.rubble)
-  const rubbleSet = RUBBLE_OLD ? null : painter.take('rubble');
+  const rubbleSet = painter.take('rubble');
   // the garden's granite and the pond's bank (shore.js; laid on by M.shoreRock, M.bank)
-  const shoreRockSet = SHORE_OLD ? null : painter.take('shoreRock');
-  const shoreBankSet = SHORE_OLD ? null : painter.take('shoreBank');
+  const shoreRockSet = painter.take('shoreRock');
+  const shoreBankSet = painter.take('shoreBank');
   for (const set of [shoreRockSet, shoreBankSet]) if (set) Object.values(set).forEach(keep);
   if (rubbleSet) Object.values(rubbleSet).forEach(keep);
   // Doorway and bridge facing share the walls' texture and world scale.
@@ -336,7 +319,7 @@ export function* buildKit(ctx) {
   // stone with its bed running up it. Everything it goes on carries its uv in
   // world units (colLathe, or projected), so a unit of texture is 9 of stone.
   const columnSet = scaled(painter.take('column'), 1 / 9);
-  const hangTex = keep(hanging({ broadWillow: WILLOW_BROAD }));
+  const hangTex = keep(hanging({ broadWillow: true }));
   const glowTex = keep(glowTexture());
   const lampHaloTex = keep(glowTexture(256, 0.11));
   const water = makeWater({ mirror: !light });
@@ -397,29 +380,17 @@ export function* buildKit(ctx) {
       g.fillStyle = `hsla(${mrr(72, 100)},${mrr(24, 42)}%,${mrr(12, 24)}%,${mrr(0.55, 0.9)})`;
       g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
     };
-    if (!FLOOR_OLD) {
-      // (a slab's end joint is drawn again a canvas to either side, so a
-      // tuft on the edge comes back in at the other)
-      for (const row of pavingLayout({ size: S })) {
-        for (let x = 0; x < S; x += mrr(3, 7)) if (mr() < 0.75) tuft(x, row.y + mrr(-3, 3), mrr(3, 9));
-        for (const J of row.joints.slice(0, -1)) {
-          const x0 = (row.x0 + J) % S;
-          for (let y = row.y; y < row.y + row.h; y += mrr(3, 7)) {
-            if (mr() < 0.75) { const x = x0 + mrr(-3, 3), r = mrr(3, 9); for (const dx of [-S, 0, S]) tuft(x + dx, y, r); }
-          }
-          for (let n = 0; n < 3; n++) { const x = x0 + mrr(-10, 10), y = row.y + mrr(-10, 10), r = mrr(8, 18); for (const dx of [-S, 0, S]) tuft(x + dx, y, r); }
+    
+    // (a slab's end joint is drawn again a canvas to either side, so a
+    // tuft on the edge comes back in at the other)
+    for (const row of pavingLayout({ size: S })) {
+      for (let x = 0; x < S; x += mrr(3, 7)) if (mr() < 0.75) tuft(x, row.y + mrr(-3, 3), mrr(3, 9));
+      for (const J of row.joints.slice(0, -1)) {
+        const x0 = (row.x0 + J) % S;
+        for (let y = row.y; y < row.y + row.h; y += mrr(3, 7)) {
+          if (mr() < 0.75) { const x = x0 + mrr(-3, 3), r = mrr(3, 9); for (const dx of [-S, 0, S]) tuft(x + dx, y, r); }
         }
-      }
-    } else {
-      const sh = S / 4, sw = S / 3;
-      for (let r = 0; r < 4; r++) {
-        for (let x = 0; x < S; x += mrr(3, 7)) if (mr() < 0.75) tuft(x, r * sh + mrr(-3, 3), mrr(3, 9));
-        const off = (r % 2) * sw * 0.5;
-        for (let k = -1; k <= 3; k++) {
-          const x0 = k * sw + off;
-          for (let y = r * sh; y < (r + 1) * sh; y += mrr(3, 7)) if (mr() < 0.75) tuft(x0 + mrr(-3, 3), y, mrr(3, 9));
-          for (let n = 0; n < 3; n++) tuft(x0 + mrr(-10, 10), r * sh + mrr(-10, 10), mrr(8, 18));
-        }
+        for (let n = 0; n < 3; n++) { const x = x0 + mrr(-10, 10), y = row.y + mrr(-10, 10), r = mrr(8, 18); for (const dx of [-S, 0, S]) tuft(x + dx, y, r); }
       }
     }
   }), [1 / 32, 1 / 32]);

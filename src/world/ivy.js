@@ -22,7 +22,7 @@
 // twisted on each other as they twine the post, thick at the foot, grey-barked,
 // with leaves and a few loose shoots where they come out over the top.
 //
-// Drawn from the rng it is handed, never the world's stream. (?wivy=old)
+// Drawn from the rng it is handed, never the world's stream.
 import * as THREE from 'three';
 import { MeshBVH } from 'three-mesh-bvh';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -346,7 +346,7 @@ export function hangIvy(from, out, len, rng) {
 // `top`, where `over` (points) takes it over the beams. Returns the strands as
 // node lists, the compound leaves as leaflets { p, q, s }, and a few young
 // shoots (node lists) reaching out into the air.
-// `rope` (gardenFix5.js, 4 — VINE): the trunk as a rope of unequal stems,
+// `rope` (gardenProps.js — VINE): the trunk as a rope of unequal stems,
 // thick at the foot, winding the post closer and twisting tighter as it climbs.
 export function twineWisteria({ x, z, postR, foot, plinthR, ground, top, turns, endAngle = null, over = [], rope = null }, rng) {
   const R = (a, b) => a + (b - a) * rng();

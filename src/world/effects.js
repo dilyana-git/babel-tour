@@ -13,88 +13,16 @@
 //   the environment  what polished things reflect: a warm band of lamplit
 //                    shelves round a dark vault, with a few hot lamps in it
 import * as THREE from 'three';
-import { LAMPS } from './lampPass';
 import { bindSceneDepth } from './softDepth';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { SPINE_COLS, SPINE_ROWS, SPINE_KINDS, HIDE_TILE, HIDE_SIZE, spineLayout, TITLE_COLS, TITLE_ROWS, TITLE_ASPECT, TITLE_COUNT, NUMERALS } from './textures';
 
-// ?wbook=old: the bindings as they were before 2026-10-01 — a spine and
-// nothing else, the boards one flat tone (see makeBookMaterial).
-// ?wbook=untitled: as they were before 2026-10-05 — the hide on every face,
-// but no titles (a label was a pale box with bars on it), the spine flat, the
-// leather matt, and the old 64 × 256 atlas.
-const WBOOK = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('wbook') : null;
-const OLD_BOOKS = WBOOK === 'old';
-export const BOOKS_TITLED = WBOOK !== 'old' && WBOOK !== 'untitled';
-// ?wbookscale=old: the books as big as they were before 2026-10-06, taller
-// than the readers who walk past them (folios of 1.6-1.8 m on shelves 2 m
-// apart). A real book is about a quarter of that, and every detail a binding
-// is drawn with — the fillets, the joint, the hide's grain, a label's margins —
-// was laid out in the giants' units; so a book's size is read in those
-// (BOOK_UNIT of a unit to one of them), and a real folio is tooled as the giant
-// was, at its own size.
-export const BOOKS_GIANT = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('wbookscale') === 'old';
-const BOOK_UNIT = BOOKS_GIANT ? 1 : 0.25;
-// ?wglare=old: the globes and the light columns as they were before 2026-09-26
-// (see makeLampGlobeMaterial and shaftVolume), to compare against.
-const OLD_GLARE = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('wglare') === 'old';
-// A lamp globe's glass glazed, since 2026-10-07 — see makeLampGlobeMaterial
-// (?wglaze=old: matte, as it was)
-const GLAZE = !(typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('wglaze') === 'old');
-// Since the lamp pass of 2026-10-07 (lampPass.js; ?wlampsoff=glint: as it
-// was) the glaze's glint is taken from the lamps really round a globe —
-// `glintLights`, filled by buildWorld with the lit globes nearest the walk
-// (xyz, and the globe's radius) — not from a light fixed in the sky, which put
-// the same glint on every globe in the world.
-const LP_GLINT = LAMPS.glint;
+const BOOK_UNIT = 0.25;
 export const GLINT_N = 40;
 export const glintLights = { value: Array.from({ length: GLINT_N }, () => new THREE.Vector4(0, -1e6, 0, 0)) };
 
 // ── The bindings ──────────────────────────────────────────────────────────────
 
-// The faces of a binding, painted in the book material's colour pass. Each
-// leaves `spineMask` (r: gilt, for the metal), `bumpH` (the height the bump is
-// taken from), `bumpOn` and `polish` for the passes after it.
-const OLD_FACES = `
-        vec3 leather = diffuseColor.rgb;
-        vec3 spineMask = vec3(0.0, 0.0, 0.43);
-        if (vFace > 0.5 && vFace < 1.5) {
-          float detail = texture2D(uSpineDetail, vSpineUv).r;
-          spineMask = texture2D(uSpineMask, vSpineUv).rgb;
-          vec3 col = leather * (0.2 + detail * 1.3);
-          col = mix(col, vec3(0.6, 0.53, 0.4) * (0.5 + detail * 0.55), spineMask.g);
-          col = mix(col, vec3(0.8, 0.6, 0.28), spineMask.r * 0.92);
-          diffuseColor.rgb = col;
-        } else if (vFace > 2.5 && vFace < 3.5) {
-          // the cover of a book lying flat: its own leather, a shade darker
-          // toward the edges where the boards are rubbed
-          vec2 e = min(vUv, 1.0 - vUv);
-          diffuseColor.rgb = leather * (0.62 + 0.16 * smoothstep(0.0, 0.12, min(e.x, e.y)));
-          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.42, 0.4, 0.37), vDust * 0.5);
-        } else if (vFace > 1.5) {
-          // the top of the page block inside a rim of the binding: the edges of
-          // the leaves as fine lines, browning toward one edge, each book its
-          // own shade of old paper. One flat paper tone on every book read, from
-          // above (down the Vertigo's well, most of all), as a floor of pale tiles.
-          vec2 pagePixel = max(fwidth(vUv), vec2(1e-5));
-          vec2 pageRim = smoothstep(vec2(0.1, 0.08) - pagePixel, vec2(0.1, 0.08) + pagePixel, vUv)
-            * (1.0 - smoothstep(vec2(0.9, 0.94) - pagePixel, vec2(0.9, 0.94) + pagePixel, vUv));
-          float inner = pageRim.x * pageRim.y;
-          float age = fract(sin(dot(leather, vec3(12.9898, 78.233, 37.719)) * 91.7) * 43758.5453);
-          // Fade page lines into their average before they become smaller than
-          // two pixels; unfiltered procedural stripes have no texture mipmaps.
-          float pagePhase = vUv.x * 190.0 + age * 40.0;
-          float pageDetail = 1.0 - smoothstep(1.0, 3.14159, fwidth(pagePhase));
-          float leaves = 0.86 + 0.14 * sin(pagePhase) * pageDetail;
-          vec3 paper = vec3(0.46, 0.4, 0.31) * (0.5 + 0.32 * age) * leaves * mix(1.0, 0.72, smoothstep(0.35, 0.94, vUv.y));
-          diffuseColor.rgb = mix(leather * 0.7, paper, inner);
-          // a room nobody reads in: the tops gone grey under dust
-          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.42, 0.4, 0.37), vDust * 0.6);
-        } else {
-          diffuseColor.rgb = leather * 0.55;
-        }
-        float bumpH = spineMask.b, polish = 0.0;
-        float bumpOn = vFace > 0.5 && vFace < 1.5 ? 1.0 : 0.0;`;
 // The lettering of a spine, inside the spine's branch of FACES (lettered
 // books only). spineLayout (textures.js) says, for the spine's atlas cell,
 // which compartments hold the title and the volume number and how they are
@@ -225,7 +153,7 @@ const FACES = `
         // bands shrink below a pixel.
         vec2 spineDx = dFdx(vSpineUv), spineDy = dFdy(vSpineUv);
         vec2 bandDh = vec2(0.0);
-        ${BOOKS_TITLED ? `// where on a spine, in units (across from its left joint, down from
+        ${`// where on a spine, in units (across from its left joint, down from
         // its head), and how far that moves a pixel: taken out here, where every
         // fragment of the quad takes it, for the lettering in the branch below
         vec2 spPos = vec2(vCover.x, vCover.w - vCover.y);
@@ -234,14 +162,13 @@ const FACES = `
         // and a wall of them read as stone. Calf takes the light softly where
         // its grain is whole and goes dull where it has flaked; cloth is dull,
         // vellum waxy. (Never glossy enough for a lamp to glint off the grain.)
-        float bookRough = mix(mix(0.6, 0.86, smoothstep(0.55, 0.7, hide.r)), cloth > 0.5 ? 0.9 : 0.58, vellum + cloth);` : ''}
+        float bookRough = mix(mix(0.6, 0.86, smoothstep(0.55, 0.7, hide.r)), cloth > 0.5 ? 0.9 : 0.58, vellum + cloth);`}
         if (vFace > 0.5 && vFace < 1.5) {
-          ${BOOKS_TITLED ? `vec4 atlasTexel = texture2D(uSpineMask, vSpineUv);
+          ${`vec4 atlasTexel = texture2D(uSpineMask, vSpineUv);
           // (the leather's grey is kept sRGB-coded in G: decoded here as the
           // old atlas's own map was by the sampler)
           float detail = pow(atlasTexel.g, 2.2);
-          spineMask = vec3(atlasTexel.r, 0.0, atlasTexel.b);` : `float detail = texture2D(uSpineDetail, vSpineUv).r;
-          spineMask = texture2D(uSpineMask, vSpineUv).rgb;`}
+          spineMask = vec3(atlasTexel.r, 0.0, atlasTexel.b);`}
           vec2 e = max(uSpineTexel, max(abs(spineDx), abs(spineDy)));
           vec2 slope = vec2(
             textureGrad(uSpineMask, vSpineUv + vec2(e.x, 0.0), spineDx, spineDy).b - textureGrad(uSpineMask, vSpineUv - vec2(e.x, 0.0), spineDx, spineDy).b,
@@ -252,13 +179,11 @@ const FACES = `
           // finger hooks a book off the shelf
           float crown = smoothstep(0.9, 0.99, spineMask.b) * smoothstep(0.5, 0.62, hide.r + 0.25 * (fineH - 0.5));
           col = mix(col, col * 1.6 + vec3(0.02, 0.015, 0.01), crown * 0.7 * grain);
-          ${BOOKS_TITLED ? LETTERING : `// (the label foxed, as old paper is)
-          col = mix(col, vec3(0.6, 0.53, 0.4) * (0.5 + detail * 0.55) * (0.8 + 0.4 * hide.r), spineMask.g);
-          col = mix(col, vec3(0.8, 0.6, 0.28), spineMask.r * 0.92);`}
+          ${LETTERING}
           diffuseColor.rgb = col;
           // (the bands are in bandDh; the spine's own height stays at the
           // ground every face starts from, so its edges meet the boards flat)
-          bumpH = 0.43 + grainH * (1.0 - ${BOOKS_TITLED ? 'max(spineMask.r, letterFlat)' : 'max(spineMask.r, spineMask.g)'});
+          bumpH = 0.43 + grainH * (1.0 - ${'max(spineMask.r, letterFlat)'});
           bumpOn = 1.0;
         } else if (vFace > 2.5 && vFace < 3.5) {
           // A board, in units: from the spine, along it, and its size.
@@ -377,7 +302,7 @@ export const titleAt = ([x, y, z]) => {
   return Math.floor((h - Math.floor(h)) * TITLE_COUNT);
 };
 
-// `titles`: spineTitles's map, for the lettered books (BOOKS_TITLED).
+// `titles`: spineTitles's map, for the lettered books (true).
 export function makeBookMaterial(atlas, titles = null) {
   const material = new THREE.MeshStandardMaterial({ roughness: 0.8, metalness: 0 });
   const labelRoom = { value: new THREE.Vector3(0, 0, 0) };
@@ -385,10 +310,8 @@ export function makeBookMaterial(atlas, titles = null) {
   material.defines = { USE_UV: '' };
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uLabelRoom = labelRoom;
-    if (BOOKS_TITLED) {
-      shader.uniforms.uSpineLayout = { value: spineLayoutTexture() };
-      shader.uniforms.uTitles = { value: titles };
-    } else shader.uniforms.uSpineDetail = { value: atlas.detail };
+    shader.uniforms.uSpineLayout = { value: spineLayoutTexture() };
+    shader.uniforms.uTitles = { value: titles };
     shader.uniforms.uSpineMask = { value: atlas.mask };
     shader.uniforms.uHide = { value: atlas.hide };
     shader.uniforms.uSpineTexel = { value: new THREE.Vector2(1 / atlas.mask.image.width, 1 / atlas.mask.image.height) };
@@ -405,9 +328,9 @@ export function makeBookMaterial(atlas, titles = null) {
         varying vec2 vHideUv;
         varying vec4 vCover;
         varying vec2 vLeaf;
-        ${BOOKS_TITLED ? `attribute float aTitle;
+        ${`attribute float aTitle;
         varying vec4 vBook;
-        varying vec3 vAcross;` : 'varying vec3 vBook;'}`)
+        varying vec3 vAcross;`}`)
       // aSpine is the atlas cell, plus 1000 for a book LAID FLAT. A laid book
       // shows its spine turned through a right angle, its cover on top and
       // the ends of its leaves at either side. Drawn as if it stood, the tall
@@ -427,9 +350,7 @@ export function makeBookMaterial(atlas, titles = null) {
         vec2 cellAt = vec2(mod(cell, ${SPINE_COLS}.0), ${SPINE_ROWS - 1}.0 - floor(cell / ${SPINE_COLS}.0));
         vec2 suv = laid > 0.5 ? vec2(uv.y, uv.x) : uv;
         vSpineUv = (cellAt + vec2(0.04 + suv.x * 0.92, 0.01 + suv.y * 0.98)) / vec2(${SPINE_COLS}.0, ${SPINE_ROWS}.0);
-        ${OLD_BOOKS ? `vFace = normal.z > 0.5 ? 1.0
-          : normal.y > 0.5 ? (laid > 0.5 ? 3.0 : 2.0)
-          : (laid > 0.5 && abs(normal.x) > 0.5 ? 4.0 : 0.0);` : `vFace = normal.z > 0.5 ? 1.0
+        ${`vFace = normal.z > 0.5 ? 1.0
           : normal.z < -0.5 ? 4.0
           : (laid > 0.5 ? abs(normal.y) : abs(normal.x)) > 0.5 ? 3.0 : 2.0;`}
         #ifdef USE_INSTANCING
@@ -440,7 +361,7 @@ export function makeBookMaterial(atlas, titles = null) {
         vec3 bookSize = vec3(length(bookM[0].xyz), length(bookM[1].xyz), length(bookM[2].xyz)) / ${BOOK_UNIT.toFixed(3)};
         vec3 bookAt = bookM[3].xyz;
         vec2 bookHash = fract(sin(vec2(dot(bookAt, vec3(12.9898, 78.233, 37.719)), dot(bookAt, vec3(39.346, 11.135, 83.155)))) * 43758.5453);
-        ${BOOKS_TITLED ? 'vBook = vec4(cell, bookHash, aTitle);' : 'vBook = vec3(cell, bookHash);'}
+        ${'vBook = vec4(cell, bookHash, aTitle);'}
         vec3 bq = position + 0.5;
         float fromSpine = 1.0 - bq.z;
         float across = laid > 0.5 ? bq.y : bq.x;     // through the leaves, board to board
@@ -448,11 +369,11 @@ export function makeBookMaterial(atlas, titles = null) {
         float boardLen = laid > 0.5 ? bookSize.x : bookSize.y;
         // a board, in units: from the spine, along it, and its size
         vCover = vec4(fromSpine * bookSize.z, along * boardLen, bookSize.z, boardLen);
-        ${BOOKS_TITLED ? `// (on the spine itself: across it from the left joint, and its width —
+        ${`// (on the spine itself: across it from the left joint, and its width —
         // the lettering's units — and the way across it, to round it by)
         float spineW = laid > 0.5 ? bookSize.y : bookSize.x;
         if (normal.z > 0.5) vCover.xz = vec2(across * spineW, spineW);
-        vAcross = normalize(mat3(modelViewMatrix) * mat3(bookM) * (laid > 0.5 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0)));` : ''}
+        vAcross = normalize(mat3(modelViewMatrix) * mat3(bookM) * (laid > 0.5 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0)));`}
         // the leaves: across them, and toward the fore-edge (or, on the
         // fore-edge itself, from tail to head)
         vLeaf = vec2(across, normal.z < -0.5 ? along : fromSpine);
@@ -486,12 +407,12 @@ export function makeBookMaterial(atlas, titles = null) {
         varying vec2 vHideUv;
         varying vec4 vCover;
         varying vec2 vLeaf;
-        ${BOOKS_TITLED ? 'varying vec4 vBook;' : 'varying vec3 vBook;'}
+        ${'varying vec4 vBook;'}
         // a line |d| < w at a pixel's size px, faded toward its average as it
         // grows thinner than one
         float bookLine(float d, float w, float px) {
           return (1.0 - smoothstep(w, w + px, abs(d))) * min(1.0, 2.0 * w / px);
-        }${BOOKS_TITLED ? `
+        }${`
         uniform sampler2D uSpineLayout;
         uniform sampler2D uTitles;
         varying vec3 vAcross;
@@ -516,16 +437,16 @@ export function makeBookMaterial(atlas, titles = null) {
           vec2 sc = blur / vec2(COLS, ROWS);
           vec3 v = textureGrad(uTitles, at, gx * sc, gy * sc).rgb;
           return mix(0.15, page < 0.5 ? v.r : page < 1.5 ? v.g : v.b, smoothstep(3.0, 6.0, s / px));
-        }` : ''}`)
+        }`}`)
       .replace('#include <color_fragment>', `#include <color_fragment>
-        ${OLD_BOOKS ? OLD_FACES : FACES}`)
+        ${FACES}`)
       // The tooled gold is metal, but not a mirror. At 0.28/0.92 every letter on
       // every spine in the room threw a highlight small enough to sit inside a
       // pixel and bright enough to cross the bloom threshold — so a wall of
       // books glittered as the reader moved, and a library is not a chandelier.
       // (And calf takes a little polish where hands have rubbed it.)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
-        roughnessFactor = mix(${BOOKS_TITLED ? '(abs(vFace - 1.0) < 0.5 || abs(vFace - 3.0) < 0.5) ? bookRough : roughnessFactor' : 'roughnessFactor'}, 0.42, spineMask.r) - polish;`)
+        roughnessFactor = mix(${'(abs(vFace - 1.0) < 0.5 || abs(vFace - 3.0) < 0.5) ? bookRough : roughnessFactor'}, 0.42, spineMask.r) - polish;`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
         totalEmissiveRadiance += diffuseColor.rgb * vec3(1.0, 0.62, 0.32) * vDeep * 0.9;`)
       .replace('#include <metalnessmap_fragment>', `#include <metalnessmap_fragment>
@@ -554,7 +475,7 @@ export function makeBookMaterial(atlas, titles = null) {
       // starts from the spine's ground of 0.43, so a quad that straddles two
       // faces finds no step between them to draw.)
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
-        ${BOOKS_TITLED ? `// A spine is round, not a board: its normal turned across it, up to
+        ${`// A spine is round, not a board: its normal turned across it, up to
         // 40 degrees at the joints, so the lamps light down the crown and the
         // joints fall away, and the sheen slides over it as the reader moves.
         // (Painted into the atlas, the round was the same whichever side the
@@ -562,8 +483,8 @@ export function makeBookMaterial(atlas, titles = null) {
         if (vFace > 0.5 && vFace < 1.5) {
           float roundA = (clamp(vCover.x / max(vCover.z, 1e-3), 0.0, 1.0) * 2.0 - 1.0) * 0.7;
           normal = normalize(normal * cos(roundA) + normalize(vAcross) * sin(roundA));
-        }` : ''}
-        vec2 dh = (vec2(dFdx(bumpH), dFdy(bumpH))${OLD_BOOKS ? '' : ' + bandDh'}) * 2.2;
+        }`}
+        vec2 dh = (vec2(dFdx(bumpH), dFdy(bumpH))${' + bandDh'}) * 2.2;
         vec3 sx = dFdx(-vViewPosition), sy = dFdy(-vViewPosition);
         if (bumpOn > 0.5) {
           vec3 r1 = cross(sy, normal), r2 = cross(normal, sx);
@@ -573,7 +494,7 @@ export function makeBookMaterial(atlas, titles = null) {
           normal = bumpLen > 1e-12 ? bumped * inversesqrt(bumpLen) : normal;
         }`);
   };
-  material.customProgramCacheKey = () => `babel-books-${BOOK_UNIT}${OLD_BOOKS ? '-old' : BOOKS_TITLED ? '-titled' : ''}`;
+  material.customProgramCacheKey = () => `babel-books-${BOOK_UNIT}${'-titled'}`;
   return material;
 }
 
@@ -642,7 +563,7 @@ export function makeGlowMaterial() {
 // sphere: `position` is the globe's own coordinates, instance colour × k is its
 // strength.
 export function makeLampGlobeMaterial({ diffused = false } = {}) {
-  const glint = LP_GLINT && !diffused;
+  const glint = !diffused;
   return new THREE.ShaderMaterial({
     uniforms: glint ? { uGlint: glintLights } : {},
     vertexShader: /* glsl */ `
@@ -694,14 +615,14 @@ export function makeLampGlobeMaterial({ diffused = false } = {}) {
         // Diffusing opal carries the warm source across the whole globe.
         vec3 col = ${diffused
           ? 'mix(vec3(1.0, 0.52, 0.18), hot, 0.3 + 0.7 * through) * (0.8 + 0.8 * pow(through, 2.0))'
-          : `limb * 0.24 + hot * 0.07 + hot * ${OLD_GLARE ? '1.05 * pow(through, 8.0)' : '0.9 * pow(through, 12.0)'}`};
+          : `limb * 0.24 + hot * 0.07 + hot * ${'0.9 * pow(through, 12.0)'}`};
         // the collar's shade over the crown of the globe
         col *= mix(1.0, ${diffused ? '0.8' : '0.3'}, smoothstep(0.42, 0.9, vL.y));
         // hand-blown: the wall is never quite even
         float w = sin(vL.x * 21.0 + sin(vL.y * 13.0) * 2.0) * sin(vL.z * 17.0 + vL.y * 9.0);
-        col *= 1.0 + ${GLAZE ? '0.025' : '0.05'} * w;
+        col *= 1.0 + ${'0.025'} * w;
         gl_FragColor = vec4(vC * col, 1.0);
-        ${GLAZE && !diffused ? `
+        ${!diffused ? `
         // Glazed: the glass is shiny outside — a small sharp window of the
         // light above caught on it, and toward the limb, where it is seen at a
         // slant, it gives back more of the dark room and lets less of the light
@@ -713,7 +634,7 @@ export function makeLampGlobeMaterial({ diffused = false } = {}) {
           vec3 key = normalize((viewMatrix * vec4(0.35, 1.0, 0.25, 0.0)).xyz);
           vec3 fill = normalize((viewMatrix * vec4(-0.6, 0.35, -0.5, 0.0)).xyz);
           float spec = pow(max(dot(r, key), 0.0), 140.0) * 0.85 + pow(max(dot(r, fill), 0.0), 40.0) * 0.12;
-          ${LP_GLINT ? `
+          ${`
           // each lamp near enough a pin of light, as sharp as the lamp is small
           // from here (its radius over its distance), and the fixed key kept
           // as a faint sky over them
@@ -726,7 +647,7 @@ export function makeLampGlobeMaterial({ diffused = false } = {}) {
             float sharp = clamp(1.4 * d2 / (gr * gr), 30.0, 6000.0);
             pins += pow(max(dot(rw, L * inversesqrt(d2)), 0.0), sharp);
           }
-          spec = spec * 0.3 + min(pins, 1.5) * 0.9;` : ''}
+          spec = spec * 0.3 + min(pins, 1.5) * 0.9;`}
           float fres = pow(1.0 - through, 3.0);
           gl_FragColor.rgb = gl_FragColor.rgb * (1.0 - 0.3 * fres) + vec3(0.14, 0.1, 0.065) * fres * 0.6 + vec3(1.0, 0.94, 0.84) * spec;
         }` : ''}
@@ -794,7 +715,7 @@ const foliageAlpha = (shader) => shader.fragmentShader
 // writes none of its own — and with no depth to write, a card that fails the
 // depth test is thrown away before its lighting is ever run.
 //
-// `feather` (gardenFix5.js, 11 — { near, far, wide }): across the garden a
+// `feather` (gardenProps.js — { near, far, wide }): across the garden a
 // crown's outline was the alpha test's own, a hard stair a pixel deep that no
 // filter after it finds on dark leaf against a dark sky. From `near` to `far`
 // units off the cut goes over to a ramp `wide` pixels across, centred on
@@ -905,7 +826,7 @@ export function makeFoliagePrepass(map, wind, kinds = 1, { feather = null } = {}
 }
 
 // The same sprays for a wood that is only ever a backdrop (the cedars behind
-// the maze: webProps.js, 2). There the belt is the upper half of the frame,
+// the maze: webProps.js). There the belt is the upper half of the frame,
 // every pixel of it leaf, and lit as the garden's trees are it cost a third of
 // the frame — the moon and its shadow, six lamps and the sky, run for a wall
 // of trees two hundred units off in the dark. Lit here once per corner of a
@@ -972,12 +893,12 @@ export function makeFoliageDepthMaterial(kinds) {
 // (see textures.js, `hanging`); a card is PlaneGeometry(1, 1) moved down so its
 // top edge is on the anchor.
 //
-// `keepCoverage` (pavilionFix.js, 4): a willow's card (kinds 4 and 5) keeps its
+// `keepCoverage` (pavilionProps.js): a willow's card (kinds 4 and 5) keeps its
 // coverage down the mip chain. Averaged into smaller mips a strand's alpha
 // falls under the alpha test and the strand breaks into dashes that come and
 // go as it sways; its alpha is raised a little for every level the texture
 // has shrunk by (0.15), so it stays a strand as it goes small.
-// `weep` (pavilionProps.js, 6): a willow's strand darkens to its tip (`tip`,
+// `weep` (pavilionProps.js): a willow's strand darkens to its tip (`tip`,
 // beside its top), gives back less of its own colour (`glow` of what the rest
 // do, and none of it at the tip — lit all the way down, the curtain was
 // bright strings on the night), and moves `sway` times as far in the wind.
@@ -1064,7 +985,6 @@ export function crossedCards({ flat = true } = {}) {
 // one they belong to. `null` for a column that must not give way (one the
 // reader falls down on purpose).
 export function shaftVolume(geo, bottom = null, rBottom = 0, top = null, rTop = 0) {
-  if (OLD_GLARE) bottom = null;
   const n = geo.attributes.position.count;
   const a = new Float32Array(n * 4), b = new Float32Array(n * 4);
   if (bottom) {
@@ -1179,7 +1099,7 @@ const sparkVertex = /* glsl */ `
     // with a full swing they strobed; the mix with 1.0 (uPulse) is how much of
     // the mote's brightness is allowed to swing at all.
     float pulse = mix(1.0, 0.45 + 0.55 * max(0.0, sin(uTime * 0.95 + aPhase * 3.0)), uPulse);
-    // Or a firefly's flash (uBlink, webFix.js 5): each on a beat of its own,
+    // Or a firefly's flash (uBlink, webProps.js): each on a beat of its own,
     // 2.4 to 6.4 s, at its own moment in it — a quick rise, a fade over most
     // of a second, and between flashes only an ember. Glowing steadily they read
     // as dust on the lens; flashing out of step they read as things alive.

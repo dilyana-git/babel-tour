@@ -18,10 +18,41 @@
 import * as THREE from 'three';
 import { makeRng } from './textures';
 
+// One clump of bent blades (gardenProps.js), drawn from `r` into `out`; each
+// vertex carries `lamp` ([x, y, z, k]) unless the call gives its own.
+function clumpOf(r, { ground, height, clump, out, lamp }) {
+  const R = (a, b) => a + (b - a) * r();
+  const { pos, col, nor, lit } = out;
+  return (x, z, near, own = lamp) => {
+    const blades = Math.round(R(...clump.blades)), dry = r() < (clump.dry ?? 0.08);
+    const hue = R(-1, 1), tall = height * R(0.7, 1.4) * (0.8 + 0.3 * near), lay = R(0, Math.PI * 2);
+    for (let b = 0; b < blades; b++) {
+      // out from the clump's middle, most of them leaning the clump's own way
+      const a = r() < 0.6 ? lay + R(-0.9, 0.9) : R(0, Math.PI * 2), spread = R(...clump.spread), lean = R(0.15, 0.7);
+      const bx = x + Math.cos(a) * spread, bz = z + Math.sin(a) * spread;
+      const h = tall * R(0.55, 1.15), w = R(...clump.wide);
+      const ax = -Math.sin(a) * w, az = Math.cos(a) * w, cx = Math.cos(a), cz = Math.sin(a);
+      const my = ground + h * 0.62, mo = lean * h * 0.3, ty = ground + h * (1 - 0.22 * lean), to = lean * h * 0.95;
+      const B0 = [bx - ax, ground - 0.05, bz - az], B1 = [bx + ax, ground - 0.05, bz + az];
+      const M0 = [bx + cx * mo - ax * 0.62, my, bz + cz * mo - az * 0.62], M1 = [bx + cx * mo + ax * 0.62, my, bz + cz * mo + az * 0.62];
+      const T = [bx + cx * to, ty, bz + cz * to];
+      pos.push(...B0, ...B1, ...M1, ...B0, ...M1, ...M0, ...M0, ...M1, ...T);
+      for (let v = 0; v < 9; v++) nor.push(0, 1, 0);
+      const k = R(0.8, 1.15) * clump.k;
+      const [gr, gg, gb0] = clump.green ?? [0.031, 0.047, 0.013];
+      const g0 = dry ? (clump.straw ?? [0.07, 0.06, 0.026]) : [gr + 0.006 * hue, gg, gb0];
+      const gm = g0.map((c) => c * (1 + (clump.tip - 1) * 0.6) * k);
+      const gt = g0.map((c) => c * clump.tip * k), gb = g0.map((c) => c * k * 0.8);
+      col.push(...gb, ...gb, ...gm, ...gb, ...gm, ...gm, ...gm, ...gm, ...gt);
+      for (let v = 0; v < 9; v++) lit.push(...own);
+    }
+  };
+}
+
 // `lamps`: [{ p: [x, z], y, reach, k }]. `ok(p)`: whether grass grows at p.
 // `ground`: the lawn's height. Yields one geometry per lamp so assembly can
 // give the page time between lamps without changing their random streams.
-// `clump` (gardenFix5.js, 5 — GRASS): the blades were scattered evenly, each
+// `clump` (gardenProps.js — GRASS): the blades were scattered evenly, each
 // one triangle a centimetre wide with a pale tip, and read as needles on dark
 // ground. With it they stand in clumps, in patches — thick here, none there —
 // each blade broader, bent over at two thirds of its height, its tip a mid
@@ -37,29 +68,7 @@ export function* lawnBlades({ lamps, ok, ground, seed = 6607, density = 1, heigh
   for (const [li, lamp] of lamps.entries()) {
     const r = makeRng(seed + li * 131), R = (a, b) => a + (b - a) * r();
     const pos = [], col = [], nor = [], lit = [];
-    const bent = (x, z, near) => {
-      const blades = Math.round(R(...clump.blades)), dry = r() < 0.08;
-      const hue = R(-1, 1), tall = height * R(0.7, 1.4) * (0.8 + 0.3 * near), lay = R(0, Math.PI * 2);
-      for (let b = 0; b < blades; b++) {
-        // out from the clump's middle, most of them leaning the clump's own way
-        const a = r() < 0.6 ? lay + R(-0.9, 0.9) : R(0, Math.PI * 2), spread = R(...clump.spread), lean = R(0.15, 0.7);
-        const bx = x + Math.cos(a) * spread, bz = z + Math.sin(a) * spread;
-        const h = tall * R(0.55, 1.15), w = R(...clump.wide);
-        const ax = -Math.sin(a) * w, az = Math.cos(a) * w, cx = Math.cos(a), cz = Math.sin(a);
-        const my = ground + h * 0.62, mo = lean * h * 0.3, ty = ground + h * (1 - 0.22 * lean), to = lean * h * 0.95;
-        const B0 = [bx - ax, ground - 0.05, bz - az], B1 = [bx + ax, ground - 0.05, bz + az];
-        const M0 = [bx + cx * mo - ax * 0.62, my, bz + cz * mo - az * 0.62], M1 = [bx + cx * mo + ax * 0.62, my, bz + cz * mo + az * 0.62];
-        const T = [bx + cx * to, ty, bz + cz * to];
-        pos.push(...B0, ...B1, ...M1, ...B0, ...M1, ...M0, ...M0, ...M1, ...T);
-        for (let v = 0; v < 9; v++) nor.push(0, 1, 0);
-        const k = R(0.8, 1.15) * clump.k;
-        const g0 = dry ? [0.07, 0.06, 0.026] : [0.031 + 0.006 * hue, 0.047, 0.013];
-        const gm = g0.map((c) => c * (1 + (clump.tip - 1) * 0.6) * k);
-        const gt = g0.map((c) => c * clump.tip * k), gb = g0.map((c) => c * k * 0.8);
-        col.push(...gb, ...gb, ...gm, ...gb, ...gm, ...gm, ...gm, ...gm, ...gt);
-        for (let v = 0; v < 9; v++) lit.push(lamp.p[0], lamp.y, lamp.p[1], lamp.k);
-      }
-    };
+    const bent = clumpOf(r, { ground, height, clump, out: { pos, col, nor, lit }, lamp: [lamp.p[0], lamp.y, lamp.p[1], lamp.k] });
     // a blade's greens: root, tip — olive, a few gone to straw
     const tuft = (x, z, near) => {
       const blades = 6 + Math.floor(r() * 5), dry = r() < 0.1;
@@ -109,7 +118,87 @@ export function* lawnBlades({ lamps, ok, ground, seed = 6607, density = 1, heigh
   }
 }
 
-// The mown sward under the blades (gardenFix5.js, 5): for each lamp a sheet
+// The uncut grass along the lawn's edges (gardenProps.js): where the mower
+// does not reach — along a way's side, at a hedge's foot, on the lip of the
+// bank, round a stone or a post — the grass stands in clumps, in runs and gaps,
+// and the open lawn between is mown and has none.
+//
+// `edges`: [{ pts, off, closed }], lines the lawn stops at and how far off each
+// the grass begins (both sides are tried; `ok` keeps the lawn's); `rings`:
+// [{ p: [x, z], r }], feet to stand round. `t`: TUFTS. Each clump carries the
+// nearest of `lamps` whose light reaches it (as the lanterns' blades do), or
+// none, and is lit by the moon as the lawn under it is. Yields one geometry to
+// each `cell` of ground, so what is behind the eye is not drawn.
+export function* edgeTufts({ edges, rings, ok, lamps, ground, t, seed = 6631, density = 1, cell = 160 }) {
+  const r = makeRng(seed), R = (a, b) => a + (b - a) * r();
+  // a slow field along the ground: where it is low, a gap
+  const hash = (i, j) => { const x = Math.sin(i * 127.1 + j * 311.7 + seed) * 43758.5453; return x - Math.floor(x); };
+  const field = (x, z) => {
+    const u = x / t.run, v = z / t.run, i = Math.floor(u), j = Math.floor(v);
+    const fu = u - i, fv = v - j, su = fu * fu * (3 - 2 * fu), sv = fv * fv * (3 - 2 * fv);
+    return (hash(i, j) * (1 - su) + hash(i + 1, j) * su) * (1 - sv) + (hash(i, j + 1) * (1 - su) + hash(i + 1, j + 1) * su) * sv;
+  };
+  const NONE = [0, 0, 0, 0];
+  const lampAt = (x, z) => {
+    let best = NONE, bd = Infinity;
+    for (const L of lamps) {
+      const d = Math.hypot(x - L.p[0], z - L.p[1]);
+      if (d < L.reach && d < bd) { bd = d; best = [L.p[0], L.y, L.p[1], L.k]; }
+    }
+    return best;
+  };
+  const cells = new Map();
+  const bucket = (x, z) => {
+    const key = `${Math.floor(x / cell)},${Math.floor(z / cell)}`;
+    if (!cells.has(key)) {
+      const out = { pos: [], col: [], nor: [], lit: [] };
+      cells.set(key, { out, clump: clumpOf(r, { ground, height: t.height, clump: t, out, lamp: NONE }) });
+    }
+    return cells.get(key).clump;
+  };
+  // (a clump stands by the field and then by chance; `near`, 1 at the edge
+  // itself, makes it taller there)
+  const plant = (x, z, near) => {
+    const thick = (field(x, z) - t.bare) / (1 - t.bare);
+    if (r() > thick * 2.4 || !ok([x, z])) return;
+    bucket(x, z)(x, z, near, lampAt(x, z));
+  };
+  const step = t.step / Math.sqrt(density), [o0, o1] = t.out;
+  for (const { pts, off, closed } of edges) {
+    const line = closed ? [...pts, pts[0]] : pts;
+    for (let i = 1; i < line.length; i++) {
+      const a = line[i - 1], b = line[i], L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      if (L < 1e-3) continue;
+      const tx = (b[0] - a[0]) / L, tz = (b[1] - a[1]) / L;
+      for (let u = R(0, step); u < L; u += step * R(0.6, 1.4)) {
+        for (const side of [-1, 1]) {
+          // most of them hard against the edge, a few out into the lawn
+          const d = o0 + (o1 - o0) * r() ** 2.4;
+          plant(a[0] + tx * u - tz * side * (off + d), a[1] + tz * u + tx * side * (off + d), 1 - (d - o0) / (o1 - o0));
+        }
+      }
+    }
+  }
+  for (const { p, r: foot } of rings) {
+    const n = Math.round(R(...t.stone));
+    for (let k = 0; k < n; k++) {
+      const a = R(0, Math.PI * 2), d = foot + R(0.1, 1.2);
+      plant(p[0] + Math.cos(a) * d, p[1] + Math.sin(a) * d, 1);
+    }
+  }
+  for (const { out: { pos, col, nor, lit } } of cells.values()) {
+    if (!pos.length) continue;
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    g.setAttribute('aLamp', new THREE.Float32BufferAttribute(lit, 4));
+    g.computeBoundingSphere();
+    yield g;
+  }
+}
+
+// The mown sward under the blades (gardenProps.js): for each lamp a sheet
 // just over the lawn, as far as its light goes, carrying the lamp as the
 // blades do (`aLamp`) and how much of it shows at each corner (`aShow`: none
 // at the edge of the lamp's reach, none where no grass grows). It adds the

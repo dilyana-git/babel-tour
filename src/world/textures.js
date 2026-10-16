@@ -124,7 +124,15 @@ const RHYTHM_MIXED = [1.5, 0.7, 1.1, 0.66, 1.32, 0.8, 0.94, 0.68, 1.46, 0.74, 1.
 // from a half to nearly two lengths, one in eight a paler stone and one in
 // ten a darker; and lime come out of the bed joints and down the faces under
 // them in pale blooms.
-export function ashlar({ size = 1024, seed = 7, courses = 8, blocks = 4, tone = [112, 100, 88], joint = 3, strength = 3.2, spread = 18, dress = 'cushion' } = {}) {
+// (A block's warmth strays with its value: at a third of the spread, a third
+// of the hue. `arris`: how worn the arrises are, 0 not at all —
+// ashlarSurface.js, 2.)
+export function ashlar({ size = 1024, seed = 7, courses = 8, blocks = 4, tone = [112, 100, 88], joint = 3, strength = 3.2, spread = 18, dress = 'cushion', arris = 0 } = {}) {
+  const hue = spread / 18;
+  // (the arrises' wear on a stream of its own: drawn on the wall's, it would
+  // relay every block after the first; one seed a block, so a block drawn
+  // again over the canvas's edge is worn the same both times)
+  const wearRnd = makeRng(seed + 7919);
   const flat = dress === 'flat';
   const punched = dress === 'punched' || flat;
   const rnd = makeRng(seed);
@@ -158,7 +166,7 @@ export function ashlar({ size = 1024, seed = 7, courses = 8, blocks = 4, tone = 
   const block = (x, y, w, h, look) => {
     const { v, wear, tilt, warm, mottle, angle, chips } = look;
     const l = (flat ? Math.round(v) : v) * spread;
-    c.fillStyle = `rgb(${tone[0] + l + 4 + warm * 7},${tone[1] + l + warm * 2},${tone[2] + l - 3 - warm * 6})`;
+    c.fillStyle = `rgb(${tone[0] + l + 4 + warm * 7 * hue},${tone[1] + l + warm * 2 * hue},${tone[2] + l - 3 - warm * 6 * hue})`;
     c.fillRect(x, y, w, h);
     for (const g of [c, hg]) { g.save(); g.beginPath(); g.rect(x, y, w, h); g.clip(); }
     // the stone's own clouding: no block is one tone through
@@ -236,6 +244,31 @@ export function ashlar({ size = 1024, seed = 7, courses = 8, blocks = 4, tone = 
     c.strokeStyle = punched ? 'rgba(24,17,11,0.1)' : 'rgba(236,226,206,0.05)';
     c.lineWidth = m;
     c.strokeRect(x + m / 2, y + m / 2, w - m, h - m);
+    // The arrises weathered: worn back and rounded along every edge, in bites
+    // of uneven depth, so no edge is a ruled line — most along the top, where
+    // the dust lies and the damp stands, least along the bed. A worn arris is
+    // the stone's fresh face, so a little paler than the block; lower in the
+    // height, so a lamp across it finds the round. (Each block its own amount:
+    // this, and not its value, is what tells one block from the next.)
+    if (arris) {
+      const wr = makeRng(look.wearSeed), pale = `${tone[0] * 1.32 + 10},${tone[1] * 1.32 + 8},${tone[2] * 1.3 + 4}`;
+      const n = Math.round(((w + h) * 2 / 4) * arris * (0.35 + wear * 0.9));
+      for (let k = 0; k < n; k++) {
+        const r = wr(), side = r < 0.38 ? 0 : r < 0.56 ? 1 : r < 0.78 ? 2 : 3;
+        const t = wr(), deep = (1.6 + wr() * wr() * 7.5) * arris * (side === 0 ? 1.25 : side === 1 ? 0.7 : 1);
+        const px = side < 2 ? x + t * w : side === 2 ? x : x + w;
+        const py = side < 2 ? (side === 0 ? y : y + h) : y + t * h;
+        const along = 2 + wr() * 9, rx = side < 2 ? along : deep, ry = side < 2 ? deep : along;
+        c.fillStyle = `rgba(${pale},${0.09 + wr() * 0.13})`;
+        c.beginPath();
+        c.ellipse(px, py, rx, ry, 0, 0, Math.PI * 2);
+        c.fill();
+        hg.fillStyle = `rgba(0,0,0,${0.16 + wr() * 0.2})`;
+        hg.beginPath();
+        hg.ellipse(px, py, rx * 0.8, ry * 0.8, 0, 0, Math.PI * 2);
+        hg.fill();
+      }
+    }
     for (const g of [c, hg]) g.restore();
     rg.fillStyle = grey(200 - wear * 60);
     rg.fillRect(x + 4, y + 4, w - 8, h - 8);
@@ -272,6 +305,7 @@ export function ashlar({ size = 1024, seed = 7, courses = 8, blocks = 4, tone = 
         // most blocks dressed across at a slant, some upright, a few level
         angle: (rnd() < 0.6 ? 1.15 : rnd() < 0.5 ? Math.PI / 2 : 0.08) + (rnd() - 0.5) * 0.25,
         chips: Array.from({ length: Math.floor(rnd() * rnd() * 5) }, () => [Math.floor(rnd() * 4), 0.08 + rnd() * 0.84, 3 + rnd() * 7]),
+        wearSeed: Math.floor(wearRnd() * 4294967296),
       };
       // (not all from one bed of the quarry: some paler, some darker, by more
       // than the wall's ordinary spread)
@@ -2670,7 +2704,7 @@ export function hanging({ w = 128, h = 512, seed = 71, broadWillow = false } = {
         c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill();
       }
     } else if (kind >= 4 && broadWillow) {
-      // Willow whips, broad (pavilionFix.js, 4). Three whips a pixel across to
+      // Willow whips, broad (pavilionProps.js). Three whips a pixel across to
       // a card some three units wide were, from the bridge, less than a pixel
       // each: alpha-tested, they flickered on and off down their length and
       // the willows read as vertical scan lines. One strand to a card (kind 4)

@@ -4,31 +4,31 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { lanternPaneGeometry } from '../sconce';
-import { flameGeometry, LAMPS, waxGlowGeometry } from '../lampPass';
+import { flameGeometry, waxGlowGeometry } from '../lampPass';
 import { makeRng, SPINE_KINDS } from '../textures';
-import { BOOKS_GIANT, shaftVolume, makeShaftMaterial, spineAt, titleAt } from '../effects';
+import { shaftVolume, makeShaftMaterial, spineAt, titleAt } from '../effects';
 import { buildPortal, PORTAL } from '../portal';
-import { doorPropsOld, SPILL as DOOR_SPILL, SIDE_LAMP as DOOR_SIDE_LAMP, tentBook, splayedBook, CANDLES as DOOR_CANDLES, candleWax } from '../doorProps';
-import { doorOld, LAMP_Y as DOOR_LAMP_Y, SHAFT_K } from '../doorFix';
+import { SPILL as DOOR_SPILL, SIDE_LAMP as DOOR_SIDE_LAMP, tentBook, splayedBook, CANDLES as DOOR_CANDLES, candleWax, LAMP_Y as DOOR_LAMP_Y, SHAFT_K } from '../doorProps';
 import { rubbleLayout, fallenBlock, fragment } from '../rubble';
 import { stoneCaster, growIvy, hangIvy } from '../ivy';
-import { CRACK_OLD, DOOR_CRACKS, IVY_OLD, RUBBLE_OLD, DOOR_FALLEN, deg } from '../build/common';
+import { FLORA, crackLines, crackRunners, crackTufts, roomSheets, caseFaces, strandFeeder, joinStrand, leadRunners, leadFaceRoots } from '../doorFlora';
+import { DOOR_CRACKS, DOOR_FALLEN, deg } from '../build/common';
 
 export function buildDoor(ctx) {
   const { dir, add, dist, A, cellC } = ctx;
   // V — the Door: shelves on five walls; on the sixth, a way out.
   const DOOR = cellC(4, -4);
   const GATE = add(DOOR, dir(330), A);
-  if (!CRACK_OLD && dist(GATE, DOOR_CRACKS.origin) > 1e-6) console.warn("[cracks] painted round a breach that is not the Door's:", DOOR_CRACKS.origin, GATE);
+  if (dist(GATE, DOOR_CRACKS.origin) > 1e-6) console.warn("[cracks] painted round a breach that is not the Door's:", DOOR_CRACKS.origin, GATE);
   return { DOOR, GATE };
 }
 
 export function* buildArch(ctx) {
-  const { light, rnd, rr, pick, dir, add, rot3, keep, bookRowsSet, Std, M, root, boxGeo, placed,
-    brokenBlock, chunkGeo, rockGeo, instances, decal, haloMaterial, halos, lightWishes, point, R, A,
+  const { light, rnd, rr, pick, dir, add, rot3, keep, bookRowsSet, Std, M, root, placed,
+    chunkGeo, rockGeo, instances, decal, haloMaterial, halos, lightWishes, point, R, A,
     edgeFrame, hallMid, LB, fallenLeaves, doorIvy, doorRubble, petals, hangs, ivyLeaves, ivyWood,
     IVY_GREEN, IVY_YOUNG, posts, links, balusters, shelved, lodRows, wallRoom, books, lampCores,
-    lampShells, globes, deadGlobes, rubble, trialPanes, trialFlames, trialWax, glows, candleLights,
+    lampShells, globes, deadGlobes, rubble, trialPanes, trialFlames, trialWax, candleLights,
     BOOKS, LAID, alongWall, lamp, DOOR, GATE } = ctx;
   // ── The arch ──────────────────────────────────────────────────────────────
   // What stands in the sixth wall (portal.js). It is built in a frame of its
@@ -46,7 +46,7 @@ export function* buildArch(ctx) {
     for (const [name, list] of Object.entries(buildPortal({ light }))) {
       for (const g of list) {
         // (the stone the ivy grows on, in the arch's own frame — ivy.js)
-        if (!IVY_OLD) portalStone.push(g.clone());
+        portalStone.push(g.clone());
         into[name].add(g.applyMatrix4(portalFrame));
       }
     }
@@ -94,38 +94,12 @@ export function* buildArch(ctx) {
     // goes; grit, and a tongue of pale dust. Big pieces keep off the way
     // through, and nothing lies on the arch's own footings.
     {
-      const dr = makeRng(4404), within = (a, b) => a + (b - a) * dr();
       const at = (along, into) => add(add(GATE, e.n, -into), e.t, along);
-      // nothing on the footing of the arch: its jambs and piers stand out to
-      // about twenty-four units into the room, either side of the threshold
-      const onArch = (along, into) => Math.abs(along - 1.5) > 11.5 && into < 25;
-      const clear = (along, into, size) => !onArch(along, into) && (size < 0.8 || into > 90 || Math.abs(along - 6) > 10 + size);
-      if (RUBBLE_OLD) {
-        const fr = makeRng(4405);
-        for (const [along, into, w, h, d] of DOOR_FALLEN) {
-          const q = at(along, into);
-          const g = brokenBlock(w, h, d, fr).rotateX(within(-0.22, 0.22)).rotateZ(within(-0.28, 0.28)).rotateY(within(0, Math.PI * 2));
-          LB.moonStone.add(g.translate(q[0], 6 + h * 0.4, q[1]));
-        }
-        const stone = ['#b8ae9e', '#a89f91', '#c2b9aa', '#9d9486'];
-        for (let k = 0; k < 48; k++) {
-          const into = 5 + dr() ** 1.25 * 72, spread = 16 + into * 0.8, along = within(-spread, spread);
-          const size = 2.9 * (1 - into / 100) * (0.45 + dr() * 0.75);
-          if (!clear(along, into, size)) continue;
-          const q = at(along, into);
-          doorRubble.push({ p: [q[0], 6 + size * 0.28, q[1]], rot: [dr() * 3, dr() * 3, dr() * 3], s: [size, size * (0.45 + dr() * 0.3), size * (0.7 + dr() * 0.5)], color: stone[Math.floor(dr() * 4)] });
-        }
-        for (let k = 0; k < (light ? 30 : 80); k++) {
-          const into = dr() ** 1.6 * 40, along = within(-24 - into * 0.6, 24 + into * 0.6);
-          const q = at(along, into), g = 0.3 + dr() * 0.6;
-          if (onArch(along, into)) continue;
-          doorRubble.push({ p: [q[0], 6.1, q[1]], rot: [dr() * 3, dr() * 3, dr() * 3], s: [g, g * 0.4, g], color: stone[Math.floor(dr() * 4)] });
-        }
-      } else {
+      {
         // (rubble.js: the same layout the crack painter shaded the floor round)
         const { blocks, stones } = rubbleLayout(DOOR_FALLEN, DOOR_CRACKS);
-        // (sharp where they broke fresh: doorProps.js, 8)
-        for (const k of blocks) LB.rubbleBlocks.add(fallenBlock(k, { floor: 6, light, crisp: !doorPropsOld(8) }));
+        // (sharp where they broke fresh: doorProps.js)
+        for (const k of blocks) LB.rubbleBlocks.add(fallenBlock(k, { floor: 6, light, crisp: true }));
         // (what broke off a block is as solid as the block; the stones darken
         // where a block stands over them)
         for (const s of stones) (s.felt ? LB.rubbleBlocks : s.size >= 1.3 ? LB.rubbleBig : LB.rubble).add(fragment(s, { floor: 6, near: blocks }));
@@ -145,31 +119,19 @@ export function* buildArch(ctx) {
       // the way through, where the walk goes.)
       const fallen = [[-27, 24, 0.4, 0.12], [-19, 33, 2.1, -0.08], [-33, 40, 1.2, 0.2], [21, 27, 2.6, -0.15], [30, 36, 0.9, 0.1]];
       // (folios, 41-47 cm, not giants of 90 cm-1.2 m)
-      const fk = BOOKS_GIANT ? 1 : 0.46;
-      // (Shut, plain and dark, from the stand they read as tiles. So one of the
-      // shut ones is in vellum; and a folio lies splayed open on its back with
-      // its leaves lifting, and another has fallen open on its face, a tent
-      // with its lettered spine up: doorProps.js, 5.)
-      const strewn = !doorPropsOld(5);
+      const fk = 0.46;
       fallen.forEach(([along, into, yaw, tilt], i) => {
-        const q = at(along, into), th = (1.7 + (i % 3) * 0.4) * (BOOKS_GIANT ? 1 : 0.36);
-        const vellum = strewn && i === 2;
+        const q = at(along, into), th = (1.7 + (i % 3) * 0.4) * (0.36);
+        const vellum = i === 2;
         books.push({ p: [q[0], 6 + th / 2 + Math.abs(tilt) * 2 * fk, q[1]], rot: [tilt, yaw, -tilt * 0.6], s: [(9.5 + i * 0.7) * fk, th, 7 * fk], color: vellum ? '#a59576' : ['#5a2923', '#6f4c31', '#221d19', '#7d5738', '#8e8062'][i], k: 0.9, spine: LAID + (vellum ? SPINE_KINDS.vellum[0] + 3 : SPINE_KINDS.label[0] + i * 2) });
       });
-      if (strewn) {
+      {
         const q = at(-11, 46);
         for (const [g, k] of splayedBook()) LB[k].add(g.rotateY(2.45).translate(q[0], 6.02, q[1]));
         const tent = tentBook(), tq = at(27, 51), yaw = 0.95;
         for (const [g, k] of tent.parts) LB[k].add(g.rotateY(yaw).translate(tq[0], 6.02, tq[1]));
         // (its spine: a book's own, lettered, laid along the ridge and turned up)
         books.push({ p: [tq[0], 6.02 + tent.spine[0], tq[1]], rot: [-Math.PI / 2, 0, yaw], s: [tent.spine[1], tent.spine[2], 0.3], color: '#5a2923', k: 1, spine: SPINE_KINDS.label[0] + 5 });
-      } else {
-        const q = at(-11, 46);
-        for (const side of [-1, 1]) {
-          const half = new THREE.BoxGeometry(4.6, 0.22, 6.4).translate(side * 2.25, 0, 0).rotateZ(-side * 0.14).rotateY(0.7);
-          LB.leather.add(half.translate(q[0], 6.75, q[1]));
-          LB.paper.add(new THREE.BoxGeometry(4.3, 0.5, 6.0).translate(side * 2.1, -0.32, 0).rotateZ(-side * 0.14).rotateY(0.7).translate(q[0], 6.75, q[1]));
-        }
       }
       // and the garden coming in after it: wisteria petals blown a little way
       // into the room along the green light, thinning as they go
@@ -183,29 +145,12 @@ export function* buildArch(ctx) {
     // and the cracks it ran through the pavement, spreading from the gap. They
     // are painted into the floor itself (cracks.js, read by paveShade),
     // breaking slab by slab, from the breach and from under the blocks that
-    // fell. What is laid here is the old kind (?wcrack=old): a dark groove
-    // flush with the paving, a lip the moon catches on its side toward the
-    // breach, each crack narrowing as it runs out, and moss in the widest —
-    // strips laid on the floor, crossing its joints as if they were not there.
-    // Their draws are the world's stream's, and the garden is laid out from the
-    // stream after them, so they are made either way.
+    // fell. The cracks once laid here as strips are still drawn: the draws
+    // are the world's stream's, and the garden is laid out from the stream
+    // after them.
     for (let k = 0; k < 9; k++) {
-      let q = add(GATE, e.n, -rr(4, 14)), a = 150 + rr(-58, 58);
-      for (let seg = 0; seg < 5 + Math.floor(rnd() * 4); seg++) {
-        const len = rr(7, 22), nq = add(q, dir(a), len), w = rr(0.5, 1.5) * Math.max(0.3, 1 - seg * 0.13);
-        const t = dir(a), toGate = (GATE[0] - q[0]) * -t[1] + (GATE[1] - q[1]) * t[0] > 0 ? 1 : -1;
-        const nrm = [-t[1] * toGate, t[0] * toGate];
-        if (CRACK_OLD) LB.liner.add(boxGeo(q, nq, 0.08, w * 0.7, 5.99));
-        if (CRACK_OLD) LB.moonStone.add(boxGeo(add(q, nrm, w * 0.35 + 0.12), add(nq, nrm, w * 0.35 + 0.12), 0.1, 0.24, 6.0));
-        if (CRACK_OLD && seg < 2 && w > 0.75) {
-          for (let f = 0.2; f < 0.9; f += 0.23) {
-            const m = add(q, t, len * f);
-            LB.tuft.add(new THREE.SphereGeometry(w * 0.42, 7, 4).scale(1.6, 0.35, 1).rotateY(-a * deg).translate(m[0], 6.08, m[1]));
-          }
-        }
-        q = nq;
-        a += rr(-34, 34);
-      }
+      rr(4, 14); rr(-58, 58);
+      for (let seg = 0; seg < 5 + Math.floor(rnd() * 4); seg++) { rr(7, 22); rr(0.5, 1.5); rr(-34, 34); }
     }
     // ── One volume was a gate ─────────────────────────────────────────────
     // The title of the room: the way out of the Library is a bookcase. It hung
@@ -237,21 +182,20 @@ export function* buildArch(ctx) {
       piece(x0, x1 + 0.45, H - 1.6, H, z0 - 0.15, z1 + 0.15);   // the rail over the head, moulded
       piece(x0, x1 + 0.7, H - 2.2, H - 1.6, z0 + 1.2, z1 - 1.2);
       piece(x0, x1 + 0.3, Y0, Y0 + 1.8, z0 + 1.2, z1 - 1.2);    // the plinth
-      // (six shelves of quartos; ?wbookscale=old for two of giants 85 cm-1.2 m
-      // tall)
-      const shelves = BOOKS_GIANT ? [Y0 + 1.8, 20.4] : Array.from({ length: 6 }, (_, j) => Y0 + 1.8 + (j * (H - 2.2 - Y0 - 1.8)) / 6);
+      // (six shelves of quartos)
+      const shelves = Array.from({ length: 6 }, (_, j) => Y0 + 1.8 + (j * (H - 2.2 - Y0 - 1.8)) / 6);
       const spines = 30 * deg;   // a book's spine faces +x in this frame
       shelves.forEach((y, i) => {
-        if (i) piece(x0 + 0.8, x1, y - (BOOKS_GIANT ? 0.8 : 0.45), y, z0 + 1.2, z1 - 1.2);
-        const cap = BOOKS_GIANT ? (i < shelves.length - 1 ? shelves[i + 1] - 0.8 : H - 2.2) - 0.6 : (i < shelves.length - 1 ? shelves[i + 1] - 0.45 : H - 2.2) - 0.3;
+        if (i) piece(x0 + 0.8, x1, y - (0.45), y, z0 + 1.2, z1 - 1.2);
+        const cap = (i < shelves.length - 1 ? shelves[i + 1] - 0.45 : H - 2.2) - 0.3;
         let z = z0 + 1.35, run = 0, col = '#5f422c', hh0 = 0;
         while (z < z1 - 1.6) {
-          if (run <= 0) { run = 1 + Math.floor(lr() * 5); col = ['#6f4c31', '#5a2923', '#221d19', '#8e8062', '#7d5738', '#4f2420', '#6f5f36', '#523a28'][Math.floor(lr() * 8)]; hh0 = BOOKS_GIANT ? within(9, 12.4) - i * 0.6 : within(2.9, 3.4); }
-          const w = BOOKS_GIANT ? within(1.8, 3.4) : within(0.4, 0.75);
+          if (run <= 0) { run = 1 + Math.floor(lr() * 5); col = ['#6f4c31', '#5a2923', '#221d19', '#8e8062', '#7d5738', '#4f2420', '#6f5f36', '#523a28'][Math.floor(lr() * 8)]; hh0 = within(2.9, 3.4); }
+          const w = within(0.4, 0.75);
           if (z + w > z1 - 1.3) break;
           const hh = Math.min(hh0 * within(0.97, 1.03), cap - y), d = within(1.8, 2.1);
           books.push({ p: spot3(x1 - d / 2 - 0.15, y + hh / 2, z + w / 2), rot: [0, spines, 0], s: [w, hh, d], color: col, k: within(0.8, 1.05) });
-          z += w + (BOOKS_GIANT ? within(0.08, 0.3) : within(0.006, 0.04));
+          z += w + (within(0.006, 0.04));
           run--;
         }
       });
@@ -261,9 +205,7 @@ export function* buildArch(ctx) {
       LB.bronze.add(new THREE.CylinderGeometry(0.62, 0.62, 0.7, 12).rotateZ(Math.PI / 2).translate(x1 + 0.4, 27.3, z1 - 2.6).applyMatrix4(portalFrame));
       // and the one that opened it, on the floor where it fell
       const drop = inPortal(-4, 20);
-      books.push(BOOKS_GIANT
-        ? { p: [drop[0], 7.2, drop[1]], rot: [0, 2.1, 1.57], s: [5.4, 2.4, 7.6], color: '#5a2923', k: 1.05 }
-        : { p: [drop[0], 6.38, drop[1]], rot: [0, 2.1, 1.57], s: [0.75, 4.4, 3.2], color: '#5a2923', k: 1.05 });
+      books.push({ p: [drop[0], 6.38, drop[1]], rot: [0, 2.1, 1.57], s: [0.75, 4.4, 3.2], color: '#5a2923', k: 1.05 });
     }
     // ── The garden comes in ──────────────────────────────────────────────
     // Moss in the joints of the pavement nearest the arch; leaves blown in
@@ -304,17 +246,9 @@ export function* buildArch(ctx) {
         if (Math.abs(x) > 11.5 && into < 25) continue;
         fallenLeaves.push(leaf);
       }
-      // Ivy up the garden face of the arch: up the quoins and round the ring of
-      // voussoirs, thickest low down and on the left (the pergola's wisteria
-      // has the right), and a little way in along the reveal, where the light
-      // from the garden reaches.
-      const faceYaw = Math.atan2(e.n[0], e.n[1]);
       for (let k = 0; k < (light ? 20 : 38); k++) {
-        const left = gr() < 0.62, x = (left ? -1 : 1) * within(13.5, 31), y = PORTAL.FLOOR + 0.5 + gr() ** 1.6 * (left ? 72 : 50);
-        const tilt = within(-0.5, 0.5), sx = within(7, 12), sy = within(5, 8), deep = gr();
-        if (y > PORTAL.SPR - 3 && PORTAL.soffitAt(x, 4) > y - 3) continue;   // never across the opening
-        const q = inPortal(x, -PORTAL.WALL - 0.9 - deep * 0.6);
-        if (IVY_OLD) doorIvy.push({ p: [q[0], y, q[1]], rot: [0, faceYaw, tilt], s: [sx, sy, 1] });
+        gr(); within(13.5, 31); gr();
+        within(-0.5, 0.5); within(7, 12); within(5, 8); gr();
       }
       // And the curtain the plates hang in that doorway: green trailing down
       // from the vault at the garden end of the passage, wisteria in it, lit
@@ -331,22 +265,21 @@ export function* buildArch(ctx) {
         }
       }
       for (let k = 0; k < (light ? 4 : 9); k++) {
-        const side = k % 2 ? 1 : -1, z = -PORTAL.WALL + 1 + gr() ** 1.3 * 9, y = PORTAL.FLOOR + 1 + gr() ** 1.5 * 24;
-        const q = inPortal(side * (PORTAL.HW - 0.15), z), n = dir(side < 0 ? 60 : 240);
-        const item = { p: [q[0], y, q[1]], rot: [0, Math.atan2(n[0], n[1]), within(-0.5, 0.5)], s: [within(6, 10), within(4.5, 7), 1] };
-        if (IVY_OLD) doorIvy.push(item);
+        gr(); gr(); within(-0.5, 0.5); within(6, 10); within(4.5, 7);
       }
       // The ivy itself (ivy.js), grown out of the ground at the foot of the
       // wall: up the garden face either side of the arch — highest on the
       // left, where it has been longest and reaches round the ring of
       // voussoirs and hangs from it — and in along the passage's walls as far
       // as the garden's light goes. In the arch's frame, cast onto its stone.
-      if (!IVY_OLD) {
+      {
         yield;
         const W = PORTAL.WALL, HW = PORTAL.HW, F = PORTAL.FLOOR;
         // (the wall's garden face beyond the arch's own masonry, either side)
         const beyond = (x0, x1) => new THREE.PlaneGeometry(x1 - x0, 125).translate((x0 + x1) / 2, 62.5, -W);
         const caster = stoneCaster([...portalStone, beyond(-80, -24), beyond(24, 80)]);
+        // (the room's side of it, and the cases' ends, for the garden coming in: doorFlora.js)
+        const floraCaster = FLORA ? stoneCaster([...portalStone, ...caseFaces()]) : null;
         portalStone.forEach((g) => g.dispose());
         const ir = makeRng(5521), R = (a, b) => a + (b - a) * ir();
         const opening = (u, v, a) => Math.abs(u) < HW + a && v < PORTAL.soffitAt(u, a) + 0.4;
@@ -363,22 +296,63 @@ export function* buildArch(ctx) {
         const reveal = (sd) => ({
           ray: (u, v, o, d) => { o.set(sd * (HW - 6), v, u); d.set(sd, 0, 0); }, far: 20, drift: 0.3, scale: 0.9,
           light: new THREE.Vector3(0, 0.7, -1).normalize(), max: light ? 200 : 650,
-          allow: (u, v) => u > -W - 0.2 && u < -W + 15 && v > F - 0.5 && v < 40 - (u + W) * 1.6,
+          allow: (u, v) => u > -W - 0.2 && u < -W + (FLORA?.reveal ?? 15) && v > F - 0.5 && v < 40 - (u + W) * (FLORA ? 0.9 : 1.6),
           seeds: [[-W + 0.8, F + 0.6, 0.2, R(28, 36), 0.7], [-W + 3, F + 0.6, 0.4, R(22, 30), 0.55], [-W + 6.5, F + 0.6, 0.3, R(14, 22), 0.4], [-W + 9.5, F + 0.6, 0.5, R(8, 14), 0.3]],
         });
         const grown = growIvy(caster, [face, reveal(-1), reveal(1)], ir);
         // and strands hanging from the arch's edge on the left, where the
         // stems that went over the ring come down; none lower than twice a
-        // head's height over the way through
+        // head's height over the way through. (Each from the end of its stem,
+        // round the ring from the ivy below: doorFlora.js strandFeeder.)
+        const sr = makeRng(5651);
         for (const u of [-16.5, -14.5, -12, -9.5, -6.5, 11.5, 15]) {
           if (u > 0 && ir() < 0.4) continue;
           const top = PORTAL.soffitAt(u, 3.6) - 0.3, len = Math.min(R(5, 14), top - 40);
           if (len < 3) continue;
-          const hung = hangIvy(new THREE.Vector3(u, top, -W - 0.4), new THREE.Vector3(0, 0, -1), len, ir);
+          const feed = strandFeeder(caster, u, 3.6, sr, { from: u < 0 ? 60 + sr() * 12 : 48 + sr() * 6 });
+          const end = feed ? feed.nodes[feed.nodes.length - 1].p.clone().add(new THREE.Vector3(0, -0.15, -0.3)) : new THREE.Vector3(u, top, -W - 0.4);
+          let hung = hangIvy(end, new THREE.Vector3(0, 0, -1), len, ir);
+          if (feed) hung = joinStrand(feed, hung);
           grown.stems.push(hung.nodes);
           grown.leaves.push(...hung.leaves);
         }
         caster.dispose();
+        // The garden coming on into the room (doorFlora.js, ?wflora=a|b|c):
+        // up the room's face of the arch and the cases' ends, hanging from
+        // the arch, along the cracks in the floor, and grass in them.
+        if (FLORA) {
+          const fr = makeRng(5611), FR = (a, b) => a + (b - a) * fr();
+          const more = growIvy(floraCaster, roomSheets(FLORA, FR), fr);
+          // (all of it from the garden: the strands along the soffit from the
+          // garden face, the stems on the floor in across the threshold —
+          // doorFlora.js, "Rooted in the garden"; their own stream)
+          const gr = makeRng(5661);
+          leadFaceRoots(floraCaster, more, gr);
+          grown.stems.push(...more.stems);
+          grown.leaves.push(...more.leaves);
+          for (let k = 0; k < FLORA.hang; k++) {
+            const u = (k % 2 ? 1 : -1) * FR(1, HW - 0.8), top = PORTAL.soffitAt(u, 0.6) - 0.3, len = Math.min(FR(4, 12), top - 40);
+            if (len < 3) continue;
+            const feed = strandFeeder(floraCaster, u, 0, gr, { into: PORTAL.Z0 + 0.6, from: u < 0 ? 60 + gr() * 12 : 48 + gr() * 6 });
+            const end = feed ? feed.nodes[feed.nodes.length - 1].p.clone().add(new THREE.Vector3(0, -0.15, 0)) : new THREE.Vector3(u, top, PORTAL.Z0 + 0.6);
+            let hung = hangIvy(end, new THREE.Vector3(0, 0, 1), len, fr);
+            if (feed) hung = joinStrand(feed, hung);
+            grown.stems.push(hung.nodes);
+            grown.leaves.push(...hung.leaves);
+          }
+          const lines = crackLines(DOOR_CRACKS);
+          const run = crackRunners(lines, FLORA.runners, fr);
+          leadRunners(floraCaster, run, gr);
+          grown.stems.push(...run.stems);
+          grown.leaves.push(...run.leaves);
+          const tg = crackTufts(lines, FLORA.tufts, fr, ([x, y, z]) => new THREE.Vector3(x, y, z).applyMatrix4(portalFrame));
+          if (tg) {
+            const tufts = new THREE.Mesh(keep(tg), keep(new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.85 })));
+            tufts.name = 'lawnBlades';
+            root.add(tufts);
+          }
+          floraCaster.dispose();
+        }
         const qf = new THREE.Quaternion().setFromRotationMatrix(portalFrame), eu = new THREE.Euler();
         const stemTint = new THREE.Color('#857563');
         for (const stem of grown.stems) {
@@ -410,7 +384,7 @@ export function* buildArch(ctx) {
       const xv = new THREE.Vector3(dir(60)[0], 0, dir(60)[1]).projectOnPlane(yv).normalize();
       g.applyMatrix4(new THREE.Matrix4().makeBasis(xv, yv, xv.clone().cross(yv).normalize()));
       g.translate(...top.clone().add(foot).multiplyScalar(0.5).toArray());
-      const shaft = new THREE.Mesh(keep(shaftVolume(g)), keep(makeShaftMaterial('#a6edc6', 0.12 * (doorOld(4) ? 1 : SHAFT_K))));
+      const shaft = new THREE.Mesh(keep(shaftVolume(g)), keep(makeShaftMaterial('#a6edc6', 0.12 * (SHAFT_K))));
       shaft.renderOrder = 2;
       root.add(shaft);
     }
@@ -443,7 +417,7 @@ export function* buildArch(ctx) {
     }
     // (its pool on the floor, over the moss at 6.15: at 6.6 it drew a pale
     // sock round the foot of the reading corner's legs)
-    lamp(add(DOOR, dir(214), 46), { light: 6500, priority: 3, strength: 1.2, pool: doorPropsOld(2) ? 0.12 : DOOR_SPILL.warm.near, poolSize: 140, poolY: 6.2, haze: 0.18, beam: false });
+    lamp(add(DOOR, dir(214), 46), { light: 6500, priority: 3, strength: 1.2, pool: DOOR_SPILL.warm.near, poolSize: 140, poolY: 6.2, haze: 0.18, beam: false });
     // ── Candles at the foot of the arch ──────────────────────────────────
     // A bronze candelabrum either side, standing before the piers, as every
     // plate of this room has them: the carving is lit from below, warm, the
@@ -467,41 +441,38 @@ export function* buildArch(ctx) {
       // (Burnt down, each as far as it has, its crown melted and its wax run
       // down it and onto the pan, a glow round each flame — its own sprite:
       // `halo()` draws on the world's stream — and the flames moving a little:
-      // doorProps.js, 4.)
-      const worn = !doorPropsOld(4), cr = makeRng(side < 0 ? 4411 : 4412);
+      // doorProps.js.)
+      const cr = makeRng(side < 0 ? 4411 : 4412);
       flames.forEach(([x, y, z, h0], fi) => {
         put(L([[0, y - 0.4], [0.95, y - 0.35], [1.0, y - 0.15], [0.45, y], [0, y]], 14).translate(x, 0, z));
-        const h = worn ? h0 * DOOR_CANDLES.burn[side < 0 ? 0 : 1][fi] : h0;
+        const h = h0 * DOOR_CANDLES.burn[side < 0 ? 0 : 1][fi];
         // (`top`: where the wick stands, down in the well of a melted crown)
         let top = y + h;
-        if (worn) {
+        {
           const c = candleWax(h, 0.35, 7700 + (side < 0 ? 0 : 10) + fi);
           top = y + c.wick;
           LB.wax.add(c.geo.rotateY(cr() * 6.28).translate(at[0] + x, y, at[1] + z));
-        } else LB.paper.add(new THREE.CylinderGeometry(0.34, 0.36, h, 12).translate(at[0] + x, y + h / 2, at[1] + z));
-        if (LAMPS.flame) {
-          // a flame, not an egg of light; a wick; the wax lit round it (lampPass.js)
-          trialFlames.push({ p: [at[0] + x, top + (worn ? 0.78 : 0.66), at[1] + z], s: [0.32, 0.66, 0.32], color: '#ffffff', k: 1.45 });
-          trialWax.push(waxGlowGeometry(at[0] + x, worn ? top + 0.02 : y + h, at[1] + z, worn ? 0.36 : 0.34));
-          LB.iron.add(worn
-            ? new THREE.CylinderGeometry(0.03, 0.035, 0.42, 4).translate(at[0] + x, top + 0.2, at[1] + z)
-            : new THREE.CylinderGeometry(0.035, 0.035, 0.3, 4).translate(at[0] + x, y + h + 0.12, at[1] + z));
-          if (worn) {
-            const { size, opacity } = DOOR_CANDLES.halo;
-            const glow = new THREE.Sprite(haloMaterial('#ffb45e', opacity));
-            glow.scale.set(size, size, 1);
-            glow.position.set(at[0] + x, top + 0.85, at[1] + z);
-            glow.renderOrder = 4;
-            root.add(glow);
-            halos.push({ mat: glow.material, base: opacity, phase: cr() * 100, sprite: glow, size, lamp: false, seen: 1, seenTo: 1 });
-          }
-        } else glows.push({ p: [at[0] + x, y + h + 0.55, at[1] + z], s: [0.3, 0.62, 0.3], color: '#ffc47a', k: 1.5 });
+        }
+        
+        // a flame, not an egg of light; a wick; the wax lit round it (lampPass.js)
+        trialFlames.push({ p: [at[0] + x, top + (0.78), at[1] + z], s: [0.32, 0.66, 0.32], color: '#ffffff', k: 1.45 });
+        trialWax.push(waxGlowGeometry(at[0] + x, top + 0.02, at[1] + z, 0.36));
+        LB.iron.add(new THREE.CylinderGeometry(0.03, 0.035, 0.42, 4).translate(at[0] + x, top + 0.2, at[1] + z));
+        {
+          const { size, opacity } = DOOR_CANDLES.halo;
+          const glow = new THREE.Sprite(haloMaterial('#ffb45e', opacity));
+          glow.scale.set(size, size, 1);
+          glow.position.set(at[0] + x, top + 0.85, at[1] + z);
+          glow.renderOrder = 4;
+          root.add(glow);
+          halos.push({ mat: glow.material, base: opacity, phase: cr() * 100, sprite: glow, size, lamp: false, seen: 1, seenTo: 1 });
+        }
       });
       // (theirs to keep from anywhere in the room: from the stand, further back
-      // — doorProps.js, 1 — two lamps out in the Vertigo would be nearer than
+      // — doorProps.js — two lamps out in the Vertigo would be nearer than
       // these, and the arch would stand unlit)
-      point(at, 27, '#ffb466', 2600, 5, null, doorPropsOld(1) ? null : [DOOR[0], DOOR[1], R]);
-      if (worn) candleLights.push({ wish: lightWishes.at(-1), base: lightWishes.at(-1).intensity, phase: side < 0 ? 0.7 : 3.9 });
+      point(at, 27, '#ffb466', 2600, 5, null, [DOOR[0], DOOR[1], R]);
+      candleLights.push({ wish: lightWishes.at(-1), base: lightWishes.at(-1).intensity, phase: side < 0 ? 0.7 : 3.9 });
     }
     // Hung to the left of the arch rather than in front of it, across the
     // springing, and high, level with the head of the hood: from there its
@@ -510,25 +481,21 @@ export function* buildArch(ctx) {
     // carving over the arch is one flat tone.) (no beam: its cone is a hard
     // pale wedge down the cases to the left of the arch, and the breach is the
     // one shaft of light this room wants) (low enough that the frame's top edge
-    // does not cut its globe in half — doorFix.js, 8) (a small globe burning
+    // does not cut its globe in half — doorProps.js) (a small globe burning
     // low, so the doorway and not the lamp is what the eye goes to —
-    // doorProps.js, 7)
+    // doorProps.js)
     lamp(inPortal(-44, 38), {
-      y: doorOld(8) ? 82 : DOOR_LAMP_Y, light: 5200, priority: 4, poolSize: 150, beam: false,
-      pool: doorPropsOld(2) ? 0.2 : DOOR_SPILL.warm.side,
-      ...(doorPropsOld(7) ? { strength: 1.05, haze: 0.6 } : DOOR_SIDE_LAMP),
+      y: DOOR_LAMP_Y, light: 5200, priority: 4, poolSize: 150, beam: false,
+      pool: DOOR_SPILL.warm.side,
+      ...(DOOR_SIDE_LAMP),
     });
     // The garden's light: a lamp outside the arch and its pool on the floor, a
-    // tongue in the passage and a slab beyond (doorProps.js, 2: a wide pool
+    // tongue in the passage and a slab beyond (doorProps.js: a wide pool
     // laid into the room, and a lamp that no wall stops hung close outside,
     // turn the whole pavement olive).
-    if (doorPropsOld(2)) {
-      point(add(GATE, e.n, 14), 40, '#8ff0d4', 3800, 9);
-      decal(add(GATE, e.n, -22), 150, 140, '#7ee8c8', 0.17);
-    } else {
-      point(add(GATE, e.n, DOOR_SPILL.lamp.out), 40, '#8ff0d4', DOOR_SPILL.lamp.power, 9);
-      for (const [into, wide, o] of DOOR_SPILL.pools) decal(add(add(GATE, e.n, -into), e.t, 1.5), wide, wide, '#7ee8c8', o);
-    }
+    
+    point(add(GATE, e.n, DOOR_SPILL.lamp.out), 40, '#8ff0d4', DOOR_SPILL.lamp.power, 9);
+    for (const [into, wide, o] of DOOR_SPILL.pools) decal(add(add(GATE, e.n, -into), e.t, 1.5), wide, wide, '#7ee8c8', o);
   }
   const ENTRANCE = hallMid(0, 0, 2);
 
@@ -587,7 +554,8 @@ export function* buildArch(ctx) {
   instances(new THREE.SphereGeometry(1, 16, 12), M.glow, lampCores, { cast: false, receive: false, chunked: true });
   instances(new THREE.SphereGeometry(1, 20, 14), M.glass, lampShells, { cast: false, receive: false, chunked: true });
   instances(new THREE.SphereGeometry(1, 32, 20), M.globe, globes, { cast: false, receive: false, chunked: true });
-  instances(new THREE.SphereGeometry(1, 32, 20), M.deadGlass, deadGlobes, { cast: false, chunked: true });
+  // (`aEmber`: what is left burning in a globe that is going out — silenceProps.js)
+  instances(new THREE.SphereGeometry(1, 32, 20), M.deadGlass, deadGlobes, { cast: false, chunked: true, attrs: { aEmber: (it) => it.ember ?? 0 } });
   yield;
   // (the lamp pass, lampPass.js)
   instances(lanternPaneGeometry(), M.globe, trialPanes, { cast: false, receive: false, chunked: true, name: 'trial-panes' });

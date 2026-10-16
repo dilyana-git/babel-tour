@@ -1,0 +1,4 @@
+[
+  { "name": "stand", "room": 2 },
+  { "name": "shelves", "room": 2, "look": "0.55,0.05" }
+]

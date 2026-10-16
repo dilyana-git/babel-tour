@@ -4,27 +4,24 @@
 
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { pavilionCrossing, pavilionRound, pavilionInterior } from '../pavilionBridge';
+import { pavilionCrossing, pavilionRound } from '../pavilionBridge';
 import { PAVILION_PATH, SHORE_PATH } from '../gardenPlan';
-import { LAMPS } from '../lampPass';
 import { buildFinale } from '../finale';
 import { makeDoorway } from '../doorway';
-import { vestOld } from '../vestFix';
-import { vertigoOld, STAND_TURN, STAND_PITCH } from '../vertigoFix';
-import { forkOld, STAND as FORK_STAND } from '../forkFix';
-import { pavOld, standOn, STAND as PAV_STAND } from '../pavilionFix';
+import { STAND_TURN, STAND_PITCH } from '../vertigoProps';
+import { STAND as FORK_STAND } from '../forkProps';
+import { standOn, STAND as PAV_STAND } from '../pavilionProps';
 import { BELT } from '../webProps';
-import { POND as POND_GLOW } from '../gardenFix5';
-import { doorPropsOld, STAND as DOOR_STAND, CANDLES as DOOR_CANDLES } from '../doorProps';
+import { POND as POND_GLOW } from '../gardenProps';
+import { STAND as DOOR_STAND, CANDLES as DOOR_CANDLES } from '../doorProps';
 import { VANTAGES } from '../vantages';
 import { hexAislePoint, roundAislePoint, pathToPoint, makeWalkCurve } from '../walkPath';
-import { BRINK_OLD } from '../spiral';
 import { vertigoApproach } from '../vertigoLanding';
-import { deg, OLD_GLARE } from './common';
+import { deg } from './common';
 
 export function buildStands(ctx) {
-  const { paintings, dir, add, dist, A, cellC, ECHO_A, BRIDGE_LEVEL, flightProfile, ECHO_FLIGHT,
-    ECHO_RING, PIT, stairAt, DOOR, mazeRoute, PERGOLA0, J, SHORE, BRIDGE, BRIDGE_STAND, MAZE_ENTRY,
+  const { paintings, dir, add, dist, A, cellC, ECHO_A, flightProfile, ECHO_FLIGHT,
+    ECHO_RING, PIT, stairAt, DOOR, mazeRoute, PERGOLA0, J, SHORE, BRIDGE, MAZE_ENTRY,
     HEART, COURT_HALF, at } = ctx;
   // ── Where a reader stands, and the ways on ────────────────────────────────
   // Eye height is a reader's (the figures stand 18 tall). The ground is 6 on
@@ -36,10 +33,7 @@ export function buildStands(ctx) {
   // Use the aisle's two boundaries, including the corners of a hexagon.
   // The Echo's round colonnade has a different inner edge from a well rail.
   const vestibuleMiddle = (a) => {
-    // The raised bridge (?wbridge=old) projects beyond the well. At its far
-    // end the aisle is between that abutment and the books, rather than the
-    // well's rail. Level with the floor, the bridge ends at the well.
-    if (!BRIDGE_LEVEL && a >= 15 && a <= 45) return hexAislePoint(C0, a, 55 / Math.cos(Math.PI / 6), A - 12);
+    // Level with the floor, the bridge ends at the well.
     return hexAislePoint(C0, a, 50.8, A - 16.8);
   };
   const echoMiddle = (a) => roundAislePoint(C1, a, ECHO_RING + 3, ECHO_A - 12);
@@ -84,12 +78,12 @@ export function buildStands(ctx) {
     // The Web of Time: in the corridor a few paces short of the court's gate,
     // looking in at the heart. (The step into the court is the finale's.)
     // (the Fork's back at the pergola's end and a little left, where both ways
-    // can be seen leaving the stone: forkFix.js, 1)
-    // (the Door's further back, so the gable's finial is in the frame: doorProps.js, 1)
-    doorLane(doorPropsOld(1) ? -38 : -38 - DOOR_STAND.back), forkOld(1) ? add(J, pergola, -8) : add(add(J, pergola, -FORK_STAND.back), [-pergola[1], pergola[0]], FORK_STAND.side),
+    // can be seen leaving the stone: forkProps.js)
+    // (the Door's further back, so the gable's finial is in the frame: doorProps.js)
+    doorLane(-38 - DOOR_STAND.back), add(add(J, pergola, -FORK_STAND.back), [-pergola[1], pergola[0]], FORK_STAND.side),
     // (the Pavilion's back on the bridge's first run, near the shore, so its
-    // roof is against the sky and not over the eye: pavilionFix.js, 8)
-    pavOld(8) ? BRIDGE_STAND : standOn(BRIDGE), add(HEART, heartFrom, paintings ? -22 : -(COURT_HALF + 12)),
+    // roof is against the sky and not over the eye: pavilionProps.js)
+    standOn(BRIDGE), add(HEART, heartFrom, paintings ? -22 : -(COURT_HALF + 12)),
   ];
   // The Echo's stair, every tread of it, up over the well and down the other
   // side: the second leg walks it, and the climb to the crossing is its first
@@ -125,10 +119,10 @@ export function buildStands(ctx) {
 }
 
 export function buildCrossing(ctx) {
-  const { paintings, dir, add, lerp2, dist, Q, A, ECHO_A, hallMid, walkers, PIT, stairAt, GATE,
-    mazeRoute, PERGOLA0, J, PV, SHORE, BRIDGE, MAZE_ENTRY, HEART, N_SHORE, NORTH_BRIDGE, at,
+  const { paintings, dir, add, lerp2, dist, A, ECHO_A, hallMid, walkers, PIT, stairAt, GATE,
+    mazeRoute, PERGOLA0, J, PV, SHORE, BRIDGE, MAZE_ENTRY, HEART, at,
     EYE, FLOOR, GRAVEL, DECK, MAZE, C0, C1, C2, ring, vestibuleMiddle, echoMiddle, silenceMiddle,
-    doorLane, unit, eye, way, hug, bridgeEntry, turnAbout, onStair,
+    doorLane, eye, way, hug, bridgeEntry, onStair,
     onEdge, spot, echoFlight, ECHO_SPAN, ECHO_STEPS, echoStandEye, echoArrival, echoOnward } = ctx;
   // ── The crossing, over the middle of the Echo (VANTAGES) ───────────────────
   // The crown of a flight is its two middle treads, level over the well —
@@ -159,27 +153,26 @@ export function buildCrossing(ctx) {
     { eye: eye(spot[2], FLOOR), look: at(ring(C2, 285, 26), 37) },
     // Face the next steps. A chord across the funnel looked well away from
     // the stair's tangent and made setting off feel like a sideways turn.
-    // (turned in toward the well and looking down into it: vertigoFix.js, 1)
-    { eye: onStair(0.06), look: vertigoOld(1) ? onStair(0.072) : (() => {
+    // (turned in toward the well and looking down into it: vertigoProps.js)
+    { eye: onStair(0.06), look: (() => {
       const e = onStair(0.06), n = onStair(0.072), yaw = Math.atan2(n[2] - e[2], n[0] - e[0]) + STAND_TURN * deg, p = STAND_PITCH * deg;
       return [e[0] + Math.cos(yaw) * Math.cos(p) * 40, e[1] + Math.sin(p) * 40, e[2] + Math.sin(yaw) * Math.cos(p) * 40];
     })() },
     // Up at the arch, gable and pinnacles and all: level, the frame stops at
     // the springing of its hood and cuts off the carving above it.
-    { eye: eye(spot[4], FLOOR), look: at(add(GATE, dir(330), 40), doorPropsOld(1) ? 45 : DOOR_STAND.lookY) },
+    { eye: eye(spot[4], FLOOR), look: at(add(GATE, dir(330), 40), DOOR_STAND.lookY) },
     // at the end of the pergola, the waymark ahead where the gravel divides —
     // turned a few degrees right of it, to keep the waymark off the middle.
     //
     // Back from the stone the ways part at and a little left, so that both ways
     // leave it across the frame: to the Pavilion, under the moon, and to the
     // maze's mouth and its two lanterns. (Level enough that the moon over the
-    // Pavilion is whole: forkFix.js, 1 and 6.)
-    { eye: eye(spot[5], GRAVEL), look: forkOld(1) ? at(turnAbout(spot[5], add(J, dir(285), 30), 7), 13)
-      : at(add(spot[5], dir(FORK_STAND.yaw), 40 * Math.cos(FORK_STAND.pitch * deg)), GRAVEL + EYE + 40 * Math.sin(FORK_STAND.pitch * deg)) },
+    // Pavilion is whole: forkProps.js.)
+    { eye: eye(spot[5], GRAVEL), look: at(add(spot[5], dir(FORK_STAND.yaw), 40 * Math.cos(FORK_STAND.pitch * deg)), GRAVEL + EYE + 40 * Math.sin(FORK_STAND.pitch * deg)) },
     // on the bridge, the whole pavilion across the water — the roof's eave a
     // line against the sky, the finial whole, and the lanterns along the eave
-    // all in the frame (pavilionFix.js, 8 and 5)
-    { eye: eye(spot[6], DECK), look: at(PV, pavOld(8) ? 26 : PAV_STAND.lookY) },
+    // all in the frame (pavilionProps.js)
+    { eye: eye(spot[6], DECK), look: at(PV, PAV_STAND.lookY) },
     // at the gate of the court at the heart of the maze, looking in
     { eye: eye(spot[7], MAZE), look: at(HEART, paintings ? 21 : 23) },
   ];
@@ -190,33 +183,14 @@ export function buildCrossing(ctx) {
     dist([p[0], p[2]], spot[6]) < dist([pavilionWalk[nearest][0], pavilionWalk[nearest][2]], spot[6]) ? i : nearest, 0);
   const pavilionIn = paintings ? [] : [...pavilionWalk.slice(0, pavilionSplit), eye(spot[6], DECK)];
   const pavilionVisit = paintings ? [] : [eye(spot[6], DECK), ...pavilionWalk.slice(pavilionSplit + 1)];
-  const northWalk = paintings ? [] : pavilionCrossing(NORTH_BRIDGE, EYE);
-  const northAxis = unit(N_SHORE, NORTH_BRIDGE[1]);
-  const northEntry = [
-    eye(add(N_SHORE, northAxis, -10), GRAVEL),
-    eye(add(N_SHORE, northAxis, -5.4), 6.9),
-    eye(add(N_SHORE, northAxis, -3.6), 6.7),
-    eye(N_SHORE, DECK),
-  ];
   // The way on from the Pavilion goes in, once round the table, and out again
   // by the bridge it came over; the second bridge is there to be found. Out
   // over it to the landing it comes down on — a few paces of gravel and a hedge
   // — and back would be twenty-five seconds of a fifty-six second walk spent
-  // going to a dead end and returning from it. (?wpavway=old: over it and
-  // back.)
-  const pavilionThrough = paintings ? [] : Q.get('wpavway') !== 'old' ? [
+  // going to a dead end and returning from it.
+  const pavilionThrough = paintings ? [] : [
     ...pavilionVisit,
     ...pavilionRound(pavilionVisit.at(-1), EYE).slice(1),
-    ...pavilionVisit.slice(0, -1).reverse(), ...pavilionIn.slice(0, -1).reverse(),
-  ] : [
-    ...pavilionVisit,
-    ...pavilionInterior(pavilionVisit.at(-1), northWalk.at(-1), EYE).slice(1),
-    ...northWalk.slice(0, -1).reverse(),
-    ...northEntry.slice(0, -1).reverse(),
-    // The north bridge meets the lawn. Take its steps before coming back
-    // through the opposite side of the room and continuing towards the maze.
-    ...northEntry.slice(1), ...northWalk.slice(1),
-    ...pavilionInterior(northWalk.at(-1), pavilionVisit.at(-1), EYE).slice(1),
     ...pavilionVisit.slice(0, -1).reverse(), ...pavilionIn.slice(0, -1).reverse(),
   ];
   const legs = [
@@ -246,8 +220,8 @@ export function buildCrossing(ctx) {
       // where the rail has given way, a few steps on, and ends facing out
       // over the edge — so that a reader who only keeps walking comes to the
       // edge, looks over, and goes over if they keep on. The stair down is
-      // there to be chosen (turn onto it). (?wbrink=old: the way goes on down.)
-      brink: BRINK_OLD ? null : [[0.0632, 6.6], [0.0655, 5.4], [0.0668, 4.2]].map(([t, r]) => {
+      // there to be chosen (turn onto it).
+      brink: [[0.0632, 6.6], [0.0655, 5.4], [0.0668, 4.2]].map(([t, r]) => {
         const st = stairAt(t);
         return at(add(PIT, dir(st.a), st.edge + r), st.tread + EYE);
       }),
@@ -256,7 +230,7 @@ export function buildCrossing(ctx) {
     { kind: 'fall', edge: onEdge(0.06), center: PIT, bottom: -430 },
     { kind: 'walk', points: [
       ...way(FLOOR, [spot[4], doorLane(0), doorLane(50)]),
-      // (none of it past the stand, which is further back since forkFix.js 1)
+      // (none of it past the stand, which is further back since forkProps.js)
       ...way(GRAVEL, [doorLane(A), ...[0.2, 0.5, 0.8].map((t) => lerp2(PERGOLA0, J, t)).filter((p) => dist(p, J) > dist(spot[5], J) + 4), spot[5]]),
     ] },
     { kind: 'walk', points: [
@@ -357,7 +331,7 @@ export function buildWaterView(ctx) {
       .sort((a, b) => b.seen - a.seen)
       .slice(0, 12)
       .forEach(({ g }) => water.addLamp([g.p[0], g.p[2]], g.p[1], g.color, g.k ?? 1));
-    // and the Pavilion's lit columns, for the chop to break up (gardenFix5.js, 7)
+    // and the Pavilion's lit columns, for the chop to break up (gardenProps.js)
     if (POND_GLOW.on) water.setGlow([PV[0], 30, PV[1]], POND_GLOW.glow.color);
   }
 }
@@ -465,10 +439,9 @@ export function* buildEnding(ctx) {
   // its moon shaft and its fog, seen down the length of the room, lift its
   // blacks to milk. Seen from across the room it keeps half of them; walking up
   // to the arch it gets them all back, so that by the step through — where the
-  // doorway has to be the room itself — it is the room itself (vestFix.js, 3;
-  // ?wvest=old:3).
+  // doorway has to be the room itself — it is the room itself (libraryProps.js).
   const portalThin = (eye) => {
-    if (vestOld(3) || !eye || !doorways.length) return 1;
+    if (!eye || !doorways.length) return 1;
     const at = doorways[0].at;
     const d = Math.hypot(eye.x - at[0], eye.z - at[1]);
     const t = Math.min(1, Math.max(0, (d - 14) / 38));
@@ -480,7 +453,7 @@ export function* buildEnding(ctx) {
   const coreColor = new THREE.Color('#ffe4b4');
   // The widest a halo may look from the walk: its full width over its distance,
   // so 0.73 is ±20° either side of the lamp.
-  const HALO_REACH = OLD_GLARE ? Infinity : 2 * Math.tan(20 * deg);
+  const HALO_REACH = 2 * Math.tan(20 * deg);
   // `eye`, the camera's position: up close — walking under a lamp — a halo would
   // be a wash of light over everything, so it gives way.
   // The halos are seen from an eye: their size and strength are set for it.
@@ -497,9 +470,9 @@ export function* buildEnding(ctx) {
   // all — four halos a frame, and none again from where the eye already asked
   // them all three; each fades to what can be seen (`seen`). A line costs a
   // fifth of a millisecond here. `sight`: the body's line of sight (body.js),
-  // handed in by World.jsx. ?wlampsoff=occlude: no halo hidden.
+  // handed in by World.jsx.
   let sight = null;
-  const setSight = (fn) => { sight = LAMPS.occlude ? fn : null; };
+  const setSight = (fn) => { sight = fn; };
   let seenNext = 0, seenT = -1;
   const toLamp = new THREE.Vector3(), aside = new THREE.Vector3(), seenAt = new THREE.Vector3(), UP = new THREE.Vector3(0, 1, 0);
   const SIDE = [0, 1, -1];
@@ -563,7 +536,7 @@ export function* buildEnding(ctx) {
   // bridge keeps out of its edges: walkers.js)
   const tick = (t, eye, gaze, aspect = 0) => {
     // (the belt's leaf takes its light from the world's own lights, as they
-    // stand this frame: webProps.js, 2)
+    // stand this frame: webProps.js)
     if (beltLeaf) {
       beltLight.uBackMoon.value.copy(moon.color).multiplyScalar(moon.intensity);
       beltLight.uBackMoonDir.value.copy(moon.position).sub(moon.target.position).normalize();

@@ -6,17 +6,14 @@ import * as THREE from 'three';
 import { PAVILION, PAVILION_BRIDGE, PAVILION_NORTH_BRIDGE } from '../pavilionBridge';
 import { FORK, POND as POND_PLAN, MAZE, MAZE_ENTRY as ENTRY, HEART as MAZE_HEART,
   PAVILION_PATH, MAZE_PATH, SHORE_PATH, FORK_TO_MAZE, LANTERNS, BOUNDARY } from '../gardenPlan';
-import { LAMPS } from '../lampPass';
 import { makeRng } from '../textures';
 import { growHedge, stripLoop } from '../hedges';
-import { forkOld, edgeStones, RAKE, rakeScuffs, rakeOffset } from '../forkFix';
-import { propsOld, FORK_STONE, LAWN } from '../forkProps';
-import { garden5Old, VINE } from '../gardenFix5';
-import { doorOld, LANTERN_HALO } from '../doorFix';
-import { WOOD_OLD } from '../woodGrain';
+import { edgeStones, RAKE, rakeScuffs, rakeOffset, FORK_STONE, LAWN } from '../forkProps';
+import { VINE } from '../gardenProps';
+import { LANTERN_HALO } from '../doorProps';
 import { gardenRock } from '../shore';
 import { ivyLeafGeometry, leafletGeometry, twineWisteria, compoundLeaf } from '../ivy';
-import { SHORE_OLD, FORK_OLD, HEDGE_DIAL, PERGOLA_OLD, IVY_OLD } from '../build/common';
+import { HEDGE_DIAL } from '../build/common';
 
 export function buildGarden(ctx) {
   const { paintings, light, rnd, dir, add, lerp2, unit2, dist, hexPts, circlePts,
@@ -37,23 +34,23 @@ export function buildGarden(ctx) {
     // (pavilionProps.js: 13, 3, 4, 10)
     pavGilt: new Batch(M.pavGilt), pavGreen: new Batch(M.pavGreen, { cast: false }), pavChalk: new Batch(M.pavChalk, { cast: false }),
     brocade: new Batch(M.brocade), railWorn: new Batch(M.lacquerWorn, G),
-    // the gilt capitals cut round the armillary's pedestal (webFix.js, 7)
+    // the gilt capitals cut round the armillary's pedestal (webProps.js)
     letters: new Batch(M.letters, { cast: false }),
-    // and the pedestal's stone, its uv laid round it and up it by webFix.js:
+    // and the pedestal's stone, its uv laid round it and up it by webProps.js:
     // projected per face, a turned and reeded surface took the stone's grain
     // in streaks and rope-twists
     pedestal: new Batch(M.pedestalStone),
-    newWood: new Batch(M.newWood, WOOD_OLD ? {} : G), blackLacquer: new Batch(M.blackLacquer), silk: new Batch(M.silk),
+    newWood: new Batch(M.newWood, G), blackLacquer: new Batch(M.blackLacquer), silk: new Batch(M.silk),
     cushion: new Batch(M.cushion), pavilionThreshold: new Batch(M.plank, G), pavilionStep: new Batch(M.stone, P),
     // the pond's edge (shore.js): its set stones and the bridge's pier, the
     // stone stepped onto the bridge from (a stair, to the body), and the bank
-    ...(SHORE_OLD ? {} : { shoreStone: new Batch(M.shoreRock), shoreStep: new Batch(M.shoreRock), bank: new Batch(M.bank, { cast: false }) }),
+    ...({ shoreStone: new Batch(M.shoreRock), shoreStep: new Batch(M.shoreRock), bank: new Batch(M.bank, { cast: false }) }),
   };
   const rocks = [], ivy = [], fireflies = [], moreFlies = [];
   // lily leaves by kind (pond.js, PAD_KINDS), and the flowers and buds among them
   const lilies = [[], [], [], []], blooms = { white: [], pink: [], whiteBud: [], pinkBud: [] };
   const foliage = [];
-  // (the cedars behind the maze, apart: webProps.js, 2 — see `beltGroup`)
+  // (the cedars behind the maze, apart: webProps.js — see `beltGroup`)
   const beltFoliage = [], beltWood = [];
   const beltLight = {
     uBackMoon: { value: new THREE.Color() }, uBackMoonDir: { value: new THREE.Vector3(0, 1, 0) },
@@ -83,12 +80,11 @@ export function buildGarden(ctx) {
     root.add(floor);
     for (const s of sprigs) (s.flat ? topSprigs : faceSprigs).push(s);
   };
-  // A clipped finial (forkProps.js, 6): a drum of the same hedge, domed by the
+  // A clipped finial (forkProps.js): a drum of the same hedge, domed by the
   // shears, grown through a hedge's line at `p` and standing `up` over its top
   // `H`. From across the garden a hedge is one level stripe of black from edge
   // to edge of the frame; these are what stands out of it.
   const finial = (p, { r, up }, ground, H, seed) => {
-    if (propsOld(6)) return;
     plantHedge([[[p[0] - r, p[1] - r], [p[0] + r, p[1] - r], [p[0] + r, p[1] + r], [p[0] - r, p[1] + r]]], {
       ground, H: H + up, seed, round: r - 0.3, shoulder: r * 0.6, batter: 0.8, foot: 0.6,
     });
@@ -135,27 +131,23 @@ export function buildGarden(ctx) {
   // PATHS keeps the first road, which faded out across the lawn to the
   // north-west and led nowhere: the world's stream was spent along it, and
   // still is — the trees, the rocks and the mist stand where they stood, and
-  // what a newer road would have stood on is taken up off it. (?wfork=old: the
-  // road round the north of the pond to a second, shorter bridge into the
-  // Pavilion's north bay, and no way along the shore. The second bridge stays,
-  // and comes down onto a landing of its own.)
+  // what a newer road would have stood on is taken up off it. (The second
+  // bridge into the Pavilion's north bay comes down onto a landing of its own.)
   const N_SHORE = PAVILION_NORTH_BRIDGE[0];
   const NORTH_BRIDGE = PAVILION_NORTH_BRIDGE;
-  const NORTH_OPEN = !paintings || FORK_OLD;
+  const NORTH_OPEN = !paintings;
   const wayThrough = (ctrl, w) => {
     const curve = new THREE.CatmullRomCurve3(ctrl.map(([x, z]) => new THREE.Vector3(x, 0, z)), false, 'centripetal');
     const pts = curve.getSpacedPoints(Math.ceil(curve.getLength() / 9)).map((v) => [v.x, v.z]);
     return { ctrl, pts, w };
   };
-  const ROAD = FORK_OLD
-    ? wayThrough([J, [1120, 160], [1082, 92], [1092, 28], [1140, -22], [1215, -46], [1285, -38], N_SHORE], 14)
-    : wayThrough(FORK_TO_MAZE, 14);
+  const ROAD = wayThrough(FORK_TO_MAZE, 14);
   // from the last leg of the way to the bridge, round the abutment and along
   // the shore, into the way to the maze where it leaves the water
-  const SHORE_WAY = FORK_OLD ? null : wayThrough(SHORE_PATH, 14);
+  const SHORE_WAY = wayThrough(SHORE_PATH, 14);
   // and where the road does not come to it, the second bridge's foot stands on
   // gravel all the same: a few paces of it, out past the step to the lawn
-  const LANDING = FORK_OLD || !NORTH_OPEN ? null : (() => {
+  const LANDING = !NORTH_OPEN ? null : (() => {
     const axis = unit2(N_SHORE, NORTH_BRIDGE[1]);
     return { pts: [add(N_SHORE, axis, -3), add(N_SHORE, axis, -14)], w: 16 };
   })();
@@ -183,7 +175,7 @@ export function buildGarden(ctx) {
     const edgeRr = (a, b) => a + (b - a) * edgeRnd();
     // (the first road not taken: its draws, and nothing laid — ROAD is laid
     // below)
-    const old = path === PATHS[3], edging = old ? [] : rocks;
+    const old = path === PATHS[3];
     path.pts.forEach((p, i) => {
       if (!old) GB.gravel.add(slabGeo(circlePts(p, path.w / 2, 20), [], 1.2, 4));
       if (i === 0) return;
@@ -191,13 +183,12 @@ export function buildGarden(ctx) {
       const t = [(p[0] - a[0]) / L, (p[1] - a[1]) / L], n = [-t[1], t[0]];
       if (!old) GB.gravel.add(slabGeo([add(a, n, path.w / 2), add(p, n, path.w / 2), add(p, n, -path.w / 2), add(a, n, -path.w / 2)], [], 1.2, 4));
       for (let u = 0; u < L; u += 7) {
-        for (const side of [-1, 1]) {
+        for (let s = 0; s < 2; s++) {
           if (path.fading && edgeRnd() < 0.5) continue;
-          const rp = add(add(a, t, u + edgeRr(-2, 2)), n, side * (path.w / 2 + edgeRr(0, 1.5)));
-          const stone = { p: [rp[0], 5, rp[1]], rot: [edgeRr(0, 3), edgeRr(0, 3), edgeRr(0, 3)],
-            s: [edgeRr(1.2, 2.3), edgeRr(0.8, 1.6), edgeRr(1.2, 2.3)], color: ['#5f5b55', '#4e4b46', '#6b665f'][Math.floor(edgeRnd() * 3)] };
-          // (in groups, laid below: these draws spent as they always were)
-          if (forkOld(4)) edging.push(stone);
+          // (the draws of stones once laid along the edge, spent as they always were)
+          edgeRr(-2, 2); edgeRr(0, 1.5);
+          edgeRr(0, 3); edgeRr(0, 3); edgeRr(0, 3);
+          edgeRr(1.2, 2.3); edgeRr(0.8, 1.6); edgeRr(1.2, 2.3); edgeRnd();
         }
       }
     });
@@ -205,11 +196,11 @@ export function buildGarden(ctx) {
   }
   // The ways' stones set in groups, a big one and smaller ones against it,
   // some sunk, gaps between — not one of a size every seven paces, like beads
-  // on a string (forkFix.js, 4). Each from its own stream; none on another
+  // on a string (forkProps.js). Each from its own stream; none on another
   // way's gravel or down the bank.
   const offPond = (p, m = 4) => ((p[0] - POND.c[0]) / (POND.rx + m)) ** 2 + ((p[1] - POND.c[1]) / (POND.rz + m)) ** 2 > 1;
   const edgeOk = (way) => (p, r) => [...PATHS.slice(0, 3), ...WAYS].every((o) => o === way || lineDist(p, o.pts) > o.w / 2 + r * 0.5) && offPond(p);
-  if (!forkOld(4)) PATHS.slice(0, 3).forEach((path, i) => rocks.push(...edgeStones(path.pts, path.w, 9161 + i * 6, { ok: edgeOk(path) })));
+  PATHS.slice(0, 3).forEach((path, i) => rocks.push(...edgeStones(path.pts, path.w, 9161 + i * 6, { ok: edgeOk(path) })));
 
   // The road not taken, laid: gravel the width of the first one, edged with
   // stones as it was (half of them gone, a way less walked), from a stream of
@@ -228,24 +219,18 @@ export function buildGarden(ctx) {
       const t = [(p[0] - a[0]) / L, (p[1] - a[1]) / L], n = [-t[1], t[0]];
       GB.gravel.add(slabGeo([add(a, n, w / 2), add(p, n, w / 2), add(p, n, -w / 2), add(a, n, -w / 2)], [], 1.2, 4));
     });
-    const others = [...PATHS.slice(0, 3), ...WAYS].filter((o) => o !== way);
-    const offGravel = (p) => others.every((o) => lineDist(p, o.pts) > o.w / 2 + 1);
-    const offBank = (p) => ((p[0] - POND.c[0]) / (POND.rx + 4)) ** 2 + ((p[1] - POND.c[1]) / (POND.rz + 4)) ** 2 > 1;
     for (let i = 1; i < pts.length; i++) {
-      const a = pts[i - 1], b = pts[i], L = dist(a, b), t = unit2(a, b), n = [-t[1], t[0]];
+      const L = dist(pts[i - 1], pts[i]);
       for (let u = 0; u < L; u += 7) {
-        for (const side of [-1, 1]) {
+        for (let s = 0; s < 2; s++) {
           if (sparse && qr() < 0.5) continue;
-          const rp = add(add(a, t, u + qrr(-2, 2)), n, side * (w / 2 + qrr(0, 1.5)));
-          const stone = {
-            p: [rp[0], 5, rp[1]], rot: [qrr(0, 6.28), qrr(0, 6.28), qrr(0, 6.28)],
-            s: [qrr(1.2, 2.3), qrr(0.8, 1.6), qrr(1.2, 2.3)], color: ['#5f5b55', '#4e4b46', '#6b665f'][Math.floor(qr() * 3)],
-          };
-          if (forkOld(4) && (FORK_OLD || (offGravel(rp) && offBank(rp)))) rocks.push(stone);
+          qrr(-2, 2); qrr(0, 1.5);
+          qrr(0, 6.28); qrr(0, 6.28); qrr(0, 6.28);
+          qrr(1.2, 2.3); qrr(0.8, 1.6); qrr(1.2, 2.3); qr();
         }
       }
     }
-    if (!forkOld(4)) rocks.push(...edgeStones(pts, w, seed + 40, { sparse, ok: edgeOk(way) }));
+    rocks.push(...edgeStones(pts, w, seed + 40, { sparse, ok: edgeOk(way) }));
   }
   return { GB, rocks, ivy, fireflies, moreFlies, lilies, blooms, foliage, beltFoliage, beltWood,
     beltLight, LEAF, BLOSSOM, mazeRoute, heartParts, topSprigs, faceSprigs, plantHedge, finial,
@@ -268,7 +253,7 @@ export function buildForkRaked(ctx) {
     // (only the stretches of it `keep` keeps: a groove stops where it would
     // run out over another way's gravel)
     // (`o` may be a function of how far along: the passes of the rake wander,
-    // forkFix.js, 2; and `gap(s, p)` breaks it — at a stone, or scuffed out)
+    // forkProps.js; and `gap(s, p)` breaks it — at a stone, or scuffed out)
     const furrow = (pts, o, keep, gap) => {
       let s = 0;
       const along = pts.map((p, i) => (s += i ? dist(pts[i - 1], p) : 0));
@@ -283,7 +268,7 @@ export function buildForkRaked(ctx) {
       });
       for (const run of runs) {
         if (run.length < 2) continue;
-        (forkOld(2) ? GB.rakeDark : GB.forkRakeDark).add(wornRibbon(run, 0.26, TOP + 0.02));
+        (GB.forkRakeDark).add(wornRibbon(run, 0.26, TOP + 0.02));
         const lip = run.map((p, i) => {
           const t = unit2(run[Math.max(0, i - 1)], run[Math.min(run.length - 1, i + 1)]);
           return add(p, [-t[1], t[0]], 0.24);
@@ -309,11 +294,9 @@ export function buildForkRaked(ctx) {
     // rather than crossing it. It is raked to where it meets the way from the
     // water.
     const offWays = (ways) => (p) => ways.every((o) => lineDist(p, o.pts) > o.w / 2 - 0.3);
-    const raked = [[PATHS[0].pts, PATHS[0].w], [PATHS[1].pts, PATHS[1].w], FORK_OLD
-      ? [ROAD.ctrl.slice(0, 3), ROAD.w]
-      : [fine([J, ...ROAD.pts.slice(1)]), ROAD.w, offWays([PATHS[1], PATHS[2]])]];
+    const raked = [[PATHS[0].pts, PATHS[0].w], [PATHS[1].pts, PATHS[1].w], [fine([J, ...ROAD.pts.slice(1)]), ROAD.w, offWays([PATHS[1], PATHS[2]])]];
     // the stones a furrow stops short of: whatever sits at the ways' edges
-    // (the stones set in groups along them since forkFix.js, 4, the big ones
+    // (the stones set in groups along them since forkProps.js, the big ones
     // well into the gravel), each with its reach
     const sitting = rocks.filter((r) => r.bank === undefined && dist([r.p[0], r.p[2]], J) < 170)
       .map((r) => ({ p: [r.p[0], r.p[2]], r: Math.max(r.s[0], r.s[2]) + RAKE.clear }));
@@ -321,11 +304,6 @@ export function buildForkRaked(ctx) {
     raked.forEach(([pts, w, keep], wi) => {
       // (a groove every hand's breadth: at twice that, coarse and dark, the
       // raked way read from the stand as a striped walkway)
-      if (forkOld(2)) {
-        const way = fromStone(pts);
-        for (let o = -(w / 2 - 2.2); o <= w / 2 - 2.2 + 1e-6; o += 1.25) furrow(way, o, keep);
-        return;
-      }
       // Ruled, they read as a crossing: in passes of a four-tined rake, each
       // pass wandering and the passes drifting apart and together, and a furrow
       // broken where a stone sits and here and there scuffed out.
@@ -341,15 +319,15 @@ export function buildForkRaked(ctx) {
       g.setAttribute('uv1', g.attributes.uv.clone());
       return g;
     };
-    if (propsOld(3) || !GB.shoreStone) {
+    if (!GB.shoreStone) {
       for (let r = 3.1; r <= R0; r += 1.25) {
-        (forkOld(2) ? GB.rakeDark : GB.forkRakeDark).add(ring(r - 0.13, r + 0.13, TOP + 0.02));
+        (GB.forkRakeDark).add(ring(r - 0.13, r + 0.13, TOP + 0.02));
         GB.rakeLit.add(ring(r + 0.15, r + 0.33, TOP + 0.025));
       }
       // the stone the ways part at, low and flat: stepped on, never stepped round
       GB.stone.add(new THREE.CylinderGeometry(2.3, 2.5, 0.7, 20).scale(1, 1, 0.82).rotateY(0.4).translate(J[0], TOP + 0.2, J[1]));
     } else {
-      // (forkProps.js, 3: a stone, not a sawn disc with a groove ruled across
+      // (forkProps.js: a stone, not a sawn disc with a groove ruled across
       // it — the garden's granite (shore.js): wider than it is tall, most of it
       // in the ground, cleft and worn and lichened, its top level enough to
       // stand on and no higher over the gravel than a foot goes up without
@@ -380,7 +358,7 @@ export function buildForkRaked(ctx) {
           const a = ((k % N) / N) * Math.PI * 2, r = (line[k % N] + 0.8) * (1 - t) + R0 * t + off;
           return [J[0] + Math.cos(a) * r, J[1] + Math.sin(a) * r];
         });
-        (forkOld(2) ? GB.rakeDark : GB.forkRakeDark).add(wornRibbon(at(0), 0.26, TOP + 0.02));
+        (GB.forkRakeDark).add(wornRibbon(at(0), 0.26, TOP + 0.02));
         GB.rakeLit.add(wornRibbon(at(0.24), 0.18, TOP + 0.025));
       }
     }
@@ -389,7 +367,7 @@ export function buildForkRaked(ctx) {
 
 export function buildPergola(ctx) {
   const { light, rr, add, lerp2, dist, keep, M, root, instances, decal, halo, POOL_DIAL, point,
-    hangs, ivyLeaves, vineLeaves, ivyWood, trialPaper, glows, GB, foliage, LEAF, J, PATHS, standing } = ctx;
+    hangs, ivyLeaves, vineLeaves, ivyWood, trialPaper, GB, LEAF, J, PATHS, standing } = ctx;
   // ── The wisteria pergola, hung with lanterns ─────────────────────────────
   // What the arch opens onto, and what walks the reader from it to the Fork.
   // Joinery: each post an octagon on a stone base, a bearing block on its head,
@@ -423,8 +401,8 @@ export function buildPergola(ctx) {
     // short of the Fork's stone, and from where the reader stops at the Fork
     // its left post would stand exactly in front of the stone lantern beyond it
     // (at one bearing from there, to within a fraction of a degree), and read
-    // as a tree trunk. (?wpergola=old)
-    const Z0 = 40, BAY = 22, FRAMES = [0, 1, 2, 3, 4].map((k) => Z0 + k * BAY).filter((z) => z < L + 1).slice(0, PERGOLA_OLD ? 5 : 4);
+    // as a tree trunk.
+    const Z0 = 40, BAY = 22, FRAMES = [0, 1, 2, 3, 4].map((k) => Z0 + k * BAY).filter((z) => z < L + 1).slice(0, 4);
     const POST = 17, SPAN = 25, GROUND = 5.2;
     const TIE = [39.4, 42.8], PURLIN = [TIE[1], TIE[1] + 2.6], RAFTER = [PURLIN[1], PURLIN[1] + 1.3];
     const zA = Z0 - 6, zB = FRAMES[FRAMES.length - 1] + 6;
@@ -495,7 +473,6 @@ export function buildPergola(ctx) {
         pts.push(new THREE.Vector3(x + Math.cos(ang) * r, GROUND + 1 + f * (RAFTER[1] - GROUND - 0.4), z + Math.sin(ang) * r));
       }
       for (let k = 1; k <= 8; k++) pts.push(new THREE.Vector3(x + Math.sin(k) * 0.8, RAFTER[1] + 0.6 + Math.sin(k * 1.7) * 0.3, z + k * 2.6 * (x < 0 ? 1 : -1)));
-      if (IVY_OLD) wood(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), light ? 40 : 90, 0.3, 6, false));
     }
     // (ivy.js) The same four vines grown as wisteria grows: out of the ground
     // beside the plinth, over its edge, two strands twisted on each other as
@@ -504,10 +481,10 @@ export function buildPergola(ctx) {
     // tie beam, and over onto the rafters, where the run of the old vine
     // went; leaves off the upper post and the run, and a few young shoots
     // reaching out into the air.
-    if (!IVY_OLD) {
+    {
       const vr = makeRng(6611), VR = (lo, hi) => lo + (hi - lo) * vr();
       const qf = new THREE.Quaternion().setFromRotationMatrix(frame), eu = new THREE.Euler();
-      const barkTint = new THREE.Color('#8f8d88'), shootTint = new THREE.Color('#7d7a52');
+      const shootTint = new THREE.Color('#7d7a52');
       const VINE_GREEN = ['#4f6e30', '#5a7a36', '#476629', '#62823a', '#55743a'];
       for (const [x, z, turns] of [[-POST, FRAMES[0], 2.2], [POST, FRAMES[1], 1.8], [-POST, FRAMES[2], 2.5], [POST, FRAMES[3], 2]]) {
         const sx = Math.sign(x), runZ = x < 0 ? 1 : -1;
@@ -524,13 +501,12 @@ export function buildPergola(ctx) {
         const vine = twineWisteria({
           x, z, postR: 1.5, plinthR: 2.5, ground: GROUND, foot: { r: 1.95, y: GROUND + 3.3 }, top: TIE[0] - 1.8, turns,
           endAngle: Math.atan2(dz * 1.1, sx * 2.0), over,
-          // (gardenFix5.js, 4: not a grey ribbon of one width)
-          rope: garden5Old(4) ? null : VINE,
+          // (gardenProps.js: not a grey ribbon of one width)
+          rope: VINE,
         }, vr);
         vine.strands.forEach((st, k) => {
           const nodes = st.map((nd) => ({ p: nd.p.clone().applyMatrix4(frame), r: nd.r }));
-          if (garden5Old(4)) ivyWood.tube(nodes, st[0].r > 0.25 ? 9 : 6, barkTint);
-          else ivyWood.tube(nodes, 12, new THREE.Color(VINE.tints[k % VINE.tints.length]), { ribs: { n: VINE.stems[k].ribs, deep: VINE.stems[k].deep, spin: 0.45 + 0.1 * k } });
+          ivyWood.tube(nodes, 12, new THREE.Color(VINE.tints[k % VINE.tints.length]), { ribs: { n: VINE.stems[k].ribs, deep: VINE.stems[k].deep, spin: 0.45 + 0.1 * k } });
         });
         for (const sh of vine.shoots) ivyWood.tube(sh.map((nd) => ({ p: nd.p.clone().applyMatrix4(frame), r: nd.r })), 4, shootTint);
         for (const lf of vine.leaflets) {
@@ -563,7 +539,6 @@ export function buildPergola(ctx) {
         const q = W3(x + within(-3, 3), RAFTER[1] + within(1.2, 2.4), z);
         const item = { p: [q.x, q.y, q.z], rot: [within(-0.2, 0.2), pr() * 6.28, within(-0.2, 0.2)], s: Array(3).fill(within(6, 9.5)), color: LEAF[Math.floor(pr() * LEAF.length)], k: within(0.55, 0.8) };
         if (skip) continue;
-        if (IVY_OLD) { foliage.push(item); continue; }
         // (ivy.js) not a ball of painted leaf on the battens but the leaves
         // themselves: a spread of wisteria leaves where it lay, laid out over
         // the rafters and hanging between them
@@ -602,20 +577,15 @@ export function buildPergola(ctx) {
       if (z > zB) { rr(0, 100); continue; }
       const LY = 29.5, R = 2.6, H = 2.75, p = W3(0, LY, z);
       // (the paper lit from its flame, the ribs drawn in it — lampPass.js)
-      if (LAMPS.paper) trialPaper.push({ p: [p.x, p.y, p.z], s: [R, H, R], color: '#fff0e0', k: 1.0 });
-      else glows.push({ p: [p.x, p.y, p.z], s: [R, H, R], color: '#ffb86e', k: 1.15 });
-      for (let k = -3; k <= 3 && !LAMPS.paper; k++) {
-        const yy = (k / 3.6) * H, r = R * Math.sqrt(Math.max(0, 1 - (yy / H) ** 2)) + 0.03;
-        lacq(new THREE.TorusGeometry(r, 0.045, 4, 32).rotateX(Math.PI / 2).translate(0, LY + yy, z));
-      }
+      trialPaper.push({ p: [p.x, p.y, p.z], s: [R, H, R], color: '#fff0e0', k: 1.0 });
       lacq(new THREE.CylinderGeometry(0.9, 1.25, 0.55, 18).translate(0, LY + H - 0.05, z));
       lacq(new THREE.CylinderGeometry(1.25, 0.95, 0.5, 18).translate(0, LY - H + 0.05, z));
       gold(new THREE.CylinderGeometry(0.28, 0.4, 0.45, 10).translate(0, LY + H + 0.45, z));
       wood(new THREE.CylinderGeometry(0.08, 0.08, RAFTER[0] - LY - H - 0.6, 5).translate(0, (RAFTER[0] + LY + H + 0.6) / 2, z));
       gold(new THREE.SphereGeometry(0.28, 10, 8).translate(0, LY - H - 0.55, z));
       lacq(new THREE.CylinderGeometry(0.18, 0.34, 2.1, 10).translate(0, LY - H - 1.8, z));
-      // (from the Door the three lay one on another down the pergola: doorFix.js, 4)
-      halo([p.x, p.z], LY, doorOld(4) ? 40 : LANTERN_HALO.size, '#ffb866', doorOld(4) ? 0.35 : LANTERN_HALO.opacity);
+      // (from the Door the three lay one on another down the pergola: doorProps.js)
+      halo([p.x, p.z], LY, LANTERN_HALO.size, '#ffb866', LANTERN_HALO.opacity);
     }
     point(add(a, t, 64), 25, '#ffb866', 4200, 6);
     decal(lerp2(a, b, 0.5), 220, 130, '#ffae5c', 0.24 * POOL_DIAL, 5.8, 0.12);
@@ -864,7 +834,7 @@ export function buildLanterns(ctx) {
   // A tsuri-dōrō: a six-sided iron lantern, a lattice round paper, under a
   // roof of its own, hung by its ring over `lp` — the one on the Fork's
   // signpost, and the one in the hedge by the Web of Time's stand
-  // (gardenFix5.js, 10). `dy`: how much lower than the signpost's it hangs.
+  // (gardenProps.js). `dy`: how much lower than the signpost's it hangs.
   const tsuriDoro = (lp, yaw, dy = 0) => {
     const flame = new THREE.Vector3(lp[0], 20.6 + dy, lp[1]);
     const iron = (g) => GB.iron.add(g.translate(0, dy, 0).rotateY(yaw).translate(lp[0], 0, lp[1]));

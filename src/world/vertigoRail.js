@@ -21,15 +21,10 @@
 // but for the gaps where it has given way (the fall: one every turn, at the
 // same bearing, spiral.js GAPS); and down every turn of
 // the endless stair below (spiral.js), whose turns are one geometry, reused.
-// Nothing here draws on the world's random stream. (?wvrail=old: the rail as
-// it was.)
+// Nothing here draws on the world's random stream.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
-const Q = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
-export const VRAIL_OLD = Q.get('wvrail') === 'old';
-// ?wvland=old: the stair's head as it was, the pit open beside its newel
-export const VLAND_OLD = Q.get('wvland') === 'old';
 
 // The handrail's top over what is walked on: 99 cm, over the floor and over
 // each tread's middle.

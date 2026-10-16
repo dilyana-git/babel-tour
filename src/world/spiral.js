@@ -16,33 +16,20 @@ export function spiralAt(center, t) {
 
 // ── Where the rail has given way ─────────────────────────────────────────────
 // A stretch of the stair's open edge, as a fraction of the way down (the
-// Vertigo's stand is in the middle of it): the fall goes over here. Since
-// 2026-10-08 the same stretch is gone on every turn below it, the endless
-// turns' too, at the same bearing — a reader who walks on down meets it again
-// and again, with the same open book left beside it, and can go over from any
-// of them. ?wbrink=old: only the first (and none of World.jsx's edge).
-export const BRINK_OLD = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('wbrink') === 'old';
+// Vertigo's stand is in the middle of it): the fall goes over here. The same
+// stretch is gone on every turn below it, the endless turns' too, at the same
+// bearing — a reader who walks on down meets it again and again, with the
+// same open book left beside it, and can go over from any of them.
 export const GAP = Object.freeze([0.047, 0.078]);
 // the gaps down the stair itself, every turn of it that has one whole
-export const GAPS = BRINK_OLD ? [GAP]
-  : Array.from({ length: Math.ceil(SPIRAL.turns) }, (_, k) => [GAP[0] + k / SPIRAL.turns, GAP[1] + k / SPIRAL.turns]).filter(([, t1]) => t1 <= 1);
+export const GAPS = Array.from({ length: Math.ceil(SPIRAL.turns) }, (_, k) => [GAP[0] + k / SPIRAL.turns, GAP[1] + k / SPIRAL.turns]).filter(([, t1]) => t1 <= 1);
 // the gap's bearings (radians, from +x toward +z), and its width
 const gapFrom = phase0 + GAP[0] * SPIRAL.turns * TAU, gapSpan = (GAP[1] - GAP[0]) * SPIRAL.turns * TAU;
 const wrap = (a) => ((a % TAU) + TAU) % TAU;
-// A fraction t of the way down the stair (and on down the endless turns, past
-// 1) from the bearing of `p` and the height of the floor under it (p.y).
-const stairT = (center, p) => {
-  const raw = (Math.atan2(p.z - center[1], p.x - center[0]) - phase0) / TAU;
-  return (raw + Math.round((5.5 - p.y) / pitch - raw)) / SPIRAL.turns;
-};
 // Whether `p` (x, z, and y the floor) is on the stair beside one of the gaps,
 // within `margin` (radians) of it either way.
 export function atBreak(center, p, margin = 0) {
   if (p.y > 5) return false;
-  if (BRINK_OLD) {
-    const t = stairT(center, p), m = margin / (SPIRAL.turns * TAU);
-    return t >= GAP[0] - m && t <= GAP[1] + m;
-  }
   return wrap(Math.atan2(p.z - center[1], p.x - center[0]) - gapFrom + margin) <= gapSpan + 2 * margin;
 }
 // The open book left where the rail has gone, the same on every turn: a few
@@ -72,7 +59,7 @@ export function makeEndlessSpiral(center, { stone, bronze, books, rail = null, d
   const start = spiralAt(center, 1), top = 4 - SPIRAL.drop;
   const angle0 = THREE.MathUtils.degToRad(start.a), steps = 56;
   // (the gap in a turn's own fraction of itself: none in the old way)
-  const gap = BRINK_OLD ? null : [wrap(gapFrom - angle0) / TAU, (wrap(gapFrom - angle0) + gapSpan) / TAU];
+  const gap = [wrap(gapFrom - angle0) / TAU, (wrap(gapFrom - angle0) + gapSpan) / TAU];
   const pieces = [], posts = [];
   const railPoints = [];
   for (let s = 0; s < steps; s++) {

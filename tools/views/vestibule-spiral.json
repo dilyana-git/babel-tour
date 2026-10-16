@@ -1,0 +1,12 @@
+[
+  { "name": "stand", "room": 0 },
+  { "name": "up-stand", "room": 0, "look": "0,1.15", "eval": "__vault(1.1)" },
+  { "name": "up-bridge", "room": 0, "eye": "232,18,785:240,300,800", "eval": "__vault(1.1)" },
+  { "name": "up-straight", "room": 0, "eye": "232,18,785:232.5,300,786", "eval": "__vault(1.1)" },
+  { "name": "up-half", "room": 0, "eye": "232,18,785:240,300,800", "eval": "__vault(0.45, true)" },
+  { "name": "down-side", "room": 0, "eye": "228.5,18,791:212,-80,819.6" },
+  { "name": "down-rim", "room": 0, "eye": "209.5,20,824:232,-15,785" },
+  { "name": "down-axis", "room": 0, "eye": "232,18,785:262,-120,802" },
+  { "name": "silence-stand", "room": 2 },
+  { "name": "vest-shelves", "room": 0, "eye": "246,24,764:282,34,785" }
+]

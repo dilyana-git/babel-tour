@@ -1,6 +1,6 @@
 // ── The ending ───────────────────────────────────────────────────────────────
 // What the map says when the film at the heart of the maze has come down on it
-// (EntryMap; world/finaleFix6.js, 3). It used to say what it said before the
+// (EntryMap; world/finaleLook.js). It used to say what it said before the
 // walk: the last room's card, with "Enter The Web of Time" under it. The piece
 // did not end; it stopped.
 //

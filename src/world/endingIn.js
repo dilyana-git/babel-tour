@@ -17,9 +17,8 @@
 // On a tall screen the film has the whole screen until it is done and the
 // title is not on it: there the same sequence begins when the film ends.
 //
-// ?wendin=a|b|c|d: how the words arrive (map.css, "The ending comes in"). Four
-// were shown; the user chose c, 2026-10-12, and the others are kept behind
-// the flag.
+// ?wendin=a|b|c|d: how the words arrive (map.css, "The ending comes in"); c
+// is the one chosen.
 // a in turn — each fades up where it stands;
 // b found — the last line is found among the Library's letters, as the first
 //   sentence was while the Library was put together (Assembly.jsx);
@@ -27,10 +26,9 @@
 //   the words catch it one at a time and cool to ink;
 // d drawn back — the title settles from a wider setting and the line from a
 //   little larger, with the camera.
-// ?wendin=old: as it was — nothing until the film is done, then all at once.
 const Q = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
 const V = Q.get('wendin');
-export const ENDIN = V === 'old' ? null : ['a', 'b', 'c', 'd'].includes(V) ? V : 'c';
+export const ENDIN = ['a', 'b', 'c', 'd'].includes(V) ? V : 'c';
 
 // From the entrance's first moment until the last line and its source stand
 // whole, in ms (map.css's delays and lengths, added up), and `alone`: how long

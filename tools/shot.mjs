@@ -8,9 +8,9 @@
 //   node tools/shot.mjs --room=0,1,2 --up        several rooms, at their vantages
 //   node tools/shot.mjs --room=3 --look=0.6,-0.3 turn the head (yaw, pitch; radians)
 //   node tools/shot.mjs --eye=0,200,300:0,0,0    look from a point at a point
-//   node tools/shot.mjs --ab=wmap5=old           the same frame without and with a
+//   node tools/shot.mjs --ab=wcaption=quiet      the same frame without and with a
 //                                                flag, in one browser session
-//   node tools/shot.mjs --query=wechofix=old:3   any query string on every shot
+//   node tools/shot.mjs --query=wechor=100       any query string on every shot
 //
 // Options: --size=WxH (960x600; keep it small under software WebGL), --out=DIR,
 // --name=PREFIX, --settle=MS (extra wait after the frames), --frames=N (frames
@@ -28,8 +28,9 @@
 // scene (its geometry, transform and materials, each material's shader patch
 // and program key) and of every shader program the scene compiles to — and
 // --compare=a.json,b.json (no browser) says what differs between two of them.
-// --views=FILE reads saved [{ name, room, up, look, eye }] views in one page.
-// `eye` uses the same from:at syntax as --eye.
+// --views=FILE reads saved [{ name, room, up, look, eye, eval }] views in one
+// page. `eye` uses the same from:at syntax as --eye; `eval` is run in the page
+// once the eye is placed (a dev hook: "__vault(1.1)").
 // Transforms of things that move on their own (readers, water, lights) differ
 // between any two loads; geometry, materials and shaders should not.
 import { spawn } from 'node:child_process';
@@ -89,7 +90,9 @@ function findBrowser() {
 
 async function startBrowser() {
   // A profile kept between runs: a cold one draws no frames on its first run.
-  const profile = join(ROOT, 'node_modules', '.cache', `babel-shot-${GPU ? 'gpu' : 'sw'}`);
+  // (BABEL_SHOT_PROFILE: a name of its own, when another session's browser
+  // still has the shared one open)
+  const profile = join(ROOT, 'node_modules', '.cache', process.env.BABEL_SHOT_PROFILE || `babel-shot-${GPU ? 'gpu' : 'sw'}`);
   mkdirSync(profile, { recursive: true });
   rmSync(join(profile, 'DevToolsActivePort'), { force: true });
   const graphics = GPU
@@ -240,7 +243,7 @@ async function run() {
         continue;
       }
       for (const view of views) {
-        const { room = null, up = false, look, eye } = view;
+        const { room = null, up = false, look, eye, eval: script } = view;
         await evaluate('window.__worldEye(null)');
         if (room !== null) await evaluate(`window.__worldJump(${room}, ${up})`);
         if (typeof look === 'string') await evaluate(`window.__worldLook(${look})`);
@@ -248,6 +251,8 @@ async function run() {
           const [from, at] = eye.split(':').map((v) => `[${v}]`);
           await evaluate(`window.__worldEye({ from: ${from}, at: ${at} })`);
         }
+        // (a dev hook to run once the eye is placed, e.g. "__vault(1.1)")
+        if (typeof script === 'string') await evaluate(script);
         await frames();
         await pause(SETTLE);
         const name = [args.name, view.name ?? (room === null ? 'map' : `room${room}${up ? '-up' : ''}`), tag].filter(Boolean).join('-');

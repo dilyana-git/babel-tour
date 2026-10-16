@@ -69,7 +69,7 @@ const signedArea = (loop) => loop.reduce((s, [x, z], i) => {
 // outer loop runs counter-clockwise with x right and z up, and a hole the
 // other way). Cut on the rectangles' own edges, so the result is exact.
 // `cuts`: rectangles taken out of the union again (a niche clipped into a
-// hedge: gardenFix5.js, 10).
+// hedge: gardenProps.js).
 export function rectUnionLoops(rects, cuts = []) {
   const xs = [...new Set([...rects, ...cuts].flatMap((r) => [r[0], r[2]]))].sort((a, b) => a - b);
   const zs = [...new Set([...rects, ...cuts].flatMap((r) => [r[1], r[3]]))].sort((a, b) => a - b);

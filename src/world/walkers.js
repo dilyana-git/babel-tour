@@ -13,12 +13,17 @@
 // middle, `w` across it — and set in the world through `c`, `ax` and `px`.
 // Built facing +z, standing on y = 0 (readers.js).
 import * as THREE from 'three';
-import { readerGeometry, ROBES, clothShader } from './readers';
+import { readerGeometry, clothShader } from './readers';
 import { makeRng } from './textures';
-import { vestOld } from './vestFix';
-import { tallFov } from './phoneFix';
-import { lib3Old, BRIDGE_READERS } from './libFix3';
-import { hud3Old, CAPTION } from './hudFix3';
+import { tallFov } from './phone';
+import { BRIDGE_READERS } from './libraryProps';
+import { nearMaterial } from './readerNear';
+
+// The caption's corner of the Vestibule's first frame, in CSS pixels from
+// the screen's bottom left: as far right as the room's name and its subtitle
+// run, from the rule over the summary up to the kicker. (Not on a tall screen:
+// the caption is across the whole foot of it there, on a shade of its own.)
+const CAPTION = { right: 380, foot: 150, head: 318 };
 
 const clamp01 = (x) => Math.min(1, Math.max(0, x));
 const smooth = (a, b, x) => { const t = clamp01((x - a) / (b - a)); return t * t * (3 - 2 * t); };
@@ -90,12 +95,9 @@ const shadowTexture = () => {
 // `c` the bridge's middle, `ax` along it, `px` across it, `deck` the height
 // of its walking surface; `lectern` the one who has stopped to read:
 // { at: [x, z], y, face } (face: the angle about y they look along).
-// `arch` [x, y, z]: the lit way out behind them, which rims them (libFix3.js, 2).
+// `arch` [x, y, z]: the lit way out behind them, which rims them (libraryProps.js).
 export function buildWalkers({ root, keep, c, ax, px, deck, lectern, arch = null, light = false }) {
-  // The file as the room's subject, not holes in it (libFix3.js, 2): a wool
-  // that takes the light, more of the page's, and the arch behind them.
-  const LIT = !lib3Old(2);
-  const robes = LIT ? BRIDGE_READERS.robes : ROBES;
+  const robes = BRIDGE_READERS.robes;
   const group = new THREE.Group();
   group.name = 'bridge-readers';
   root.add(group);
@@ -109,15 +111,16 @@ export function buildWalkers({ root, keep, c, ax, px, deck, lectern, arch = null
     u.uWool = { value: new THREE.Vector4(18, 0.18, 0.13, 0.9) };
     u.uSheen.value = 0.65;
     const mesh = new THREE.Mesh(keep(readerGeometry({ seed: 3 + i * 13, color: robes[(i * 3 + 1) % robes.length], book, heavyWool: true })), mat);
-    if (LIT) {
-      u.uLitK.value.set(...BRIDGE_READERS.lit);
-      if (arch) {
-        u.uArch.value.set(...arch, BRIDGE_READERS.arch.k);
-        u.uArchTint.value.set(...BRIDGE_READERS.arch.color, BRIDGE_READERS.arch.reach);
-      }
+    
+    u.uLitK.value.set(...BRIDGE_READERS.lit);
+    if (arch) {
+      u.uArch.value.set(...arch, BRIDGE_READERS.arch.k);
+      u.uArchTint.value.set(...BRIDGE_READERS.arch.color, BRIDGE_READERS.arch.reach);
     }
     // (the open book's pages, which throw the lamps' light up under the hood)
     if (mesh.geometry.userData.book) u.uBook.value.set(...mesh.geometry.userData.book, 1);
+    // (seen at arm's length: the cloth, its colour, the hood's shadow on the face — readerNear.js)
+    nearMaterial(mat, mesh.geometry.userData.face);
     mesh.name = name;
     group.add(mesh);
     const shadow = new THREE.Mesh(shadowGeo, keep(new THREE.MeshBasicMaterial({
@@ -163,7 +166,7 @@ export function buildWalkers({ root, keep, c, ax, px, deck, lectern, arch = null
     const mid = o.s + R(18, 70);
     // (nor where the stand's frame would cut them, or its caption lie over
     // them: someone walking through there is leaving the picture, someone
-    // stopped there is standing half out of it — hudFix3.js, 6)
+    // stopped there is standing half out of it — walkers.js)
     if (!o.book && rng() < 0.35 && mid < end - 12 && inLane(mid) && gaps(o)[1] > 30 && !barred(mid)) {
       o.stopAt = mid;
       o.rest = R(3, 6);
@@ -219,13 +222,13 @@ export function buildWalkers({ root, keep, c, ax, px, deck, lectern, arch = null
   // of the file's way round is off its left edge, so a reader is forever half
   // in and half out of it. Walking, that is only someone walking out of the
   // picture; but on arrival, the first frame the piece composes, a reader cut
-  // in two by its edge was the first person the visitor met (review
-  // 2026-10-08, point 1; ?wvest=old:1). No turn of the stand keeps the whole
+  // in two by its edge was the first person the visitor met. No turn of the
+  // stand keeps the whole
   // way in frame, so the file keeps out of the frame's edges instead, while a
   // reader is arriving and for a little while after: whoever is across an
   // edge walks on out of it, and nobody steps into one. Where the edges fall
   // depends on the screen's shape, so they are found again for each.
-  // The corner the room's caption stands in is kept the same way (hudFix3.js,
+  // The corner the room's caption stands in is kept the same way (walkers.js,
   // 6): the first room's name was set over a reader stopped at the rail there.
   // It is so many pixels of the screen, so it is found again for each height
   // of one too.
@@ -235,10 +238,10 @@ export function buildWalkers({ root, keep, c, ax, px, deck, lectern, arch = null
   const findEdges = (aspect, high) => {
     // the caption's corner, in the frame's own measure (-1 to 1 each way)
     const wide = high * aspect;
-    const corner = !hud3Old(6) && aspect >= 1 && high > 0
+    const corner = aspect >= 1 && high > 0
       ? { hi: -1 + (2 * CAPTION.right) / wide, bot: -1 + (2 * CAPTION.foot) / high, top: -1 + (2 * CAPTION.head) / high }
       : null;
-    // (the lens as this screen has it: a tall one's is opened, phoneFix.js)
+    // (the lens as this screen has it: a tall one's is opened, phone.js)
     const cam = new THREE.PerspectiveCamera(tallFov(watch.fov, aspect), aspect, 0.5, 2000);
     cam.position.set(...watch.eye);
     cam.lookAt(...watch.look);
@@ -307,7 +310,7 @@ export function buildWalkers({ root, keep, c, ax, px, deck, lectern, arch = null
     const dt = last === null ? 0 : Math.min(0.1, Math.max(0, time - last));
     last = time;
     if (light || dt === 0) return;
-    const keepOut = !vestOld(1) && watch && aspect > 0;
+    const keepOut = watch && aspect > 0;
     const high = typeof window !== 'undefined' ? window.innerHeight : 0;
     if (keepOut && (Math.abs(aspect - edgesFor) > 0.005 || high !== edgesHigh)) { edges = findEdges(aspect, high); edgesFor = aspect; edgesHigh = high; }
     const held = keepOut && guarding(time, eye);

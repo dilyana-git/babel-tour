@@ -3,29 +3,31 @@
 
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { LAMPS, stairSconce } from '../lampPass';
+import { stairSconce } from '../lampPass';
 import { makeRng } from '../textures';
-import { BOOKS_GIANT, shaftVolume, spineAt, titleAt, makeLampGlobeMaterial } from '../effects';
-import { WELL, vertigoOld, bookHash, MISSING, shelfLip } from '../vertigoFix';
-import { silenceOld, CROWN_BACK } from '../silenceFix';
-import { SPIRAL, GAPS, BRINK_OLD, makeEndlessSpiral, spiralAt, bookAt } from '../spiral';
-import { VLAND_OLD, VRAIL_OLD, buildVertigoRail, endlessRail } from '../vertigoRail';
+import { shaftVolume, spineAt, titleAt, makeLampGlobeMaterial } from '../effects';
+import { WELL, bookHash, MISSING, shelfLip } from '../vertigoProps';
+import { CROWN_BACK } from '../silenceProps';
+import { SPIRAL, GAPS, makeEndlessSpiral, spiralAt, bookAt } from '../spiral';
+import { buildVertigoRail, endlessRail } from '../vertigoRail';
 import { vertigoLanding } from '../vertigoLanding';
-import { WOOD_OLD, ringGrain } from '../woodGrain';
+import { ringGrain } from '../woodGrain';
 import { deg, MASS_H, CAP, SHELVES, BOOK_ROWS, TIER_BASE, TIER_H, TIERS, shelvesOf, BOARD } from '../build/common';
+import { VERTIGO_GILT } from '../roomColour';
+import { sootOver } from '../ashlarSurface';
 
 export function* buildVertigo(ctx) {
   const { light, paintings, rnd, stream, rr, pick, dir, add, hexPts, circlePts, keep, paint, tex,
     withRepeat, again, pale, wood, bookRowsSet, rowV, lampHaloTex, shaftMaterial, Std, M, root,
     Batch, slabGeo, boxGeo, placed, rodGeo, instances, decal, halos, halo, lightWishes, point, A,
-    AC, RC, HALL, cellC, mouldGeo, LB, balusters, shelved, shelvedWalls, lodFor, books, lampCores,
+    AC, RC, HALL, cellC, mouldGeo, LB, shelved, shelvedWalls, lodFor, books, lampCores,
     globes, dust, trialPanes, BOOKS, lamp, hangPainting, RAIL_H, railRun } = ctx;
   // IV — the Vertigo: a round pit, a stair winding down a funnel of books to one light.
   const PIT = cellC(3, -3);
-  // (the well's light is graded round this, patched in before the build: vertigoFix.js, 4)
-  if (import.meta.env?.DEV && Math.hypot(PIT[0] - WELL.c[0], PIT[1] - WELL.c[1]) > 0.01) console.error('vertigoFix: WELL.c is not the pit', PIT, WELL.c);
+  // (the well's light is graded round this, patched in before the build: vertigoProps.js)
+  if (import.meta.env?.DEV && Math.hypot(PIT[0] - WELL.c[0], PIT[1] - WELL.c[1]) > 0.01) console.error('vertigoProps: WELL.c is not the pit', PIT, WELL.c);
   let pitCore = null;
-  // (the stair's own stone, darkened with depth over the map: mapFix.js, 7)
+  // (the stair's own stone, darkened with depth over the map: mapLook.js)
   let pitCarved = null;
   // (the rest of the light at the bottom, moved down with the disc: see `sink`)
   let pitSink = null;
@@ -81,24 +83,16 @@ export function* buildVertigo(ctx) {
       }
       ring.forEach((p, s) => { if (p && ring[s + 1]) railRun(p, ring[s + 1]); });
       // a blind back behind the posts, so the sky is over the rail and not
-      // between its posts (silenceFix.js, 5)
-      if (!silenceOld(5)) {
-        ring.forEach((p, s) => {
-          const q = ring[s + 1];
-          if (!p || !q) return;
-          const out = (r) => add(c, dir(Math.atan2(r[1] - c[1], r[0] - c[0]) / deg), rWall + 3.5 + CROWN_BACK.out);
-          LB.rail.add(boxGeo(out(p), out(q), RAIL_H, CROWN_BACK.t, MASS_H + CAP));
-        });
-      }
+      // between its posts (silenceProps.js)
+      
+      ring.forEach((p, s) => {
+        const q = ring[s + 1];
+        if (!p || !q) return;
+        const out = (r) => add(c, dir(Math.atan2(r[1] - c[1], r[0] - c[0]) / deg), rWall + 3.5 + CROWN_BACK.out);
+        LB.rail.add(boxGeo(out(p), out(q), RAIL_H, CROWN_BACK.t, MASS_H + CAP));
+      });
     }
     LB.floor.add(slabGeo(hexPts(c, RC), [circlePts(c, rMouth, 80)], 6, 0));
-    // the bronze rim, open where the stair begins its way down (?wvrail=old:
-    // the rail is otherwise iron and walnut, laid below, vertigoRail.js)
-    for (let s = 0; s < 80 && VRAIL_OLD; s++) {
-      const a0 = (360 * s) / 80, a1 = (360 * (s + 1)) / 80;
-      if (a1 > 156 && a0 < 184) continue;
-      LB.bronze.add(boxGeo(add(c, dir(a0), rMouth + 1.3), add(c, dir(a1), rMouth + 1.3), 9, 2.6, 6));
-    }
     // (0.5, under the pools' plane at 6.6: see the rings round the wells)
     LB.inlay.add(slabGeo(circlePts(c, rMouth + 17, 80), [circlePts(c, rMouth + 14.5, 80)], 0.5, 6));
     // Pale vellum and calf near the rim, dark leather down the throat, so the
@@ -120,6 +114,8 @@ export function* buildVertigo(ctx) {
         ['#5a2923', '#662e25', '#4f2420', 0.12 + 0.04 * deep],
         ['#2d3a2b', '#333d29', '#283426', 0.08 + 0.04 * deep],
         ['#221d19', '#2a241f', '#1e1a17', 0.08 + 0.42 * deep],
+        // (gilt calf, the Vertigo's own: roomColour.js 1)
+        ...([[...VERTIGO_GILT, 0.34 * (1 - deep)]]),
       ];
       const total = odds.reduce((n, o) => n + o[3], 0);
       let r = h * total, hex = odds[1][0];
@@ -152,9 +148,9 @@ export function* buildVertigo(ctx) {
         if (a + w / rf / deg > to) break;
         const book = { wall, color: R.color, k: R.k * (0.96 + vr() * 0.08), spine: R.spine, title: R.title + (R.n > 1 ? 1000 * (R.n - run + 1) : 0) };
         // now and then one gone from its set as well, and the next leaning
-        // into its room (vertigoFix.js, 2: by where it stood, so the stream
+        // into its room (vertigoProps.js: by where it stood, so the stream
         // draws as it did)
-        if (!vertigoOld(2) && !lean && bookHash(a, sy) < MISSING) {
+        if (!lean && bookHash(a, sy) < MISSING) {
           a += (w + 0.006 + vr() * 0.035) / rf / deg;
           lean = w * 0.9;
           run--;
@@ -204,7 +200,7 @@ export function* buildVertigo(ctx) {
     // and in the three lower tiers stop either side of the painting (270).
     const jamb0 = 150 + jambA + 1.3, jamb1 = 510 - jambA - 1.3;
     const roomBays = (tier) => (paintings && tier < 3 ? [[jamb0, 244], [296, jamb1]] : [[jamb0, jamb1]]);
-    if (!BOOKS_GIANT) {
+    {
       // the case's back brought forward to stand behind the books
       const backY = TIER_BASE + 3 * TIER_H, topY = TIER_BASE + TIERS * TIER_H;
       for (const [a0, a1] of roomBays(0)) LB.shelfBack.add(ringGrain(slabGeo(arcSlab(rFace + 4.6, rFace + 5.6, a0, a1), [], backY - TIER_BASE, TIER_BASE), c[0], c[1]));
@@ -214,26 +210,23 @@ export function* buildVertigo(ctx) {
       yield;
       const y = TIER_BASE + tier * TIER_H;
       LB.shelf.add(ringGrain(slabGeo(caseRing, [], 2.4, y - 2.4), c[0], c[1]));
-      if (!vertigoOld(3)) LB.shelfLip.add(shelfLip(c, rFace, y, y - 2.4, 150 + jambA, 510 - jambA));
+      LB.shelfLip.add(shelfLip(c, rFace, y, y - 2.4, 150 + jambA, 510 - jambA));
       for (let s = 0; s < 170; s++) {
         const a = (360 * s) / 170, off = Math.abs(((a - 150 + 540) % 360) - 180);
         if (off < 12) continue;
         if (paintings && tier < 3 && Math.abs(((a - 270 + 540) % 360) - 180) < 26) continue;
-        const p = add(c, dir(a), rWall - 5.5), hh = rr(12, TIER_H - 3), w = rr(2.6, 3.6), color = pick(BOOKS);
-        // The books where the doorway's piers now stand are still drawn: the
-        // garden is laid out from the same stream (see `resume`). And so are
-        // the giants (?wbookscale=old), real books shelved below in their place.
-        if (off < jambA + 1.3 || !BOOKS_GIANT) continue;
-        books.push({ p: [p[0], y + hh / 2, p[1]], rot: [0, -(a + 90) * deg, 0], s: [w, hh, 9], color: color && funnelColor(p, y) });
+        // Each book of this ring is still drawn from the stream, the ones where
+        // the doorway's piers now stand too: the garden is laid out from the
+        // same stream (see `resume`).
+        rr(12, TIER_H - 3); rr(2.6, 3.6); pick(BOOKS);
       }
-      if (BOOKS_GIANT) continue;
       // A box to every book in the three tiers the eye is level with; the
       // two over them, seen only from far below, painted.
       const wall = shelvedWalls.n++;
       shelvesOf(tier, y).forEach(({ y: sy, clear }, j) => {
         for (const [a0, a1] of roomBays(tier)) {
           if (j > 0) LB.shelf.add(ringGrain(slabGeo(arcSlab(rFace, rFace + 4.6, a0, a1), [], BOARD, sy - BOARD), c[0], c[1]));
-          if (j > 0 && !vertigoOld(3)) LB.shelfLip.add(shelfLip(c, rFace, sy, sy - BOARD, a0, a1));
+          if (j > 0) LB.shelfLip.add(shelfLip(c, rFace, sy, sy - BOARD, a0, a1));
           if (tier < 3) {
             shelveRing(tier, sy, clear, rFace, a0, a1, wall);
             paintedRing(lodFor(wall, 3), tier, sy, clear, rFace, a0, a1);
@@ -264,7 +257,6 @@ export function* buildVertigo(ctx) {
     // bearing (the Vertigo's stand is in the first, at 0.06) — and between
     // them, where it still stands
     const RAILED = [...GAPS.map((g, k) => [k ? GAPS[k - 1][1] : 0, g[0]]), [GAPS.at(-1)[1], 1]];
-    const inGap = (t) => GAPS.some(([t0, t1]) => t >= t0 && t <= t1);
     const coneR = (y) => rMouth + (NECK - rMouth) * ((6 - y) / DEPTH);   // the face of the shelves at a height
     const treadW = () => SPIRAL.width;
     const bearing = (t) => 170 + t * TURNS * 360;
@@ -280,10 +272,10 @@ export function* buildVertigo(ctx) {
 
     // the dark wood at the back of the shelves
     // (5 behind the face for real books, 12 for the giants)
-    const BACK = BOOKS_GIANT ? RECESS : 5;
+    const BACK = 5;
     const back = new THREE.Mesh(
       keep(new THREE.CylinderGeometry(rMouth + BACK, NECK + BACK, DEPTH, light ? 48 : 96, 1, true)),
-      Std({ map: withRepeat(wood.map, WOOD_OLD ? [36, 26] : [16, 46]), color: '#4a3a2e', roughness: 1, side: THREE.BackSide }),
+      Std({ map: withRepeat(wood.map, [16, 46]), color: '#4a3a2e', roughness: 1, side: THREE.BackSide }),
     );
     back.position.set(c[0], 6 - DEPTH / 2, c[1]);
     back.receiveShadow = true;
@@ -318,29 +310,20 @@ export function* buildVertigo(ctx) {
       yield;
       const y = 6 - (k + 1) * TIER_H, face = coneR(y), n = light ? 40 : 80;
       LB.shelf.add(ringGrain(slabGeo(circlePts(c, face + RECESS + 0.5, n), [circlePts(c, face - 0.6, n)], 2.4, y - 2.4), c[0], c[1]));
-      if (!vertigoOld(3)) LB.shelfLip.add(shelfLip(c, face - 0.6, y, y - 2.4, 0, 360, 360 / n));
+      LB.shelfLip.add(shelfLip(c, face - 0.6, y, y - 2.4, 0, 360, 360 / n));
       const rs = face + 5.3;
       for (let u = rr(0, 3); u < 2 * Math.PI * rs - 3;) {
         const w = rr(2.3, 4.4), a = (u + w / 2) / rs / deg;
         const clear = !uprightAt.some((ua) => Math.abs(((a - ua + 540) % 360) - 180) * deg * rs < 1.5 + w / 2);
         if (clear && rnd() > 0.035) {
-          const hh = rr(11, k === 0 ? 13 : 17.5), p = add(c, dir(a), rs);
-          const tip = rnd() < 0.05 ? rr(-0.25, 0.25) : 0, color = pick(BOOKS) && funnelColor(p, y), shade = rr(0.7, 1.05);
-          // On the four shelves nearest the head of the stair, shelved by hand:
-          // one taken out here and there, others leaning into the room it left,
-          // some pushed to the back. Every book stood upright at one depth
-          // reads as rings of bricks. Decided by where the book stands — the
-          // draws above are the garden's (see `resume`), all still made.
-          const h = k < 4 ? Math.abs(Math.sin(p[0] * 39.346 + p[1] * 11.135 + y * 7.11) * 24634.6345) % 1 : 1;
-          if (h >= 0.06 && BOOKS_GIANT) {
-            const lean = h < 0.2 ? (h < 0.13 ? 1 : -1) * (0.1 + 0.14 * ((h * 53) % 1)) : tip;
-            const q = h > 0.2 && h < 0.29 ? add(c, dir(a), rs + 1.8) : p;
-            books.push({ p: [q[0], y + hh / 2, q[1]], rot: [0, -(a + 90) * deg, lean], s: [w, hh, 9], color, k: shade });
-          }
+          // The books once shelved here are still drawn: the garden is laid
+          // out from the same stream (see `resume`).
+          rr(11, k === 0 ? 13 : 17.5);
+          if (rnd() < 0.05) rr(-0.25, 0.25);
+          pick(BOOKS); rr(0.7, 1.05);
         }
         u += w + rr(0.12, 0.8);
       }
-      if (BOOKS_GIANT) continue;
       // Real books: four shelves of quartos to a giant's one, each a little
       // wider round than the one below it as the funnel opens upward, between
       // the uprights. Boxes in the seven rings the stair's head looks across
@@ -352,7 +335,7 @@ export function* buildVertigo(ctx) {
       shelvesOf(T, y).forEach(({ y: sy, clear }, j) => {
         const rf = coneR(sy);
         if (j > 0) LB.shelf.add(ringGrain(slabGeo(circlePts(c, rf + BACK + 0.5, n2), [circlePts(c, rf - 0.6, n2)], BOARD, sy - BOARD), c[0], c[1]));
-        if (j > 0 && !vertigoOld(3)) LB.shelfLip.add(shelfLip(c, rf - 0.6, sy, sy - BOARD, 0, 360, 360 / n2));
+        if (j > 0) LB.shelfLip.add(shelfLip(c, rf - 0.6, sy, sy - BOARD, 0, 360, 360 / n2));
         const half = 1.45 / rf / deg;
         const deep = Math.min(1, Math.max(0, (6 - sy) / 260)), glow = Math.min(1, Math.max(0, (-250 - sy) / 180)), v = 1.05 - 0.6 * deep;
         const tint = [0.78, 0.54, 0.3].map((lit) => v + (lit - v) * 0.38 * glow * glow);
@@ -384,9 +367,8 @@ export function* buildVertigo(ctx) {
       nosings.add(placed(lip, middle, y, -a * deg));
       if (s % Math.round(STEPS / 12) === 5) {
         const la = a + 1, lp = add(c, dir(la), rf - 3.4), stem = add(c, dir(la), rf - 0.9);
-        // a small lantern on a wall bracket (lampPass.js; ?wlampsoff=sconce:
-        // without it)
-        const trial = LAMPS.sconce && stairSconce({ wall: add(c, dir(la), rf - 0.6), ry: (180 - la) * deg, y });
+        // a small lantern on a wall bracket (lampPass.js)
+        const trial = stairSconce({ wall: add(c, dir(la), rf - 0.6), ry: (180 - la) * deg, y });
         if (trial) {
           trial.bronze.forEach((g) => LB.bronze.add(g));
           if (trial.globe) globes.push(trial.globe);
@@ -399,6 +381,8 @@ export function* buildVertigo(ctx) {
         }
         halo(lp, y + 11, 28, '#ffb866', 0.34, trial ? lampHaloTex : undefined);
         point(lp, y + 11, '#ffb866', 3400, -1);
+        // (the soot it has put up the wall over it: ashlarSurface.js, 4)
+        sootOver([lp[0], y + 12.4, lp[1]]);
       }
       if (s > 2 && s % 7 === 3 && rnd() < 0.5) {
         // Leave the middle of the tread clear. These low piles are solid to
@@ -406,7 +390,7 @@ export function* buildVertigo(ctx) {
         const bp = add(c, dir(a + rr(-1, 1)), rf - 1.6 * (1 - t * 0.35)), yaw = -a * deg + rr(-0.35, 0.35);
         // (folios of 47-66 cm by 34-43, 10-18 thick, as the giants were; at
         // their real size, the draws as the giants' were)
-        const pk = BOOKS_GIANT ? 1 : 0.42, pl = BOOKS_GIANT ? 1 : 0.76;
+        const pk = 0.42, pl = 0.76;
         for (let n = 0, top = y + 1.5, count = 1 + Math.floor(rnd() * 3); n < count; n++) {
           const th = rr(1.1, 1.9) * pk;
           books.push({ p: [bp[0], top + th / 2, bp[1]], rot: [0, yaw + rr(-0.2, 0.2), Math.PI / 2], s: [th, rr(5, 7) * (1 - t * 0.3) * pl, rr(3.6, 4.6) * pl],
@@ -487,7 +471,7 @@ export function* buildVertigo(ctx) {
     // no higher than the floor: its first few degrees stood 2.8 proud of the
     // floor's edge, a plank across the way onto the stair)
     carved.add(sweep((t) => {
-      const y = yAt(t), rw = coneR(y), top = VLAND_OLD ? y + 4.8 : Math.min(y + 4.8, 5.9);
+      const y = yAt(t), rw = coneR(y), top = Math.min(y + 4.8, 5.9);
       return [[rw - 1.5, top], [rw - 1.5, y - 3.2], [rw + 0.9, y - 3.2], [rw + 0.9, top]];
     }, 0, 1, true));
     // corbels under the carriage, into the wall
@@ -501,82 +485,47 @@ export function* buildVertigo(ctx) {
     // The landing curves from the mouth into the stair, with continuous
     // paving and a stone edge underneath the rail all the way to the newel.
     const LAND0 = 153;
-    const beside = (a, r, off) => add(add(c, dir(a), r), dir(a + 90), off);
-    const landing = !VLAND_OLD && !VRAIL_OLD ? vertigoLanding(c, rMouth, inner(0) - 0.9) : null;
-    if (!VLAND_OLD) {
-      if (landing) {
-        LB.floor.add(slabGeo(landing.floor, [], 6, 0));
-        carved.add(mouldGeo(landing.rail.map(([x, z]) => [x, 6.2, z]), [
-          [-1.5, 0, true], [-1.5, -5.6, true], [-1.1, -6.2, true],
-          [1.1, -6.2, true], [1.5, -5.6, true], [1.5, 0, true],
-        ]));
-      } else {
-        const back = 167.5, chord = (rMouth * Math.cos(2.25 * deg)) / Math.cos((back - 168.75) * deg), rIn = inner(0) + 0.1;
-        const outer = [153, 157.5, 162, 166.5].map((a) => add(c, dir(a), rMouth));
-        const edge = Array.from({ length: 9 }, (_, k) => add(c, dir(back - ((back - LAND0) * k) / 8), rIn));
-        LB.floor.add(slabGeo([...outer, add(c, dir(back), chord), ...edge], [], 6, 0));
-        const tHead = (LAND0 - 170) / (TURNS * 360), level = (prof) => () => prof(0);
-        carved.add(sweep(level(carriage), tHead, 0, true));
-        carved.add(sweep(level(roll), tHead, 0));
-        carved.add(sweep(level(fillet), tHead, 0));
-      }
-      for (const a of [157, 163]) {
-        for (const [depth, h, top, wide] of [[5, 6, -4.2, 3.2], [3, 4, -10, 2.6]]) {
-          const p = add(c, dir(a), coneR(4) + 0.5 - depth / 2);
-          carved.add(new THREE.BoxGeometry(wide, h, depth).rotateY(facing(a)).translate(p[0], 4 + top - h / 2, p[1]));
-        }
-      }
-      // (?wvrail=old) the rim, turned in along the landing's end and on along its edge
-      if (VRAIL_OLD) {
-        LB.bronze.add(boxGeo(beside(LAND0, rMouth + 2.6, 1.3), beside(LAND0, inner(0) - 1.9, 1.3), 9, 2.6, 6));
-        for (let a = LAND0; a < 168; a += 4.5) LB.bronze.add(boxGeo(add(c, dir(a), inner(0) - 0.6), add(c, dir(Math.min(168, a + 4.5)), inner(0) - 0.6), 9, 2.6, 6));
+    const landing = vertigoLanding(c, rMouth, inner(0) - 0.9);
+    
+    if (landing) {
+      LB.floor.add(slabGeo(landing.floor, [], 6, 0));
+      carved.add(mouldGeo(landing.rail.map(([x, z]) => [x, 6.2, z]), [
+        [-1.5, 0, true], [-1.5, -5.6, true], [-1.1, -6.2, true],
+        [1.1, -6.2, true], [1.5, -5.6, true], [1.5, 0, true],
+      ]));
+    } else {
+      const back = 167.5, chord = (rMouth * Math.cos(2.25 * deg)) / Math.cos((back - 168.75) * deg), rIn = inner(0) + 0.1;
+      const outer = [153, 157.5, 162, 166.5].map((a) => add(c, dir(a), rMouth));
+      const edge = Array.from({ length: 9 }, (_, k) => add(c, dir(back - ((back - LAND0) * k) / 8), rIn));
+      LB.floor.add(slabGeo([...outer, add(c, dir(back), chord), ...edge], [], 6, 0));
+      const tHead = (LAND0 - 170) / (TURNS * 360), level = (prof) => () => prof(0);
+      carved.add(sweep(level(carriage), tHead, 0, true));
+      carved.add(sweep(level(roll), tHead, 0));
+      carved.add(sweep(level(fillet), tHead, 0));
+    }
+    for (const a of [157, 163]) {
+      for (const [depth, h, top, wide] of [[5, 6, -4.2, 3.2], [3, 4, -10, 2.6]]) {
+        const p = add(c, dir(a), coneR(4) + 0.5 - depth / 2);
+        carved.add(new THREE.BoxGeometry(wide, h, depth).rotateY(facing(a)).translate(p[0], 4 + top - h / 2, p[1]));
       }
     }
-    if (!VRAIL_OLD) {
+    // the rim, turned in along the landing's end and on along its edge
+    {
       // One continuous iron and walnut rail round the mouth and onto the
       // stair; the stair's existing gaps remain open for the fall.
       const rimR = rMouth + 1.3, railR = inner(0) - 0.9;
-      const rimTo = 360 + LAND0 + (VLAND_OLD ? Math.asin(0.9 / rimR) / deg : 0);
+      const rimTo = 360 + LAND0 + (0);
       const n = Math.ceil((rimTo - 184.5) / 2.25);
       const rim = Array.from({ length: n + 1 }, (_, k) => add(c, dir(184.5 + ((rimTo - 184.5) * k) / n), rimR));
-      const level = VLAND_OLD ? rim : [...rim.slice(0, -1), ...landing.rail];
+      const level = [...rim.slice(0, -1), ...landing.rail];
       buildVertigoRail({
-        level, corners: [], toHead: !VLAND_OLD, floor: 6, head: add(c, dir(170), railR),
+        level, corners: [], toHead: true, floor: 6, head: add(c, dir(170), railR),
         helix: {
           at: (t) => add(c, dir(bearing(t)), inner(t) - 0.9), tread: (t) => yAt(t) + 1.5, base: (t) => yAt(t) + 2.2,
           runs: RAILED, samples: STEPS * 3,
         },
         newBatch: (mat) => new Batch(mat), M, instances, mouldGeo,
       });
-    } else {
-      // a newel where the stair leaves the floor
-      {
-        const p = add(c, dir(bearing(0)), inner(0) - 0.6);
-        carved.add(placed(new THREE.CylinderGeometry(2, 2.6, 21, 12), p, 6.5));
-        LB.bronze.add(placed(new THREE.SphereGeometry(2, 14, 10), p, 18.6));
-      }
-      // the handrail and its balusters, spaced by distance along the open edge
-      const rail = (t) => Array.from({ length: 6 }, (_, k) => [inner(t) - 0.9 + Math.cos((k * Math.PI) / 3) * 0.6, yAt(t) + 12 + Math.sin((k * Math.PI) / 3) * 0.6]);
-      // The fall and the return use this opening. Keep both the solid rail
-      // and its posts out of the gap, with the end knobs below marking it.
-      for (const [t0, t1] of RAILED) LB.bronze.add(sweep(rail, t0, t1));
-      const railAt = (t, lift, inset = 0) => { const p = add(c, dir(bearing(t)), inner(t) - 0.9 - inset); return [p[0], yAt(t) + lift, p[1]]; };
-      for (let s = 1, samples = STEPS * 4, since = 4.5; s <= samples; s++) {
-        const t = s / samples, dt = 1 / samples;
-        since += Math.hypot((2 * Math.PI * inner(t) * TURNS) * dt, DROP * dt);
-        if (since < 4.5) continue;
-        since = 0;
-        if (inGap(t)) continue;
-        balusters.push({ p: railAt(t, 2.2), s: [0.6, 1.55, 0.6] });
-      }
-      // Where it gave way the rail just stops, a knob on each end. (A rail torn
-      // down into the gap, a baluster knocked askew and the sockets of the lost
-      // ones, a stride from the reader's eye, stood in the frame like a bronze
-      // bone and a row of black holes.)
-      for (const t of GAPS.flat()) {
-        const p = railAt(t, 12);
-        LB.bronze.add(new THREE.SphereGeometry(0.95, 12, 8).translate(p[0], p[1], p[2]));
-      }
     }
 
     // An open book left lying where the rail has gone (spiral.js `bookAt`):
@@ -593,11 +542,10 @@ export function* buildVertigo(ctx) {
       return parts.map(([g, k]) => [g.rotateY(yaw).translate(x, y, z), k]);
     };
     const BOOK_IN = 4.2;   // its middle, in from the open edge
-    if (!BRINK_OLD) {
-      for (const [t0] of GAPS) {
-        const t = bookAt(t0, STEPS), p = add(c, dir(bearing(t)), inner(t) + BOOK_IN);
-        for (const [g, k] of openBook(p[0], yAt(t) + 1.5, p[1], -bearing(t) * deg + 0.15)) LB[k].add(g);
-      }
+    
+    for (const [t0] of GAPS) {
+      const t = bookAt(t0, STEPS), p = add(c, dir(bearing(t)), inner(t) + BOOK_IN);
+      for (const [g, k] of openBook(p[0], yAt(t) + 1.5, p[1], -bearing(t) * deg + 0.15)) LB[k].add(g);
     }
 
     // Lamps hung in the well at every depth, well clear of the stair and of the
@@ -639,8 +587,7 @@ export function* buildVertigo(ctx) {
     // on down the endless turns would pass the glow, hanging in the well at the
     // depth the light had been, and look back up at it. However far down they
     // walk, the light below looks as it did from the stair's head.
-    // (?wbrink=old: only the disc.)
-    const sink = BRINK_OLD ? null : { halos: [], shaft: null, glow: null, wish: null };
+    const sink = { halos: [], shaft: null, glow: null, wish: null };
     if (sink) {
       sink.glow = new THREE.InstancedMesh(keep(new THREE.SphereGeometry(1, 16, 12)), M.glow, 1);
       sink.glow.setMatrixAt(0, new THREE.Matrix4().makeScale(7, 7, 7));
@@ -674,7 +621,7 @@ export function* buildVertigo(ctx) {
         sink.wish.y = -425 + dy;
       };
     }
-    // (over the map, the well darkens with depth: mapFix.js, 7 — see pitFade)
+    // (over the map, the well darkens with depth: mapLook.js — see pitFade)
     pitCarved = carved.mat;
 
     // loose pages, turning slowly down the well
@@ -763,9 +710,9 @@ export function* buildVertigo(ctx) {
     spiral = makeEndlessSpiral(c, {
       stone: LB.step.mat ?? carved.mat, bronze: LB.bronze.mat, books: funnelRowsMat,
       // (the same rail on down every turn of it, and the string it stands in)
-      rail: VRAIL_OLD ? null : (turn) => endlessRail({ ...turn, mouldGeo, M, carved: carved.mat }),
+      rail: (turn) => endlessRail({ ...turn, mouldGeo, M, carved: carved.mat }),
       // (and the same book, by the same gap, on every one of its turns)
-      dress: BRINK_OLD ? null : ({ edge, pitch, angle0, steps }) => {
+      dress: ({ edge, pitch, angle0, steps }) => {
         const TAU = Math.PI * 2, a0 = bearing(bookAt(GAPS[0][0], STEPS)) * deg;
         const u = Math.round(((((a0 - angle0) % TAU) + TAU) % TAU) / TAU * steps) / steps, a = angle0 + u * TAU;
         return openBook(Math.cos(a) * (edge + BOOK_IN), 1.5 - u * pitch, Math.sin(a) * (edge + BOOK_IN), -a + 0.15).map(([g, k]) => [g, M[k], k]);

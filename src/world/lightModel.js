@@ -27,14 +27,13 @@
 // only the lamps are: the moon is one hard light with a shadow map, and light
 // wrapped past its terminator would meet its own shadow in a seam.
 //
-// ?wsoft=old puts both back; ?wsoft=N and ?wwrap=N dial them.
+// ?wsoft=N and ?wwrap=N dial them.
 import * as THREE from 'three';
 
 const Q = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
 const qNum = (k, d) => (Q.get(k) !== null && Q.get(k) !== '' && Number.isFinite(+Q.get(k)) ? +Q.get(k) : d);
-const OLD = Q.get('wsoft') === 'old';
-export const LAMP_SOFT = OLD ? 0 : Math.max(0, qNum('wsoft', 11));
-export const LAMP_WRAP = OLD ? 0 : Math.max(0, qNum('wwrap', 0.35));
+export const LAMP_SOFT = Math.max(0, qNum('wsoft', 11));
+export const LAMP_WRAP = Math.max(0, qNum('wwrap', 0.35));
 
 // What a lamp loses at `at` to the softer near field, so it can be given back.
 export const softGain = (decay, at) => ((at * at + LAMP_SOFT * LAMP_SOFT) / (at * at)) ** (decay / 2);

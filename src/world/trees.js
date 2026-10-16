@@ -195,9 +195,9 @@ function mapleWood(rng, wood, { H, S, r0, leaders, detail }) {
 // Returns the wood (added to `wood`), the sprays and, for a willow, the whips:
 //   sprays  { p, s, rot, kind, shade, crown: [x, y, z, r] }
 //   whips   { p, len, wide, yaw, kind, shade }
-// `weeping` (a willow's, pavilionProps.js 6): a stream of its own to dress the
+// `weeping` (a willow's, pavilionProps.js): a stream of its own to dress the
 // willow from, as a weeping one — see the end of this.
-// `spire` (a cedar's, webProps.js 2): dressed as a spire — see the cedar.
+// `spire` (a cedar's, webProps.js): dressed as a spire — see the cedar.
 export function growTree(species, rng, wood, { H, S, lean = null, detail = true, skirt = 0, weeping = null, spire = null }) {
   const R = (a, b) => a + (b - a) * rng();
   const tint = new THREE.Color(BARK[species]);
@@ -430,9 +430,9 @@ export function growTree(species, rng, wood, { H, S, lean = null, detail = true,
     tube(trunk, { flare: 0.5 });
     let y = H * R(0.2, 0.3), turn = rng() * 6.28;
     // `skirt`: branched nearly to the ground, as a cedar grown for a screen
-    // is (webFix.js, 2) — its draw spent all the same
+    // is (webProps.js) — its draw spent all the same
     if (skirt) y = H * skirt;
-    // A spire (webProps.js, 2). Grown as below, a whorl every six to nine
+    // A spire (webProps.js). Grown as below, a whorl every six to nine
     // units whatever its reach, the upper half of a cedar was a bare stem with
     // a tuft on it now and then: a telegraph pole. A whorl is set as far from
     // the last as its own leaf reaches, so the leaf of one runs into the next
@@ -516,7 +516,7 @@ export function growTree(species, rng, wood, { H, S, lean = null, detail = true,
   }
   for (const w of whips) w.shade = 0.8 + 0.25 * rng();
 
-  // A weeping willow (pavilionProps.js, 6). Dressed as above it was an
+  // A weeping willow (pavilionProps.js). Dressed as above it was an
   // umbrella pine: fifteen tufts lying level on the top of a dome, the limbs
   // bare under them, and whips let down from under the tufts as separate
   // bright strings. A willow is one round head of leaf that droops — fullest

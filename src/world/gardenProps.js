@@ -1,16 +1,9 @@
-// The garden's props, reviewed 2026-10-11 (audit III, board 5): the signpost
-// (3), the wisteria's trunk (4), the grass round the lanterns (5), the
-// Pavilion's hip ends (6), the water round the Pavilion (7), the armillary's
-// plinth (8), the niches by the Web's stand (10), the trees' outlines (11).
-// What each point was, and why: docs/design-history.md.
-//
-// ?wgarden5=old puts all of them back as they were; ?wgarden5=old:3,8 only those.
+// The garden's details: the signpost, the wisteria's trunk, the Pavilion's
+// hip ends and water, the armillary's plinth, the Web's niches, the trees'
+// outlines, and the ground under the moon (sward, tufts, mist).
 import * as THREE from 'three';
 
 const Q = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
-const V = Q.get('wgarden5');
-const ONLY = V && V.startsWith('old:') ? new Set(V.slice(4).split(',').map(Number)) : null;
-export const garden5Old = (n) => V === 'old' || (ONLY ? ONLY.has(n) : false);
 const qn = (k, d) => (Q.get(k) !== null && Q.get(k) !== '' && Number.isFinite(+Q.get(k)) ? +Q.get(k) : d);
 
 // ── 3. The signpost ───────────────────────────────────────────────────────────
@@ -231,9 +224,9 @@ export const HORN = { color: '#4a3b2a', roughness: 0.58, metalness: 0.55, sky: 0
 // the chop that leans toward it (`lean`: the slope at which a facet begins to
 // take it, and takes all of it).
 export const POND = {
-  on: !garden5Old(7),
+  on: true,
   steep: qn('wpondsteep', 9), tight: qn('wpondtight', 26), gain: qn('wpondgain', 1.1), reach: qn('wpondreach', 95),
-  glow: { color: '#ff8a40', k: garden5Old(7) ? 0 : qn('wpondglow', 0.85), from: 30, fade: qn('wpondfade', 24), lean: [0.006, 0.034] },
+  glow: { color: '#ff8a40', k: qn('wpondglow', 0.85), from: 30, fade: qn('wpondfade', 24), lean: [0.006, 0.034] },
 };
 
 // ── 8. The armillary's plinth, and its rings ──────────────────────────────────
@@ -319,4 +312,196 @@ export const NICHE = {
 // ── 11. The far trees' edge ───────────────────────────────────────────────────
 // From `near` to `far` units off, a spray's cut edge goes over to a soft one:
 // a ramp `wide` pixels across, centred on where its alpha test cut it.
-export const FEATHER = { on: !garden5Old(11), near: qn('wfeathernear', 70), far: qn('wfeatherfar', 180), wide: qn('wfeatherwide', 2.2) };
+export const FEATHER = { on: true, near: qn('wfeathernear', 70), far: qn('wfeatherfar', 180), wide: qn('wfeatherwide', 2.2) };
+
+// ── 1, 2. The sward ───────────────────────────────────────────────────────────
+// `color`: the turf's own (linear), a dark green with the yellow in it that
+// living grass has; `deep` where it grows thick and dark (moss, the damp),
+// `dry` where it has gone toward straw. `detail`: how much of the painted
+// texture's light and dark is kept (its colour is not). `macro`: the sizes of
+// the patches, in units (a unit is 9.4 cm), and `k` how far apart in value.
+export const SWARD = {
+  color: new THREE.Color().setRGB(qn('wswr', 0.054), qn('wswg', 0.06), qn('wswb', 0.009)),
+  deep: new THREE.Color().setRGB(0.03, 0.042, 0.007),
+  dry: new THREE.Color().setRGB(0.08, 0.068, 0.016),
+  detail: qn('wswdetail', 0.8),
+  macro: [7, 23, 71],
+  k: qn('wswmacro', 0.45),
+  gain: qn('wswgain', 0.45),
+  // and the lantern's light off the cut grass (its `sward`),
+  // which was set for the near-black lawn and over this one glowed mustard
+  lampSward: qn('wswlamp', 0.35),
+};
+
+// ── 4. The moon on the ground ─────────────────────────────────────────────────
+// `light`: what the lawn's diffuse light is multiplied by — the moon and sky's
+// cyan taken out of it, a little, and not out of the sky. `fog`: how far the
+// lawn's fog goes from the night's teal toward a grey of its own value.
+// `mist`: the mist sheets' colour, a moonlit grey for the cyan they were.
+export const MOON_GROUND = {
+  light: new THREE.Vector3(qn('wmglr', 1.3), 1.0, qn('wmglb', 0.5)),
+  fog: qn('wmgfog', 1),
+  fogTint: new THREE.Vector3(1.25, 1.12, 0.6),
+  mist: '#b6b8b0',
+};
+
+// The noise the patches are made from, and the sward's colour from the
+// painted texture (`tex`, linear) and its mean (`mean`, the top of its mips)
+// at a place on the lawn (`xz`). Shared by the lawn and the pond's bank.
+export const SWARD_GLSL = /* glsl */ `
+  uniform vec3 uSward;
+  uniform vec3 uSwardDeep;
+  uniform vec3 uSwardDry;
+  uniform vec3 uSwardK;
+  float gnHash(vec2 p) {
+    p = fract(p * vec2(123.34, 456.21));
+    p += dot(p, p + 45.32);
+    return fract(p.x * p.y);
+  }
+  float gnNoise(vec2 p) {
+    vec2 i = floor(p), f = fract(p), u = f * f * (3.0 - 2.0 * f);
+    return mix(mix(gnHash(i), gnHash(i + vec2(1.0, 0.0)), u.x), mix(gnHash(i + vec2(0.0, 1.0)), gnHash(i + 1.0), u.x), u.y);
+  }
+  vec3 swardColor(vec3 tex, vec3 mean, vec2 xz) {
+    float y = dot(tex, vec3(0.2126, 0.7152, 0.0722)), my = max(dot(mean, vec3(0.2126, 0.7152, 0.0722)), 1e-4);
+    float detail = clamp(y / my, 0.35, 2.4);
+    // three sizes of patch, the larger the stronger (the eye finds those first)
+    float tone = (gnNoise(xz / ${SWARD.macro[0].toFixed(1)}) - 0.5) * 0.5
+      + (gnNoise(xz / ${SWARD.macro[1].toFixed(1)} + 17.3) - 0.5) * 0.8
+      + (gnNoise(xz / ${SWARD.macro[2].toFixed(1)} + 41.7) - 0.5) * 0.9;
+    vec3 c = mix(uSward, uSwardDeep, smoothstep(0.0, -0.5, tone));
+    c = mix(c, uSwardDry, smoothstep(0.12, 0.6, tone) * 0.75);
+    c *= 1.0 + tone * uSwardK.y;
+    return c * mix(1.0, detail, uSwardK.x) * uSwardK.z;
+  }
+`;
+const swardUniforms = () => ({
+  uSward: { value: SWARD.color }, uSwardDeep: { value: SWARD.deep }, uSwardDry: { value: SWARD.dry },
+  uSwardK: { value: new THREE.Vector3(SWARD.detail, SWARD.k, SWARD.gain) },
+});
+const moonUniforms = () => ({ uMoonGround: { value: MOON_GROUND.light }, uMoonFog: { value: MOON_GROUND.fog }, uMoonFogTint: { value: MOON_GROUND.fogTint } });
+// the lawn's diffuse light, less cyan; `w` how much of the surface is lawn.
+// Only as far as the light IS cyan (the moon, the sky): a lantern's, already
+// warm, warmed again turned the grass round it mustard.
+export const moonGroundLight = (w = '1.0') => `
+  {
+    vec3 mgAlbedo = max(diffuseColor.rgb, vec3(1e-4));
+    vec3 mgD = reflectedLight.directDiffuse / mgAlbedo, mgI = reflectedLight.indirectDiffuse / mgAlbedo;
+    float mgCoolD = smoothstep(0.04, 0.25, (mgD.b - mgD.r) / max(mgD.b, 1e-5));
+    float mgCoolI = smoothstep(0.04, 0.25, (mgI.b - mgI.r) / max(mgI.b, 1e-5));
+    reflectedLight.directDiffuse *= mix(vec3(1.0), uMoonGround, ${w} * mgCoolD);
+    reflectedLight.indirectDiffuse *= mix(vec3(1.0), uMoonGround, ${w} * mgCoolI);
+  }`;
+// the fog toward a grey of its own value; `w` as above
+export const moonGroundFog = (w = '1.0') => `
+  #ifdef USE_FOG
+    #ifdef FOG_EXP2
+      float fogFactor = 1.0 - exp(- fogDensity * fogDensity * vFogDepth * vFogDepth);
+    #else
+      float fogFactor = smoothstep(fogNear, fogFar, vFogDepth);
+    #endif
+    vec3 groundFog = mix(fogColor, vec3(dot(fogColor, vec3(0.2126, 0.7152, 0.0722))) * uMoonFogTint, uMoonFog * ${w});
+    gl_FragColor.rgb = mix(gl_FragColor.rgb, groundFog, fogFactor);
+  #endif`;
+
+// Every material this module patches, for the dials (`__ground`, dev only).
+const live = [], mists = [];
+export const trackMist = (mat) => { mists.push(mat); return mat; };
+const track = (sh) => { live.push(sh.uniforms); };
+
+// Chain a patch after a material's own (keeping its program key apart).
+function chain(mat, key, fn) {
+  const prev = mat.onBeforeCompile, prevKey = mat.customProgramCacheKey;
+  mat.onBeforeCompile = function (sh, renderer) {
+    prev?.call(this, sh, renderer);
+    fn(sh);
+  };
+  mat.customProgramCacheKey = function () { return `${prevKey.call(this)}-${key}`; };
+  return mat;
+}
+
+// The lawn (M.grass): its own colour from the painted grass's light and dark
+// (1), patches over it (2), and its light and fog less cyan (4).
+export function swardLawn(mat) {
+  return chain(mat, `ground-${+true}${+true}${+true}`, (sh) => {
+    Object.assign(sh.uniforms, swardUniforms(), moonUniforms());
+    track(sh);
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', `#include <common>
+        varying vec3 vSwardW;`)
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+        vSwardW = (modelMatrix * vec4(transformed, 1.0)).xyz;`);
+    let f = sh.fragmentShader.replace('#include <common>', `#include <common>
+        uniform vec3 uMoonGround;
+        uniform float uMoonFog;
+        uniform vec3 uMoonFogTint;
+        varying vec3 vSwardW;
+        ${SWARD_GLSL}`);
+    
+    f = f.replace('#include <map_fragment>', `#include <map_fragment>
+      diffuseColor.rgb = swardColor(sampledDiffuseColor.rgb, textureLod(map, vMapUv, 12.0).rgb, vSwardW.xz);`);
+    
+    f = f.replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
+      ${moonGroundLight()}`)
+      .replace('#include <fog_fragment>', moonGroundFog());
+    sh.fragmentShader = f;
+  });
+}
+
+// The blades (M.lawnBlade): their light less cyan as the lawn's is (4).
+export function moonBlades(mat) {
+  return chain(mat, 'ground-moon', (sh) => {
+    Object.assign(sh.uniforms, moonUniforms());
+    track(sh);
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', `#include <common>
+        uniform vec3 uMoonGround;
+        uniform float uMoonFog;
+        uniform vec3 uMoonFogTint;`)
+      .replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
+        ${moonGroundLight()}`)
+      .replace('#include <fog_fragment>', moonGroundFog());
+  });
+}
+
+// What bankLit (shore.js) takes to lay the same sward on the bank's grass
+export const BANK_SWARD = { on: true, moon: true, uniforms: () => ({ ...swardUniforms(), ...moonUniforms() }), track };
+export const MIST_COLOR = MOON_GROUND.mist;
+
+// ── 3. Tufts along the edges ──────────────────────────────────────────────────
+// Where a lawn is not mown: along the ways' sides, at a hedge's foot, round a
+// stone or a post, on the lip of the bank — so the blades stand there, in
+// runs and gaps, and not out in the open lawn. `step`: how far apart along an
+// edge a clump may stand; `out`: how far off the edge (most of them close in);
+// `run`: the length of the runs and gaps; `bare` the share that is gap.
+// `height`: a clump's (uncut grass, a hand or two high); `stone`: clumps round
+// each stone's foot.
+export const TUFTS = {
+  on: true,
+  step: qn('wtuftstep', 0.75), out: [0.3, 3.2], run: 9, bare: qn('wtuftbare', 0.3),
+  height: qn('wtufth', 1.5), stone: [1, 3],
+  blades: [14, 26], spread: [0.05, 0.55], wide: [0.05, 0.09], tip: 1.35, k: qn('wtuftk', 0.68),
+  // a blade's root green (a little lighter and yellower than the sward, as
+  // uncut grass is), and the share gone to straw
+  green: [0.046, 0.058, 0.014], straw: [0.085, 0.072, 0.03], dry: 0.1,
+};
+
+// Dev: `__ground({ r, g, b, detail, macro, lr, lb, fog })` turns the dials live.
+if (import.meta.env?.DEV && typeof window !== 'undefined') {
+  window.__ground = (o = {}) => {
+    if (o.r !== undefined || o.g !== undefined || o.b !== undefined) SWARD.color.setRGB(o.r ?? SWARD.color.r, o.g ?? SWARD.color.g, o.b ?? SWARD.color.b);
+    if (o.detail !== undefined) SWARD.detail = o.detail;
+    if (o.macro !== undefined) SWARD.k = o.macro;
+    if (o.gain !== undefined) SWARD.gain = o.gain;
+    if (o.lr !== undefined) MOON_GROUND.light.x = o.lr;
+    if (o.lb !== undefined) MOON_GROUND.light.z = o.lb;
+    if (o.mist !== undefined) for (const m of mists) m.color.set(o.mist);
+    if (o.fog !== undefined) MOON_GROUND.fog = o.fog;
+    if (o.ft) MOON_GROUND.fogTint.set(...o.ft);
+    for (const u of live) {
+      if (u.uSwardK) u.uSwardK.value.set(SWARD.detail, u.uSwardK.value.y && SWARD.k, SWARD.gain);
+      if (u.uMoonFog) u.uMoonFog.value = MOON_GROUND.fog;
+    }
+    return { sward: SWARD.color.toArray(), gain: SWARD.gain, detail: SWARD.detail, macro: SWARD.k, light: MOON_GROUND.light.toArray(), fog: MOON_GROUND.fog, live: live.length };
+  };
+}

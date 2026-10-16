@@ -4,23 +4,20 @@
 
 import * as THREE from 'three';
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { LAMPS } from '../lampPass';
 import { SPINE_KINDS, PLATE_CELLS, makeRng, TITLE_COUNT } from '../textures';
-import { BOOKS_GIANT, shaftVolume } from '../effects';
-import { vestOld } from '../vestFix';
-import { echoOld } from '../echoFix';
-import { auditOld, FILLET } from '../auditFix';
-import { COLOUR, lib3Old, STRING } from '../libFix3';
-import { doorPropsOld, LADDER_U as DOOR_LADDER_U } from '../doorProps';
-import { BINDINGS, TIERS, TIER_BASE, TIER_H, FRIEZE_Y, SHELVES, CASE_BACK, BOOK_ROWS, shelvesOf, BOARD, MASS_H, CAP, deg, GLASS_OLD } from './common';
+import { shaftVolume } from '../effects';
+import { FILLET, COLOUR, STRING } from '../libraryProps';
+import { ROOM_BINDINGS } from '../roomColour';
+import { LADDER_U as DOOR_LADDER_U } from '../doorProps';
+import { BINDINGS, TIERS, TIER_BASE, TIER_H, FRIEZE_Y, SHELVES, CASE_BACK, BOOK_ROWS, shelvesOf, BOARD, MASS_H, CAP, deg } from './common';
 
 export function buildBooks(ctx) {
   const { rnd, rr, pick, add, dist, rowV, gilt, boxGeo, placed, rodGeo, LB, shelved, shelvedWalls,
-    lodFor, books, BOOKS } = ctx;
+    lodFor, BOOKS } = ctx;
   // ── The books on a wall ───────────────────────────────────────────────────
   // Per room: the Silence is a room nobody reads in, and its bindings have gone
-  // grey with it; the Door keeps green off its shelves, so that the only green
-  // in the room is the moon's beyond the jamb.
+  // grey with it; the Door keeps the bottle-green calf off its shelves (its
+  // green is the sage of its cloth and its painted cases: roomColour.js).
   const tone = new THREE.Color();
   const toneHex = (hex, sat = 1, lum = 1) => {
     tone.set(hex);
@@ -29,18 +26,31 @@ export function buildBooks(ctx) {
     return `#${tone.getHexString()}`;
   };
   // And each gallery one local colour of its own, where one of the board's
-  // options for it is picked (libFix3.js, 1; c, the user's, by default): oxblood in
+  // options for it is picked (libraryProps.js; c, the user's, by default): oxblood in
   // the Vestibule, bottle green in the Echo, vellum in the Silence — that
   // binding's share of the runs weighted up, and every leather given back a
   // little of the chroma a wall of them loses at a stand's distance.
   const LOCAL = [1, 2, 4];   // BINDINGS' index, by room
   const bindingsFor = (room) => BINDINGS
-    .map((b, i) => (COLOUR && LOCAL[room] === i ? { ...b, share: b.share * COLOUR.weight, local: true } : b))
-    .map((b) => (COLOUR && room !== undefined && room < 2 ? { ...b, cols: b.cols.map((h) => toneHex(h, COLOUR.keep, 1)) } : b))
+    .map((b, i) => (LOCAL[room] === i ? { ...b, share: b.share * COLOUR.weight, local: true } : b))
+    .map((b) => (room !== undefined && room < 2 ? { ...b, cols: b.cols.map((h) => toneHex(h, COLOUR.keep, 1)) } : b))
     .filter((b) => !(room === 4 && b.green))
     .map((b) => (room === 2
       ? { ...b, share: b.kind === 'vellum' && !b.local ? 4 : b.share, cols: b.cols.map((h) => toneHex(h, 0.4, b.kind === 'vellum' ? 0.62 : 0.8)) }
-      : b));
+      : b))
+    // (each gallery's own binding, roomColour.js 1: its colours as they are,
+    // and its share of the runs out of every hundred books)
+    .map((b, i) => {
+      const own = room !== undefined && ROOM_BINDINGS[room];
+      return own?.quiet?.[i] !== undefined ? { ...b, share: own.quiet[i] } : b;
+    })
+    .map((b, i, all) => {
+      const own = room !== undefined && ROOM_BINDINGS[room];
+      if (!own || (own.kind ? b.kind !== own.kind : i !== own.index)) return b;
+      const rest = all.reduce((n, x, j) => n + (j === i ? 0 : x.share), 0);
+      return { ...b, local: true, share: (rest * own.share) / (100 - own.share),
+        cols: own.lum ? own.cols.map((h) => toneHex(h, 1, own.lum)) : own.cols };
+    });
   // Folios low, octavos high: the heights and widths a run is drawn from, tier
   // by tier. The top shelf stops well short of the frieze board over it.
   const SIZES = [
@@ -122,7 +132,7 @@ export function buildBooks(ctx) {
     const bindings = bindingsFor(room);
     const shareSum = bindings.reduce((n, x) => n + x.share, 0);
     // (`caseOf`: the one binding a case is shelved in, where the Library is
-    // shelved as collections — libFix3.js, 1b. Five runs in six are in it;
+    // shelved as collections — libraryProps.js. Five runs in six are in it;
     // the stream is drawn as it always was.)
     let caseOf = null;
     const pickBinding = () => {
@@ -132,12 +142,7 @@ export function buildBooks(ctx) {
       for (const x of bindings) { r -= x.share; if (r <= 0) return x; }
       return bindings[0];
     };
-    const caseBinding = (tier, ua) => {
-      let r = makeRng((Math.round(a[0] * 131 + a[1] * 71 + ua * 53) ^ (tier * 7919) ^ 0x5ca1e) | 0)() * shareSum;
-      for (const x of bindings) { r -= x.share; if (r <= 0) return x; }
-      return bindings[0];
-    };
-    const newRun = (tier, giant = BOOKS_GIANT) => {
+    const newRun = (tier, giant = false) => {
       const B = pickBinding(), size = giant ? SIZES[tier] : SHELVES[tier], r = br();
       // (the big folios on the low shelves mostly plain: a label on every one
       // of a long run of them read as a pattern printed on the case)
@@ -158,7 +163,7 @@ export function buildBooks(ctx) {
       };
     };
     const bayEnds = [0, 1, 2, 3].map((i) => s0 + (i * (s1 - s0)) / 3);
-    if (!BOOKS_GIANT) {
+    {
       // In the galleries on the walk every book is a box of its own. In the
       // rest of the Library, seen only from over the walls, a shelf is its
       // painted row of them (bookRows), a stretch of the strip.
@@ -190,7 +195,6 @@ export function buildBooks(ctx) {
       // and shelf to shelf, as a set on a real shelf does.
       const shelveBay = (tier, sy, clear, ua, ub) => {
         const SH = SHELVES[tier];
-        if (COLOUR?.bays && room !== undefined && room < 3) caseOf = caseBinding(tier, ua);
         let u = ua + br() * 0.1, lean = 0;
         while (u < ub - 0.3) {
           if (run <= 0) {
@@ -275,72 +279,6 @@ export function buildBooks(ctx) {
             paintedBay(tier, sy, clear, ua, ub, far);
           } else paintedBay(tier, sy, clear, ua, ub, real ? lit : LB.bookRows);
         });
-      }
-    } else for (let tier = from; tier <= to; tier++) {
-      const y = TIER_BASE + tier * TIER_H;
-      // (the lowest tier stands on the plinth: a board of its own lay inside
-      // it with its top in the plinth's plane — see the plinth below)
-      if (tier > from) LB.shelf.add(boxGeo(on(s0, 6), on(s1, 6), 2.4, 12, y - 2.4));
-      let u = s0 + br() * 0.8, run = 0, R = null, lean = 0;
-      while (u < s1 - 2) {
-        if (run <= 0) {
-          const x = br();
-          // now and then a reader has taken one out, and its neighbour leans
-          // into the gap it left
-          if (x < 0.035 && u > s0 + 4) {
-            // or a bronze bookend holds up what is left of the run
-            if (br() < 0.4) {
-              LB.bronzeDim.add(placed(new THREE.BoxGeometry(0.35, 6.4, 4.6), on(u + 0.2, 7.4), y + 3.2, turn));
-              LB.bronzeDim.add(placed(new THREE.BoxGeometry(2.8, 0.25, 4.6), on(u + 1.5, 7.4), y + 0.13, turn));
-              u += 0.6;
-              lean = 0;
-              continue;
-            }
-            const g = 2.4 + br() * 2.4; u += g; lean = g; continue;
-          }
-          // or a few are laid flat on the rest of the shelf
-          if (x < 0.075) {
-            const w2 = 9 + br() * 5;
-            if (u + w2 > s1) break;
-            const B = pickBinding();
-            let lie = y;
-            for (let n = 0, count = 2 + Math.floor(br() * 3); n < count; n++) {
-              const th = 1.6 + br() * 1.1, wn = w2 * (0.84 + br() * 0.16), dn = 7.4 + br() * 2;
-              if (lie + th > y + TIER_H - 3) break;
-              const q = on(u + w2 / 2 + (br() - 0.5) * 0.8, 10.2 - dn / 2);
-              books.push({
-                p: [q[0], lie + th / 2, q[1]], rot: [0, face + (br() - 0.5) * 0.1, 0], s: [wn, th, dn],
-                color: pickBinding().cols[0], k: 0.85 + br() * 0.2, spine: LAID + kindCell(B.kind === 'vellum' ? 'vellum' : 'label', br()), dust,
-                title: newTitle(),
-              });
-              lie += th;
-            }
-            u += w2 + 0.5 + br() * 1.2;
-            lean = 0;
-            continue;
-          }
-          R = newRun(tier, true);
-          R.title = newTitle();
-          run = R.n;
-        }
-        const w = R.w * (1 + (br() - 0.5) * 0.06), hh = R.h * (1 + (br() - 0.5) * 0.025);
-        if (u + w > s1) break;
-        const inset = R.front - R.d / 2;
-        const book = { color: R.color, k: R.k * (0.96 + br() * 0.08), spine: R.spine, dust, title: R.title + (R.n > 1 ? 1000 * (R.n - run + 1) : 0) };
-        if (lean) {
-          // Pivoted on its foot at the edge of the gap and resting its head on
-          // the book across it.
-          const th = Math.min(0.36, Math.asin(Math.min(0.9, lean / hh)));
-          const c2 = on(u + (w / 2) * Math.cos(th) - (hh / 2) * Math.sin(th), inset);
-          books.push({ ...book, p: [c2[0], y + (w / 2) * Math.sin(th) + (hh / 2) * Math.cos(th), c2[1]], rot: [0, face, th], s: [w, hh, R.d] });
-          u += w * Math.cos(th) + 0.3;
-          lean = 0;
-        } else {
-          const p = on(u + w / 2, inset);
-          books.push({ ...book, p: [p[0], y + hh / 2, p[1]], rot: [0, face, 0], s: [w, hh, R.d] });
-          u += w + 0.12 + br() * 0.3;
-        }
-        run--;
       }
     }
     // The bays: uprights between them, and near the walk a pilaster on each —
@@ -474,7 +412,7 @@ export function* buildFurniture(ctx) {
   const { paintings, light, rnd, rr, dir, add, lerp2, dist, hexPts, keep, lampHaloTex, stringWash,
     root, slabGeo, boxGeo, placed, rodGeo, barGeo, decal, halo, POOL_DIAL, point, R, A, GAP, RC,
     HALL, ARCH_SPRING, ARCH_R, WAY_IN, cellC, rimAt, deepAt, NB, cells, inFrame, routeDist, hallway,
-    edgeFrame, hallMid, BRIDGE_LEVEL, ECHO_KERB, mouldGeo, wallRing, mirrors, LB, posts, links,
+    edgeFrame, hallMid, mouldGeo, wallRing, mirrors, LB, posts, links,
     balusters, books, globes, deadGlobes, dust, glows, LAID, roman, hexNumber,
     shelfWall, instances } = ctx;
   // ── Furniture ─────────────────────────────────────────────────────────────
@@ -629,7 +567,7 @@ export function* buildFurniture(ctx) {
       decal(on(u0, Z + 5), 46, 46, '#ffb060', 0.1 * POOL_DIAL, 6.15, 0, [lp[0], TOP + 4.2, lp[1], 0.4]);
       // The bulb a light of its own, low: the pool hands it a light only
       // when the reader is at the table (lampPass.js)
-      if (LAMPS.corner) point(lp, TOP + 4.2, '#ffc58a', 520, -1);
+      point(lp, TOP + 4.2, '#ffc58a', 520, -1);
     }
     // the open book, a folio: leather boards, and the two halves of the text
     // block lifting toward the spine
@@ -669,16 +607,22 @@ export function* buildFurniture(ctx) {
   // `out`: a lamp that has gone out — the fitting, the chain and the cold glass,
   // and nothing else. "Where the lamps grow faint" needs lamps that ARE faint,
   // not one lamp turned down.
+  // `ember`: and one that is going out rather than gone (`out` as well): what
+  // is left in its glass, as a fraction of a lamp (silenceProps.js). It keeps
+  // a breath of glow about the glass and nothing more — no beam, no pool, and
+  // no light of its own: the room has one lamp, and the pool of real lights
+  // goes to whatever is nearest the reader, so a dying globe asking for one
+  // would take it from that lamp.
   // `haze`: how much halo it is allowed. A lamp's halo is a sprite drawn with
   // depthTest OFF so it can lie over the stone it lights; within about sixty
   // units of where a reader stands that becomes a hundred-unit disc of light in
   // FRONT of the room, and the gallery goes milky. Lamps near a stand turn it down.
-  const lamp = (p, { y = LAMP_Y, lightY = y - 4, light: power = 0, priority = 0, color = '#ffb466', strength = 1, pool = 0.3, poolSize = 200, poolY = 6.6, poolAt = p, r = 9, beam = true, out = false, haze = 1, chain = Infinity, link = 1, globeMaterial = null } = {}) => {
+  const lamp = (p, { y = LAMP_Y, lightY = y - 4, light: power = 0, priority = 0, color = '#ffb466', strength = 1, pool = 0.3, poolSize = 200, poolY = 6.6, poolAt = p, r = 9, beam = true, out = false, ember = 0, haze = 1, chain = Infinity, link = 1, globeMaterial = null } = {}) => {
     // One opal globe, with no clear shell round it: a lit globe is the light
     // (makeLampGlobeMaterial), a dead one is the same globe in cold, dull
     // glass.
     const G = r * 0.55;
-    const globe = { p: [p[0], y, p[1]], s: [G, G, G], ...(out ? {} : { color: '#fff3e2', k: 0.45 + strength * 0.5 }) };
+    const globe = { p: [p[0], y, p[1]], s: [G, G, G], ...(out ? { ember } : { color: '#fff3e2', k: 0.45 + strength * 0.5 }) };
     if (globeMaterial && !out) instances(new THREE.SphereGeometry(1, 32, 20), globeMaterial, [globe], { cast: false, receive: false });
     else (out ? deadGlobes : globes).push(globe);
     // The fitting sits ON the globe, outside it: a collar gripping its neck, a
@@ -700,7 +644,13 @@ export function* buildFurniture(ctx) {
     for (let cy = y + G * 1.58, k = 0; cy < chainTop; cy += 1.55 * link, k++) {
       links.push({ p: [p[0], cy, p[1]], rot: [0, k % 2 ? Math.PI / 2 : 0, 0], s: [link, link, link] });
     }
-    if (out) return;
+    if (out) {
+      // the breath of air a dying globe still warms, a tenth of a lamp's and
+      // no wider than the glass (its phase given: the world's stream is not
+      // drawn on for a globe that has all but gone out)
+      if (ember) halo(p, y, G * 6, '#ffa860', 0.07 * ember, lampHaloTex, (p[0] + p[1]) % 100);
+      return;
+    }
     // the cone of lit air beneath it
     if (beam && (power || strength >= 1)) {
       const h = y - r - 6, foot = Math.min(poolSize * 0.3, 62);
@@ -748,15 +698,10 @@ export function* buildFurniture(ctx) {
     return g;
   };
   const archGeo = archGeoOf(GAP);
-  // Dressed stone on each face of the opening: an archivolt, a keystone, and a
-  // pilaster up each jamb — a hole cut in a wall reads as a hole.
-  // `cut`: how much shorter the hallway is at its -n and +n ends, where the
-  // room there (the Echo) stands further out into its walls.
-  const archivoltGeo = keep(new THREE.TorusGeometry(ARCH_R + 1.6, 1.6, 8, 28, Math.PI));
   // The ring as it would be built: thirteen voussoirs, each cut to the arch's
   // centre, the keystone longer and standing out further, set a little proud of
-  // the wall on a bed of mortar that shows in their joints (vestFix.js, 5;
-  // ?wvest=old:5 puts the old smooth moulding back). Built in the arch's own
+  // the wall on a bed of mortar that shows in their joints (libraryProps.js).
+  // Built in the arch's own
   // frame, x across, y up, z out of the face: `z0`..`z1`.
   const VOUSSOIRS = 13, V_DEEP = 3.4, V_JOINT = 0.012;
   const ringBlock = (a0, a1, ri, ro, z0, z1) => {
@@ -794,10 +739,7 @@ export function* buildFurniture(ctx) {
     const across = [n[1], -n[0]];
     for (const side of [-1, 1]) {
       const face = add(mid, n, side * (len / 2 + 0.7));
-      if (vestOld(5)) {
-        LB.cap.add(archivoltGeo.clone().rotateY(turn).translate(face[0], ARCH_SPRING, face[1]), uvAt);
-        LB.cap.add(new THREE.BoxGeometry(4.2, 6, 3.4).rotateY(turn).translate(face[0], ARCH_SPRING + ARCH_R + 2.4, face[1]), uvAt);
-      } else {
+      {
         // (on the -n face the ring is built facing +z and turned round to it)
         const { stone, mortar, parts } = voussoirsGeo(len / 2 + 0.1);
         for (const [batch, g] of [[LB.cap, stone], [LB.joint, mortar]]) {
@@ -873,8 +815,7 @@ export function* buildFurniture(ctx) {
     const rim = rimAt(c), wider = rim - R;
     if (lit) {
       LB.floorBand.add(slabGeo(hexPts(c, 83.8 + wider), [hexPts(c, 72.4 + wider)], 0.1, 6));
-      if (auditOld(1)) LB.inlay.add(slabGeo(hexPts(c, 72.9 + wider), [hexPts(c, 72.1 + wider)], 0.16, 6));
-      else LB.fillet.add(slabGeo(hexPts(c, FILLET.outer + wider), [hexPts(c, FILLET.inner + wider)], FILLET.proud, 6));
+      LB.fillet.add(slabGeo(hexPts(c, FILLET.outer + wider), [hexPts(c, FILLET.inner + wider)], FILLET.proud, 6));
       if (shaft) LB.cap.add(slabGeo(hexPts(c, shaft + 13), [hexPts(c, shaft + 2.6)], 0.08, 6));
     }
     // (the way in's two walls, stone for stone the far hallway's: WAY_IN)
@@ -916,33 +857,14 @@ export function* buildFurniture(ctx) {
       const e = edgeFrame(c, k);
       const inward = [-e.n[0], -e.n[1]];
       if (halls.includes(k)) {
-        // "In the hallway there is a mirror, which faithfully duplicates all
-        // appearances." With ?wglass=old, a glass hung ON the hallway's wall,
-        // in a frame, stopping short of both openings so each doorway keeps its
-        // jambs and reads as a door. Otherwise the Library's mirrors hang as
-        // pier glasses either side of a gallery's way out (below). The stream
-        // is drawn here either way.
-        if (k === 5 && (lit || (framed && rnd() < 0.4) || cell.k === WAY_IN.to) && GLASS_OLD) {
-          const on = (along, z) => add(add(e.mi, e.n, along), e.t, z);
-          // (from this room's face to the next one's, a hallway into the Echo
-          // being shorter; and the way in hangs its glass where the hallway it
-          // is dressed as has one, which starts that much further along)
-          const lead = cell.k === WAY_IN.to ? deepAt(add(c, WAY_IN.by)) : 0;
-          const a0 = 8 + lead, a1 = GAP - deepAt(c) - deepAt(cellC(cell.i + NB[5][0], cell.j + NB[5][1])) - 8;
-          const z = HALL / 2 - 0.3, y0 = 12, y1 = 44;
-          LB.mirror.add(boxGeo(on(a0, z), on(a1, z), y1 - y0, 0.5, y0));
-          const fz = HALL / 2 - 0.55, bar = 1.3;
-          LB.frame.add(boxGeo(on(a0 - bar, fz), on(a1 + bar, fz), bar, 1, y0 - bar));
-          LB.frame.add(boxGeo(on(a0 - bar, fz), on(a1 + bar, fz), bar, 1, y1));
-          for (const a of [a0 - bar / 2, a1 + bar / 2]) {
-            LB.frame.add(boxGeo(on(a - bar / 2, fz), on(a + bar / 2, fz), y1 - y0, 1, y0));
-          }
-        }
+        // The galleries once hung a glass in this hallway, chosen by a draw from
+        // the stream; the draw stays so everything laid out after it keeps its place.
+        if (k === 5 && !lit && framed) rnd();
         // A pier glass on each pier of the way out: the bare ashlar between
         // the arch's jambs (21.2 out from its axis) and the corner cases, so
         // the room is in it from wherever the gallery is crossed toward the
         // next one. Clear of any room's stream: these draw nothing from it.
-        if (k === 5 && lit && !GLASS_OLD) {
+        if (k === 5 && lit) {
           const pier = (HALL / 2 + 3.2 + rimAt(c) / 2) / 2 - 0.8;
           for (const s of [-1, 1]) {
             const { bright, deep } = mirrors.hang({ at: add(e.mi, e.t, s * pier), y: 14.5, normal: inward, hw: 6, side: 25 });
@@ -950,14 +872,14 @@ export function* buildFurniture(ctx) {
             deep.forEach((g) => LB.giltDeep.add(g));
           }
         }
-        // A string course over the Vestibule's way out (libFix3.js, 6), or the
+        // A string course over the Vestibule's way out (libraryProps.js), or the
         // wall over the arch is flat block going to black, the top third of the
         // room's first frame. A moulded course in the pale stone three units
         // over the keystone, from corner case to corner case — a bed fillet, a
         // cove, a fascia and a weathered top — and a lamp-rail lying on its
         // ledge, out of sight from the floor, washing the stone over it as the
         // cases' rails wash their top shelves.
-        if (k === 5 && lit && room === 0 && !lib3Old(6)) {
+        if (k === 5 && lit && room === 0) {
           const p = STRING.proud, y = STRING.y;
           const half = [[1.0, 0, true], [1.0, 0.5, true], [1.2, 0.85], [1.6, 1.4], [p, 1.9, true], [p, 3.3, true], [1.1, 4.0, true]];
           const sec = [...half.map(([z, h, s]) => [-z, h, s]).reverse(), ...half].reverse();
@@ -965,7 +887,7 @@ export function* buildFurniture(ctx) {
           stringWash.a.value.set(e.mi[0], e.mi[1], y + 4, STRING.glow);
           stringWash.b.value.set(e.t[0], e.t[1], rimAt(c) / 2, 0);
         }
-        // Books over the Echo's ways out (echoFix.js, 7): the room is named for
+        // Books over the Echo's ways out (echo.js): the room is named for
         // repetition, and through the upper arcade every bay shows shelves,
         // these two too. The top tier runs right across over the arch (its apex
         // is at 76, the tier begins at 94); the two below it stand on the piers
@@ -973,7 +895,7 @@ export function* buildFurniture(ctx) {
         // the corner to a few units clear of the arch's voussoirs. Drawing
         // nothing from the world's stream (`stream: 0`): the books are the
         // walls' own.
-        if (room === 1 && lit && !echoOld(7)) {
+        if (room === 1 && lit) {
           const clear = ARCH_R + 4;
           shelfWall(e.i0, e.i1, inward, { from: TIERS - 1, to: TIERS - 1, ...dress, stream: 0 });
           // (shelfWall keeps 12 clear at each end of what it is given)
@@ -994,13 +916,13 @@ export function* buildFurniture(ctx) {
       // (2.5 thick, so its top, level with the paving, lies wholly under the
       // bronze plinth or the parapet: at 3 a sliver of it showed beside the
       // parapet's foot, in the floor's own plane)
-      const lining = lit && room === 0 && !vestOld(7) ? LB.wellGlow : LB.well;
+      const lining = lit && room === 0 ? LB.wellGlow : LB.well;
       lining.add(slabGeo(hexPts(c, shaft + 2.5), [hexPts(c, shaft)], 236, -230));
       LB.stars.add(slabGeo(hexPts(c, shaft + 2), [], 1, -232));
-      if (lit && room === 0 && BRIDGE_LEVEL) {
+      if (lit && room === 0) {
         // (the Vestibule's well rail is laid with its bridge, as one run
         // round each half of the well: vestibuleBridge.js)
-      } else if (lit && room === 1 && ECHO_KERB) {
+      } else if (lit && room === 1) {
         // The Echo's well is the one its bridge stands over: a bronze rail
         // round it would run under both flights' arches a hand's breadth below
         // their soffits, a turned rail of another metal and another shape under
@@ -1092,7 +1014,7 @@ export function* buildFurniture(ctx) {
     const V = cellC(0, 0), S = cellC(2, -2), Dr = cellC(4, -4);
     gallery(V, 1); gallery(V, 4); ladder(V, 3, 20); readingCorner(V, 4, -16);
     gallery(S, 0); gallery(S, 3); ladder(S, 4, -20); readingCorner(S, 3, 12, { lit: false });
-    gallery(Dr, 1); gallery(Dr, 4); ladder(Dr, 0, doorPropsOld(9) ? 16 : DOOR_LADDER_U); readingCorner(Dr, 3, -10);
+    gallery(Dr, 1); gallery(Dr, 4); ladder(Dr, 0, DOOR_LADDER_U); readingCorner(Dr, 3, -10);
   }
   return { alongWall, distantReaders, lamp, mounts, hangPainting, archGeo, RAIL_H, railRun };
 }

@@ -37,25 +37,27 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { EffectComposer, Bloom, Vignette, N8AO, ToneMapping, Noise, wrapEffect } from '@react-three/postprocessing';
 import { BlendFunction, ToneMappingMode, KernelSize } from 'postprocessing';
 import * as THREE from 'three';
-import { SPIRAL, spiralAt, railIntent, atBreak, BRINK_OLD } from './spiral';
+import { SPIRAL, spiralAt, railIntent, atBreak } from './spiral';
 import { assembleWorld, PAINTED } from './buildWorld';
 import { makePainter } from './paint';
 import { makeLights } from './build/light';
 import { GradeEffect, gradePlace } from './Grade';
-import { TONE } from './mapFix6';
+import { roomPlace } from './roomColour';
+import { TONE } from './mapLook';
+import { mapMoveAt } from './mapMotion';
 import { SanitizeEffect } from './Sanitize';
 import { EdgeAAEffect } from './EdgeAA';
 import { makeSky } from './sky';
 import { TILT_FOV, framePointsOf, restPose } from './plan';
-import { tallFov } from './phoneFix';
+import { tallFov } from './phone';
 import { prepareEnvironment } from './effects';
 import { probeClearance, probeRay } from './probe';
 import { GLASS } from './mirror';
 import { makeBody, EYE, ROOM_STAND } from './body';
 import { READER_LIT } from './readers';
-import { makeWalkCurve, makeWalkPace, makeGazeTrack, bendPace, viewPace, LOOK_AHEAD, PACE, MOTION_OLD } from './walkPath';
+import { makeWalkCurve, makeWalkPace, makeGazeTrack, bendPace, viewPace, LOOK_AHEAD, PACE } from './walkPath';
 import { pendingFinale } from './finaleLifecycle';
-import { finaleOld, STEP } from './finaleFix';
+import { STEP } from './finaleLook';
 import { WATER } from './water';
 import { DPR_MAX, LIGHT_MESH } from '../capability';
 import Governor from '../Governor';
@@ -65,31 +67,15 @@ const Grade = wrapEffect(GradeEffect);
 const Sanitize = wrapEffect(SanitizeEffect);
 const EdgeAA = wrapEffect(EdgeAAEffect);
 
-// The air. Over the map, a long cool fall-off into the dark at the honeycomb's
-// edges; down among the walls, a near haze that swallows the corridor of
-// galleries beyond — cool, as the distance is in every one of the plates —
-// and a bluer, longer one out in the garden.
 // ── The palette ──────────────────────────────────────────────────────────────
-// 2026-09-25 the Library was re-keyed to the isometric Midjourney batch the
-// user named as its inspiration: gold lamplight rather than brown. The print
-// before it was keyed to the painted plates (chroma held near 0.26 to 0.5) and
-// measured against the new frames it read as brown light on black: warm hue
-// ~16-29 where they sit at ~33-36, warm saturation 0.45 against 0.65, median
-// luminance 0.10 against 0.20, 34% of the frame crushed against 5%.
+// Gold lamplight rather than brown, keyed to the isometric batch the user
+// named as the Library's inspiration.
 //
-// NO TEAL. The first cut also took the frames' teal shadow — an added tint in
-// the dark, a teal fog, a cool sky fill, cool occlusion, sage stone — and the
-// user rejected it the same day: "looks like an Instagram filter, unnatural".
-// Indoors nothing casts blue; the warmth has to come from the lamps and the
-// dark stays the dark. ?wpal=old prints the old way, for comparison.
-const OLD_PALETTE = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('wpal') === 'old';
-// ?wlight=old: the hard lamplight of before 2026-10-01 (see build/materials.js's
-// LAMP_DECAY) — and with it the lower fill and the brighter print it was
-// graded under. (The print came down twice that day, 1.2 → 1.1 with the
-// softer lamps and → 1.0 when the reader asked for it dimmer still.)
-const HARD_LIGHT = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('wlight') === 'old';
+// NO TEAL. Indoors nothing casts blue: no tint added in the dark, no teal fog,
+// no cool sky fill or occlusion, no sage stone. The warmth has to come from the
+// lamps, and the dark stays the dark.
 const MAP_FOG = new THREE.Color('#06080c');
-const LIBRARY_FOG = new THREE.Color(OLD_PALETTE ? '#14171c' : '#15130f');
+const LIBRARY_FOG = new THREE.Color('#15130f');
 const GARDEN_FOG = new THREE.Color('#0b1318');
 const PIT_FOG = new THREE.Color('#171009');
 const logLerp = (a, b, t) => Math.exp(Math.log(a) + (Math.log(b) - Math.log(a)) * t);
@@ -102,13 +88,8 @@ const FALL_S = 7.2;
 const LEAN_FOV = 68;     // leaning out over the Vertigo's well
 const FALL_FOV = 92;     // at full speed down it
 // A reader is 18 units tall, so a unit is about 9.4 cm: 18 is a comfortable
-// 1.7 m/s walk. The body takes a
-// moment to gather the stride and to put it down (WALK_GATHER), and slows into
-// the room over the last stretch (WALK_BRAKE) rather than stopping dead.
+// 1.7 m/s walk.
 const WALK_SPEED = 18;
-const WALK_GATHER = 0.7;   // seconds to reach a stride from standing, and back
-const WALK_CHECK = 0.3;    // ...and to slow for a bend: a walker checks faster than they set off
-const WALK_STOP = 0.2;
 // How a pace is come to (springTo, below): not at once at its fastest and then
 // ever more slowly — which is what easing a fraction of the difference each
 // frame does, and why setting off was a lurch and stopping a jolt — but as a
@@ -130,7 +111,6 @@ const ARRIVE_LEAD = 0.3;
 const COURSE_RATE = 3.2;
 // How quickly the eye follows the feet up and down a step (1/s, a spring).
 const EYE_EASE = 9;
-const WALK_BRAKE = 26;     // units out from the end the body begins to slow
 const STRIDE = 7.5;        // about 70 cm per step
 // Walking where the reader looks (the free walk, body.js) goes at the same
 // pace as the piece's own walks, and backs away at half of it: a step back is
@@ -151,8 +131,7 @@ const LEAN_S = 1.25;
 // head comes back up. So a reader learns at every well that walking on at an
 // edge is leaning over it, and at the one edge with no rail, walking on is
 // going over. (Looking down over the Vertigo's stair, LEAN_S, still leans out
-// too — held by its rail but for the gaps.) ?wbrink=old: none of it; W walks
-// on down the Vertigo's stair, and looking down over its edge anywhere falls.
+// too — held by its rail but for the gaps.)
 const BRINK_FAR = 16;
 const BRINK_NEAR = 5;
 const BRINK_TILT = 0.5;        // rad (29°) — about where a reader at a rail looks
@@ -274,9 +253,7 @@ const FILL = 1.12;
 // median luminance 0.21-0.30, saturation 0.34-0.52 (0.21-0.43 at the centre),
 // the top 5% reaching 0.54-0.62, about 1% of the frame blown out at a lamp and
 // 2-8% down in the dark. Every number here was swept against those.
-const GRADE = OLD_PALETTE
-  ? { saturation: 0.56, contrast: 1.1, lift: 0.03, exposure: 1.06, shadowTint: [0, 0, 0], gold: 0, shadowChroma: 1 }
-  : { saturation: 0.7, contrast: 1.08, lift: 0.03, exposure: HARD_LIGHT ? 1.2 : 1.0, shadowTint: [0, 0, 0], gold: 0.18, shadowChroma: 0.5 };
+const GRADE = { saturation: 0.7, contrast: 1.08, lift: 0.03, exposure: 1.0, shadowTint: [0, 0, 0], gold: 0.18, shadowChroma: 0.5 };
 const BLOOM_THRESHOLD = 0.72;   // a lamp is a light, and light bleeds
 const BLOOM_INTENSITY = 0.85;
 // The fill: what light there is that no lamp accounts for. Held low down among
@@ -285,7 +262,7 @@ const BLOOM_INTENSITY = 0.85;
 // (Down among the walls it came up by 30% on 2026-10-01, when the lamps were
 // softened: the lamps still model the rooms, but what they do not reach is
 // no longer black beside what they do.)
-const FILL_UP = HARD_LIGHT ? 1 : 1.3;
+const FILL_UP = 1.3;
 const FILL_MAP = { env: 0.75, hemi: 2.0, moon: 2.6 };
 const FILL_EYE = { env: 0.84 * FILL_UP, hemi: 0.95 * FILL_UP, moon: 0.95 };
 // Out in the garden there are no lamps to speak of and the moon is the whole
@@ -299,7 +276,7 @@ const LIBRARY_SKY = new THREE.Color('#8e8880');
 const GARDEN_SKY = new THREE.Color('#6d88b8');
 // The bounce: warm off the Library's floors, cold off wet grass under a moon.
 const LIBRARY_BOUNCE = new THREE.Color('#5b432f');
-// (over the map, as the map's look has it: mapFix6.js)
+// (over the map, as the map's look has it: mapLook.js)
 const MAP_BOUNCE = new THREE.Color(TONE.bounce);
 const GARDEN_BOUNCE = new THREE.Color('#25333f');
 // How fast the head turns on a held key. Slowed from 1.6 (92 degrees a second)
@@ -490,7 +467,7 @@ const walkMove = (points, fromQ, toQ) => {
   const Lp = curve.getLength();
   // the eyes' track, a sample a unit (walkPath.js)
   const gazeN = Math.max(2, Math.ceil(Lp));
-  const gaze = MOTION_OLD || Lp < 1e-6 ? null : makeGazeTrack(curve.getSpacedPoints(gazeN), Lp / gazeN);
+  const gaze = Lp < 1e-6 ? null : makeGazeTrack(curve.getSpacedPoints(gazeN), Lp / gazeN);
   const looks = { yaw: 0, slope: 0, pitch: 0 };
   const pace = makeWalkPace(curve, WALK_SPEED, gaze);
   const turned = (q, tangent) => {
@@ -572,7 +549,7 @@ const walkMove = (points, fromQ, toQ) => {
   // it is in distance — PIVOT_PEAK at its quickest.
   const N = Math.max(2, Math.ceil(L)), unit = L / N, turns = new Float32Array(N + 1);
   let vIn = 0, vOut = 0;
-  if (!MOTION_OLD) {
+  {
     const a = { position: new THREE.Vector3(), quaternion: new THREE.Quaternion() }, z = { position: new THREE.Vector3(), quaternion: new THREE.Quaternion() };
     let angleIn = 0, angleOut = 0;
     poseAt(0, a);
@@ -597,7 +574,6 @@ const walkMove = (points, fromQ, toQ) => {
     // The pace `d` along the walk; `steady`: that is the pace itself, not one
     // to ease to (a pivot); `left`: how far the feet still have to go.
     paceAt(d) {
-      if (MOTION_OLD) return pace(along(d));
       if (pivotIn && d < pivotIn) return vIn;
       if (pivotOut && d > L - endTurn) return vOut;
       let want = pace(along(d));
@@ -610,7 +586,7 @@ const walkMove = (points, fromQ, toQ) => {
       if (pivotOut && d > L - 2 * pivotOut) want += (vOut - want) * smooth((d - (L - 2 * pivotOut)) / (2 * pivotOut - endTurn));
       return want;
     },
-    steady(d) { return !MOTION_OLD && ((pivotIn > 0 && d < pivotIn) || (pivotOut > 0 && d > L - endTurn)); },
+    steady(d) { return ((pivotIn > 0 && d < pivotIn) || (pivotOut > 0 && d > L - endTurn)); },
     left(d) { return pivotOut ? Infinity : Lp - along(d); },
     setGait(g) { gait = g; },
     at(s, out) {
@@ -717,7 +693,7 @@ const NORTH = new THREE.Vector3(0, 0, -1);
 // readers play around that spot, and the rise leaves from it too — but from
 // the corridor outside the court (the stand is there) the reader first takes
 // the step in that the caption says they take, to the mouth of the gate
-// (finaleFix.js, 3: from where they stood the court was a slot between two
+// (finaleLook.js: from where they stood the court was a slot between two
 // hedges, and the others gathered behind one of them). `aspect`: the frame's,
 // for where across it the heart is put as they gather.
 const finaleMove = (world, rest, from = null, aspect = 16 / 9) => {
@@ -753,7 +729,7 @@ const finaleMove = (world, rest, from = null, aspect = 16 / 9) => {
   let toWest = heading(f.gates.w) - heading(f.heart);
   while (toWest < 0) toWest += Math.PI * 2;
   let beside = toWest;
-  if (!finaleOld(3)) {
+  {
     beside = Math.min(toWest, Math.max(Math.atan(-STEP.heart * reach), toWest - Math.atan(STEP.gate * reach)));
     // ...and none of the others cut by an edge of the frame: a little less of
     // a turn, or a little more, until each of them is in it or out of it.
@@ -767,18 +743,7 @@ const finaleMove = (world, rest, from = null, aspect = 16 / 9) => {
       if (turn !== undefined) beside = turn;
     }
   }
-  // (finaleFix6.js, 1: the last of them was the one behind, face to face at
-  // arm's length — a hood round a void. In its place, `closeUp`: a, the one
-  // who is the reader come to stand beside them, seen past its shoulder with
-  // the heart still in the frame on the other side; b, the one behind from
-  // further off, book and all; c, nobody: the eye goes slowly on along the
-  // others until the rise.)
-  const cu = f.closeUp;
-  const away = (p) => Math.hypot(p[0] - inside.x, p[1] - inside.z);
-  const last = cu?.kind === 'a' ? { t: 16.6, a: heading(cu.at) - Math.atan(cu.across * reach), r: away(cu.at), y: cu.high, near: true }
-    : cu?.kind === 'b' ? { t: 16.6, a: heading(cu.at), r: away(cu.at), y: eyeY - cu.low }
-      : cu?.kind === 'c' ? { t: T.rise[0], a: heading(f.heart) + beside + cu.drift, r: cu.near, y: eyeY - 3 }
-        : { t: 16.6, a: heading(f.you), r: 29, y: eyeY };
+  const last = { t: 16.6, a: heading(f.you), r: 29, y: eyeY };
   const marks = [
     { t: 6.8, a: heading(f.heart), r: inside.distanceTo(new THREE.Vector3(f.heart[0], eyeY, f.heart[1])), y: eyeY + 4 },
     { t: 10.4, hold: true },
@@ -788,10 +753,7 @@ const finaleMove = (world, rest, from = null, aspect = 16 / 9) => {
   ];
   marks.forEach((m, i) => {
     if (m.hold) Object.assign(m, { a: marks[i - 1].a, r: marks[i - 1].r, y: marks[i - 1].y });
-    // (`near`: by the shorter way round, whichever that is — one who stands
-    // beside the reader is a little further round, or a little less)
-    if (m.near) m.a = marks[i - 1].a + Math.atan2(Math.sin(m.a - marks[i - 1].a), Math.cos(m.a - marks[i - 1].a));
-    while (i && !m.near && m.a < marks[i - 1].a - 1e-6) m.a += Math.PI * 2;
+    while (i && m.a < marks[i - 1].a - 1e-6) m.a += Math.PI * 2;
   });
   const aim = new THREE.Vector3();
   const panQ = (t, q) => {
@@ -876,7 +838,7 @@ const layoutFor = (overlay, width, height, points, reserveLeft, tall) => {
     h: height,
     rooms,
     // (what each room's numeral stands over: its own outline, or the mark the
-    // world gives the map for it — mapFix3.js, 5)
+    // world gives the map for it — mapLook.js)
     marks: rooms.map((poly, i) => (overlay.marks?.[i] ? line(overlay.marks[i]) : poly)),
     labels,
     walk,
@@ -1374,6 +1336,7 @@ function LiveWorld({
     return () => world.setSight?.(null);
   }, [world, feel]);
   const scrubRef = useRef(null);   // DEV: a move held at a fraction of itself
+  const moonBase = useRef(null);   // the moon's own colour (mapMotion.js, b)
   const eyeRef = useRef(null);     // DEV: the eye taken off the walk (__worldEye)
   const lastFade = useRef(-1);
   const liveFrames = useRef(0);
@@ -1440,19 +1403,11 @@ function LiveWorld({
     }
     return home();
   };
-  // At the Vertigo's broken rail, where the fall goes over: the rail is gone
-  // for about sixty units of the stair's edge either side of `leg.edge`
-  // (?wbrink=old; otherwise `byTheBreak`, below).
-  const nearTheBreak = (leg, p) => Math.hypot(p.x - leg.edge[0], p.z - leg.edge[2]) < 32 && Math.abs(p.y - leg.edge[1]) < 10;
   // Feet (or a point at their level) on the Vertigo's stair beside a gap in its
   // rail (spiral.js GAPS: one every turn) — within `margin` radians of it and
-  // near enough the open edge to go over. (?wbrink=old: the one gap, by the leg.)
+  // near enough the open edge to go over.
   const byTheBreak = (p, margin = 0) => {
     if (placeRef.current !== 3 || !world.pit) return false;
-    if (BRINK_OLD) {
-      const leg = world.legs[3];
-      return leg?.kind === 'fall' && nearTheBreak(leg, pose.position);
-    }
     const center = [world.pit.x, world.pit.z], st = spiralAt(center, (5.5 - p.y) / SPIRAL.drop);
     return Math.hypot(p.x - center[0], p.z - center[1]) < st.edge + 12 && atBreak(center, p, margin);
   };
@@ -1517,21 +1472,20 @@ function LiveWorld({
       }
       // The eyes' track along it, walked either way, and the pace each sample
       // of it is walked at (walkPath.js: the same laws as the piece's walks).
-      if (!MOTION_OLD) {
-        chain.gaze = { 1: makeGazeTrack(chain, ROUTE_STEP), [-1]: makeGazeTrack([...chain].reverse(), ROUTE_STEP) };
-        chain.limit = {};
-        for (const dir of [1, -1]) {
-          const limit = chain.limit[dir] = new Float32Array(n);
-          for (let i = 0; i < n; i++) {
-            const a = chain[Math.max(0, i - 1)], p = chain[i], z = chain[Math.min(n - 1, i + 1)];
-            const ux = p.x - a.x, uz = p.z - a.z, vx = z.x - p.x, vz = z.z - p.z;
-            const lu = Math.hypot(ux, uz), lv = Math.hypot(vx, vz), flat = Math.hypot(z.x - a.x, z.z - a.z);
-            const angle = lu > 1e-4 && lv > 1e-4 ? Math.acos(THREE.MathUtils.clamp((ux * vx + uz * vz) / (lu * lv), -1, 1)) : 0;
-            const feet = angle > 2.6 ? PACE.about : bendPace(Math.max(0.1, flat / 2) / Math.max(1e-6, angle));
-            const eyes = viewPace(chain.gaze[dir].slope[dir > 0 ? i : n - 1 - i], WALK_SPEED);
-            const slope = Math.abs(z.y - a.y) / Math.max(0.1, flat);
-            limit[i] = WALK_SPEED * Math.min(1 / (1 + slope * 1.5), feet, eyes);
-          }
+      
+      chain.gaze = { 1: makeGazeTrack(chain, ROUTE_STEP), [-1]: makeGazeTrack([...chain].reverse(), ROUTE_STEP) };
+      chain.limit = {};
+      for (const dir of [1, -1]) {
+        const limit = chain.limit[dir] = new Float32Array(n);
+        for (let i = 0; i < n; i++) {
+          const a = chain[Math.max(0, i - 1)], p = chain[i], z = chain[Math.min(n - 1, i + 1)];
+          const ux = p.x - a.x, uz = p.z - a.z, vx = z.x - p.x, vz = z.z - p.z;
+          const lu = Math.hypot(ux, uz), lv = Math.hypot(vx, vz), flat = Math.hypot(z.x - a.x, z.z - a.z);
+          const angle = lu > 1e-4 && lv > 1e-4 ? Math.acos(THREE.MathUtils.clamp((ux * vx + uz * vz) / (lu * lv), -1, 1)) : 0;
+          const feet = angle > 2.6 ? PACE.about : bendPace(Math.max(0.1, flat / 2) / Math.max(1e-6, angle));
+          const eyes = viewPace(chain.gaze[dir].slope[dir > 0 ? i : n - 1 - i], WALK_SPEED);
+          const slope = Math.abs(z.y - a.y) / Math.max(0.1, flat);
+          limit[i] = WALK_SPEED * Math.min(1 / (1 + slope * 1.5), feet, eyes);
         }
       }
       return chain;
@@ -1660,7 +1614,7 @@ function LiveWorld({
       ? new THREE.Vector3(leg.points[1][0] - leg.points[0][0], 0, leg.points[1][2] - leg.points[0][2]).normalize() : null;
     // Setting off from the Vertigo view follows the stair underfoot. The
     // continuous tour keeps its route to the break; looking over it still falls.
-    if (onward && placeRef.current === 3 && !BRINK_OLD) {
+    if (onward && placeRef.current === 3) {
       const c = route.findIndex((pts) => pts.branch);
       const near = c >= 0 && nearWay(b.feet, FOLLOW_CAPTURE, null, null, c);
       if (near && wayOn(c, near.i, 1, b.feet, along)) return { c, i: near.i, dir: 1, aim: h.clone() };
@@ -1955,15 +1909,12 @@ function LiveWorld({
     // put then, and the body leans instead.
     // (the way the feet are going: following the way, the head can lag it)
     const ahead = (g.direction && g.direction.lengthSq() > 1e-6 ? g.direction : heading(b)).clone().normalize();
-    const edge = BRINK_OLD || (hold <= 0 && !b.pressing) ? null : feel.brink(b.feet, ahead.x, ahead.z, BRINK_FAR);
+    const edge = (hold <= 0 && !b.pressing) ? null : feel.brink(b.feet, ahead.x, ahead.z, BRINK_FAR);
     const open = edge !== null && byTheBreak(brinkAt.set(b.feet.x + ahead.x * edge, b.feet.y, b.feet.z + ahead.z * edge));
     b.pressing = hold > 0 && edge !== null && (open ? edge <= BRINK_OPEN : edge <= BRINK_RAIL && (b.pressing || b.stalled));
     b.edge = edge;
     const want = b.pressing ? 0 : hold > 0 ? WALK_SPEED * g.keep : hold < 0 ? -BACK_SPEED : 0;
-    if (MOTION_OLD) {
-      const easing = !hold ? WALK_STOP : b.speed * want <= 0 || Math.abs(want) < Math.abs(b.speed) ? WALK_CHECK : WALK_GATHER;
-      b.speed += (want - b.speed) * (1 - Math.exp(-dt / easing));
-    } else {
+    {
       const was = b.speed;
       springTo(b, want, dt, !hold ? EASE_STOP : b.speed * want <= 0 || Math.abs(want) < Math.abs(b.speed) ? EASE_CHECK : EASE_GATHER);
       // (put down, a stride does not swing back the other way)
@@ -1973,7 +1924,7 @@ function LiveWorld({
     // Where the feet go: the way's line, or the way the body faces — come
     // round to, not jumped to (COURSE_RATE).
     const to = g.direction ? (g.direction.lengthSq() > 1e-6 ? g.direction : null) : heading(b);
-    if (!b.course || MOTION_OLD || Math.abs(b.speed) < 0.5) b.course = (to ?? b.course ?? heading(b)).clone();
+    if (!b.course || Math.abs(b.speed) < 0.5) b.course = (to ?? b.course ?? heading(b)).clone();
     else if (to) {
       const off = Math.atan2(b.course.x * to.z - b.course.z * to.x, b.course.x * to.x + b.course.z * to.z);
       const by = Math.sign(off) * Math.min(Math.abs(off), Math.min(COURSE_RATE, Math.abs(off) * 14 + 0.4) * dt);
@@ -1999,8 +1950,7 @@ function LiveWorld({
     // eye off upward at its fastest the instant the foot touched — thirty
     // units a second at the Echo's first riser — and was the lurch at every
     // tall step. The head starts to rise, rises, and settles.)
-    if (MOTION_OLD) b.eyeY += (b.feet.y + EYE - b.eyeY) * (1 - Math.exp(-dt * 6.5));
-    else {
+    {
       const d = b.eyeY - (b.feet.y + EYE), v = b.eyeV ?? 0, e = Math.exp(-EYE_EASE * dt), n = (v + EYE_EASE * d) * dt;
       b.eyeY = b.feet.y + EYE + (d + n) * e;
       b.eyeV = (v - EYE_EASE * n) * e;
@@ -2035,8 +1985,8 @@ function LiveWorld({
     gazeQ.copy(b.base).premultiply(scratch.yaw.setFromAxisAngle(WORLD_UP, look.current.yaw)).multiply(scratch.pitch.setFromAxisAngle(LOCAL_X, look.current.pitch));
     scratch.gaze.set(0, 0, -1).applyQuaternion(gazeQ);
     const looking = place === 3 && railIntent(b.feet, scratch.gaze, [world.pit.x, world.pit.z]);
-    const leaning = BRINK_OLD ? looking : b.pressing || looking;
-    const free = BRINK_OLD || (b.pressing ? open : byTheBreak(b.feet, 0.06));
+    const leaning = b.pressing || looking;
+    const free = (b.pressing ? open : byTheBreak(b.feet, 0.06));
     const needs = b.pressing ? BRINK_GO : LEAN_S;
     b.lean = leaning ? Math.min(needs * 2, b.lean + Math.min(dt, 0.1)) : 0;
     const lean = leaning ? Math.min(free ? 1 : BRINK_HELD, smooth(b.lean / needs)) : 0;
@@ -2044,8 +1994,8 @@ function LiveWorld({
     if (!reducedMotion && b.leanAmount) {
       // out over the edge ahead, pressing on; looking down, in toward the well
       const out = b.pressing ? ahead : new THREE.Vector3(world.pit.x - b.feet.x, 0, world.pit.z - b.feet.z).normalize();
-      pose.position.addScaledVector(out, b.leanAmount * (BRINK_OLD ? 2 : BRINK_REACH));
-      pose.position.y -= b.leanAmount * (BRINK_OLD ? 0.5 : BRINK_DIP);
+      pose.position.addScaledVector(out, b.leanAmount * (BRINK_REACH));
+      pose.position.y -= b.leanAmount * (BRINK_DIP);
     }
     if (leaning && free && b.lean >= needs) {
         targetRef.current = place + 1;
@@ -2121,10 +2071,7 @@ function LiveWorld({
   // then stopped dead from there. Now it slows as a walker does, steadily, to
   // nearly nothing at the stand itself.)
   const paceWalk = (move, dt) => {
-    if (MOTION_OLD) {
-      const want = Math.min(move.paceAt(move.distance), WALK_SPEED * Math.max(0.16, smooth((move.length - move.distance) / WALK_BRAKE)));
-      move.speed += (want - move.speed) * (1 - Math.exp(-dt / (want < move.speed ? WALK_CHECK : WALK_GATHER)));
-    } else if (move.steady(move.distance)) {
+    if (move.steady(move.distance)) {
       move.speed = move.paceAt(move.distance);
       move.accel = 0;
     } else {
@@ -2148,7 +2095,7 @@ function LiveWorld({
     if (floor === null) return null;
     // (taking over a walk the piece was making, the reader keeps its stride:
     // it used to stop dead under them and gather itself again from standing)
-    const walking = !MOTION_OLD && moveRef.current?.kind === 'walk' && moveRef.current.started ? moveRef.current : null;
+    const walking = moveRef.current?.kind === 'walk' && moveRef.current.started ? moveRef.current : null;
     const pace = walking && !walking.steady(walking.distance) ? walking.speed : 0;
     return {
       feet: new THREE.Vector3(pose.position.x, floor, pose.position.z),
@@ -2848,14 +2795,19 @@ function LiveWorld({
       camera.quaternion.premultiply(scratch.yaw).multiply(scratch.pitch);
     }
     // (on a tall screen a room's lens opens, to show more than a slot of it:
-    // phoneFix.js, 8 — but not over the map, nor a lens DEV has set by hand)
+    // phone.js — but not over the map, nor a lens DEV has set by hand)
     camera.fov = import.meta.env.DEV && eyeRef.current ? pose.fov : tallFov(pose.fov, size.width / Math.max(1, size.height), pose.eye, ROOM_FOV, FALL_FOV);
     camera.setViewOffset(size.width, size.height, -pose.shift * size.width, 0, size.width, size.height);
     camera.near = pose.near;
     camera.far = rest.distance * 5;
     camera.updateProjectionMatrix();
 
-    world.setVeil(pose.veil);
+    // (and over the map in motion, its warm light and the unexplored dark kept
+    // while the eye is up over the wall tops: mapMotion.js)
+    const moving = !!move && (move.kind === 'flight' || move.kind === 'finale');
+    const lift = moving ? mapMoveAt(camera.position.y) : null;
+    const veil = moving ? Math.max(pose.veil, lift.dark) : pose.veil;
+    world.setVeil(veil, moving ? Math.max(veil, lift.warm) : veil);
     world.setEye(pose.eye);
     world.finale?.update(film, { eye: pose.eye, camera });
     // where the reader is looking, too: the Silence's vault is raised by it
@@ -2906,6 +2858,10 @@ function LiveWorld({
     // full-chroma out under the moon (Grade.js).
     gradePlace.cool = garden * e;
     gradePlace.map = 1 - e;
+    // (each gallery's colour let through, and its fill: roomColour.js 5)
+    const gallery = roomPlace(camera.position.x, camera.position.z), inGallery = e * (1 - garden);
+    gradePlace.open = gallery.open * inGallery;
+    const galleryFill = THREE.MathUtils.lerp(1, gallery.fill, inGallery);
     if (scene.fog) {
       scene.fog.near = logLerp(rest.distance * 1.6, THREE.MathUtils.lerp(THREE.MathUtils.lerp(70, 85, garden), 120, pit), e);
       scene.fog.far = logLerp(rest.distance * 5, THREE.MathUtils.lerp(THREE.MathUtils.lerp(820, 880, garden), 1300, pit), e);
@@ -2915,12 +2871,16 @@ function LiveWorld({
     // the walls it is the lamps' room, and the contact shadow can go deep; out
     // in the garden the moon takes it all back.
     const eyeFill = (k) => THREE.MathUtils.lerp(FILL_EYE[k], FILL_GARDEN[k], garden);
-    scene.environmentIntensity = THREE.MathUtils.lerp(FILL_MAP.env, eyeFill('env'), e) * FILL_DIAL * quiet;
-    world.hemi.intensity = THREE.MathUtils.lerp(FILL_MAP.hemi, eyeFill('hemi'), e) * FILL_DIAL * quiet;
+    scene.environmentIntensity = THREE.MathUtils.lerp(FILL_MAP.env, eyeFill('env'), e) * FILL_DIAL * quiet * galleryFill;
+    world.hemi.intensity = THREE.MathUtils.lerp(FILL_MAP.hemi, eyeFill('hemi'), e) * FILL_DIAL * quiet * galleryFill;
     world.hemi.color.lerpColors(MAP_SKY, LIBRARY_SKY, e).lerp(GARDEN_SKY, garden * e);
+    // (a room whose night has a colour of its own: the Door's, roomColour.js)
+    if (gallery.sky) world.hemi.color.lerp(gallery.sky, gallery.skyW * inGallery);
     world.hemi.groundColor.lerpColors(LIBRARY_BOUNCE, GARDEN_BOUNCE, garden * e);
     world.hemi.groundColor.lerp(MAP_BOUNCE, 1 - e);
     world.moon.intensity = THREE.MathUtils.lerp(FILL_MAP.moon, LIGHT_MESH ? 0.8 : eyeFill('moon'), e) * MOON_DIAL * quiet;
+    moonBase.current ??= world.moon.color.clone();
+    world.moon.color.copy(moonBase.current);
     if (aoRef?.current?.configuration) aoRef.current.configuration.intensity = THREE.MathUtils.lerp(0.9, 2.4, e);
     sky.update(t, camera.position, THREE.MathUtils.smoothstep(e, 0.35, 1));
     // The mirror in the pond — the one second pass over the world this piece

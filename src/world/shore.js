@@ -30,6 +30,7 @@
 import * as THREE from 'three';
 import { makeRng, normalsFrom, toTexture } from './textures';
 import { noise, fbm, boxSurface, curvature, wear, smoothstep, clamp } from './rubble';
+import { SWARD_GLSL, moonGroundLight, moonGroundFog } from './gardenProps';
 
 const TAU = Math.PI * 2;
 const canvas = (w, h = w) => {
@@ -473,7 +474,7 @@ export function rockVariants(n, { seed = 6151, detail = 12, moss = 0.6 } = {}) {
 // and its pebbles (instances: p, rot, s, color, v).
 export function pondShore({ edge, waterY, world, seed = 5813, light = false, bankVary = false, kerbVary = false }) {
   const rnd = makeRng(seed);
-  // (`kerbVary`'s choices from a stream of their own: forkFix.js, 4)
+  // (`kerbVary`'s choices from a stream of their own: forkProps.js)
   const kv = makeRng(seed + 77), KV = (lo, hi) => lo + (hi - lo) * kv();
   let kerbLeft = 2 + Math.floor(kv() * 3);
   const R = (lo, hi) => lo + (hi - lo) * rnd();
@@ -579,7 +580,7 @@ export function pondShore({ edge, waterY, world, seed = 5813, light = false, ban
   for (let i = 0; i < M; i++) {
     const q = prof[i], [w1, fall0] = bankW[kinds[i]], cols = COLS(q);
     let bw = w1 * (0.75 + 0.5 * ring(sAt[i], 1.5, 12)), fall = fall0;
-    // `bankVary` (forkFix.js, 7): the pebbles' reach up the bank slowly half
+    // `bankVary` (forkProps.js): the pebbles' reach up the bank slowly half
     // to half again as wide as its kind's, and here and there none at all —
     // grass or the dark wet earth down to the water — so it is not one even
     // pale band round the pond
@@ -950,8 +951,15 @@ export function shoreRockLit(mat, { waterY, pond, tile = ROCK_TILE, lite = false
 // (the same maps, laid as they lay them — u along x, v along -z — and their
 // colours), the pebbled earth of shoreBank toward the water, and wet and dark
 // at it. `aShore`: how much is bank, how much of the floor is gravel, how wet.
-export function bankLit(mat, { grass, gravel, grassColor, gravelColor, grassRepeat, gravelRepeat }) {
+// `sward` (gardenProps.js): the lawn's own colour on the bank's grass, and
+// its light and fog as the lawn's.
+export function bankLit(mat, { grass, gravel, grassColor, gravelColor, grassRepeat, gravelRepeat, sward = null }) {
+  const own = sward?.on, moon = sward?.moon;
   mat.onBeforeCompile = (sh) => {
+    if (own || moon) {
+      Object.assign(sh.uniforms, sward.uniforms());
+      sward.track(sh);
+    }
     sh.uniforms.uBkGrass = { value: grass };
     sh.uniforms.uBkGravel = { value: gravel };
     sh.uniforms.uBkGrassCol = { value: new THREE.Color(grassColor) };
@@ -974,7 +982,11 @@ export function bankLit(mat, { grass, gravel, grassColor, gravelColor, grassRepe
         uniform vec3 uBkGravelCol;
         varying vec3 vShore;
         varying vec3 vBkW;
-        varying vec3 vBkN;`)
+        varying vec3 vBkN;
+        ${own || moon ? `uniform vec3 uMoonGround;
+        uniform float uMoonFog;
+        uniform vec3 uMoonFogTint;
+        ${SWARD_GLSL}` : ''}`)
       // (each map read only where it shows — the lawn and the gravel off the
       // pebbles, the pebbles off the lawn — with the gradients taken first, so
       // a read inside a branch still picks its mip as the floor's does)
@@ -985,7 +997,7 @@ export function bankLit(mat, { grass, gravel, grassColor, gravelColor, grassRepe
         vec2 bkBx = dFdx(bkUv), bkBy = dFdy(bkUv), bkGx = dFdx(bkGU), bkGy = dFdy(bkGU), bkVx = dFdx(bkVU), bkVy = dFdy(bkVU);
         vec3 bkGround = vec3(0.0);
         if (vShore.x < 0.999) {
-          bkGround = textureGrad(uBkGrass, bkGU, bkGx, bkGy).rgb * uBkGrassCol;
+          bkGround = ${own ? 'swardColor(textureGrad(uBkGrass, bkGU, bkGx, bkGy).rgb, textureLod(uBkGrass, bkGU, 12.0).rgb, vBkW.xz)' : 'textureGrad(uBkGrass, bkGU, bkGx, bkGy).rgb * uBkGrassCol'};
           if (vShore.y > 0.001) bkGround = mix(bkGround, textureGrad(uBkGravel, bkVU, bkVx, bkVy).rgb * uBkGravelCol, vShore.y);
         }
         vec3 bkBank = vec3(0.0);
@@ -1006,7 +1018,15 @@ export function bankLit(mat, { grass, gravel, grassColor, gravelColor, grassRepe
         float bkDetail = 1.0 - smoothstep(180.0, 450.0, length(vViewPosition));
         vec3 bkWN = normalize(normalize(vBkN) + vec3(bkT.x * 2.0 - 1.0, 0.0, 1.0 - bkT.y * 2.0) * normalScale.x * vShore.x * bkDetail);
         normal = normalize((viewMatrix * vec4(bkWN, 0.0)).xyz);`);
+    // (the lawn's share of the bank: off the pebbles and the gravel)
+    if (moon) {
+      const w = '((1.0 - vShore.x) * (1.0 - vShore.y))';
+      sh.fragmentShader = sh.fragmentShader
+        .replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
+          ${moonGroundLight(w)}`)
+        .replace('#include <fog_fragment>', moonGroundFog(w));
+    }
   };
-  mat.customProgramCacheKey = () => 'babel-shore-bank';
+  mat.customProgramCacheKey = () => `babel-shore-bank${own ? '-sward' : ''}${moon ? '-moon' : ''}`;
   return mat;
 }

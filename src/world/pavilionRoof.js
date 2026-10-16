@@ -5,7 +5,7 @@
 // curve it was turned from was a dome's: level at the top and steepest at the
 // eave, where a roof of this kind is the other way about.
 //
-// So (forkProps.js, 2 and 11) it is a roof of tile now. Each slope falls in a
+// So (forkProps.js) it is a roof of tile now. Each slope falls in a
 // hollow curve — steep under the ridge, easing to the eave, and level at the
 // eave's edge — and at every corner the eave sweeps up. On each slope the
 // tiles lie as they are laid: pans in the valleys, and over every joint
@@ -104,7 +104,7 @@ const mix3 = (a, b, k) => [a[0] + b[0] * k, a[1] + b[1] * k, a[2] + b[2] * k];
 // The roof over `at` ([x, z]). Returns { tiles, under }: the tiled top (for
 // `roofTiles`' texture) and the soffit and eave board under it; and `tips`,
 // where each corner's scroll ends.
-// `bronze` (gardenFix5.js, 6): the hips' curled ends past the eave as a mesh
+// `bronze` (gardenProps.js): the hips' curled ends past the eave as a mesh
 // of their own (`horns`), for another metal than the tile's.
 export function tiledRoof({ at, kind = 'grey', light = false, bronze = false }) {
   const tiles = gather(true), under = gather(), horns = gather(), tips = [];

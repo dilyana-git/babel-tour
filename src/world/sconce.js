@@ -1,14 +1,6 @@
-// The Echo's pier lanterns (?wsconce=old: the sconces as they were).
-//
-// The sconce on every other pier of the Echo's arcade was a bronze rod run
-// straight through its globe — its hexagonal end stood out of the front of the
-// glass — under a ten-sided pan, with nothing holding either to the column.
-// Chosen 2026-10-07 over a gas bracket, a small hanging lamp and a fluted shade
-// (canvas "Lamps — options"): a lantern of six opal panes, the shape of the
-// galleries, standing on a console.
-// The console was held by a deep band round the shaft, which read as a hoop on
-// a barrel (?wmount=old). Chosen the same day over two cast roses in the stone
-// and two slim straps: it is fixed to a cast plate on the column's face.
+// The Echo's pier lanterns: on every other pier of the arcade, a lantern of
+// six opal panes, the shape of the galleries, standing on a console fixed to
+// a cast plate on the column's face.
 //
 // Everything is drawn in the lantern's own plane — x out from the column's
 // axis toward the room, y the world's height — and turned into place.
@@ -67,16 +59,6 @@ export const lathe = (prof, n, x = 0, flat = false) => {
   return g.translate(x, 0, 0);
 };
 export const ring = (R, tube, y, x = 0, segs = 40) => new THREE.TorusGeometry(R, tube, 8, segs).rotateX(Math.PI / 2).translate(x, y, 0);
-
-// (?wmount=old) The band round the shaft the console sprang from: two beads
-// and a fillet over a plain band, and a boss on its face where the bar came out.
-const girdle = (R, y, h) => [
-  new THREE.CylinderGeometry(R(y + h / 2) + 0.05, R(y - h / 2) + 0.05, h, 44, 1, true).translate(0, y, 0),
-  ring(R(y + h / 2) + 0.07, 0.085, y + h / 2, 0, 48),
-  ring(R(y - h / 2) + 0.07, 0.085, y - h / 2, 0, 48),
-  ring(R(y) + 0.075, 0.045, y, 0, 48),
-  new THREE.CylinderGeometry(0.36, 0.44, 0.3, 16).rotateZ(-Math.PI / 2).translate(R(y) + 0.2, y, 0),
-];
 
 // A point on the shaft's face, `lift` off it, `s` along the surface from the
 // lantern's plane (an arc length, so a shape keeps its width as R narrows).
@@ -160,8 +142,8 @@ const RB = 0.92, RT = 1.12;
 //
 // Nothing stands out from the column below 23.3, and that only where the
 // brace meets it: a reader's head is at FLOOR + 17 = 23. (The plate goes
-// lower, flat on the stone.) `oldBand`: the band round the shaft instead.
-export function pierLantern({ at, ry, R, oldBand = false }) {
+// lower, flat on the stone.)
+export function pierLantern({ at, ry, R }) {
   const cs = Math.cos(ry), sn = Math.sin(ry);
   const world = (x, y, z = 0) => [at[0] + x * cs + z * sn, y, at[1] - x * sn + z * cs];
   const place = (g) => g.rotateY(ry).translate(at[0], 0, at[1]);
@@ -169,7 +151,7 @@ export function pierLantern({ at, ry, R, oldBand = false }) {
   const bronze = [];
   // the console: a bar out from the plate, an S-brace under it from low on
   // the plate, and a scroll hung in the corner between them
-  bronze.push(...(oldBand ? girdle(R, yg, 0.8) : plate(R, yg)));
+  bronze.push(...plate(R, yg));
   bronze.push(sweep([[R(yg) + 0.25, yg + 0.12], [3.6, yg + 0.14], [4.6, yg + 0.16]], 0.15, 0.13, { segs: 8 }));
   bronze.push(sweep([[R(yg - 1) + 0.03, yg - 1.0], [2.6, yg - 0.95], [3.2, yg - 0.7], [3.8, yg - 0.3], [4.4, yg - 0.05], [4.85, yg + 0.02]], 0.1, 0.08));
   bronze.push(sweep(curl(2.62, yg - 0.38, 0.3, Math.PI * 0.5, Math.PI * 2.9), 0.07, 0.045, { segs: 50, radial: 8 }));

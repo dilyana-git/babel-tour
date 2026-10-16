@@ -4,16 +4,13 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { buildVestibuleBridge } from '../vestibuleBridge';
-import { makeBookMaterial, BOOKS_GIANT, spineAt, titleAt } from '../effects';
+import { makeBookMaterial, spineAt, titleAt } from '../effects';
 import { buildWalkers } from '../walkers';
-import { vestOld } from '../vestFix';
-import { WOOD_OLD } from '../woodGrain';
 import { deg, MASS_H, CAP, BOOK_ROWS } from '../build/common';
 
 export function buildVestibule(ctx) {
   const { light, rr, dir, add, keep, wood, spines, titles, bookRowsSet, rowV, Std, M, root, boxGeo,
-    placed, profileGeo, rodGeo, wornRibbon, R, A, cellC, RAIL_OLD, BRIDGE_LEVEL, mouldGeo, patchOf,
-    pedestalGeo, VEST_RAIL, stoneRail, LB, balusters, BOOKS, alongWall, lamp } = ctx;
+    placed, rodGeo, wornRibbon, R, A, cellC, mouldGeo, LB, balusters, alongWall, lamp } = ctx;
   let vault = null;   // the library over the Vestibule, raised by the reader's gaze in tick
   let walkers = null; // the readers walking the Vestibule's bridge, moved by tick
   // I — the Vestibule: a bridge over a wide shaft, a file of readers on it.
@@ -30,43 +27,22 @@ export function buildVestibule(ctx) {
       const u = 44 - (k / 26) * 88;
       soffit.push([u, 4 - 26 * (u / 44) ** 2]);
     }
-    if (!BRIDGE_LEVEL) LB.step.add(profileGeo([[-55, -34], [-55, 12], [55, 12], [55, -34], [44, -34], ...soffit, [-44, -34]], 17, c, 30));
     // a moulded string course along each edge of the deck, and the keystone
-    for (const side of BRIDGE_LEVEL ? [] : [-1, 1]) {
+    for (const side of []) {
       LB.cap.add(boxGeo(add(a, px, side * 8.6), add(b, px, side * 8.6), 1.6, 2.2, 10.4));
       LB.cap.add(boxGeo(add(a, px, side * 9.2), add(b, px, side * 9.2), 1.2, 1.4, 9.2));
     }
-    for (const side of BRIDGE_LEVEL ? [] : [-1, 1]) {
+    for (const side of []) {
       LB.cap.add(placed(new THREE.BoxGeometry(5, 7, 2.6), add(c, px, side * 8.7), 6, 30 * deg));
     }
     // A stone balustrade along each side of the deck, on the string course:
     // five pedestals a side — one over the keystone, where the arch is
     // highest, one at each end with a ball on it, and two halfway between —
     // and the plinth, balusters and handrail run between them.
-    // (?wrail=old: the bronze handrail on posts it replaced; it is the
-    // raised bridge's, ?wbridge=old: see vestibuleBridge.js)
-    if (!RAIL_OLD && !BRIDGE_LEVEL) {
-      const ry = -30 * deg, DECK = 12, TOP = 20.6, PEDS = [-52, -26, 0, 26, 52];
-      for (const side of [-1, 1]) {
-        const at = (u) => add(add(c, ax, u), px, side * 8.3);
-        PEDS.forEach((u, i) => {
-          // (let down onto the lower string, or the overhang of its base
-          // shows a slot of dark under it from the floor)
-          LB.balustrade.add(placed(pedestalGeo(VEST_RAIL.ped, VEST_RAIL.baseH - VEST_RAIL.sink, TOP + 0.1 - DECK,
-            { ball: Math.abs(u) === 52, sunk: 1.5, shift: patchOf(at(u)) }), at(u), DECK, ry));
-          if (i) {
-            stoneRail(LB.balustrade, {
-              at, foot: () => DECK, top: () => TOP, knots: [PEDS[i - 1], u],
-              clear: [VEST_RAIL.ped / 2 + 0.25, VEST_RAIL.ped / 2 + 0.25], ry: () => ry, S: VEST_RAIL,
-            });
-          }
-        });
-      }
-    }
     // Level with the floor, and of a piece with the room (the default).
-    if (BRIDGE_LEVEL) buildVestibuleBridge({ c, ax, px, LB, placed, mouldGeo, balusters, wornRibbon });
+    buildVestibuleBridge({ c, ax, px, LB, placed, mouldGeo, balusters, wornRibbon });
     // a bronze handrail on posts, rather than a bar floating in the air
-    for (const side of RAIL_OLD ? [-1, 1] : []) {
+    for (const side of []) {
       const rail0 = add(a, px, side * 8), rail1 = add(b, px, side * 8);
       LB.bronze.add(rodGeo([rail0[0], 20, rail0[1]], [rail1[0], 20, rail1[1]], 0.7));
       LB.bronze.add(rodGeo([rail0[0], 15.5, rail0[1]], [rail1[0], 15.5, rail1[1]], 0.35));
@@ -98,13 +74,12 @@ export function buildVestibule(ctx) {
     // room) (their halos turned down as the lamps by the other stands are: at
     // the full 111 units across, the near one's lays a pale band down the whole
     // bay of shelves behind it, from the top of the frame to the rail, which
-    // reads as a smear on the lens — vestFix.js, 6)
-    const BRIDGE_HAZE = vestOld(6) ? 1 : 0.45;
+    // reads as a smear on the lens — libraryProps.js)
+    const BRIDGE_HAZE = 0.45;
     lamp(add(c, ax, -64), { y: 42, light: 9000, priority: 8, strength: 1.3, pool: 0.42, poolSize: 150, poolY: 6.15, haze: BRIDGE_HAZE });
     lamp(add(c, ax, 64), { y: 42, light: 9000, priority: 5, strength: 1.3, pool: 0.42, poolSize: 150, poolY: 6.15, haze: BRIDGE_HAZE });
     // The deck walked smooth down its middle: the file has been crossing it
     // for a very long time.
-    if (!BRIDGE_LEVEL) LB.wornStep.add(wornRibbon([add(c, ax, -54), add(c, ax, 54)], 7, 12.03));
     // A reader who has stopped. Under the first lamp, where the bridge comes
     // down to the floor, a lectern with a folio open on it and one of the file
     // turned aside to read it: the readers were only ever walking past.
@@ -123,7 +98,7 @@ export function buildVestibule(ctx) {
       LB.paper.add(placed(mergeGeometries(folio).rotateX(tilt).translate(0, 17.62, 0), at, 0, ry));
       folio.forEach((g) => g.dispose());
       walkers = buildWalkers({
-        root, keep, c, ax, px, deck: BRIDGE_LEVEL ? 6 : 12, light,
+        root, keep, c, ax, px, deck: 6, light,
         lectern: { at: add(c, ax, -61.2), y: 6, face: Math.atan2(-ax[0], -ax[1]) },
         // (the way out to the Echo, lit from beyond: a little inside its arch)
         arch: [c[0] + dir(330)[0] * (A + 16), 38, c[1] + dir(330)[1] * (A + 16)],
@@ -296,9 +271,6 @@ export function buildVestibule(ctx) {
           const g = Math.max(0.35, 0.9 * f);
           put('lamps', p0.clone().setY(p0.y + 1.2 * f), inwardAt(angle(s)), [g, g, g], tint('#ffc98e', 0.2 + 1.5 * k), order + 0.003);
         }
-        // the books, both shelves, flying up out of the room onto them
-        const rb = r - 4.2 * f, w = chord(rb) * 0.97;
-        const along = new THREE.Vector3().crossVectors(UP, inn).normalize();
         const rows = [[y + 1.8 * f, PH * 0.5 - 2.6 * f], [y + PH * 0.5 + 1.4 * f, PH * 0.5 - TREAD * f - 4.8 * f]];
         // In the first turn the tread climbs away from the wall tops, and the
         // bookcase under it — down to the stone — would be a bare dark board as
@@ -312,40 +284,21 @@ export function buildVestibule(ctx) {
           }
         }
         for (const [yb, room] of rows) {
-          if (!BOOKS_GIANT) {
-            // Real books: a giant's shelf here is three or four of quartos,
-            // each a painted row of them (bookRows) set down whole. Seen from
-            // the floor, a hundred and more below, a book is a pixel or two
-            // across; boxes for them all would be tens of thousands.
-            const n = Math.max(1, Math.round(room / (4.1 * f))), pitch = room / n, rf = r - 7.4 * f, wr = chord(rf) * 0.97;
-            for (let j = 0; j < n; j++) {
-              const sy = yb + j * pitch, clear = pitch - (j < n - 1 ? 0.4 * f : 0);
-              if (j > 0) put('wood', at(r - (SHELF / 2) * f, a, sy - 0.2 * f), inn, [chord(r), 0.4 * f, SHELF * f], tint('#4a3526', k), order + 0.001);
-              const { top: vt, base: vb } = rowV[BOOK_ROWS.variants + Math.floor(vr() * BOOK_ROWS.variants)];
-              const from = inn.clone().multiplyScalar(vrr(28, 60)).add(new THREE.Vector3(vrr(-12, 12), -vrr(8, 30), vrr(-12, 12)));
-              // (twice the fade boxes would take: their labels, lift and gilt
-              // in the books' shader carry them, and the bare paint at the same
-              // fade reads as half as bright)
-              put('rows', at(rf, a, sy + clear / 2), inn, [wr, clear, 1], tint('#ffffff', 2.2 * k * vrr(0.9, 1.1)), order + 0.003 + j * 0.0004, { from });
-              pieces.rows[pieces.rows.length - 1].row = [vr(), wr / BOOK_ROWS.length, vb, vt];
-            }
-            continue;
-          }
-          const base = yb - y;
-          let u = -w / 2;
-          let n = 0;
-          while (u < w / 2 - 1.4 * f) {
-            if (vr() < 0.04) { u += vrr(1.5, 4) * f; continue; }
-            const bw = Math.min(vrr(1.3, 2.9) * f, w / 2 - u), bh = vrr(room * 0.7, room);
-            const tilt = vr() < 0.05 ? vrr(-0.25, 0.25) : 0;
-            // across the bay, not round it: a straight shelf in each bay
-            const p = at(rb, a, y + base + bh / 2).addScaledVector(along, u + bw / 2);
+          // Real books: a giant's shelf here is three or four of quartos,
+          // each a painted row of them (bookRows) set down whole. Seen from
+          // the floor, a hundred and more below, a book is a pixel or two
+          // across; boxes for them all would be tens of thousands.
+          const n = Math.max(1, Math.round(room / (4.1 * f))), pitch = room / n, rf = r - 7.4 * f, wr = chord(rf) * 0.97;
+          for (let j = 0; j < n; j++) {
+            const sy = yb + j * pitch, clear = pitch - (j < n - 1 ? 0.4 * f : 0);
+            if (j > 0) put('wood', at(r - (SHELF / 2) * f, a, sy - 0.2 * f), inn, [chord(r), 0.4 * f, SHELF * f], tint('#4a3526', k), order + 0.001);
+            const { top: vt, base: vb } = rowV[BOOK_ROWS.variants + Math.floor(vr() * BOOK_ROWS.variants)];
             const from = inn.clone().multiplyScalar(vrr(28, 60)).add(new THREE.Vector3(vrr(-12, 12), -vrr(8, 30), vrr(-12, 12)));
-            put('books', p, inn, [bw, bh, vrr(6, 7.4) * f], tint(BOOKS[Math.floor(vr() * BOOKS.length)], vrr(0.8, 1.15)),
-              order + 0.003 + n * 0.00012, { from, tilt });
-            pieces.books[pieces.books.length - 1].dim = k;
-            u += bw + vrr(0.1, 0.5) * f;
-            n++;
+            // (twice the fade boxes would take: their labels, lift and gilt
+            // in the books' shader carry them, and the bare paint at the same
+            // fade reads as half as bright)
+            put('rows', at(rf, a, sy + clear / 2), inn, [wr, clear, 1], tint('#ffffff', 2.2 * k * vrr(0.9, 1.1)), order + 0.003 + j * 0.0004, { from });
+            pieces.rows[pieces.rows.length - 1].row = [vr(), wr / BOOK_ROWS.length, vb, vt];
           }
         }
       }
@@ -368,22 +321,21 @@ export function buildVestibule(ctx) {
       // instance's own scale instead, in world units, with the grain along a
       // face's longer side and each piece cut from its own stretch of the
       // board (see woodGrain.js).
-      if (!WOOD_OLD) {
-        woodMat.onBeforeCompile = (sh) => {
-          sh.vertexShader = sh.vertexShader.replace('#include <uv_vertex>', `#include <uv_vertex>
-          {
-            vec3 sc = vec3(length(instanceMatrix[0].xyz), length(instanceMatrix[1].xyz), length(instanceMatrix[2].xyz));
-            vec3 an = abs(normal);
-            // a face's sides as a BoxGeometry lays its uv: ±x faces (z, y), ±y (x, z), ±z (x, y)
-            vec2 side = an.x > 0.5 ? sc.zy : an.y > 0.5 ? sc.xz : sc.xy;
-            vec2 w = uv * side;
-            if (side.y > side.x) w = w.yx;
-            w += fract(sin(dot(instanceMatrix[3].xyz, vec3(12.9898, 78.233, 37.719))) * 43758.5453) * vec2(97.0, 53.0);
-            vMapUv = (mapTransform * vec3(w, 1.0)).xy;
-          }`);
-        };
-        woodMat.customProgramCacheKey = () => 'babel-vault-wood';
-      }
+      
+      woodMat.onBeforeCompile = (sh) => {
+        sh.vertexShader = sh.vertexShader.replace('#include <uv_vertex>', `#include <uv_vertex>
+        {
+          vec3 sc = vec3(length(instanceMatrix[0].xyz), length(instanceMatrix[1].xyz), length(instanceMatrix[2].xyz));
+          vec3 an = abs(normal);
+          // a face's sides as a BoxGeometry lays its uv: ±x faces (z, y), ±y (x, z), ±z (x, y)
+          vec2 side = an.x > 0.5 ? sc.zy : an.y > 0.5 ? sc.xz : sc.xy;
+          vec2 w = uv * side;
+          if (side.y > side.x) w = w.yx;
+          w += fract(sin(dot(instanceMatrix[3].xyz, vec3(12.9898, 78.233, 37.719))) * 43758.5453) * vec2(97.0, 53.0);
+          vMapUv = (mapTransform * vec3(w, 1.0)).xy;
+        }`);
+      };
+      woodMat.customProgramCacheKey = () => 'babel-vault-wood';
       const stoneMat = Std({ color: '#ffffff', roughness: 0.95 });
       // The room's own bindings, but dimmed whole. The book material paints
       // the gilt, the labels and the page edges in colours of their own, so an

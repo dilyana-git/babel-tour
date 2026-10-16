@@ -50,7 +50,7 @@ export const crackSize = ({ a0, a1, b0, b1, ppu }) => ({ w: Math.round((a1 - a0)
 // `rest`: what lies on the floor (rubble.js) — [along, into, half length, half
 // width, turn, how dark, round] — for the shade at its foot and the grit round it.
 // The pavement is the floor's: `tile` units to its canvas of `paveSize` pixels.
-// `taper` (doorFix.js, 5): a crack starts wide and thins all the way out to
+// `taper` (doorProps.js): a crack starts wide and thins all the way out to
 // its end, wider where the floor was hit harder, and branches and flakes
 // more; and here and there a piece of a slab has sunk and tipped further.
 // `dust`: the pale veil round each block, [how pale, how far out].
@@ -427,7 +427,8 @@ export function crackFields({
     }
   }
   // (the joints and the pieces' heights too, for looking at it outside the world)
-  return { W, H, rgba, pieces: pieces.length, paths: paths.length, joint, base };
+  // (and the cracks' own lines, for what grows in them: doorFlora.js)
+  return { W, H, rgba, pieces: pieces.length, paths: paths.length, joint, base, lines: paths };
 }
 
 export function floorCracks(args) {

@@ -30,7 +30,7 @@
 // (two modules change three.js's shader chunks when they are first evaluated,
 // and the world's materials are compiled against what they leave: the
 // Vertigo's well grade, then the light model — in that order)
-import './vertigoFix';
+import {  } from './vertigoProps';
 import './lightModel';
 import { paintNow } from './paint';
 import { PAINTED } from './build/common';
@@ -49,6 +49,7 @@ import { buildWeb } from './rooms/web';
 import { buildTrees, buildMist } from './build/grounds';
 import { buildLight, buildUnexplored, buildCulling, buildOverlay } from './build/light';
 import { buildStands, buildCrossing, buildWornFloor, buildWaterView, buildEnding } from './build/walk';
+import { lightRooms, tintRooms } from './roomColour';
 
 export { FRAME, MASS_H, CAP, PAINTED } from './build/common';
 
@@ -89,6 +90,9 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
   buildSilence(ctx);
   yield 'The Vertigo';
   Object.assign(ctx, yield* buildVertigo(ctx));
+  // (each gallery's flame on its lamps, once the four are up and before the
+  // globes are instanced with the Door's: roomColour.js)
+  lightRooms(ctx);
   yield 'The Door';
   Object.assign(ctx, buildDoor(ctx));
   yield 'The arch';
@@ -126,5 +130,8 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
   yield 'What the water has to look at';
   buildWaterView(ctx);
   yield 'How the walk ends';
-  return yield* buildEnding(ctx);
+  const world = yield* buildEnding(ctx);
+  // (each gallery's stone, wood and metal, on top of every other patch: roomColour.js)
+  tintRooms(ctx);
+  return world;
 }

@@ -14,7 +14,7 @@
    breathes by stroke-opacity; the shown state sets opacity.
 
    Every colour, curve and length of time below is one of the few named here
-   (world/hudFix3.js, 4 and 5): the sheet had the one ink at thirteen
+   (world/walkers.js): the sheet had the one ink at thirteen
    strengths, ten warm whites and fourteen durations, none of them decisions.
    - the ink (--ink, index.css) and three steps down from it: what is read
      second, what only marks, what is barely there;
@@ -50,7 +50,7 @@
   --t-quick: 200ms;
   --t: 600ms;
   --t-slow: 1100ms;
-  /* The kicker's voice (world/hudFix3.js, 2): the title's capitals, small and
+  /* The kicker's voice (world/walkers.js): the title's capitals, small and
      letterspaced. The mono is the catalogue's, and speaks in the opening. */
   --sc: 'Cormorant SC', var(--serif);
   --caps: 600 0.9rem/1 var(--sc);
@@ -531,7 +531,7 @@
   opacity: 0.7;
 }
 
-/* --- The ending (Ending.jsx; world/finaleFix6.js, 3) ---
+/* --- The ending (Ending.jsx; world/finaleLook.js) ---
    In the caption's place when the film has come down on the map, and in its
    voice, on its pool of shadow: the walk's last line, set as large as an
    italic may be under the title's capitals; then the colophon, the quietest
@@ -1171,7 +1171,7 @@
   height: 100%;
 }
 
-/* Where the drawing stays on over the map (world/mapFix3.js, 2): it is the
+/* Where the drawing stays on over the map (world/mapLook.js): it is the
    map's, and goes with it — quickly, as a flight leaves, because it does not
    move with the world under it. */
 .assembly-ink.is-kept {
@@ -1422,39 +1422,6 @@
   background: radial-gradient(ellipse 100% 100% at 0% 100%, var(--pool-far));
 }
 
-/* The subtitle's other ways (world/hudFix3.js, 1; the name's own italic was
-   chosen, and is .room-sub and .map-card-sub): the script it was in, as it
-   was and bold; a chancery hand with real weight; a printer's italic out of
-   an old book. Each as tall on the page as the script was, in a line of the
-   script's height, so nothing round it moves. */
-.entry-map[data-sub='off'] .room-sub {
-  font: 400 clamp(1.6rem, 2.3vw, 2.3rem) / 1.05 var(--script);
-}
-
-.entry-map[data-sub='b'] .room-sub {
-  font: 700 clamp(1.6rem, 2.3vw, 2.3rem) / 1.05 var(--script);
-}
-
-.entry-map:is([data-sub='off'], [data-sub='b']) .map-card-sub {
-  font: 700 clamp(1.45rem, 1.6vw, 1.85rem) / 1.1 var(--script);
-}
-
-.entry-map[data-sub='c'] .room-sub {
-  font: 400 clamp(1rem, 1.42vw, 1.42rem) / 1.7 'Quintessential', var(--serif);
-}
-
-.entry-map[data-sub='c'] .map-card-sub {
-  font: 400 clamp(0.95rem, 1.02vw, 1.18rem) / 1.72 'Quintessential', var(--serif);
-}
-
-.entry-map[data-sub='d'] .room-sub {
-  font: italic 400 clamp(1.05rem, 1.5vw, 1.5rem) / 1.61 'IM Fell DW Pica', var(--serif);
-}
-
-.entry-map[data-sub='d'] .map-card-sub {
-  font: italic 400 clamp(1rem, 1.08vw, 1.25rem) / 1.63 'IM Fell DW Pica', var(--serif);
-}
-
 .room-kicker {
   font: var(--caps);
   letter-spacing: 0.2em;
@@ -1473,7 +1440,7 @@
   outline: none;
 }
 
-/* In the name's own italic, half its size (world/hudFix3.js, 1): it was in a
+/* In the name's own italic, half its size (world/walkers.js): it was in a
    script whose hairlines were a pixel wide over a moving room. The line is as
    tall as the script's was, so the name stands where it stood. */
 .room-sub {
@@ -1649,12 +1616,12 @@
 
 /* Keep a dark backing under the Vertigo's controls over the lit spines,
    with its top close to the words so the hanging globe keeps its light. */
-.entry-map:not([data-hud-old~='3']) .room-hud[data-room='vertigo'] .room-nav::before {
+.entry-map .room-hud[data-room='vertigo'] .room-nav::before {
   inset: -1.4rem -2.5rem -2.2rem -15rem;
   background: radial-gradient(ellipse 100% 100% at 100% 100%, var(--pool-far));
 }
 
-.entry-map:not([data-hud-old~='3']) .room-hud[data-room='vertigo'] .room-step-verb {
+.entry-map .room-hud[data-room='vertigo'] .room-step-verb {
   color: var(--ink);
 }
 
@@ -2119,90 +2086,90 @@
   width: max-content;
 }
 
-/* --- The phone, in the hand (world/phoneFix7.js) -------------------------------
+/* --- The phone, in the hand (world/phone.js) -------------------------------
    2. The walk's line has the walk button in it. The way on keeps the line
    above to itself (the Pavilion's, "The Web of Time VIII", runs most of the
    width); under it, on the bottom edge: the way back, saying only where to,
    then the button — where a thumb rests, and off the picture, which it stood
    in the middle of — then the seal. */
-.entry-map.is-tall:not([data-phone-old~='2']) .room-nav {
+.entry-map.is-tall .room-nav {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 0 0.75rem;
 }
 
-.entry-map.is-tall:not([data-phone-old~='2']) .room-ways {
+.entry-map.is-tall .room-ways {
   display: contents;
 }
 
-.entry-map.is-tall:not([data-phone-old~='2']) .room-step {
+.entry-map.is-tall .room-step {
   grid-column: 1;
   justify-self: start;
 }
 
-.entry-map.is-tall:not([data-phone-old~='2']) .room-step.is-on {
+.entry-map.is-tall .room-step.is-on {
   grid-area: 1 / 1 / auto / -1;
 }
 
-.entry-map.is-tall:not([data-phone-old~='2']) .room-step.is-back {
+.entry-map.is-tall .room-step.is-back {
   grid-row: 2;
 }
 
-.entry-map.is-tall:not([data-phone-old~='2']) .room-step.is-climb {
+.entry-map.is-tall .room-step.is-climb {
   grid-row: 3;
 }
 
-.entry-map.is-tall:not([data-phone-old~='2']) .room-step-way {
+.entry-map.is-tall .room-step-way {
   display: none;
 }
 
-.entry-map.is-tall:not([data-phone-old~='2']) .room-nav > .room-hold {
+.entry-map.is-tall .room-nav > .room-hold {
   grid-area: 2 / 2;
 }
 
-.entry-map.is-tall:not([data-phone-old~='2']) .room-map {
+.entry-map.is-tall .room-map {
   grid-area: 2 / 3;
   padding-block: 0;
 }
 
 /* (where the room has a second place to stand, the way to it is a third
    line, and the button and the seal stand beside the lower two) */
-.entry-map.is-tall:not([data-phone-old~='2']) .room-nav.has-climb > .room-hold {
+.entry-map.is-tall .room-nav.has-climb > .room-hold {
   grid-area: 2 / 2 / span 2;
 }
 
-.entry-map.is-tall:not([data-phone-old~='2']) .room-nav.has-climb .room-map {
+.entry-map.is-tall .room-nav.has-climb .room-map {
   grid-area: 2 / 3 / span 2;
 }
 
 @media (max-width: 374px) {
-  .entry-map.is-tall:not([data-phone-old~='2']) .room-nav {
+  .entry-map.is-tall .room-nav {
     column-gap: 0.4rem;
   }
 
-  .entry-map.is-tall:not([data-phone-old~='2']) .room-seal {
+  .entry-map.is-tall .room-seal {
     width: 67px;
     height: 44px;
   }
 
-  .entry-map.is-tall:not([data-phone-old~='2']) .room-step:not(.is-on) {
+  .entry-map.is-tall .room-step:not(.is-on) {
     font-size: 1.1rem;
   }
 
   /* (a quotation's source on one line there too) */
-  .entry-map.is-tall:not([data-phone-old~='3']) .room-voice-from {
+  .entry-map.is-tall .room-voice-from {
     letter-spacing: 0.13em;
   }
 }
 
 @media (max-width: 340px) {
-  .entry-map.is-tall:not([data-phone-old~='2']) .room-step:not(.is-on) {
+  .entry-map.is-tall .room-step:not(.is-on) {
     gap: 0.4rem;
     font-size: 1rem;
   }
 
-  .entry-map.is-tall:not([data-phone-old~='2']) .room-nav > .room-hold {
+  .entry-map.is-tall .room-nav > .room-hold {
     width: 50px;
     height: 50px;
   }
@@ -2213,7 +2180,7 @@
    to be upward, on a pool of shade of its own (a long quotation stands higher
    than the shade behind the name does). The name gives way to it and comes
    back after it; nothing is moved to make the room. */
-.entry-map.is-tall:not([data-phone-old~='3']) .room-summary {
+.entry-map.is-tall .room-summary {
   position: absolute;
   right: 0;
   bottom: 0.2rem;
@@ -2224,7 +2191,7 @@
   pointer-events: none;
 }
 
-.entry-map.is-tall:not([data-phone-old~='3']) .room-voice-line {
+.entry-map.is-tall .room-voice-line {
   position: absolute;
   right: 0;
   bottom: 0;
@@ -2232,7 +2199,7 @@
   isolation: isolate;
 }
 
-.entry-map.is-tall:not([data-phone-old~='3']) .room-voice-line::after {
+.entry-map.is-tall .room-voice-line::after {
   content: '';
   position: absolute;
   inset: -0.7rem -0.5rem -0.4rem;
@@ -2371,16 +2338,3 @@
   from { opacity: 0; }
 }
 
-/* --- As it was (world/hudFix3.js: ?whud3=old, or old:2,5) ---------------------
-   2: the kickers and the source in the mono; 5: the browser's own curve. */
-.entry-map[data-hud-old~='2'] :is(.room-kicker, .map-card-kicker, .room-voice-from, .map-card-here, .map-enter) {
-  font-family: var(--mono);
-  font-size: 0.75rem;
-  font-weight: 500;
-  letter-spacing: 0.16em;
-}
-
-.entry-map[data-hud-old~='5'] {
-  --arrive: ease;
-  --leave: ease;
-}

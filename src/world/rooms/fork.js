@@ -4,100 +4,34 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { PAVILION_BRIDGE_HALF_WIDTH } from '../pavilionBridge';
-import { LAMPS } from '../lampPass';
 import { makeRng } from '../textures';
 import { WATER_Y } from '../water';
 import { makeKoi } from '../pond';
-import { forkOld, WAYMARK } from '../forkFix';
-import { pavOld, bracketSet, BRACKET, lotusBud } from '../pavilionFix';
-import { LAWN, propsOld, ROOF_KIND } from '../forkProps';
-import { pavPropsOld, wornBar, wornPost, CAIHUA, qin, qinCloth } from '../pavilionProps';
+import { WAYMARK, LAWN, ROOF_KIND } from '../forkProps';
+import { bracketSet, BRACKET, lotusBud, wornBar, wornPost, CAIHUA, qin, qinCloth } from '../pavilionProps';
 import { ROOF_TIERS, roofProfile, roofTop, ROOF_SURFACE, roofTiles, tiledRoof, softenRoofTiles } from '../pavilionRoof';
-import { garden5Old, signPostGeometry, paintSignName, SIGN, signBoardGeometry, HORN } from '../gardenFix5';
+import { signPostGeometry, SIGN, signBoardGeometry, HORN, paintSignName } from '../gardenProps';
 import { bridgeFoot } from '../shore';
-import { FORK_OLD, deg, SHORE_OLD } from '../build/common';
+import { deg } from '../build/common';
 
 export function* buildFork(ctx) {
   const { paintings, light, rnd, rr, pick, dir, add, lerp2, unit2, dist, circlePts, rot3, keep,
     paint, tex, lampHaloTex, water, wind, Std, skyDull, signLamp, M, root, slabGeo, boxGeo, placed,
-    profileGeo, rodGeo, flatPlane, decal, halo, POOL_DIAL, point, trialEaves, glows, waterLamps,
+    rodGeo, flatPlane, decal, halo, POOL_DIAL, point, trialEaves, waterLamps,
     mounts, GB, rocks, lilies, blooms, J, POND, PV, SHORE, BRIDGE, BRIDGE_STAND, MAZE_ENTRY, POOLS,
     segDist, NORTH_BRIDGE, NORTH_OPEN, standing, lawnLamps, onNorthBridge, tsuriDoro } = ctx;
   // VI — the Fork: where the road divides, a stone waymark with a board for each
   // way (with `paintings`, a painted screen facing the pergola).
   if (!paintings) {
-    // The waymark stands dead centre of the Fork's view; bare, a post with two
-    // boards, it is the palest thing in the garden. It carries the lantern — a
-    // fork in a path at night is somewhere someone hung a light.
-    //
-    // And it says something: a post that tapers, a moulded cap and a knob on
-    // its roof; and boards shaped to point, with the ways cut into them and
-    // gilded — THE PAVILION, and under it THE HEART, which is beyond it — and
-    // one board newer and paler than the rest, pointing down the road not
-    // taken, with nothing written on it. (Since the road not taken goes to the
-    // Heart, THE HEART points down it, toward the maze's mouth, and there is no
-    // third way to leave blank: ?wfork=old for the three boards.)
-    //
-    // (forkFix.js, 3: a slim post of weathered timber, standing back in the
-    // lawn between the ways, the names facing out — not the biggest and palest
-    // thing in the Fork's frame, dead ahead.)
-    const slim = !forkOld(3);
-    // (gardenFix5.js, 3: turned, in the pergola's timber, under an onion cap;
-    // its boards weathered, housed through it, their names cut in)
-    const turned = slim && !garden5Old(3);
-    const at = slim ? add(J, dir(WAYMARK.bearing), WAYMARK.dist) : add(J, dir(279), 30);
-    standing.push({ p: at, r: slim ? 2.6 : 4 });
-    if (turned) {
-      GB.stone.add(placed(new THREE.CylinderGeometry(1.75, 2.05, 1.6, 8), at, 4.3, (WAYMARK.bearing + 45) * deg));
-      GB.signPost.add(placed(signPostGeometry(WAYMARK.boards), at, 0));
-    } else if (slim) {
-      const { r0, r1, top } = WAYMARK.post, turn = (WAYMARK.bearing + 45) * deg;
-      // a dressed footing, mostly in the ground, and the post in it
-      GB.stone.add(placed(new THREE.CylinderGeometry(1.75, 2.05, 1.6, 8), at, 4.3, turn));
-      GB.forkPost.add(placed(new THREE.CylinderGeometry(r1, r0, top - 4, 4).rotateY(Math.PI / 4), at, (top + 4) / 2, turn));
-      // a board cap and a low hipped top
-      GB.forkPost.add(placed(new THREE.BoxGeometry(r1 * 2.3, 0.32, r1 * 2.3), at, top + 0.16, turn));
-      GB.forkPost.add(placed(new THREE.ConeGeometry(r1 * 1.7, 1.1, 4), at, top + 0.32 + 0.55, turn + Math.PI / 4));
-    } else {
-      GB.stone.add(placed(new THREE.BoxGeometry(5.6, 3.2, 5.6), at, 4, 12 * deg));
-      GB.stone.add(placed(new THREE.BoxGeometry(4.6, 1.6, 4.6), at, 6.4, 12 * deg));
-      GB.stone.add(placed(new THREE.CylinderGeometry(2.05, 2.62, 22, 4).rotateY(Math.PI / 4), at, 4 + 11, 12 * deg));
-      GB.stone.add(placed(new THREE.BoxGeometry(3.4, 0.5, 3.4), at, 23.9, 12 * deg));
-      GB.stone.add(placed(new THREE.BoxGeometry(4.2, 0.55, 4.2), at, 24.45, 12 * deg));
-      GB.stone.add(placed(new THREE.BoxGeometry(4.8, 1.2, 4.8), at, 25.3, 12 * deg));
-      GB.stone.add(placed(new THREE.ConeGeometry(3.3, 3.0, 4), at, 27.4, 57 * deg));
-      GB.stone.add(placed(new THREE.SphereGeometry(0.75, 12, 8), at, 29.2));
-    }
-    const nameTex = (text) => tex(paint(1024, 160, (g, w, h) => {
-      if (turned) { paintSignName(g, w, h, text); return; }
-      g.clearRect(0, 0, w, h);
-      g.font = '600 104px Georgia, "Times New Roman", serif';
-      g.textAlign = 'center';
-      g.textBaseline = 'middle';
-      g.letterSpacing = '14px';
-      // cut into the wood (see giltLetters): a dark bed under each stroke, the
-      // gold lighter along its top
-      g.fillStyle = 'rgba(18,10,5,0.9)';
-      g.fillText(text, w / 2 + 3, h / 2 + 4);
-      const gold = g.createLinearGradient(0, h * 0.2, 0, h * 0.8);
-      gold.addColorStop(0, '#f0d08a');
-      gold.addColorStop(0.55, '#c9a05a');
-      gold.addColorStop(1, '#8a6632');
-      g.fillStyle = gold;
-      g.fillText(text, w / 2, h / 2);
-    }));
-    const boards = FORK_OLD
-      ? [[[1216, 218], 20.5, 'THE PAVILION', 1], [[1216, 218], 17.9, 'THE HEART', 0.84], [[1120, 160], 16.5, null, 1]]
-      // (the Pavilion's from the slim post: at the bridge's foot — [1216, 218]
-      // is the way's bend, behind it from there)
-      : [[slim ? SHORE : [1216, 218], slim ? WAYMARK.boards[0] : 20.5, 'THE PAVILION', 1], [MAZE_ENTRY, slim ? WAYMARK.boards[1] : 17.9, 'THE HEART', 0.84]];
-    // (out from the post's face: the slim post is a third as wide)
-    const b0 = slim ? 0.45 : 1.6;
+    const at = add(J, dir(WAYMARK.bearing), WAYMARK.dist);
+    standing.push({ p: at, r: 2.6 });
+    GB.stone.add(placed(new THREE.CylinderGeometry(1.75, 2.05, 1.6, 8), at, 4.3, (WAYMARK.bearing + 45) * deg));
+    GB.signPost.add(placed(signPostGeometry(WAYMARK.boards), at, 0));
+    const nameTex = (text) => tex(paint(1024, 160, (g, w, h) => paintSignName(g, w, h, text)));
+    const boards = [[SHORE, WAYMARK.boards[0], 'THE PAVILION', 1], [MAZE_ENTRY, WAYMARK.boards[1], 'THE HEART', 0.84]];
     boards.forEach(([to, y, name, len]) => {
-      const a = Math.atan2(to[1] - at[1], to[0] - at[0]) / deg, L = (turned ? SIGN.len : slim ? 8.8 : 10.2) * len;
-      const board = [[b0, y - 1.1], [b0 + L, y - 1.1], [b0 + 1.3 + L, y], [b0 + L, y + 1.1], [b0, y + 1.1]];
-      if (turned) GB.signBoard.add(signBoardGeometry(L, y).rotateY(-a * deg).translate(at[0], 0, at[1]));
-      else (name ? GB.wood : GB.newWood).add(profileGeo(board, 0.55, at, a));
+      const a = Math.atan2(to[1] - at[1], to[0] - at[0]) / deg, L = (SIGN.len) * len;
+      GB.signBoard.add(signBoardGeometry(L, y).rotateY(-a * deg).translate(at[0], 0, at[1]));
       if (!name) return;
       const mat = keep(new THREE.MeshStandardMaterial({
         map: nameTex(name), transparent: true, alphaTest: 0.25, roughness: 0.42, metalness: 0.55,
@@ -105,20 +39,18 @@ export function* buildFork(ctx) {
       }));
       const t = dir(a), n = [-t[1], t[0]];
       for (const side of [-1, 1]) {
-        const plate = new THREE.Mesh(keep(new THREE.PlaneGeometry(turned ? (L - 1.2) * 0.94 : L * 0.86, 1.55)), mat);
-        const q = turned ? add(add(at, t, 1.15 + (L - 1.2) / 2), n, side * (SIGN.thick / 2 + 0.02)) : add(add(at, t, b0 + L / 2), n, side * 0.3);
+        const plate = new THREE.Mesh(keep(new THREE.PlaneGeometry((L - 1.2) * 0.94, 1.55)), mat);
+        const q = add(add(at, t, 1.15 + (L - 1.2) / 2), n, side * (SIGN.thick / 2 + 0.02));
         plate.position.set(q[0], y, q[1]);
-        // (each plate faces OUT of its side of the board: turned the other way,
-        // with ?wforkfix=old:3, both face into the wood and neither side of a
-        // board shows its name)
-        plate.rotation.y = (side > 0) === slim ? -a * deg : -a * deg + Math.PI;
+        // (each plate faces OUT of its side of the board)
+        plate.rotation.y = side > 0 ? -a * deg : -a * deg + Math.PI;
         plate.name = 'waymark-name';
         root.add(plate);
       }
     });
     // An iron bracket off the post, braced, and hung from it a tsuri-dōrō: a
     // six-sided iron lantern, a lattice round paper, under a roof of its own.
-    const arm = dir(slim ? WAYMARK.arm : 196), a0 = slim ? 0.5 : 1.6;
+    const arm = dir(WAYMARK.arm), a0 = 0.5;
     GB.iron.add(boxGeo(add(at, arm, a0), add(at, arm, a0 + 6.4), 0.5, 0.5, 24.4));
     {
       const a = add(at, arm, a0 + 0.3), b = add(at, arm, a0 + 3.8);
@@ -274,39 +206,14 @@ export function* buildFork(ctx) {
     // of every bay, the rafters land on the purlins they cross, and the gap in
     // the balustrade is the bay the bridge actually arrives at.
     const DECK = 12, HEAD = 46, R_COL = 26;
-    // (pavilionProps.js, 13: gilt on every column, under every lantern and on
+    // (pavilionProps.js: gilt on every column, under every lantern and on
     // the table's lamp, with the finial, is a casino's. The small fittings are
     // bronze; the one bright gold thing here is the finial.)
-    const FITTING = pavPropsOld(13) ? GB.gold : GB.pavBronze;
-    const RAIL_WORN = !pavPropsOld(10);
+    const FITTING = GB.pavBronze;
     const bay = (k) => 22.5 + k * 45;
     const on = (a, r) => add(PV, dir(a), r);
-    // A piece in a bay's own frame: +x runs out from the middle of the
-    // pavilion, +z along the eave, and `out` is measured from the column line.
-    // (rotateY carries +x to (cos, −sin), so the angle it wants is the negative
-    // of the one everything else here is written in.)
-    const inBay = (a, out, along, y, w, h, d) => placed(
-      new THREE.BoxGeometry(w, h, d), add(on(a, R_COL + out), dir(a + 90), along), y, -a * deg,
-    );
-    // Both tiers of roof are lathes turned from one curve — flat at the eave,
-    // lifting to the ridge — and `soffit` IS that curve. Everything that has to
-    // fit under the roof asks it where the roof is rather than guessing.
-    // (forkProps.js, 2: with ?wprops=old:2 that curve is a dome's — level at
-    // the top, steepest at the eave — and the roof it makes is a
-    // conservatory's. The roof is tiled, pavilionRoof.js, on a hollow curve
-    // with its corners swept up, and `soffit` asks that roof where it is: `a`,
-    // the bearing, because a facet between two hips is lower at its middle than
-    // a lathe's ring.)
-    const ROOF_OLD = propsOld(2);
-    const TIERS = ROOF_OLD ? [{ r: 52, h: 17, y: 44 }, { r: 29, h: 15, y: 58 }]
-      : ROOF_TIERS.map((t) => ({ ...t, h: roofProfile(t, 0) - t.y }));
-    const soffit = (t, r, a = 22.5) => (ROOF_OLD ? t.y + t.h * (1 - Math.min(1, Math.max(0, r) / t.r) ** 2.4) : roofTop(t, a, Math.max(0, r)));
-    // and the way OUT of that surface at radius r, for laying a ridge along it
-    const outward = (t, r) => {
-      const y0 = soffit(t, r - 0.4), y1 = soffit(t, r + 0.4);
-      const L = Math.hypot(0.8, y1 - y0) || 1;
-      return [(y0 - y1) / L, 0.8 / L];
-    };
+    const TIERS = ROOF_TIERS.map((t) => ({ ...t, h: roofProfile(t, 0) - t.y }));
+    const soffit = (t, r, a = 22.5) => (roofTop(t, a, Math.max(0, r)));
 
     // ── The deck ──────────────────────────────────────────────────────────
     // A stone foot standing in the water, boards over it, and a moulded lip
@@ -329,27 +236,19 @@ export function* buildFork(ctx) {
       // a stone plinth, a shaft tapered the way a timber one is, a gilt collar
       GB.stone.add(placed(new THREE.CylinderGeometry(2.9, 3.5, 2.6, 8), p, DECK + 1.3));
       GB.lacquer.add(placed(new THREE.CylinderGeometry(1.45, 1.9, HEAD - DECK - 2.6, 12), p, (DECK + 2.6 + HEAD) / 2));
-      if (pavPropsOld(13)) GB.gold.add(placed(new THREE.CylinderGeometry(1.8, 1.8, 0.45, 12), p, HEAD - 4.4));
-      else {
-        // (a dark gilt band between two beads, closer on the shaft)
-        GB.pavGilt.add(placed(new THREE.CylinderGeometry(1.66, 1.68, 0.5, 16), p, HEAD - 4.4));
-        for (const dy of [0.33, -0.33]) GB.pavGilt.add(placed(new THREE.CylinderGeometry(1.74, 1.74, 0.14, 16), p, HEAD - 4.4 + dy));
-      }
+      
+      // (a dark gilt band between two beads, closer on the shaft)
+      GB.pavGilt.add(placed(new THREE.CylinderGeometry(1.66, 1.68, 0.5, 16), p, HEAD - 4.4));
+      for (const dy of [0.33, -0.33]) GB.pavGilt.add(placed(new THREE.CylinderGeometry(1.74, 1.74, 0.14, 16), p, HEAD - 4.4 + dy));
 
       if (arrivals.includes(k)) continue;
       const c0 = on(a0, 30), c1 = on(a1, 30);
-      if (RAIL_WORN) {
-        // (pavilionProps.js, 10: the same members, worn)
+      {
+        // (pavilionProps.js: the same members, worn)
         const span = dist(c0, c1);
         GB.railWorn.add(wornBar(c0, c1, DECK + 0.5, 1.1, 2.1, { rub: 0.3, joints: Array.from({ length: 9 }, (_, i) => (span * i) / 8) }));
         GB.railWorn.add(wornBar(c0, c1, 16.4, 1.5, 3.2, { rub: 1, ease: 0.34, joints: [0, span] }));
         for (let i = 1; i < 8; i++) GB.railWorn.add(wornPost(lerp2(c0, c1, i / 8), 13.5, 0.75, 3.0, -a0 * deg));
-      } else {
-        GB.lacquer.add(boxGeo(c0, c1, 1.1, 2.1, DECK + 0.5));                 // bottom rail
-        GB.lacquer.add(boxGeo(c0, c1, 1.5, 3.2, 16.4));                       // handrail
-        for (let i = 1; i < 8; i++) {                                         // balusters
-          GB.lacquer.add(placed(new THREE.BoxGeometry(0.75, 3.0, 0.75), lerp2(c0, c1, i / 8), 15.0, -a0 * deg));
-        }
       }
       // the seat that makes a pavilion somewhere to sit and not only to pass
       // through — a board inside the rail, on stubby brackets, stopping short
@@ -387,45 +286,10 @@ export function* buildFork(ctx) {
       }
     }
 
-    // ── The bracket sets ──────────────────────────────────────────────────
-    // Dougong: the stepped timber clusters that carry an eave out well past the
-    // columns holding it up, and the one detail that says a roof of this kind
-    // was built rather than draped over the top. Two tiers of crossed arms on
-    // bearing blocks, over every column AND over the middle of every bay — and
-    // each tier steps out only as far as the soffit above still has room for.
-    const dougong = (a) => {
-      GB.wood.add(inBay(a, 0, 0, HEAD + 0.9, 4.4, 1.8, 4.4));
-      let y = HEAD + 1.8;
-      // Sixteen clusters round a 26-unit circle leaves about ten units of arc
-      // each at the first tier and thirteen at the second; arms longer than
-      // that run into the neighbouring cluster and the whole band reads as
-      // spilled bricks rather than as joinery.
-      for (const [span, back, reach] of [[10.5, 3.0, 4.5], [15.0, 2.0, 8.0]]) {
-        GB.wood.add(inBay(a, (reach - back) / 2, 0, y + 0.8, reach + back, 1.6, 2.2));
-        GB.wood.add(inBay(a, reach - 3.0, 0, y + 0.8, 2.2, 1.6, span));
-        for (const [out, along] of [[reach - 3.0, span / 2 - 1.5], [reach - 3.0, 1.5 - span / 2], [reach - 1.3, 0], [1.3 - back, 0]]) {
-          GB.wood.add(inBay(a, out, along, y + 2.15, 2.3, 1.1, 2.3));
-        }
-        y += 2.7;
-      }
-      // the gilt eye on the front of the cluster, which is all a bracket ever
-      // shows of itself from across the water
-      GB.gold.add(inBay(a, 8.3, 0, HEAD + 5.3, 0.9, 1.7, 2.8));
-    };
-    // Over the columns only. With a cluster over the middle of every bay too,
-    // seen from below on the bridge the sixteen run into one another and the
-    // band under the eave is a heap of loose blocks; eight, one to a column,
-    // repeat, and repetition is what makes joinery read as made. (With the room
-    // that leaves, each tier's arms reach further along the eave.)
-    // (pavilionFix.js, 2: one set to a column, block and arm in a stepped
-    // cross, its arms along the beams; ?wpavfix=old:2 for the two tiers of
-    // plain boxes with a gilt cube on each, which from the bridge read as
-    // stacked lumber.)
-    const PAV_BRACKETS = !pavOld(2);
     yield;
-    if (PAV_BRACKETS) {
-      // (pavilionProps.js, 3: the arms eased and painted)
-      const set = bracketSet({ paint: pavPropsOld(3) ? null : CAIHUA });
+    {
+      // (pavilionProps.js: the arms eased and painted)
+      const set = bracketSet({ paint: CAIHUA });
       // carried from the column's frame (+x out, +z along) onto column k
       const carry = (g, a) => { const p = on(a, R_COL); return g.clone().rotateY(-a * deg).translate(p[0], HEAD, p[1]); };
       for (let k = 0; k < 8; k++) {
@@ -437,13 +301,13 @@ export function* buildFork(ctx) {
         for (const g of set.green) GB.pavGreen.add(carry(g, bay(k)));
       }
       [...set.arms, ...set.blocks, ...set.caps, ...set.chalk, ...set.green].forEach((g) => g.dispose());
-    } else for (let k = 0; k < 8; k++) dougong(bay(k));
+    }
     // the purlin the brackets are there to hold, and the beam behind them (each
     // on the top blocks of the sets)
     for (let k = 0; k < 8; k++) {
-      const out = PAV_BRACKETS ? R_COL + BRACKET.purlinOut : 33;
-      GB.wood.add(boxGeo(on(bay(k), out), on(bay(k + 1), out), 1.7, 2.0, HEAD + (PAV_BRACKETS ? BRACKET.purlinY : 6.6)));
-      GB.lacquer.add(boxGeo(on(bay(k), R_COL), on(bay(k + 1), R_COL), 1.5, 1.8, HEAD + (PAV_BRACKETS ? BRACKET.beamY : 5.6)));
+      const out = R_COL + BRACKET.purlinOut;
+      GB.wood.add(boxGeo(on(bay(k), out), on(bay(k + 1), out), 1.7, 2.0, HEAD + (BRACKET.purlinY)));
+      GB.lacquer.add(boxGeo(on(bay(k), R_COL), on(bay(k + 1), R_COL), 1.5, 1.8, HEAD + (BRACKET.beamY)));
     }
 
     // ── The ceiling and the eave ──────────────────────────────────────────
@@ -462,7 +326,7 @@ export function* buildFork(ctx) {
     }
     // (the outer of the two rings sat at the eave purlin's own radius, just
     // under it and crossing it at every bay: two purlins in one place)
-    for (const r of pavOld(2) ? [33, 21] : [21]) {
+    for (const r of [21]) {
       for (let k = 0; k < 16; k++) {
         GB.wood.add(boxGeo(on(22.5 + k * 22.5, r), on(45 + k * 22.5, r), 1.4, 1.6, soffit(TIERS[0], r) - 3.5));
       }
@@ -470,17 +334,6 @@ export function* buildFork(ctx) {
     {
       const apex = soffit(TIERS[0], 0);
       GB.lacquer.add(placed(new THREE.CylinderGeometry(5.2, 3.2, 1.6, 16), PV, apex - 1.4));
-      if (pavPropsOld(3)) {
-        GB.gold.add(placed(new THREE.CylinderGeometry(2.6, 1.3, 1.3, 16), PV, apex - 2.8));
-        GB.gold.add(placed(new THREE.SphereGeometry(1.1, 10, 8), PV, apex - 4.0));
-      } else if (ROOF_OLD) {
-        // (pavilionProps.js, 3: a gilt cup and ball hung there, a bell. A
-        // stepped boss of the ceiling's own timber, and a bud turned down.
-        // Under the tiled roof the rafters' meeting is above the ceiling's
-        // board, and the boss is on the board: see the roofs, below.)
-        GB.wood.add(placed(new THREE.CylinderGeometry(3.3, 2.5, 0.7, 16), PV, apex - 2.55));
-        GB.lacquer.add(placed(lotusBud({ height: 1.5, radius: 0.85 }).rotateX(Math.PI), PV, apex - 2.9));
-      }
     }
 
     // ── The eaves ─────────────────────────────────────────────────────────
@@ -491,8 +344,7 @@ export function* buildFork(ctx) {
       // lamp on the table they would be eight lamps against its one, and "a
       // single pavilion burns warm" is a building lit from inside.
       FITTING.add(placed(new THREE.CylinderGeometry(0.18, 0.18, 2.6, 6), lp, 45.8));
-      if (LAMPS.paper) trialEaves.push({ p: [lp[0], 42.8, lp[1]], s: [1.15, 1.5, 1.15], color: '#ffb070', k: 0.6 });
-      else glows.push({ p: [lp[0], 42.8, lp[1]], s: [1.15, 1.5, 1.15], color: '#ff8a3e', k: 0.5 });
+      trialEaves.push({ p: [lp[0], 42.8, lp[1]], s: [1.15, 1.5, 1.15], color: '#ffb070', k: 0.6 });
       GB.lacquer.add(placed(new THREE.CylinderGeometry(0.75, 1.0, 0.5, 10), lp, 44.5));
       GB.lacquer.add(placed(new THREE.CylinderGeometry(1.0, 0.75, 0.45, 10), lp, 41.2));
       FITTING.add(placed(new THREE.SphereGeometry(0.34, 8, 6), lp, 40.8));
@@ -508,16 +360,16 @@ export function* buildFork(ctx) {
     // fall on the eight column lines and a hip runs the whole way up.
     M.roof.side = THREE.BackSide;
     const underside = Std({ color: '#2b1b12', roughness: 0.9, side: THREE.FrontSide });
-    if (!ROOF_OLD) {
+    {
       // Tiled (pavilionRoof.js): the slopes with their rolls, tile-ends and
       // hips in one mesh, the soffit and the eave board in another; and
       // between the two tiers, the short wall the upper one stands on.
       const kind = ROOF_KIND, surface = ROOF_SURFACE[kind];
       const roofMat = softenRoofTiles(skyDull(Std({ map: tex(roofTiles(kind), [1, 1]), roughness: surface.roughness, side: THREE.DoubleSide }), surface.sky, surface.direct));
-      // (gardenFix5.js, 6: the hips' curled ends in dark bronze — in the rolls'
+      // (gardenProps.js: the hips' curled ends in dark bronze — in the rolls'
       // pale grey, on the night, they are horns)
       yield;
-      const roof = tiledRoof({ at: PV, kind, light, bronze: !garden5Old(6) });
+      const roof = tiledRoof({ at: PV, kind, light, bronze: true });
       const hornMat = roof.horns ? skyDull(Std({ color: HORN.color, roughness: HORN.roughness, metalness: HORN.metalness, side: THREE.DoubleSide }), HORN.sky) : null;
       for (const [geo, material] of [[roof.tiles, roofMat], [roof.under, underside], ...(roof.horns ? [[roof.horns, hornMat]] : [])]) {
         const m = new THREE.Mesh(keep(geo), material);
@@ -531,63 +383,16 @@ export function* buildFork(ctx) {
       const y0 = soffit(low, wallR) - 0.5, y1 = roofProfile(high, wallR) - 0.3;
       GB.lacquer.add(placed(new THREE.CylinderGeometry(wallR, wallR, y1 - y0, 8, 1, true), PV, (y0 + y1) / 2, 22.5 * deg));
       GB.wood.add(placed(new THREE.CylinderGeometry(wallR + 0.5, wallR + 0.5, 0.7, 8, 1, false), PV, y0 + 0.75, 22.5 * deg));
-      // (pavilionProps.js, 3: that board is the ceiling a reader under it
+      // (pavilionProps.js: that board is the ceiling a reader under it
       // looks up at, plain from edge to edge. A boss on its middle — a step
       // of lacquer, a step of timber, and a lotus bud turned down.)
-      if (!pavPropsOld(3)) {
+      {
         const under = y0 + 0.4;
         GB.lacquer.add(placed(new THREE.CylinderGeometry(4.4, 5.0, 0.5, 16), PV, under - 0.25));
         GB.wood.add(placed(new THREE.CylinderGeometry(2.5, 3.2, 0.6, 16), PV, under - 0.8));
         GB.lacquer.add(placed(lotusBud({ height: 1.5, radius: 0.85 }).rotateX(Math.PI), PV, under - 1.1));
       }
-      // (the gold balls, for whoever asks for them back: forkProps.js, 11)
-      if (propsOld(11)) for (const p of roof.tips) GB.gold.add(new THREE.SphereGeometry(0.95, 32, 24).translate(p[0], p[1], p[2]));
-    } else for (const tier of TIERS) {
-      const { r, h, y } = tier;
-      const profile = [new THREE.Vector2(r * 1.05, 2.2), new THREE.Vector2(r, 0)];
-      for (let i = 1; i <= 10; i++) {
-        const t = i / 10;
-        profile.push(new THREE.Vector2(r * (1 - t) + 0.01, h * (1 - (1 - t) ** 2.4)));
-      }
-      const geo = keep(new THREE.LatheGeometry(profile.reverse(), 8, 22.5 * deg));
-      for (const material of [M.roof, underside]) {
-        const roof = new THREE.Mesh(geo, material);
-        roof.position.set(PV[0], y, PV[1]);
-        roof.castShadow = material === M.roof;
-        roof.receiveShadow = true;
-        root.add(roof);
-      }
-      // Ridges laid ON that curve: eight hips down the corners and a thinner
-      // roll of tile down the middle of each facet between them. A lathe on its
-      // own gives a smooth shell, and a smooth shell is a lampshade.
-      for (let k = 0; k < 16; k++) {
-        const a = 22.5 + k * 22.5, hip = k % 2 === 0, lift = hip ? 1.0 : 0.6;
-        let last = null;
-        for (let i = 0; i <= 9; i++) {
-          const rr0 = Math.min(r - 0.4, r * (1 - (i / 9) ** 1.3) + 0.6);
-          const n = outward(tier, rr0), p = on(a, rr0 + n[0] * lift);
-          const here = [p[0], soffit(tier, rr0) + n[1] * lift, p[1]];
-          if (last) GB.ridge.add(rodGeo(last, here, hip ? 0.95 : 0.5));
-          last = here;
-        }
-        if (!hip) continue;
-        // and the flying tip, which at a hundred units is the whole of what
-        // makes a roof of this kind read as a roof of this kind. It has to
-        // CURVE, and it has to be short: laid out straight and long the eight
-        // of them read as spears stuck through the building.
-        let foot = null;
-        for (const [ro, dy, rad] of [[1.05, 0.2, 1.0], [1.075, 1.4, 0.85], [1.09, 3.2, 0.6]]) {
-          const q = on(a, r * ro), here = [q[0], y + 2.2 + dy, q[1]];
-          if (foot) GB.ridge.add(rodGeo(foot, here, rad));
-          foot = here;
-        }
-        GB.gold.add(placed(new THREE.SphereGeometry(0.95, 8, 6), on(a, r * 1.09), y + 6.0));
-      }
-      // the fascia along the eave: the course that closes the ends of the tiles
-      // and, at night, the only line of the roof a lantern actually lights
-      for (let k = 0; k < 8; k++) {
-        GB.ridge.add(boxGeo(on(bay(k), r * 1.05), on(bay(k + 1), r * 1.05), 1.7, 1.3, y + 0.6));
-      }
+      // (the gold balls, for whoever asks for them back: forkProps.js)
     }
 
     // ── The finial ────────────────────────────────────────────────────────
@@ -656,8 +461,8 @@ export function* buildFork(ctx) {
         GB.lacquer.add(placed(new THREE.BoxGeometry(0.45, 7.2, 0.45), add(PV, dir(45 + i * 90), 2.4), TT + 5.9));
       }
       GB.lacquer.add(placed(new THREE.CylinderGeometry(4.4, 3.2, 0.9, 8), PV, TT + 9.9, 22.5 * deg));
-      FITTING.add(placed(new THREE.SphereGeometry(0.8, pavPropsOld(13) ? 8 : 16, pavPropsOld(13) ? 6 : 12), PV, TT + 10.9));
-      if (LAMPS.table) {
+      FITTING.add(placed(new THREE.SphereGeometry(0.8, 16, 12), PV, TT + 10.9));
+      {
         // lit panels of silk in the frame, a lattice over them, and no glow
         // egg — the posts stand dark against the light (lampPass.js)
         const panels = [];
@@ -670,21 +475,21 @@ export function* buildFork(ctx) {
         lit.scale.setScalar(3.6);
         lit.name = 'pavilion-table-panels';
         root.add(lit);
-      } else glows.push({ p: [PV[0], TT + 5.6, PV[1]], s: [2.0, 2.7, 2.0], color: '#ffd08a', k: 1.15 });
+      }
       halo(PV, TT + 5.6, 26, '#ffbe70', 0.3);
       // and its light laid on the black water under the pavilion (water.js)
       waterLamps.push({ p: [PV[0], TT + 5.6, PV[1]], color: '#ffc884', k: 1.2 });
       // "Its music seems to arrive from all your lives at once" — and nothing
       // in it can make a sound. (Nor can the world: it has none. The copy
-      // speaks of the qin waiting instead: pavilionFix.js, 6.) A guqin on the
+      // speaks of the qin waiting instead: pavilionProps.js.) A guqin on the
       // table beside the lamp, on the side the bridge comes from: a long zither
       // in black lacquer, seven silk strings, the thirteen studs of
       // mother-of-pearl along its near edge; on the boards before it, the
-      // cushion someone sits on to play it. (pavilionProps.js, 4: a qin's
+      // cushion someone sits on to play it. (pavilionProps.js: a qin's
       // outline and arched top, its strings and studs where a qin's are, the
       // head out over the table's edge with its pegs and tassels, and a cloth
       // under its tail let down over the rim.)
-      if (!pavPropsOld(4)) {
+      {
         const toBridge = 127, a = (toBridge - 90) * deg;
         // `OUT` from the table's middle to the qin's line (clear of the lamp's
         // foot), `SHIFT` along that line toward its head: the tail on the
@@ -700,26 +505,6 @@ export function* buildFork(ctx) {
         const cloth = qinCloth({ centre: [0, -OUT], rim: 8.06, x0: SHIFT - q.L / 2 + 0.3, x1: SHIFT - q.L / 2 + 3.7 });
         for (const g of cloth.cloth) GB.brocade.add(carry(g));
         for (const g of cloth.trim) GB.pavGilt.add(carry(g));
-        const seat = add(PV, dir(toBridge), 12.5);
-        GB.cushion.add(new THREE.CylinderGeometry(2.6, 2.8, 1.0, 20).scale(1, 1, 0.82).rotateY(-a).translate(seat[0], DECK + 0.5, seat[1]));
-      } else {
-        const toBridge = 127, a = (toBridge - 90) * deg, along = dir(toBridge - 90);
-        const mid = add(PV, dir(toBridge), 5.7), top = TT + 1.3;
-        const body = [
-          new THREE.BoxGeometry(11, 0.5, 1.9).translate(0, 0.25, 0),
-          new THREE.BoxGeometry(1.4, 0.35, 1.55).translate(-5.9, 0.2, 0),
-          new THREE.CylinderGeometry(0.95, 0.95, 0.5, 14, 1, false, 0, Math.PI).rotateY(-Math.PI / 2).translate(5.5, 0.25, 0),
-        ];
-        GB.blackLacquer.add(mergeGeometries(body).rotateY(-a).translate(mid[0], top, mid[1]));
-        body.forEach((g) => g.dispose());
-        for (let k = 0; k < 7; k++) {
-          const z = -0.66 + k * 0.22, p0 = add(add(mid, along, -5.4), dir(toBridge), z), p1 = add(add(mid, along, 5.2), dir(toBridge), z * 0.8);
-          GB.silk.add(rodGeo([p0[0], top + 0.56, p0[1]], [p1[0], top + 0.6, p1[1]], 0.035));
-        }
-        for (let k = 0; k < 13; k++) {
-          const q = add(add(mid, along, -4.2 + k * 0.7), dir(toBridge), 0.78);
-          GB.silk.add(new THREE.SphereGeometry(0.09, 6, 4).translate(q[0], top + 0.52, q[1]));
-        }
         const seat = add(PV, dir(toBridge), 12.5);
         GB.cushion.add(new THREE.CylinderGeometry(2.6, 2.8, 1.0, 20).scale(1, 1, 0.82).rotateY(-a).translate(seat[0], DECK + 0.5, seat[1]));
       }
@@ -769,7 +554,7 @@ export function* buildFork(ctx) {
       };
       // a member laid along a line of points, each piece lengthened at a turn
       // by just enough to close the outside of the mitre
-      // (`worn`, pavilionProps.js 10: a rail's member in worn lacquer, deeper
+      // (`worn`, pavilionProps.js: a rail's member in worn lacquer, deeper
       // where each post — and, `balusters`, each baluster — meets it)
       const along = (pts, h, t, y0, batch, worn = null) => {
         const u = pts.slice(1).map((p, i) => unit2(pts[i], p));
@@ -834,12 +619,8 @@ export function* buildFork(ctx) {
       // stone abutment; and off it onto the pavilion, 3.5 above, by another.
       {
         const r = runs[0];
-        const quad = (w, u0, u1) => [[w, u0], [w, u1], [-w, u1], [-w, u0]].map(([d, u]) => add(add(r.a, r.n, d), r.t, u));
         const steps = paintings ? GB.stone : GB.pavilionStep;
-        if (SHORE_OLD) {
-          steps.add(slabGeo(quad(HW + 0.6, -4.2, 2.5), [], 2.5, TOP - 4.4));
-          steps.add(slabGeo(quad(RW - 0.6, -7.2, -3.6), [], 2.2, TOP - 3.9));
-        } else {
+        {
           // (shore.js) a pier of coursed granite under the deck's end, on the
           // footprint and to the top of the slab it stands for, and one broad
           // stone to step up from, its top where that slab's step was
@@ -868,8 +649,7 @@ export function* buildFork(ctx) {
       // a handrail over them and a kick rail under, balusters between.
       const post = (q, v) => {
         const ang = -Math.atan2(v[1], v[0]);
-        if (RAIL_WORN) GB.railWorn.add(wornPost(q, TOP, 1.4, 4.4, ang));
-        else GB.lacquer.add(placed(new THREE.BoxGeometry(1.4, 4.4, 1.4), q, TOP + 2.2, ang));
+        GB.railWorn.add(wornPost(q, TOP, 1.4, 4.4, ang));
         // A capped head, not a brass knob: the walk goes along this rail and a
         // gilt ball on every post comes past the eye like a row of melons. (And
         // not a squat pyramid either, which is the nearest, heaviest shape in
@@ -878,16 +658,15 @@ export function* buildFork(ctx) {
         GB.lacquer.add(placed(new THREE.CylinderGeometry(0.42, 0.62, 0.35, 10), q, 14.25));
         // (and not an egg, which the nearest, out of focus at the frame's
         // foot, made an acorn of: a lotus bud with its petals carved in —
-        // pavilionFix.js, 3)
-        if (pavOld(3)) GB.lacquer.add(placed(new THREE.SphereGeometry(0.5, 12, 8).scale(1, 1.45, 1), q, 14.95));
-        else GB.lacquer.add(placed(bud.clone(), q, 14.38, ang));
+        // pavilionProps.js)
+        GB.lacquer.add(placed(bud.clone(), q, 14.38, ang));
       };
       const bud = keep(lotusBud());
       for (const s of [1, -1]) {
         const line = edge(s * RW, 2, 32);
         along(line, 1.0, 1.4, TOP, GB.wood);                               // curb
-        along(line, 0.9, 1.5, 10.0, GB.lacquer, RAIL_WORN ? { rub: 0.3, balusters: true } : null);   // kick rail
-        along(line, 1.1, 2.0, 13.0, GB.lacquer, RAIL_WORN ? { rub: 1, ease: 0.3 } : null);         // handrail
+        along(line, 0.9, 1.5, 10.0, GB.lacquer, { rub: 0.3, balusters: true });   // kick rail
+        along(line, 1.1, 2.0, 13.0, GB.lacquer, { rub: 1, ease: 0.3 });         // handrail
         const u = line.slice(1).map((p, i) => unit2(line[i], p));
         line.forEach((p, i) => {
           // at a turn the post stands square to the line halfway between the two runs
@@ -898,8 +677,7 @@ export function* buildFork(ctx) {
             const a = lerp2(p, line[i + 1], j / bays), b = lerp2(p, line[i + 1], (j + 1) / bays);
             if (j > 0) post(a, u[i]);
             for (const f of [0.33, 0.67]) {
-              if (RAIL_WORN) GB.railWorn.add(wornPost(lerp2(a, b, f), 10.8, 0.6, 2.3, ang));
-              else GB.lacquer.add(placed(new THREE.BoxGeometry(0.6, 2.3, 0.6), lerp2(a, b, f), 11.95, ang));
+              GB.railWorn.add(wornPost(lerp2(a, b, f), 10.8, 0.6, 2.3, ang));
             }
           }
         });

@@ -1,18 +1,11 @@
-// The Vertigo's arrival frame, reviewed 2026-10-09: the stand (1), the well
-// lit from below (4), the bindings' tooling and the gaps on the shelves (2),
-// the shelf lips (3).
-// What each point was, and why: docs/design-history.md.
-//
-// ?wvfix=old puts all of them back as they were; ?wvfix=old:2,4 only those.
+// The Vertigo's details: the stand, the well lit from below, the bindings'
+// tooling and the gaps on the shelves, and the shelf lips.
 import * as THREE from 'three';
 
 const Q = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
-const V = Q.get('wvfix');
-const ONLY = V && V.startsWith('old:') ? new Set(V.slice(4).split(',').map(Number)) : null;
-export const vertigoOld = (n) => V === 'old' || (ONLY ? ONLY.has(n) : false);
 const qn = (k, d) => (Q.get(k) !== null && Q.get(k) !== '' && Number.isFinite(+Q.get(k)) ? +Q.get(k) : d);
 
-// 1. The stand's look: from the stair's tangent (where it looked, down the
+// The stand's look: from the stair's tangent (where it looked, down the
 // next treads into the wall of books) turned in toward the well by STAND_TURN
 // degrees, and pitched down to STAND_PITCH. Turned further or pitched lower and
 // the look is the one World.jsx reads as a reader leaning out over the gap
@@ -22,7 +15,7 @@ const qn = (k, d) => (Q.get(k) !== null && Q.get(k) !== '' && Number.isFinite(+Q
 export const STAND_TURN = qn('wvyaw', 25);
 export const STAND_PITCH = qn('wvpitch', -29);
 
-// 4. The well's light, graded by height. What the lamps (and the room's fill)
+// The well's light, graded by height. What the lamps (and the room's fill)
 // give a surface is taken down as it rises, from all of it at WELL.dark0 to
 // WELL.top of it at WELL.dark1 (over the floor) — and the light at the bottom
 // is laid on warm from below, coming in from WELL.warmFrom (the floor) to full
@@ -43,11 +36,11 @@ const f = (x) => (Number.isInteger(x) ? `${x}.0` : `${x}`);
 const galleryStep = 100 * Math.sqrt(3) + 50;
 const silenceCentre = [WELL.c[0] - galleryStep * Math.cos(Math.PI / 6), WELL.c[1] + galleryStep * 0.5];
 const doorCentre = [WELL.c[0] + galleryStep * Math.cos(Math.PI / 6), WELL.c[1] - galleryStep * 0.5];
-if (!vertigoOld(4) && !THREE.ShaderChunk.lights_fragment_end.includes('wellGrade')) {
+if (!THREE.ShaderChunk.lights_fragment_end.includes('wellGrade')) {
   THREE.ShaderChunk.lights_fragment_end += `
 #ifdef STANDARD
 	{
-		// (the Vertigo's well: vertigoFix.js, 4)
+		// (the Vertigo's well: vertigoProps.js)
 		vec3 wellP = cameraPosition + transpose( mat3( viewMatrix ) ) * ( - vViewPosition );
 		float wellIn = 1.0 - smoothstep( ${f(WELL.r)}, ${f(WELL.r + WELL.edge)}, length( wellP.xz - vec2( ${f(WELL.c[0])}, ${f(WELL.c[1])} ) ) );
 		if ( wellIn > 0.0 ) {
@@ -90,7 +83,7 @@ if (!vertigoOld(4) && !THREE.ShaderChunk.lights_fragment_end.includes('wellGrade
 `;
 }
 
-// 3. The lip on a shelf's front: a walnut nosing a little proud of the board,
+// The lip on a shelf's front: a walnut nosing a little proud of the board,
 // standing a fraction over its top (the edge that keeps a book from walking
 // off), rounded over to the front and chamfered under. A profile in (out from
 // the board's front toward the well — negative — and height), swept round the
@@ -142,7 +135,7 @@ export function shelfLip(c, r, top, bottom, a0, a1, step = 2.25) {
 }
 export const LIP_COLOR = Q.get('wvlip') ? `#${Q.get('wvlip')}` : '#5e4636';
 
-// 2. Books gone from the shelves: where bookHash (of where the book would
+// Books gone from the shelves: where bookHash (of where the book would
 // stand) is under MISSING it is not shelved, and the next leans into the gap —
 // wherever the Vertigo's books are boxes (shelveRing). Dials for 4 and 1:
 // ?wvtop ?wvd0 ?wvd1 ?wvwarm ?wvwf ?wvwt ?wvwp, ?wvyaw ?wvpitch; ?wvlip=hex.

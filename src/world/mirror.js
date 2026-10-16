@@ -23,8 +23,7 @@
 // off keeps the last thing it showed. `GLASS.budget` is how many may be drawn
 // in one frame (?wglass=0: none — every glass holds its first image).
 import * as THREE from 'three';
-import { vestOld } from './vestFix';
-import { lib3Old, GLASS3 } from './libFix3';
+import { GLASS3 } from './libraryProps';
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 export const GLASS = {
@@ -32,9 +31,9 @@ export const GLASS = {
   // the least it is drawn at. (0.6 and 96 until 2026-10-11: from a stand a
   // glass was drawn some fifty pixels wide and stretched over four times
   // that, and what it showed was a smear with one bright blob in it —
-  // libFix3.js, 5. The cost of a glass is the room's geometry, not its pixels.)
-  quality: lib3Old(5) ? 0.6 : GLASS3.quality,
-  least: lib3Old(5) ? 96 : GLASS3.least,
+  // libraryProps.js. The cost of a glass is the room's geometry, not its pixels.)
+  quality: GLASS3.quality,
+  least: GLASS3.least,
   reach: 175,     // drawn live only for a reader this near (a gallery is 173 across)
   // The most glasses drawn in one frame. A drawing of the world costs the same
   // whatever size it is drawn at (a glass is a few thousand pixels; the cost is
@@ -383,8 +382,8 @@ const fragmentShader = /* glsl */ `
   uniform vec4 uGlass;   // half width, side, head radius, height
   uniform vec2 uTexel;
   uniform float uSeed;
-  uniform float uAged;   // 1: the silvering of 2026-10-08 (vestFix.js, point 4)
-  uniform float uPlate;  // 1: the plate of 2026-10-11 (libFix3.js, point 5)
+  uniform float uAged;   // 1: the silvering of 2026-10-08 (libraryProps.js, point 4)
+  uniform float uPlate;  // 1: the plate of 2026-10-11 (libraryProps.js, point 5)
   varying vec2 vLocal;
 
   float mHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
@@ -513,8 +512,8 @@ export function makeMirrors({ root, keep, light = false }) {
         uGlass: { value: new THREE.Vector4(hw, side, hw, H) },
         uTexel: { value: new THREE.Vector2(1 / 16, 1 / 16) },
         uSeed: { value: mirrors.length * 7.31 + 2.2 },
-        uAged: { value: vestOld(4) ? 0 : 1 },
-        uPlate: { value: vestOld(4) || lib3Old(5) ? 0 : 1 },
+        uAged: { value: 1 },
+        uPlate: { value: 1 },
       },
       vertexShader,
       fragmentShader,
