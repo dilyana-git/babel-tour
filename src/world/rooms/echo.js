@@ -397,7 +397,7 @@ export function buildEcho(ctx) {
       const baseGeo = colLathe(BASE.map(([q, y]) => [q * rad, y * rad]), near ? 20 : 14);
       const capGeo = colLathe(CAP.map(([q, y]) => [q * rad, y * rad]), near ? 20 : 14);
       const shaftGeo = flutedShaft(rad, shaftH, near ? {} : { flutes: 16, rows: 4, fine: false });
-      const archWidth = rad * 0.72;
+      const archWidth = rad * 1.15;
       const archOutline = (inner, outer, a0 = 0, a1 = Math.PI, segments = 36) => {
         const edge = (offset) => Array.from({ length: segments + 1 }, (_, n) => {
           const a = a0 + (a1 - a0) * n / segments;
@@ -405,30 +405,41 @@ export function buildEcho(ctx) {
         });
         return [...edge(inner), ...edge(outer).reverse()];
       };
-      // A fillet, a sunk fascia, an ovolo and an outer bevel swept round the
-      // opening. The full-depth voussoirs behind them form the visible soffit.
-      const mould = [[0, 0], [0, 0.3], [0.14, 0.5], [0.28, 0.5], [0.34, 0.22],
-        [0.5, 0.22], [0.6, 0.42], [0.74, 0.55], [0.87, 0.46], [1, 0.28], [1, 0]];
-      const moulding = (face) => {
-        const pos = [], uv = [], idx = [], rows = 48, cols = mould.length;
-        for (let n = 0; n <= rows; n++) {
-          const a = Math.PI * n / rows;
-          for (const [r, depth] of mould) {
-            pos.push(Math.cos(a) * (span + r * archWidth), top + Math.sin(a) * (rise + r * archWidth), face * (wall / 2 + depth));
-            uv.push(a * span, r * archWidth);
-          }
+      // The ring is cut into an odd number of voussoirs, equal along the
+      // intrados (the arch is a half-ellipse, so equal angles would make the
+      // springers short), so the crown falls on one stone: the key. `cuts`
+      // are the joints' angles from the springing to the springing.
+      const VOUSSOIRS = 13;
+      const cuts = (() => {
+        const steps = 720, run = [0];
+        for (let n = 1; n <= steps; n++) {
+          const a = Math.PI * (n - 0.5) / steps;
+          run.push(run[n - 1] + Math.hypot(span * Math.sin(a), rise * Math.cos(a)));
         }
-        for (let n = 0; n < rows; n++) for (let j = 0; j < cols - 1; j++) {
-          const a = n * cols + j, b = a + cols;
-          if (face > 0) idx.push(a, a + 1, b, a + 1, b + 1, b);
-          else idx.push(a, b, a + 1, a + 1, b, b + 1);
-        }
-        const g = new THREE.BufferGeometry();
-        g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-        g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
-        g.setIndex(idx);
-        g.computeVertexNormals();
-        return g;
+        return Array.from({ length: VOUSSOIRS + 1 }, (_, k) => {
+          const want = run[steps] * k / VOUSSOIRS;
+          const n = run.findIndex((s) => s >= want);
+          return n <= 0 ? 0 : Math.PI * (n - 1 + (want - run[n - 1]) / (run[n] - run[n - 1])) / steps;
+        });
+      })();
+      // Every voussoir runs through the whole wall, so the soffit is the
+      // stones' own underside, and stands a little proud of both faces. Behind
+      // them, a mortar ring set back from every face shows in their joints.
+      const PROUD = 0.25, KEY_PROUD = 0.6, JOINT = 0.05;
+      // the key's head: radial through the ring, then a little wider to the
+      // cap that carries it up under the dentils
+      const keyCapH = rad * 0.35, keyTop = rise + band - 1.45 - keyCapH;
+      const keyAt = (a, y) => {
+        const x0 = Math.cos(a) * span, y0 = Math.sin(a) * rise;
+        return [x0 + Math.cos(a) * (y - y0) / Math.sin(a), top + y];
+      };
+      const keyOutline = (a0, a1) => {
+        const [xr, yr] = keyAt(a0, rise + archWidth), [xl] = keyAt(a1, rise + archWidth);
+        const flare = 1 + 0.12 * (keyTop - rise - archWidth) / archWidth;
+        return [
+          ...archOutline(0, 0, a0, a1, 4).slice(0, 5),
+          [xl, yr], [xl * flare, top + keyTop], [xr * flare, top + keyTop], [xr, yr],
+        ];
       };
       for (let k = 0; k < BAYS; k++) {
         const a = 15 + k * (360 / BAYS);
@@ -463,65 +474,49 @@ export function buildEcho(ctx) {
           [[-HALF, top], ...arc, [HALF, top], [HALF, top + rise + band], [-HALF, top + rise + band]],
           wall, mid, turn,
         ));
-        // Wedge-shaped stones carry a 28–30 cm reveal through the arcade.
-        for (let n = 0; n < 17; n++) {
-          const a0 = n * Math.PI / 17 + (n ? 0.003 : 0);
-          const a1 = (n + 1) * Math.PI / 17 - (n < 16 ? 0.003 : 0);
-          LB.cap.add(profileGeo(archOutline(0, archWidth, a0, a1, 3), wall, mid, turn));
-        }
-        // The moulded face returns into the reveal on both sides.
-        const t = rad * 0.27;
-        for (const face of [-1, 1]) {
-          LB.cap.add(placed(moulding(face).rotateY(-turn * deg), mid, 0));
-        }
-        // A projecting keystone passes through the moulding and ends in a
-        // capped console under the cornice, with a sunk panel down its face.
-        {
-          const capH = rad * 0.35, y0 = top + rise - rad * 0.35, y1 = top + rise + band - 1.45 - capH;
-          const wb = rad * 0.42, wt = rad * 0.66, D = t * 1.9 + 0.15;
-          const wedge = (w0, w1, a, b) => [[-w0, a], [w0, a], [w1, b], [-w1, b]];
-          const at = (z) => y0 + (y1 - y0) * z, wAt = (z) => wb + (wt - wb) * z;
-          for (const face of [-1, 1]) {
-            const off = (d) => add(mid, dir(turn + 90), face * (wall / 2 - 0.15 + d / 2));
-            LB.cap.add(profileGeo(wedge(wb, wt, y0, y1), D, off(D), turn));
-            // the panel, sunk: a raised margin each side of it, the field between
-            for (const s of [-1, 1]) {
-              LB.cap.add(profileGeo([[s * wAt(0.16) * 0.58, at(0.16)], [s * wAt(0.16) * 0.9, at(0.16)], [s * wAt(0.84) * 0.9, at(0.84)], [s * wAt(0.84) * 0.58, at(0.84)]], D + 0.3, off(D + 0.3), turn));
-            }
-            LB.cap.add(profileGeo([[-wAt(0.16) * 0.9, at(0.1)], [wAt(0.16) * 0.9, at(0.1)], [wAt(0.16) * 0.9, at(0.16)], [-wAt(0.16) * 0.9, at(0.16)]], D + 0.3, off(D + 0.3), turn));
-            LB.cap.add(profileGeo([[-wAt(0.84) * 0.9, at(0.84)], [wAt(0.84) * 0.9, at(0.84)], [wAt(0.84) * 0.9, at(0.9)], [-wAt(0.84) * 0.9, at(0.9)]], D + 0.3, off(D + 0.3), turn));
-            // the cap: a fillet, and a wider abacus over it
-            LB.cap.add(placed(new THREE.BoxGeometry(wt * 2 + rad * 0.12, capH * 0.4, D + 0.25), off(D + 0.25), y1 + capH * 0.2, -turn * deg));
-            LB.cap.add(placed(new THREE.BoxGeometry(wt * 2 + rad * 0.34, capH * 0.6, D + 0.5), off(D + 0.5), y1 + capH * 0.7, -turn * deg));
+        // The voussoirs, the key among them: one stone at the crown, through
+        // the wall, its head capped with a fillet and an abacus.
+        const key = (VOUSSOIRS - 1) / 2;
+        for (let n = 0; n < VOUSSOIRS; n++) {
+          const g0 = n ? JOINT / span : 0, g1 = n < VOUSSOIRS - 1 ? JOINT / span : 0;
+          const a0 = cuts[n] + g0, a1 = cuts[n + 1] - g1;
+          LB.joint.add(profileGeo(archOutline(0.08, archWidth - 0.02, cuts[n], cuts[n + 1], 4), wall + 2 * PROUD - 0.3, mid, turn));
+          if (n !== key) {
+            LB.cap.add(profileGeo(archOutline(0, archWidth, a0, a1, 4), wall + 2 * PROUD, mid, turn));
+            continue;
           }
+          const D = wall + 2 * KEY_PROUD;
+          LB.cap.add(profileGeo(keyOutline(a0, a1), D, mid, turn));
+          const w = keyAt(a0, keyTop)[0] * (1 + 0.12 * (keyTop - rise - archWidth) / archWidth) * 2;
+          LB.cap.add(placed(new THREE.BoxGeometry(w + rad * 0.12, keyCapH * 0.4, D + 0.25), mid, top + keyTop + keyCapH * 0.2, -turn * deg));
+          LB.cap.add(placed(new THREE.BoxGeometry(w + rad * 0.34, keyCapH * 0.6, D + 0.5), mid, top + keyTop + keyCapH * 0.7, -turn * deg));
         }
       }
       [baseGeo, capGeo, shaftGeo].forEach((g) => g.dispose());
       // a course of dentils under the cornice on both faces, the smallest
-      // repeat in the room
-      for (const face of [-1, 1]) {
-        const rr = RING + face * (wall / 2 + 0.35);
-        for (let d = 0; d < BAYS * 16; d++) {
-          const a = (360 / (BAYS * 16)) * d;
-          posts.push({
-            p: [c[0] + Math.cos(a * deg) * rr, top + rise + band - 0.75, c[1] + Math.sin(a * deg) * rr],
-            rot: [0, -a * deg, 0],
-            s: [0.8, 1.3, 1.1],
-          });
+      // repeat in the room, sixteen to a bay along its straight wall
+      const apothem = RING * Math.cos((180 / BAYS) * deg);
+      for (let k = 0; k < BAYS; k++) {
+        const a = 15 + k * (360 / BAYS) + 180 / BAYS, along = dir(a + 90);
+        for (const face of [-1, 1]) {
+          const line = add(c, dir(a), apothem + face * (wall / 2 + 0.35));
+          for (let d = 0; d < 16; d++) {
+            const p = add(line, along, HALF * ((2 * d + 1) / 16 - 1));
+            posts.push({ p: [p[0], top + rise + band - 0.75, p[1]], rot: [0, -a * deg, 0], s: [0.8, 1.3, 1.1] });
+          }
         }
       }
-      // The cornice the storey carries, a ring right round the well — kept
-      // narrow, because a deep one hangs over the reader's head as a black
-      // soffit right across the top of the frame.
-      // Round, not hexagonal: as a hexagon the ring's CORNERS reach out to
-      // within a few units of where the reader stands and hang over their head
-      // as a black soffit across the top of the frame.
-      const ring = (r) => circlePts(c, r, 48);
-      LB.cap.add(slabGeo(ring(RING + wall / 2 + 1.5), [ring(RING - wall / 2 - 1.5)], 2, top + rise + band));
-      LB.cap.add(slabGeo(ring(RING + wall / 2 + 0.9), [ring(RING - wall / 2 - 0.9)], 1.4, top + rise + band + 2));
+      // The cornice the storey carries, right round the well on the twelve
+      // straight walls of the bays, so it runs level and the same depth over
+      // every face — kept narrow, because a deep one hangs over the reader's
+      // head as a black soffit right across the top of the frame.
+      const ring = (off) => Array.from({ length: BAYS }, (_, k) =>
+        add(c, dir(15 + k * (360 / BAYS)), (apothem + off) / Math.cos((180 / BAYS) * deg)));
+      LB.cap.add(slabGeo(ring(wall / 2 + 1.5), [ring(-wall / 2 - 1.5)], 2, top + rise + band));
+      LB.cap.add(slabGeo(ring(wall / 2 + 0.9), [ring(-wall / 2 - 0.9)], 1.4, top + rise + band + 2));
       // and the bed under it darker, on both faces of the arcade's wall and
       // whatever stands proud of them there (ashlarSurface.js, 3)
-      ringLedge(c, top + rise + band, RING - wall / 2 - 1.6, RING + wall / 2 + 1.6);
+      ringLedge(c, top + rise + band, apothem - wall / 2 - 1.6, (apothem + wall / 2 + 1.6) / Math.cos((180 / BAYS) * deg));
       return top + rise + band + 2.4;
     };
     // The lower storey springs its arches at 43.5, level with the crown; the
