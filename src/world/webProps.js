@@ -3,6 +3,7 @@
 // and the pedestal.
 import * as THREE from 'three';
 import { HEART, MAZE } from './gardenPlan';
+import { makeRng } from './textures';
 
 const Q = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
 const qn = (k, d) => (Q.get(k) !== null && Q.get(k) !== '' && Number.isFinite(+Q.get(k)) ? +Q.get(k) : d);
@@ -55,6 +56,47 @@ export const BELT = {
 // reach, between `step` units, `leaf` a spray's width as a share of the reach.
 export const SPIRE = { taper: qn('wwbtaper', 0.92), belly: 0.1, close: qn('wwbclose', 0.6), step: [3.3, 8.5], leaf: qn('wwbleaf', 1.42) };
 
+// Each spire's own character, from where it stands (a stream of its own, so
+// the belt's stream and its places are not moved by it). The back rows are
+// taller by as much as they are further off, and the closing spires are sized
+// to the stone's skyline, so those alone set every tip at one elevation from
+// the court. `wave`: the belt rises and falls in stands across
+// its width, from the low to the high share, `len` units from one crest to
+// the next (two waves, beaten together); `emergent`: the share of spires
+// that stand well over the rest, and by how much; `young`: the share that are
+// shorter, and by how much; `slim` and `stout`: the shares that are narrower
+// or fuller than a spire's usual reach (as a share of it); `taper` how the
+// reach falls away up the stem, one tree to the next. `pair`: along a row,
+// the share of spires stood close to the last (`[share, how close]`) and the
+// share with a wide gap after them, so the rows are groups and gaps and not a
+// rhythm. `tallest`: the most any one is. `closing`: a closing spire is the
+// height its skyline asks of it where its share comes to this, and taller
+// where it is more, so the stands rise and fall there too.
+export const CHARACTER = {
+  seed: 7793,
+  wave: [0.66, 1.1], len: [190, 83],
+  emergent: [0.12, 1.3, 1.5], young: [0.3, 0.52, 0.76],
+  slim: [0.24, 0.66, 0.8], stout: [0.2, 1.16, 1.3], taper: [0.68, 1.22],
+  pair: [0.3, 0.4], gap: [0.22, 1.7],
+  tallest: 250, closing: 0.8,
+};
+const charRng = (p) => makeRng(((Math.round(p[0] * 8) * 73856093) ^ (Math.round(p[1] * 8) * 19349663) ^ CHARACTER.seed) | 0);
+// [height share, reach share, taper] for a spire standing at `p`; `closing`:
+// one sized to close the stone's skyline, which may stand taller and fuller
+// than it was asked to and not lower or narrower.
+export function spireCharacter(p, closing = false) {
+  const C = CHARACTER, r = charRng(p), R = (a, b) => a + (b - a) * r();
+  const beat = 0.5 + 0.3 * Math.sin((p[0] / C.len[0]) * Math.PI * 2 + 1.1) + 0.2 * Math.sin((p[0] / C.len[1]) * Math.PI * 2 + 2.6);
+  let h = C.wave[0] + (C.wave[1] - C.wave[0]) * beat;
+  const roll = r();
+  h *= roll < C.emergent[0] ? R(C.emergent[1], C.emergent[2]) : roll > 1 - C.young[0] ? R(C.young[1], C.young[2]) : R(0.92, 1.08);
+  const form = r();
+  let s = form < C.slim[0] ? R(C.slim[1], C.slim[2]) : form > 1 - C.stout[0] ? R(C.stout[1], C.stout[2]) : R(0.92, 1.06);
+  let taper = R(...C.taper);
+  if (closing) { h = Math.max(1, h / C.closing); s = Math.max(1, s); taper = Math.min(taper, SPIRE.taper); }
+  return [h, s, taper];
+}
+
 // Rows stood by chance leave gaps, and a gap in the belt has the Library in
 // it. So the belt is closed from where it is looked at: `eye`, the court's
 // stand, and `skyline`, the top of the Library's stone from there by bearing —
@@ -74,13 +116,21 @@ export const CLOSE = {
     [34, 23.5, 236], [37, 23, 270], [40, 21.5, 256], [43, 21, 266], [46, 21.5, 287], [49, 22, 280], [52, 22.5, 277],
   ],
 };
+// Whether a tree at `p` stands in the court's view, behind the hedges from
+// the stand: within `wide` degrees of its bearing and `far` units of it. A
+// cherry in flower there shows only its crown, sitting on the hedge tops.
+export const COURT_VIEW = { wide: 55, far: 440 };
+export function inCourtView(p) {
+  const dx = p[0] - CLOSE.eye[0], dz = p[1] - CLOSE.eye[2];
+  return dz > 0 && Math.hypot(dx, dz) < COURT_VIEW.far && Math.abs(Math.atan2(dx, dz)) < (COURT_VIEW.wide * Math.PI) / 180;
+}
 // `trees`: the belt so far, [{ p, H, S }], added to. `ok(p, S)`: the garden's
 // say; `clear(p, S)`: off the maze and out of the lane; `ground`: the lawn.
 export function closeBelt(trees, rng, ok, clear, ground) {
   const R = (a, b) => a + (b - a) * rng();
   const [ex, ey, ez] = CLOSE.eye, deg = Math.PI / 180;
   // how wide a spire is, a height up it (the narrowest its whorls are drawn)
-  const wide = (t, y) => (y >= t.H ? 0 : CLOSE.cover * t.S * Math.pow(1 - y / t.H, SPIRE.taper));
+  const wide = (t, y) => (y >= t.H ? 0 : CLOSE.cover * t.S * Math.pow(1 - y / t.H, t.taper ?? SPIRE.taper));
   const sky = CLOSE.skyline;
   for (let az = sky[0][0]; az <= sky[sky.length - 1][0]; az += 1) {
     const k = Math.max(1, sky.findIndex((s) => s[0] >= az)), u = (az - sky[k - 1][0]) / (sky[k][0] - sky[k - 1][0]);
@@ -97,9 +147,10 @@ export function closeBelt(trees, rng, ok, clear, ground) {
     if (covered) continue;
     for (let along = far - CLOSE.back; along >= CLOSE.least; along -= CLOSE.step) {
       const p = [ex + dir[0] * along, ez + dir[1] * along];
-      const H = Math.min(206, Math.max(70, want(along) / share)), S = Math.min(26, Math.max(15, H * reach));
+      const [h, s, taper] = spireCharacter(p, true);
+      const H = Math.min(CHARACTER.tallest, Math.max(70, want(along) / share) * h), S = Math.min(30, Math.max(15, H * reach / h) * s);
       if (!clear(p, S) || !ok(p, S)) continue;
-      trees.push({ p, H, S, closing: true });
+      trees.push({ p, H, S, taper, closing: true });
       break;
     }
   }
@@ -218,6 +269,9 @@ export function screenPlaces(rng, MZ, ok, walled = null) {
   const hedge = MZ.z0 + MZ.rows * MZ.ch, z0 = hedge + SCREEN.first;
   const xa = MZ.x0 - 1.2 * MZ.cw, xb = MZ.x0 + (MZ.cols + 1.4) * MZ.cw;
   const laneX = MZ.x0 + (GATE.col + 0.5) * MZ.cw;
+  // (how close the next one stands, from a stream of its own: CHARACTER.pair)
+  const gr = makeRng(CHARACTER.seed + 1);
+  const group = () => { const g = gr(); return g < CHARACTER.pair[0] ? CHARACTER.pair[1] : g > 1 - CHARACTER.gap[0] ? CHARACTER.gap[1] : 1; };
   SCREEN.rows.forEach((row, k) => {
     // (a row of the belt, webProps.js, says where it stands: `at` off the
     // hedge, and `x` from where to where as shares of a cell off the maze)
@@ -226,7 +280,7 @@ export function screenPlaces(rng, MZ, ok, walled = null) {
     let tight = 1;
     const za = row.flank === undefined ? 0 : hedge + row.z[0] * MZ.ch, zb = row.flank === undefined ? 0 : hedge + row.z[1] * MZ.ch;
     for (let x = row.flank === undefined ? a + (k % 2) * SCREEN.gap * 0.5 : za; x <= (row.flank === undefined ? b : zb); x += SCREEN.gap * R(...SCREEN.step) * tight) {
-      tight = row.tight ?? 1;
+      tight = (row.tight ?? 1) * group();
       const p = row.flank === undefined ? [x + R(-3, 3), z + R(-sway, sway)] : [MZ.x0 - row.flank + R(-sway, sway), x + R(-3, 3)];
       // (all the draws spent whether it stands or not, so one moved by a dial
       // does not reshuffle the rest)
@@ -234,10 +288,13 @@ export function screenPlaces(rng, MZ, ok, walled = null) {
       let S = R(...row.S);
       if (walled) {
         const tall = R(...BELT.wall);
-        if (row.flank === undefined && walled(p)) { H = Math.max(H, tall); S *= BELT.reach; tight = BELT.tight; }
+        if (row.flank === undefined && walled(p)) { H = Math.max(H, tall); S *= BELT.reach; tight = BELT.tight * group(); }
       }
+      const [h, s, taper] = spireCharacter(p);
+      H = Math.min(CHARACTER.tallest, H * h);
+      S *= s;
       const inLane = GATE.through && (row.lane ?? k < 2) && Math.abs(p[0] - laneX) < S * GATE.lane[0] + GATE.lane[1];
-      if (ok(p, S) && !inLane) out.push({ p, H, S, far: !!row.far });
+      if (ok(p, S) && !inLane) out.push({ p, H, S, taper, far: !!row.far });
     }
   });
   return out;

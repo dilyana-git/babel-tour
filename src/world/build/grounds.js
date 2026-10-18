@@ -15,7 +15,7 @@ import { WAYMARK, BLOSSOM_NIGHT, FINIALS, LAWN } from '../forkProps';
 import { WILLOW } from '../pavilionProps';
 import { lawnBlades, swardLit, lawnSward, edgeTufts } from '../lawn';
 import { MIST_COLOR, TUFTS, trackMist, SWARD, GRASS, paintSward, FEATHER } from '../gardenProps';
-import { SCREEN, screenPlaces, GATE as WEB_GATE, FLIES, BELT, closeBelt, SPIRE } from '../webProps';
+import { SCREEN, screenPlaces, GATE as WEB_GATE, FLIES, BELT, closeBelt, SPIRE, inCourtView } from '../webProps';
 import { pondShore, rockVariants, guardStones } from '../shore';
 import { ONE_TREE, NO_BOUND } from './common';
 
@@ -259,7 +259,10 @@ export function* buildTrees(ctx) {
           if (blocked(p) || wayDist(p) < 28 || boundaryDist(p) < 24 || walk < 43
             || placedTrees.some((q) => dist(q, p) < 23) || treeList.some((t) => dist(t.p, p) < 23)) continue;
           const roll = wr();
-          const species = gi % 7 === 3 ? 'cherry' : roll < 0.46 ? 'broad' : roll < 0.82 ? 'pine' : roll < 0.94 ? 'cherry' : 'maple';
+          let species = gi % 7 === 3 ? 'cherry' : roll < 0.46 ? 'broad' : roll < 0.82 ? 'pine' : roll < 0.94 ? 'cherry' : 'maple';
+          // (behind the maze's hedges from the court, a pine: webProps.js,
+          // inCourtView. Neither has draws the other lacks.)
+          if (species === 'cherry' && inCourtView(p)) species = 'pine';
           const shape = choose(shapes.get(species)), H = range(49, 76), scale = H / 50;
           const yaw = range(0, Math.PI * 2), cs = Math.cos(yaw), sn = Math.sin(yaw);
           const at = ([x, y, z]) => [p[0] + scale * (cs * x + sn * z), GROUND_T + scale * y, p[1] + scale * (cs * z - sn * x)];
@@ -333,7 +336,7 @@ export function* buildTrees(ctx) {
       for (const [ti, t] of belt.entries()) {
         if (ti % 8 === 0) yield;
         const wood = new Wood(7);
-        const grown = growTree('cedar', sr, wood, { H: t.H, S: t.S, detail: !light && !t.far, skirt: SCREEN.skirt, spire: SPIRE });
+        const grown = growTree('cedar', sr, wood, { H: t.H, S: t.S, detail: !light && !t.far, skirt: SCREEN.skirt, spire: { ...SPIRE, taper: t.taper } });
         treeList.push({ p: t.p, species: 'cedar', H: +t.H.toFixed(1), screen: true });
         const g = wood.geometry().translate(t.p[0], GROUND_T, t.p[1]);
         beltWood.push(g);
