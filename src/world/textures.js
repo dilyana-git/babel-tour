@@ -2144,7 +2144,8 @@ export function hedgeLeaves({ size = 1024, seed = 31 } = {}) {
 //   0 broad    leaves in alternate pairs along twigs that radiate from a stem
 //   1 maple    small palmate leaves, five and seven lobed, on fine stalks
 //   2 pine     brushes of needles, the stuff of a cloud-pruned pad
-//   3 blossom  five-petalled flowers in umbels along dark twigs
+//   3 blossom  a cherry's flower: one lumpy puff of floret clusters, soft
+//              edged (painted after the others: see the end of this)
 //   4 cedar    cord-like shoots, needled all round, fanning out
 //   5 willow   fine arching shoots, the narrow leaves hanging off them
 //   6 box      a clipped shoot grown out again: short twigs, small oval
@@ -2294,6 +2295,9 @@ export function foliageAtlas({ size = 256, seed = 37 } = {}) {
         }
       }
     } else if (kind === 3) {
+      // (what this column painted before the cherry's flower was redrawn:
+      // still painted, so the columns after it draw what they always drew,
+      // then cleared and painted over below)
       for (let s = 0; s < 7; s++) {
         const pts = shoot(cx, cy, (s / 7) * Math.PI * 2 + rr(-0.3, 0.3), R * rr(0.6, 0.95), 6, 0.5);
         stem(pts, 2.4, 0.9, 'rgba(46,30,28,1)');
@@ -2421,6 +2425,56 @@ export function foliageAtlas({ size = 256, seed = 37 } = {}) {
           const a = m.a + side * rr(0.6, 1.1), len = rr(4, 7);
           c.beginPath(); c.moveTo(m.x, m.y); c.lineTo(m.x + Math.cos(a) * len, m.y + Math.sin(a) * len); c.stroke();
         }
+      }
+    }
+    c.restore();
+  }
+  // The cherry's flower, from where the stream stands after every column has
+  // drawn. Clusters of small florets, close-set and near white, each over a
+  // soft halo of its own colour whose alpha falls to nothing: the foliage
+  // shader's ramp (effects.js, `blossom`) turns that fall into a soft edge.
+  // More of them, and larger, toward the rim, where the twigs end; darker in
+  // the middle, where the puff shades itself.
+  {
+    const x0 = 3 * S, cx = x0 + S / 2, cy = S / 2;
+    c.clearRect(x0, 0, S, S);
+    c.save();
+    c.beginPath(); c.rect(x0 + 5, 5, S - 10, S - 10); c.clip();
+    // a few dark twigs from the middle, mostly hidden, and over them one
+    // puff of clusters, thicker toward its rim, its outline lumpy
+    for (let s = 0; s < 5; s++) stem(shoot(cx, cy, (s / 5) * Math.PI * 2 + rr(-0.4, 0.4), R * rr(0.45, 0.75), 5, 0.5), 1.8, 0.7, 'rgba(46,30,28,1)');
+    const marks = [];
+    for (let k = 0; k < 30; k++) {
+      const a = rnd() * Math.PI * 2, rho = R * 0.74 * Math.pow(rnd(), 0.55);
+      const x = cx + Math.cos(a) * rho, y = cy + Math.sin(a) * rho;
+      marks.push({ x, y, ...place(cx, cy, x, y) });
+    }
+    marks.sort((p, q) => p.out - q.out);
+    for (const m of marks) {
+      const cr = rr(11, 16) * (0.75 + 0.4 * m.out);
+      const hue = rr(338, 356), sat = rr(6, 16), L = 62 + m.out * 18 + m.lit * 10;
+      const halo = c.createRadialGradient(m.x, m.y, 0, m.x, m.y, cr * 1.35);
+      halo.addColorStop(0, `hsla(${hue},${sat}%,${L - 8}%,${0.66 - 0.16 * m.out})`);
+      halo.addColorStop(0.55, `hsla(${hue},${sat}%,${L - 10}%,${0.44 - 0.12 * m.out})`);
+      halo.addColorStop(1, `hsla(${hue},${sat}%,${L - 12}%,0)`);
+      c.fillStyle = halo;
+      c.beginPath(); c.arc(m.x, m.y, cr * 1.35, 0, Math.PI * 2); c.fill();
+      const n = 14 + Math.floor(rnd() * 6);
+      for (let f = 0; f < n; f++) {
+        const a = rnd() * Math.PI * 2, rho = Math.sqrt(rnd()) * cr * 0.85;
+        const fx = m.x + Math.cos(a) * rho, fy = m.y + Math.sin(a) * rho;
+        // lit on the side toward the light, up and to the left
+        const Lf = Math.min(95, L + rr(-5, 7) + ((m.x - fx) + (m.y - fy)) / cr * 5);
+        const pr = rr(1.7, 2.6), rot = rnd() * Math.PI;
+        c.fillStyle = `hsl(${hue + rr(-4, 4)},${sat}%,${Lf}%)`;
+        for (let p = 0; p < 5; p++) {
+          const pa = rot + (p / 5) * Math.PI * 2;
+          c.beginPath();
+          c.ellipse(fx + Math.cos(pa) * pr * 0.6, fy + Math.sin(pa) * pr * 0.6, pr * 0.6, pr * 0.45, pa, 0, Math.PI * 2);
+          c.fill();
+        }
+        c.fillStyle = `hsl(${rr(335, 350)},${sat + 14}%,${Lf - 26}%)`;
+        c.beginPath(); c.arc(fx, fy, pr * 0.26, 0, Math.PI * 2); c.fill();
       }
     }
     c.restore();

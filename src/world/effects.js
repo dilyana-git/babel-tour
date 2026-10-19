@@ -683,12 +683,16 @@ export function makeLampGlobeMaterial({ diffused = false } = {}) {
 // another: 9 ms a frame from the Pavilion, where the same cards drawn unlit
 // cost nothing measurable. So both passes must cut a card identically: the
 // same atlas column, the same sway, the same alpha.
-const foliageVertex = (kinds, sway = false) => (shader) => shader.vertexShader
+// (`blossom`: how soft the cherry blossom's cut is, in alpha; 0 for none.
+// `vBlossom` marks the blossom's column of the atlas for the fragment.)
+const foliageVertex = (kinds, sway = false, blossom = 0) => (shader) => shader.vertexShader
   .replace('#include <common>', `#include <common>
     attribute float aKind;
     attribute vec4 aCrown;
+    ${blossom ? 'varying float vBlossom;' : ''}
     ${sway ? 'uniform float uWind;' : ''}`)
   .replace('#include <uv_vertex>', `#include <uv_vertex>
+    ${blossom ? 'vBlossom = 1.0 - step(0.5, abs(aKind - 3.0));' : ''}
     #if defined(USE_INSTANCING) && defined(USE_MAP)
       vMapUv.x = (vMapUv.x + aKind) / ${kinds.toFixed(1)};
     #endif`)
@@ -727,18 +731,23 @@ const foliageAlpha = (shader) => shader.fragmentShader
 // and the mesh must then be drawn before anything else that blends (its
 // renderOrder). (First tried as a fringe added outside the cut: it filled
 // the gaps in a crown and made the far trees blockier, not softer.)
-const featherCut = (feather, then) => `
+// (`blossom`: the blossom's ramp is never narrower than that much alpha, near
+// or far. Its flower is painted over soft halos (textures.js, foliageAtlas),
+// so a cluster has a soft edge close to as well as across the garden.)
+const featherCut = (feather, then, blossom = 0) => `
   {
     // (how fast the alpha falls across a pixel here: the ramp is that many
     // pixels wide whatever the card's size on the screen)
     float across = max(fwidth(diffuseColor.a), 1e-4) * ${feather.wide.toFixed(2)}
       * smoothstep(${feather.near.toFixed(1)}, ${feather.far.toFixed(1)}, 1.0 / gl_FragCoord.w);
+    ${blossom ? `across = max(across, vBlossom * ${blossom.toFixed(3)});` : ''}
     float cover = clamp((diffuseColor.a - alphaTest) / max(across, 1e-5) + 0.5, 0.0, 1.0);
     ${then}
   }`;
-export function makeFoliageMaterial(map, wind, kinds = 1, { prepassed = false, feather = null, mapFill = null } = {}) {
+export function makeFoliageMaterial(map, wind, kinds = 1, { prepassed = false, feather = null, mapFill = null, blossom = 0 } = {}) {
   const material = new THREE.MeshStandardMaterial({ map, alphaTest: 0.42, side: THREE.DoubleSide, roughness: 0.86, depthWrite: !prepassed });
   const soft = prepassed && feather;
+  if (!soft) blossom = 0;
   if (soft) {
     material.transparent = true;
     // (one draw, as it was: three would draw a blended two-sided mesh twice)
@@ -747,7 +756,7 @@ export function makeFoliageMaterial(map, wind, kinds = 1, { prepassed = false, f
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uWind = wind;
     if (mapFill) shader.uniforms.uFoliageMap = mapFill;
-    shader.vertexShader = foliageVertex(kinds, true)(shader)
+    shader.vertexShader = foliageVertex(kinds, true, blossom)(shader)
       .replace('#include <common>', `#include <common>
         varying float vDeep;
         varying float vCrowned;`)
@@ -770,6 +779,7 @@ export function makeFoliageMaterial(map, wind, kinds = 1, { prepassed = false, f
     shader.fragmentShader = foliageAlpha(shader)
       .replace('#include <common>', `#include <common>
         ${mapFill ? 'uniform float uFoliageMap;' : ''}
+        ${blossom ? 'varying float vBlossom;' : ''}
         varying float vDeep;
         varying float vCrowned;`)
       .replace('#include <color_fragment>', `#include <color_fragment>
@@ -799,10 +809,10 @@ export function makeFoliageMaterial(map, wind, kinds = 1, { prepassed = false, f
     if (soft) {
       shader.fragmentShader = shader.fragmentShader.replace('#include <alphatest_fragment>', featherCut(feather, `
         if (cover < 0.03) discard;
-        diffuseColor.a = cover;`));
+        diffuseColor.a = cover;`, blossom));
     }
   };
-  material.customProgramCacheKey = () => `babel-foliage-${kinds}-${prepassed ? 'p' : 's'}${soft ? `-f${feather.near}-${feather.far}-${feather.wide}` : ''}${mapFill ? '-map-fill' : ''}`;
+  material.customProgramCacheKey = () => `babel-foliage-${kinds}-${prepassed ? 'p' : 's'}${soft ? `-f${feather.near}-${feather.far}-${feather.wide}` : ''}${mapFill ? '-map-fill' : ''}${blossom ? `-b${blossom}` : ''}`;
   return material;
 }
 
@@ -810,18 +820,21 @@ export function makeFoliageMaterial(map, wind, kinds = 1, { prepassed = false, f
 // (polygonOffset), so the lit pass that follows passes the depth test on the
 // very card that laid it and on no card behind.
 // (`feather`: the lit pass's — depth only where a spray covers the whole pixel.)
-export function makeFoliagePrepass(map, wind, kinds = 1, { feather = null } = {}) {
+export function makeFoliagePrepass(map, wind, kinds = 1, { feather = null, blossom = 0 } = {}) {
+  if (!feather) blossom = 0;
   const material = new THREE.MeshBasicMaterial({
     map, alphaTest: 0.42, side: THREE.DoubleSide, colorWrite: false,
     polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 2,
   });
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uWind = wind;
-    shader.vertexShader = foliageVertex(kinds, true)(shader);
+    shader.vertexShader = foliageVertex(kinds, true, blossom)(shader);
     shader.fragmentShader = foliageAlpha(shader);
-    if (feather) shader.fragmentShader = shader.fragmentShader.replace('#include <alphatest_fragment>', featherCut(feather, 'if (cover < 0.999) discard;'));
+    if (blossom) shader.fragmentShader = shader.fragmentShader.replace('#include <common>', `#include <common>
+      varying float vBlossom;`);
+    if (feather) shader.fragmentShader = shader.fragmentShader.replace('#include <alphatest_fragment>', featherCut(feather, 'if (cover < 0.999) discard;', blossom));
   };
-  material.customProgramCacheKey = () => `babel-foliage-pre-${kinds}${feather ? `-f${feather.near}-${feather.far}-${feather.wide}` : ''}`;
+  material.customProgramCacheKey = () => `babel-foliage-pre-${kinds}${feather ? `-f${feather.near}-${feather.far}-${feather.wide}` : ''}${blossom ? `-b${blossom}` : ''}`;
   return material;
 }
 

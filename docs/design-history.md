@@ -29,6 +29,41 @@ path, and this document in full (`git show 0857f2a:docs/design-history.md`).
   the ending's words lit), `?wnear=a|c` (picked b, fulled moorit wool),
   `?wroof=green|bark` (grey tile). Due the same removal.
 
+## 2026-10-19
+
+- **Cherry blossom: a soft cloud on rounded limbs** (audit V·8·3, "blossom
+  as popcorn, on sticks": hard-edged flat pink cards, evenly bright, and
+  few-sided straight limbs that read as sticks beside the new lawn). Options
+  first, on a canvas (https://claude.ai/artifact/2tSh9a6fpMGRnXWRJqiFFv:
+  the Fork stand, a grove cherry ~7 m off, under it looking up, the
+  Pavilion stand). All three shared the new wood and the soft cut. **The
+  user picked A.**
+  - Shared: the cherry's limbs (still grown from the trees' stream, draw
+    for draw) are redrawn by `bloomCherry` from its own stream: Catmull-Rom
+    through the old nodes, a node every 2 units, 6 to 12 sides, a sag of
+    0.07 (limbs) and 0.05 (branches) of their length, radius ∝ t^0.6. Two
+    or three twigs per branch end carry the flower. One crown per tree,
+    centred on the tips, so the underside goes dark. The foliage shader's
+    feather ramp for the blossom column is never narrower than `soft` in
+    alpha. The atlas column is repainted after the loop as one puff of
+    clusters over radial halos.
+  - **A haze** (picked): tints `#c6b2aa #bfaca6 #cab4ab #bba8a4`, soft
+    0.34; 30 clusters of 14–19 florets, sat 6–16 %, L 62 + 18·out; per twig
+    two tip sprays (rc S·0.14–0.18, sizes rc·1.7–2.1 and 1.5–1.8) and a mid
+    one (rc·1.3–1.5), plus one inner spray per branch (S·0.2–0.26 ·1.4).
+    Shade tip 1, mid 0.8, inner 0.55.
+  - B dusty rose: tints `#b89a9a #ac8f90 #bca2a0 #a8908f`, soft 0.30; 17
+    clusters of 4–6 larger flowers (petal 3–4.2 px, sat 8–18 %, L 58); tips
+    only (rc S·0.12–0.15), three twigs always. Open and quiet; nearly gone
+    from the Fork stand.
+  - C tiers: A's atlas and tints `#cab4a8 #c2aea4 #ceb8aa`; level shelves
+    at the twig tips (w S·0.24–0.3, height 0.38) over a darker underside
+    pulled 60 % to `#6a4c50`, each shelf its own crown.
+  - Gone with it: BLOSSOM_NIGHT (forkProps.js: grey tints, a third of the
+    sprays dropped, underside darkened) and its `?wblossomdrop`,
+    `?wblossomunder` dials. B and C were never committed; their values are
+    above.
+
 ## 2026-10-16
 
 - **The others' bodies, and the court from above.** "The hood is right. The

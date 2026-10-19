@@ -7,11 +7,11 @@ import { PAVILION_BRIDGE_HALF_WIDTH } from '../pavilionBridge';
 import { PAVILION_PATH, gardenWalks } from '../gardenPlan';
 import { makeRng, FOLIAGE_KINDS } from '../textures';
 import { makeSparkles, makeFoliageDepthMaterial, crossedCards, makeBackdropFoliage } from '../effects';
-import { Wood, growTree } from '../trees';
+import { Wood, growTree, BLOSSOM as CHERRY_BLOSSOM } from '../trees';
 import { bindSceneDepth } from '../softDepth';
 import { WATER_Y } from '../water';
 import { lilyFlowerGeometry, lilyBudGeometry } from '../pond';
-import { WAYMARK, BLOSSOM_NIGHT, FINIALS, LAWN } from '../forkProps';
+import { WAYMARK, FINIALS, LAWN } from '../forkProps';
 import { WILLOW } from '../pavilionProps';
 import { lawnBlades, swardLit, lawnSward, edgeTufts } from '../lawn';
 import { MIST_COLOR, TUFTS, trackMist, SWARD, GRASS, paintSward, FEATHER } from '../gardenProps';
@@ -54,7 +54,7 @@ export function* buildTrees(ctx) {
       pine: ['#3e5034', '#445636', '#394a31'],
       maple: ['#a43424', '#b4452a', '#9a2a22', '#b85a2c', '#c07434'],
       mapleTurning: ['#8c7a36', '#9a6a30'],
-      cherry: ['#cdaaaa', '#d6b6b2', '#c29ea4', '#d0aea8'],
+      cherry: CHERRY_BLOSSOM.tints,
       willow: ['#6e7a44', '#667240', '#737c46'],
       cedar: ['#3d4b31', '#37452e', '#434f30'],
     };
@@ -131,14 +131,7 @@ export function* buildTrees(ctx) {
       if (gone) g.dispose();
       else woodChunks.get(key).push(g);
 
-      // (forkProps.js: a cherry in flower at night. Lit all round in the
-      // palest pink, from across the water each tree is a puff of the one
-      // saturated colour in the frame; so greyer and deeper, a third of its
-      // sprays left off, so the dark limbs show through, and a spray under the
-      // crown's middle in the crown's own shade — the moon is on its top. No
-      // draws are spent on any of it: the stream does not move.)
-      const night = species === 'cherry';
-      const palette = species === 'maple' && tr() < 0.2 ? TINT.mapleTurning : night ? BLOSSOM_NIGHT.tints : TINT[species];
+      const palette = species === 'maple' && tr() < 0.2 ? TINT.mapleTurning : TINT[species];
       const base = new THREE.Color(tpick(palette));
       // (A weeping willow has more sprays than the plain willow whose draws it
       // takes, and every spray stood up draws its tint from the trees' stream:
@@ -152,20 +145,14 @@ export function* buildTrees(ctx) {
       }
       const leafRng = grown.tintRng ?? (grown.was ? weeping : null);
       const tintOf = leafRng ? (xs) => xs[Math.floor(leafRng() * xs.length)] : tpick;
-      for (const [si, sp] of grown.sprays.entries()) {
+      for (const sp of grown.sprays) {
         const at = [sp.p[0] + p[0], sp.p[1] + GROUND_T, sp.p[2] + p[1]];
         // nothing in the walk's way at head height
         if (walkDist([at[0], at[2]]) < 8 + sp.s[0] * 0.5 && at[1] - sp.s[1] * 0.5 < 30) continue;
         tone.copy(base).lerp(pickTone.set(tintOf(palette)), 0.3);
         if (gone) continue;
-        let shade = sp.shade;
-        if (night) {
-          if (((si * 0.618034 + Math.abs(sp.p[0]) * 0.071) % 1) < BLOSSOM_NIGHT.drop) continue;
-          const up = (sp.p[1] - sp.crown[1]) / (sp.crown[3] || 1);
-          shade *= BLOSSOM_NIGHT.under + (1 - BLOSSOM_NIGHT.under) * Math.min(1, Math.max(0, (up + 0.25) / 0.8));
-        }
         foliage.push({
-          p: at, rot: sp.rot, s: sp.s, color: tone.getHex(), k: shade, kind: sp.kind,
+          p: at, rot: sp.rot, s: sp.s, color: tone.getHex(), k: sp.shade, kind: sp.kind,
           crown: [sp.crown[0] + p[0], sp.crown[1] + GROUND_T, sp.crown[2] + p[1], sp.crown[3]],
         });
       }

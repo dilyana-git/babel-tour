@@ -17,6 +17,7 @@ import { DARK_GILT, CAIHUA, WILLOW } from '../pavilionProps';
 import { bladeLit } from '../lawn';
 import { swardLawn, moonBlades, BANK_SWARD, FEATHER, signLit, SIGN, plinthLit, PLINTH } from '../gardenProps';
 import { WALLS } from '../webProps';
+import { BLOSSOM } from '../trees';
 import { HEART } from '../gardenPlan';
 import { FILLET_BRASS, ECHO_STONE, STRING, COLOUR } from '../libraryProps';
 import { QUIET, TONE } from '../mapLook';
@@ -887,8 +888,8 @@ export function buildMaterials(ctx) {
     // dark and opaque, with dust above and the burning lamp reflected below.
     deadGlass: deadGlassPatch(Std({ metalness: 0 })),
     // (gardenProps.js: across the garden its cut edge is drawn soft)
-    foliage: keep(makeFoliageMaterial(leaves, wind, FOLIAGE_KINDS, { prepassed: true, feather: FEATHER.on ? FEATHER : null, mapFill: mapWarm })),
-    foliagePre: keep(makeFoliagePrepass(leaves, wind, FOLIAGE_KINDS, { feather: FEATHER.on ? FEATHER : null })),
+    foliage: keep(makeFoliageMaterial(leaves, wind, FOLIAGE_KINDS, { prepassed: true, feather: FEATHER.on ? FEATHER : null, mapFill: mapWarm, blossom: BLOSSOM.soft })),
+    foliagePre: keep(makeFoliagePrepass(leaves, wind, FOLIAGE_KINDS, { feather: FEATHER.on ? FEATHER : null, blossom: BLOSSOM.soft })),
     // the dead leaf a hedge stands in: its own leaf, browned, laid flat
     hedgeLitter: Std({
       name: 'hedge-litter', map: hedge.map, color: '#8c7556', roughness: 1, vertexColors: true,

@@ -39,6 +39,11 @@ import { makeRng } from './textures';
 
 export const LEAF = { broad: 0, maple: 1, pine: 2, blossom: 3, cedar: 4, willow: 5 };
 
+// A cherry's flower: the tints its sprays are multiplied by, near white with
+// a trace of blush (the atlas's flower is pale and all but neutral), and how
+// soft the cut round it is, in alpha (effects.js, `blossom`).
+export const BLOSSOM = { tints: ['#c6b2aa', '#bfaca6', '#cab4ab', '#bba8a4'], soft: 0.34 };
+
 // Bark colours, multiplied into the bark texture (textures.js, bark).
 export const BARK = {
   broad: '#8a8074', pine: '#8a5f45', maple: '#8b877c', cherry: '#5a423f', willow: '#7c7266', cedar: '#8a5a40',
@@ -189,6 +194,90 @@ function mapleWood(rng, wood, { H, S, r0, leaders, detail }) {
   return sprays;
 }
 
+// A cherry in flower. `kept`: the wood the cherry grew ({ nodes, opts, part }),
+// drawn here: each limb run through a smooth curve with a node every two
+// units and many sides, bowed under its flower and tapering, and on from
+// every branch's end fine twigs that thin to nothing. The flower is at the
+// twigs' tips, where a cherry carries it: two soft puffs at each tip, a
+// smaller one behind, and one deep in along each branch. Everything from
+// `rng`, the cherry's own stream.
+function bloomCherry(rng, wood, tint, kept, { S, detail }) {
+  const R = (a, b) => a + (b - a) * rng();
+  const sides = (r) => (r > 1.2 ? 12 : r > 0.5 ? 10 : r > 0.2 ? 8 : 6);
+  // (`sag`: how far a limb bows down under its flower, most at its middle.
+  // It thins fastest toward its end, so it tapers to the twigs instead of
+  // running at one girth to a blunt tip.)
+  const smooth = (nodes, sag = 0) => {
+    if (nodes.length < 3) return nodes;
+    const len = nodes.reduce((a, n, i) => a + (i ? n.p.distanceTo(nodes[i - 1].p) : 0), 0);
+    const pts = nodes.map((n, i) => n.p.clone().add(V(0, -sag * len * Math.sin((Math.PI * i) / (nodes.length - 1)), 0)));
+    const curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal');
+    const seg = Math.max(4, Math.min(18, Math.round(curve.getLength() / 2)));
+    const r0 = nodes[0].r, r1 = nodes[nodes.length - 1].r;
+    return Array.from({ length: seg + 1 }, (_, i) => {
+      const t = i / seg;
+      return { p: curve.getPoint(t), d: curve.getTangent(t), r: r0 + (r1 - r0) * Math.pow(t, 0.6) };
+    });
+  };
+  const at = (nodes, t) => {
+    const f = Math.min(nodes.length - 1.0001, t * (nodes.length - 1)), i = Math.floor(f), u = f - i;
+    const a = nodes[i], b = nodes[i + 1];
+    return { p: a.p.clone().lerp(b.p, u), d: a.d.clone().lerp(b.d, u).normalize(), r: a.r + (b.r - a.r) * u };
+  };
+  // a twig: four segments, lifting a little toward the light, thin to its tip
+  const twig = (from, dir, len, r0) => {
+    const nodes = [], p = from.clone(), d = dir.clone().normalize();
+    for (let i = 0; i <= 4; i++) {
+      nodes.push({ p: p.clone(), d: d.clone(), r: r0 + (0.022 - r0) * Math.pow(i / 4, 0.8) });
+      d.x += (rng() - 0.5) * 0.35; d.z += (rng() - 0.5) * 0.35; d.y += 0.07 + (rng() - 0.5) * 0.2;
+      d.normalize();
+      p.addScaledVector(d, len / 4);
+    }
+    wood.tube(nodes, 5, tint);
+    return nodes;
+  };
+  const flowers = [];
+  const spray = (c, w, role) => flowers.push({
+    c, role, s: [w, w * 0.8, w], rot: [R(-0.3, 0.3), rng() * Math.PI * 2, R(-0.3, 0.3)],
+  });
+  for (const { nodes, opts, part } of kept) {
+    const line = smooth(nodes, part === 'limb' ? 0.07 : part === 'branch' ? 0.05 : 0);
+    wood.tube(line, sides(line[0].r), tint, opts);
+    if (part !== 'branch') continue;
+    const tipEnd = line[line.length - 1];
+    const twigs = detail ? 3 : 2;
+    for (let k = 0; k < twigs; k++) {
+      const on = k === 0 ? tipEnd : at(line, R(0.55, 0.85));
+      const out = heading(bearingOf(on.d) + R(-1.3, 1.3), R(-0.1, 0.55));
+      const tw = twig(on.p, on.d.clone().lerp(out, 0.6), S * R(0.1, 0.17), Math.max(0.05, Math.min(0.09, on.r)));
+      const tip = tw[tw.length - 1].p, mid = tw[2].p;
+      const rc = S * R(0.14, 0.18);
+      spray(tip.clone().add(V(0, rc * 0.2, 0)), rc * R(1.7, 2.1), 'tip');
+      spray(tip.clone().add(V(R(-1, 1) * rc * 0.6, -rc * 0.25, R(-1, 1) * rc * 0.6)), rc * R(1.5, 1.8), 'tip');
+      spray(mid, rc * R(1.3, 1.5), 'mid');
+    }
+    const inner = at(line, R(0.3, 0.5));
+    const w = S * R(0.2, 0.26) * 1.4;
+    spray(inner.p.clone().add(V(0, w * 0.1, 0)), w, 'inner');
+  }
+  // One crown for the whole tree: the normals turn out from it, so the tree
+  // is lit as one mass, and a spray deep in it is darker (effects.js, vDeep).
+  // Centred on the tips themselves, not under them, so the lower half of the
+  // crown is turned from the moon and goes dark while the top stays lit.
+  const tips = flowers.filter((f) => f.role === 'tip');
+  const cx = tips.reduce((a, f) => a + f.c.x, 0) / tips.length, cz = tips.reduce((a, f) => a + f.c.z, 0) / tips.length;
+  const cy = tips.reduce((a, f) => a + f.c.y, 0) / tips.length;
+  const reach = Math.max(...tips.map((f) => Math.hypot(f.c.x - cx, (f.c.y - cy) * 1.6, f.c.z - cz)));
+  const crown = [cx, cy - reach * 0.05, cz, reach * 1.1];
+  let lo = Infinity, hi = -Infinity;
+  for (const f of flowers) { lo = Math.min(lo, f.c.y); hi = Math.max(hi, f.c.y); }
+  const ROLE = { tip: 1, mid: 0.8, inner: 0.55 };
+  return flowers.map((f) => ({
+    p: [f.c.x, f.c.y, f.c.z], s: f.s, rot: f.rot, kind: LEAF.blossom, crown,
+    shade: ROLE[f.role] * (0.72 + 0.28 * (hi > lo ? (f.c.y - lo) / (hi - lo) : 1)),
+  }));
+}
+
 // Grows a tree. `H` is its height, `S` how far its crown reaches out from the
 // trunk, `lean` the bearing it leans toward (a willow to the water), `detail`
 // false for one only ever seen across the garden: no twigs, fewer sprays.
@@ -202,7 +291,7 @@ export function growTree(species, rng, wood, { H, S, lean = null, detail = true,
   const R = (a, b) => a + (b - a) * rng();
   const tint = new THREE.Color(BARK[species]);
   const sprays = [], whips = [];
-  let willow = null, maple = null, tintRng = null;
+  let willow = null, maple = null, cherry = null, tintRng = null;
 
   // A limb from `from` along `dir`: `n` segments over `len`, radius r0 to r1,
   // `steer(d, t, i)` turning it at every node.
@@ -355,10 +444,16 @@ export function growTree(species, rng, wood, { H, S, lean = null, detail = true,
       }
     }
   } else if (species === 'cherry') {
+    // The wood is kept, to be drawn round and smooth and dressed in flower by
+    // bloomCherry, its own stream; the clumps below are still grown from
+    // this one, so every tree after a cherry is the tree it was.
+    const kept = [];
+    const cTube = (nodes, opts, part) => kept.push({ nodes, opts, part });
     const r0 = R(1.6, 2.2) * Math.min(1.2, H / 40);
     const trunk = grow(V(), heading(rng() * 6.28, Math.PI / 2 - R(0.05, 0.2)), H * R(0.26, 0.34), r0, r0 * 0.75, 3, (d) => wobble(d, 0.14));
-    tube(trunk, { flare: 0.5 });
+    cTube(trunk, { flare: 0.5 }, 'trunk');
     const limbs = 3 + Math.floor(rng() * 2), turn = rng() * 6.28;
+    cherry = { kept, seed: (Math.round(r0 * 0x1000000) ^ Math.round(turn * 0x100000) ^ 0x51ab) >>> 0 };
     for (let l = 0; l < limbs; l++) {
       const from = at(trunk, R(0.8, 1));
       // wide and spreading, the ends drooping under the weight of flower
@@ -366,13 +461,13 @@ export function growTree(species, rng, wood, { H, S, lean = null, detail = true,
         wobble(d, 0.22);
         if (t > 0.4) d.y -= 0.09;
       });
-      tube(limb);
+      cTube(limb, undefined, 'limb');
       const branches = 3;
       for (let b = 0; b < branches; b++) {
         const on = b === branches - 1 ? end(limb) : at(limb, R(0.3, 0.95));
         const bd = on.d.clone().lerp(heading(bearingOf(on.d) + R(-1.2, 1.2), R(-0.1, 0.7)), 0.55);
         const br = grow(on.p, bd, S * R(0.3, 0.45), Math.max(0.14, on.r * 0.6), 0.08, 3, (d) => wobble(d, 0.35));
-        tube(br);
+        cTube(br, undefined, 'branch');
         clump(end(br).p, S * R(0.3, 0.38), 2, LEAF.blossom, { flat: 0.8, size: 1.45 });
         clump(at(br, 0.45).p.clone().add(V(0, 1, 0)), S * R(0.22, 0.28), 1, LEAF.blossom, { flat: 0.8, size: 1.6 });
       }
@@ -536,6 +631,12 @@ export function growTree(species, rng, wood, { H, S, lean = null, detail = true,
     tintRng = makeRng(maple.seed);
     sprays.length = 0;
     sprays.push(...mapleWood(tintRng, wood, { H, S, r0: maple.r0, leaders: maple.leaders, detail }));
+  }
+  if (cherry) {
+    was = sprays.slice();
+    tintRng = makeRng(cherry.seed);
+    sprays.length = 0;
+    sprays.push(...bloomCherry(tintRng, wood, tint, cherry.kept, { S, detail }));
   }
   if (weeping && willow) {
     const { c, eave, Rd } = willow;

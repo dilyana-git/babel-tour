@@ -1,5 +1,5 @@
 // The Fork's details: the moon, the stand, the raked gravel and the stones
-// along the ways, the waymark, the tōrō, the hedge, the cherries, the lawn
+// along the ways, the waymark, the tōrō, the hedge, the lawn
 // and the pebbled bank.
 import { makeRng } from './textures';
 import { FORK_VIEW } from './gardenPlan';
@@ -18,15 +18,6 @@ export const MOON = { k: qn('wmoonk2', 1.1), seas: qn('wmoonseas', 0.34), limb: 
 export const FORK_STONE = {
   rock: { w: qn('wfstw', 6.6), h: 2.0, d: qn('wfstd', 4.5), seed: qn('wfstseed', 3371), round: 0.62, cuts: 4, moss: 0.55, lichen: 0.9, tone: 1.12, warm: 0.3 },
   proud: qn('wfstup', 0.85), turn: qn('wfstturn', -1.05),
-};
-
-// The cherries at night: the tints their sprays are multiplied by (the
-// flowers' own pink is in the atlas: these take the colour out of it and the
-// brightness down), the share of sprays left off, and how dark a spray in the
-// underside of its crown is beside one on top.
-export const BLOSSOM_NIGHT = {
-  tints: ['#7f8684', '#8a8d88', '#787f80', '#84847f'],
-  drop: qn('wblossomdrop', 0.33), under: qn('wblossomunder', 0.4),
 };
 
 // The hedges. A clipped finial is a drum of the same hedge, domed, grown
