@@ -31,6 +31,16 @@ path, and this document in full (`git show 0857f2a:docs/design-history.md`).
 
 ## 2026-10-19
 
+- **Room identity before mobile guidance** (audit VI·11·2). The phone's
+  hint stood above the room's name, and passages hid the whole heading.
+  The hint now follows the caption in the HUD, above the navigation. The
+  numbered kicker stays visible while the name and passage alternate; only
+  the subtitle recedes after arrival. The active passage sizes the rows
+  below the kicker so longer quotations cannot cover it. Desktop captions
+  and hint placement retain their existing layout. Phone previews (390 × 844):
+  `.ux-review/shots/mobile-room-identity/` (`echo-arrival`, `echo-passage`,
+  `echo-quotation`, `door-passage`).
+
 - **Tall-map numerals belong inside their rooms** (audit VI·11·1). Above
   the upper rim, each number read as the room above it on the phone's
   steeper map; VII also crowded the byline. Tall layouts now centre every

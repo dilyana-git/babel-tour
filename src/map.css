@@ -2082,11 +2082,14 @@
   display: none;
 }
 
-/* On a phone the caption and the walk stack up the bottom of the screen: the
-   hint and the walk button stand on top of them (EntryMap measures --hud-h). */
+/* Read the room first, then its hint, then the ways onward. The hint shares
+   the HUD's flow so a longer caption cannot put it above the room's name. */
 .entry-map.is-tall .room-assist {
-  bottom: calc(var(--hud-h, 10rem) + 0.75rem);
-  width: max-content;
+  position: relative;
+  inset: auto;
+  width: 100%;
+  max-width: none;
+  transform: none;
 }
 
 /* --- The phone, in the hand (world/phone.js) -------------------------------
@@ -2178,19 +2181,28 @@
   }
 }
 
-/* 3. The room's lines, which a phone did not show: each in the caption's own
-   place, standing on the line the subtitle stands on and as tall as it needs
-   to be upward, on a pool of shade of its own (a long quotation stands higher
-   than the shade behind the name does). The name gives way to it and comes
-   back after it; nothing is moved to make the room. */
+/* The name and passage share the rows beneath the room's persistent kicker.
+   Only the active passage sizes those rows, keeping long quotations clear
+   of the identifier without reserving their height while the name is up. */
+.entry-map.is-tall .room-kicker {
+  grid-area: 1 / 1;
+}
+
+.entry-map.is-tall .room-title {
+  grid-area: 2 / 1;
+}
+
+.entry-map.is-tall .room-sub {
+  grid-area: 3 / 1;
+}
+
 .entry-map.is-tall .room-summary {
-  position: absolute;
-  right: 0;
-  bottom: 0.2rem;
-  left: 0.2rem;
-  display: block;
+  position: relative;
+  grid-area: 2 / 1 / 4 / 2;
+  align-self: end;
+  display: grid;
   min-height: 0;
-  margin: 0;
+  margin: 0.75rem 0 0;
   pointer-events: none;
 }
 
@@ -2200,6 +2212,10 @@
   bottom: 0;
   left: 0;
   isolation: isolate;
+}
+
+.entry-map.is-tall .room-voice-line.is-on {
+  position: relative;
 }
 
 .entry-map.is-tall .room-voice-line::after {
@@ -2213,25 +2229,25 @@
 }
 
 .entry-map.is-tall .room-plate {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
   -webkit-tap-highlight-color: transparent;
 }
 
 /* The head comes back a beat after a line has gone, as a line comes in a beat
    after the head has: the dark goes first, both ways. */
-.entry-map.is-tall .room-plate :is(.room-kicker, .room-title, .room-sub) {
+.entry-map.is-tall .room-plate :is(.room-title, .room-sub) {
   transition: opacity var(--t-slow) var(--arrive) var(--t);
 }
 
-.entry-map.is-tall .room-plate.is-voiced :is(.room-kicker, .room-title, .room-sub) {
+.entry-map.is-tall .room-plate.is-voiced :is(.room-title, .room-sub) {
   opacity: 0;
   transition: opacity var(--t) var(--leave);
 }
 
-/* 5. A few seconds after arriving the kicker and the subtitle sink away, and
-   the name and the ways are what is left over the room (EntryMap, `headUp`).
-   They keep their places, so the name does not move as they go, or when a
-   touch brings them back. */
-.entry-map.is-tall .room-plate.is-sunk :is(.room-kicker, .room-sub) {
+/* The subtitle recedes after arrival; the kicker keeps the room identifiable
+   while the name and passage alternate. */
+.entry-map.is-tall .room-plate.is-sunk .room-sub {
   opacity: 0;
   transition: opacity calc(var(--t-slow) * 2) var(--leave);
 }

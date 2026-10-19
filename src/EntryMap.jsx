@@ -318,8 +318,8 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
   const tipSaid = useRef(false);
   // A finger on the touch walk button (it is the held W of a touch screen).
   const [holding, setHolding] = useState(false);
-  // On a tall screen the caption is one place that says one thing at a time
-  // (world/phone.js): the room's name, with its kicker and its
+  // On a tall screen the caption keeps its numbered kicker above one thing
+  // at a time (world/phone.js): the room's name, with its
   // subtitle for a few seconds on arriving (`headUp`) and after a touch
   // (`woke`); or, in the name's place, one of the room's lines (`voiced`, as
   // RoomVoice reports it). `afoot`: the reader is walking, and nothing
@@ -329,9 +329,7 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
   const [headUp, setHeadUp] = useState(true);
   const [woke, setWoke] = useState(0);
   const [ask, setAsk] = useState({ n: 0, up: null });
-  // How tall the room's HUD stands, so the hint can sit above it on a phone.
   const hudRef = useRef(null);
-  const [hudHeight, setHudHeight] = useState(0);
   // The hint on the walk's bottom line, between the caption and the walk, when
   // there is room for it there (`hintAt`: its centre and its bottom, from the
   // map's bottom left); else, null, it keeps to bottom centre above the walk.
@@ -620,14 +618,6 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
     const id = setTimeout(() => setTip(false), HINT_TIP_MS);
     return () => clearTimeout(id);
   }, [tip]);
-  useLayoutEffect(() => {
-    const hud = hudRef.current;
-    if (!hud || typeof ResizeObserver === 'undefined') return undefined;
-    const ro = new ResizeObserver(() => setHudHeight(hud.offsetHeight));
-    ro.observe(hud);
-    setHudHeight(hud.offsetHeight);
-    return () => ro.disconnect();
-  }, [worldRooms, place === null]);
   useLayoutEffect(() => {
     const hud = hudRef.current, nav = navRef.current, plate = plateRef.current, assist = assistRef.current;
     if (!hud || !nav || !plate || !assist || typeof ResizeObserver === 'undefined') return undefined;
@@ -1122,6 +1112,12 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
         <filter id="map-lantern-soft" x="-20%" y="-20%" width="140%" height="140%">
           <feGaussianBlur stdDeviation={18 * lantern.scale} />
         </filter>
+        <radialGradient id="map-garden-light">
+          <stop offset="0.58" stopColor="#000" />
+          <stop offset="0.75" stopColor="#000" stopOpacity="0.75" />
+          <stop offset="0.9" stopColor="#000" stopOpacity="0.25" />
+          <stop offset="1" stopColor="#000" stopOpacity="0" />
+        </radialGradient>
         <mask id="map-lantern">
           <rect width={layout.w} height={layout.h} fill="#fff" />
           <g filter="url(#map-lantern-soft)" fill="#000" stroke="#000" strokeLinejoin="round" strokeLinecap="round">
@@ -1129,8 +1125,12 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
               <polygon key={k} points={toAttr(poly)} strokeWidth={28 * lantern.scale * lit} />
             ))}
             <polyline points={toAttr(lantern.way)} fill="none" strokeWidth={64 * lantern.scale * lit} />
-            <ellipse {...lantern.garden} strokeWidth="0" />
           </g>
+          <ellipse
+            cx={lantern.garden.cx} cy={lantern.garden.cy}
+            rx={lantern.garden.rx * 1.35} ry={lantern.garden.ry * 1.35}
+            fill="url(#map-garden-light)"
+          />
         </mask>
         <radialGradient
           id="map-fog"
@@ -1220,6 +1220,49 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
     </button>
   );
 
+  // The phone reads the caption before the hint, then the ways onward.
+  const roomAssist = worldRooms && place !== null && finale === null && (() => {
+    // (on a phone the sentence goes with the first walk and stays gone:
+    // the button it explains is under the thumb; and it is never up with
+    // one of the room's lines, which can stand as tall as it does)
+    const stage = paged && voiced ? null
+      : tip ? 'tip' : !moving && (!walked || (idle && !thumb)) ? 'arrive' : null;
+    return (
+      <div
+        ref={assistRef}
+        inert={reading !== null}
+        className={`room-assist${COARSE ? ' is-touch' : ''}${hintAt ? ' is-inline' : ''}${hintAt?.width ? ' is-tight' : ''}`}
+        style={hintAt ? { left: `${hintAt.left}px`, bottom: `${hintAt.bottom}px`, maxWidth: hintAt.width ? `${hintAt.width}px` : undefined } : undefined}
+      >
+        <p
+          className={`room-hint${stage ? ' is-shown' : ''}${stage === 'tip' ? ' is-tip' : ''}`}
+          aria-hidden={stage ? undefined : 'true'}
+        >
+          {COARSE
+            ? (stage === 'tip'
+              ? <span className="room-tip">Drag while walking to leave the path</span>
+              : <span className="room-tip">Drag to look · Hold to walk</span>)
+            : stage === 'tip'
+              ? (
+                <>
+                  <span className="room-tip">Turn while walking to leave the path</span>
+                  <span className="room-key"><kbd>S</kbd>to step back</span>
+                  {vantage && <span className="room-key"><kbd>E</kbd>{up ? 'back down' : `up to ${vantage.name}`}</span>}
+                </>
+              )
+              : (
+                <>
+                  <span className="room-key">Hold <kbd>W</kbd>to walk</span>
+                  <span className="room-key">drag to look</span>
+                  <span className="room-key"><kbd>M</kbd>for the map</span>
+                </>
+              )}
+        </p>
+        {!thumb && holdButton}
+      </div>
+    );
+  })();
+
   return (
     <section
       ref={sectionRef}
@@ -1232,7 +1275,7 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
       aria-labelledby={worldRooms && place !== null ? 'room-title' : 'map-title'}
       data-caption={quietDesktop ? 'quiet' : undefined}
       data-endin={(landing && ENDIN) || undefined}
-      style={{ '--zoom-origin': origin, '--hud-h': `${hudHeight}px` }}
+      style={{ '--zoom-origin': origin }}
     >
       <div className="map-stage" ref={stageRef} inert={reading !== null} {...(worldRooms && place !== null ? lookHandlers : {})}>
         {worldOn && !worldFailed && (worldRooms || scenes) && (
@@ -1397,6 +1440,7 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
               onSpeak={setVoiced}
             />
           </section>
+          {tall && roomAssist}
           <nav ref={navRef} className={`room-nav${vantage ? ' has-climb' : ''}`} aria-label="The walk">
             {/* The walk, in the corner across from the caption and in its
                 voice: the way on large, the way back small under it, and
@@ -1524,52 +1568,7 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
           )}
         </div>
       )}
-      {/* The hint, bottom centre above the walk's buttons, in three stages: on
-          arriving, the three things to do (walk, look, the map); once, as the
-          reader first walks, the one rule the walk has (turning leaves the
-          way) and the keys that only now apply; and on a touch screen, the
-          walking itself, as a button held down like W. */}
-      {worldRooms && place !== null && finale === null && (() => {
-        // (on a phone the sentence goes with the first walk and stays gone:
-        // the button it explains is under the thumb; and it is never up with
-        // one of the room's lines, which can stand as tall as it does)
-        const stage = paged && voiced ? null
-          : tip ? 'tip' : !moving && (!walked || (idle && !thumb)) ? 'arrive' : null;
-        return (
-          <div
-            ref={assistRef}
-            inert={reading !== null}
-            className={`room-assist${COARSE ? ' is-touch' : ''}${hintAt ? ' is-inline' : ''}${hintAt?.width ? ' is-tight' : ''}`}
-            style={hintAt ? { left: `${hintAt.left}px`, bottom: `${hintAt.bottom}px`, maxWidth: hintAt.width ? `${hintAt.width}px` : undefined } : undefined}
-          >
-            <p
-              className={`room-hint${stage ? ' is-shown' : ''}${stage === 'tip' ? ' is-tip' : ''}`}
-              aria-hidden={stage ? undefined : 'true'}
-            >
-              {COARSE
-                ? (stage === 'tip'
-                  ? <span className="room-tip">Drag while walking to leave the path</span>
-                  : <span className="room-tip">Drag to look · Hold to walk</span>)
-                : stage === 'tip'
-                  ? (
-                    <>
-                      <span className="room-tip">Turn while walking to leave the path</span>
-                      <span className="room-key"><kbd>S</kbd>to step back</span>
-                      {vantage && <span className="room-key"><kbd>E</kbd>{up ? 'back down' : `up to ${vantage.name}`}</span>}
-                    </>
-                  )
-                  : (
-                    <>
-                      <span className="room-key">Hold <kbd>W</kbd>to walk</span>
-                      <span className="room-key">drag to look</span>
-                      <span className="room-key"><kbd>M</kbd>for the map</span>
-                    </>
-                  )}
-            </p>
-            {!thumb && holdButton}
-          </div>
-        );
-      })()}
+      {!tall && roomAssist}
     </section>
   );
 }
