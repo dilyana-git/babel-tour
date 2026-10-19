@@ -9,7 +9,7 @@ import { buildWalkers } from '../walkers';
 import { deg, MASS_H, CAP, BOOK_ROWS } from '../build/common';
 
 export function buildVestibule(ctx) {
-  const { light, rr, dir, add, keep, wood, spines, titles, bookRowsSet, rowV, Std, M, root, boxGeo,
+  const { light, rr, dir, add, keep, wood, spines, titles, bookRowsSet, vestBookRowsSet, rowV, Std, M, root, boxGeo,
     placed, rodGeo, wornRibbon, R, A, cellC, mouldGeo, LB, balusters, alongWall, lamp } = ctx;
   let vault = null;   // the library over the Vestibule, raised by the reader's gaze in tick
   let walkers = null; // the readers walking the Vestibule's bridge, moved by tick
@@ -195,11 +195,22 @@ export function buildVestibule(ctx) {
       // wrong one of the two, it reached out past the flats and fell short of
       // every corner, and the sky showed through at all six.)
       const edge = (a) => A / Math.cos(((((a % 60) + 60) % 60) - 30) * deg);
-      // Dark from the first turn, darker going up, but never so dark that the
-      // books go out: they have to be there to the end. (0.45 at the foot read
-      // as a lit ceiling; this is under half of that, and the books are
-      // dimmed through their gilt as well as their leather — see `bookMat`.)
-      const fade = (s) => 0.07 + 0.13 * Math.exp(-1.8 * s);
+      // How much lamplight a piece has. The foot of it goes on from the
+      // room's own candlelit cases under it, in their walnut and crimson; up
+      // the turns it falls away, but never so far that the books go out:
+      // they have to be there to the end. (At 0.07–0.2, and lit only by the
+      // little light that climbs that far, the vault printed near black and
+      // cold over warm walls: a lid of another room, its first turn a black
+      // band over the Echo's arch.) The light is the vault's own lamps, so
+      // it pools about each of them: a lamp every LAMP_EVERY treads, which
+      // does not divide a turn, so the pools step round and up the helix and
+      // the eye is handed the spiral, not twelve stars on every ring.
+      const fade = (s) => 0.2 + 0.55 * Math.exp(-2.2 * s);
+      const LAMP_EVERY = 5, LAMP0 = 2;
+      const pool = (i) => {
+        const d = Math.abs(i - (Math.round((i - LAMP0) / LAMP_EVERY) * LAMP_EVERY + LAMP0));
+        return 0.55 + 0.75 * Math.exp(-((d / 1.6) ** 2));
+      };
 
       const UP = new THREE.Vector3(0, 1, 0);
       const pieces = { wood: [], stone: [], bronze: [], lamps: [], books: [], rows: [] };
@@ -216,6 +227,12 @@ export function buildVestibule(ctx) {
       const at = (r, a, y) => new THREE.Vector3(c[0] + Math.cos(a * deg) * r, y, c[1] + Math.sin(a * deg) * r);
       const inwardAt = (a) => new THREE.Vector3(-Math.cos(a * deg), 0, -Math.sin(a * deg));
       const tint = (hex, k) => new THREE.Color(hex).multiplyScalar(k);
+      // the room's own cases: their timber under the Vestibule's walnut stain
+      // (roomColour.js, ROOM_COLOUR[0].wood), which the vault's own material
+      // does not take
+      const WALNUT = new THREE.Color().setRGB(0.55, 0.45, 0.38);
+      const walnut = (hex, k) => new THREE.Color(hex).multiply(WALNUT).multiplyScalar(k);
+      const ROWS_LIT = 1.2;
       const chord = (r) => 2 * r * Math.sin((180 / SEG) * deg) * 1.02;
       // where the rail's top runs, at the start of tread `i`
       const railAt = (i) => {
@@ -224,7 +241,8 @@ export function buildVestibule(ctx) {
       };
 
       for (let i = 0; i < N; i++) {
-        const s = i / N, sm = (i + 0.5) / N, a = angle(sm), r = radius(sm), k = fade(sm), f = scale(sm);
+        const s = i / N, sm = (i + 0.5) / N, a = angle(sm), r = radius(sm), f = scale(sm);
+        const k = fade(sm) * pool(i + 0.5);
         const y = height(s);                       // the top of this tread
         const yUp = height(s + 1 / TURNS);         // the tread a turn above it
         const inn = inwardAt(a);
@@ -232,44 +250,55 @@ export function buildVestibule(ctx) {
         // the tread: from the rail out to the wall of the turn below it (or,
         // in the first turn, to the hexagon's own wall tops)
         const rIn = r - (SHELF + WALK) * f, rOut = i < SEG ? edge(a) + 3 : radius(sm - 1 / TURNS) + 1.5 * f;
-        put('stone', at((rIn + rOut) / 2, a, y - (TREAD * f) / 2), inn, [chord(rOut), TREAD * f, rOut - rIn], tint('#4d443a', k), order);
+        put('stone', at((rIn + rOut) / 2, a, y - (TREAD * f) / 2), inn, [chord(rOut), TREAD * f, rOut - rIn], tint('#4d443a', 0.8 * k), order);
         // its nosing: the pale edge that draws the spiral seen from below
-        put('stone', at(rIn + 0.4 * f, a, y - 3.7 * f), inn, [chord(rIn) * 1.01, 2.2 * f, 1.6 * f], tint('#8a7c69', k), order);
+        put('stone', at(rIn + 0.4 * f, a, y - 3.7 * f), inn, [chord(rIn) * 1.01, 2.2 * f, 1.6 * f], tint('#a69680', k), order);
         // and a bronze string under that: the one line that catches the
         // light all the way up, so the eye is handed the helix and not a
         // stack of rings
-        put('bronze', at(rIn + 0.1 * f, a, y - 5.1 * f), inn, [0.55 * f, chord(rIn) * 1.02, 0.55 * f], tint('#ffffff', 0.25 + 0.6 * k), order, { tilt: Math.PI / 2 });
+        put('bronze', at(rIn + 0.1 * f, a, y - 5.1 * f), inn, [0.55 * f, chord(rIn) * 1.02, 0.55 * f], tint('#ffffff', 0.25 + 0.5 * k), order, { tilt: Math.PI / 2 });
         // The back of the bookcase, up to the underside of the tread a turn
         // above — and in the first turn down behind the wall tops, so there is
-        // no seeing past its foot.
-        const low = i < SEG ? Y0 - 12 : y;
-        put('wood', at(r + f, a, (low + yUp) / 2), inn, [chord(r + f), yUp - low, 2 * f], tint('#2a1d15', k), order + 0.0005);
+        // no seeing past its foot. Only where the wall is in front of it,
+        // though. As the first turn closes in (and toward the corners from the
+        // start) the case stands inside the wall line, and a foot let down
+        // there hung in the room as a bare dark board under the first turn
+        // (the black square over the arch). There the case stands on the wall
+        // top instead, on a stone ledge run in from the wall's own cap, so
+        // that nothing shows between the two but stone.
+        const within = i < SEG && r + f < edge(a) - 0.5;
+        const low = i >= SEG ? y : within ? Y0 : Y0 - 12;
+        put('wood', at(r + f, a, (low + yUp) / 2), inn, [chord(r + f), yUp - low, 2 * f], walnut('#7a6754', k), order + 0.0005);
+        if (within) {
+          const r0 = r - SHELF * f, r1 = edge(a) + 1;
+          put('stone', at((r0 + r1) / 2, a, Y0 - 1.2), inn, [chord(r1) * 1.01, 2.4, r1 - r0], tint('#a69680', k), order);
+        }
         // two shelves, a cornice over them, and the uprights between the bays
         const PH = yUp - y;
         for (const [yy, t, deep] of [[y + 0.2 * f, 1.6, 0], [y + PH / 2, 1.4, 0], [yUp - (TREAD + 3) * f, 3, 1.6]]) {
-          put('wood', at(r - (SHELF / 2 + deep / 2) * f, a, yy + (t * f) / 2), inn, [chord(r), t * f, (SHELF + deep) * f], tint('#4a3526', k), order + 0.001);
+          put('wood', at(r - (SHELF / 2 + deep / 2) * f, a, yy + (t * f) / 2), inn, [chord(r), t * f, (SHELF + deep) * f], walnut('#ffffff', k), order + 0.001);
         }
         if (i % 3 === 0) {
           const ab = angle(s);
-          put('wood', at(r - (SHELF / 2 + 0.4) * f, ab, (y + yUp) / 2), inwardAt(ab), [1.8 * f, PH - TREAD * f, (SHELF + 0.8) * f], tint('#3b2a1e', k), order + 0.001);
+          put('wood', at(r - (SHELF / 2 + 0.4) * f, ab, (y + yUp) / 2), inwardAt(ab), [1.8 * f, PH - TREAD * f, (SHELF + 0.8) * f], walnut('#d8d8d8', k), order + 0.001);
         }
         // the rail: a baluster at every tread, a rod from each to the next
         const p0 = railAt(i), p1 = railAt(i + 1);
-        put('bronze', p0.clone().setY(p0.y - 4.5 * f), inwardAt(angle(s)), [0.55 * f, 9 * f, 0.55 * f], tint('#ffffff', 0.2 + 0.6 * k), order + 0.002);
+        put('bronze', p0.clone().setY(p0.y - 4.5 * f), inwardAt(angle(s)), [0.55 * f, 9 * f, 0.55 * f], tint('#ffffff', 0.2 + 0.5 * k), order + 0.002);
         {
           const len = p0.distanceTo(p1), mid = p0.clone().add(p1).multiplyScalar(0.5);
           const along = p1.clone().sub(p0).normalize();
           pieces.bronze.push({
             p: mid, q: new THREE.Quaternion().setFromUnitVectors(UP, along), s: new THREE.Vector3(0.42 * f, len * 1.02, 0.42 * f),
             from: new THREE.Vector3(vrr(-8, 8), vrr(30, 50), vrr(-8, 8)), spin: new THREE.Quaternion(),
-            color: tint('#ffffff', 0.2 + 0.6 * k), order: order + 0.002, t0: -1, state: 0,
+            color: tint('#ffffff', 0.2 + 0.5 * k), order: order + 0.002, t0: -1, state: 0,
           });
         }
-        // a small lamp on every third post: a string of lights going round
+        // a small lamp on every fifth post: a string of lights going round
         // and up and in, which is what draws the spiral the eye follows
-        if (i % 3 === 1) {
+        if (i % LAMP_EVERY === LAMP0) {
           const g = Math.max(0.35, 0.9 * f);
-          put('lamps', p0.clone().setY(p0.y + 1.2 * f), inwardAt(angle(s)), [g, g, g], tint('#ffc98e', 0.2 + 1.5 * k), order + 0.003);
+          put('lamps', p0.clone().setY(p0.y + 1.2 * f), inwardAt(angle(s)), [g, g, g], tint('#ffd2a0', 0.6 + 1.6 * fade(sm)), order + 0.003);
         }
         const rows = [[y + 1.8 * f, PH * 0.5 - 2.6 * f], [y + PH * 0.5 + 1.4 * f, PH * 0.5 - TREAD * f - 4.8 * f]];
         // In the first turn the tread climbs away from the wall tops, and the
@@ -279,7 +308,7 @@ export function buildVestibule(ctx) {
           const under = y - 6 * f - Y0;
           for (let b = Y0; b + 9 < Y0 + under; b += PH / 2) {
             const room = Math.min(PH / 2 - 2.4 * f, Y0 + under - b - 1.2);
-            put('wood', at(r - (SHELF / 2) * f, a, b - 0.7 * f), inn, [chord(r), 1.4 * f, SHELF * f], tint('#4a3526', k), order + 0.001);
+            put('wood', at(r - (SHELF / 2) * f, a, b - 0.7 * f), inn, [chord(r), 1.4 * f, SHELF * f], walnut('#ffffff', k), order + 0.001);
             rows.push([b + 0.1, room]);
           }
         }
@@ -291,13 +320,13 @@ export function buildVestibule(ctx) {
           const n = Math.max(1, Math.round(room / (4.1 * f))), pitch = room / n, rf = r - 7.4 * f, wr = chord(rf) * 0.97;
           for (let j = 0; j < n; j++) {
             const sy = yb + j * pitch, clear = pitch - (j < n - 1 ? 0.4 * f : 0);
-            if (j > 0) put('wood', at(r - (SHELF / 2) * f, a, sy - 0.2 * f), inn, [chord(r), 0.4 * f, SHELF * f], tint('#4a3526', k), order + 0.001);
+            if (j > 0) put('wood', at(r - (SHELF / 2) * f, a, sy - 0.2 * f), inn, [chord(r), 0.4 * f, SHELF * f], walnut('#ffffff', k), order + 0.001);
             const { top: vt, base: vb } = rowV[BOOK_ROWS.variants + Math.floor(vr() * BOOK_ROWS.variants)];
             const from = inn.clone().multiplyScalar(vrr(28, 60)).add(new THREE.Vector3(vrr(-12, 12), -vrr(8, 30), vrr(-12, 12)));
             // (twice the fade boxes would take: their labels, lift and gilt
             // in the books' shader carry them, and the bare paint at the same
             // fade reads as half as bright)
-            put('rows', at(rf, a, sy + clear / 2), inn, [wr, clear, 1], tint('#ffffff', 2.2 * k * vrr(0.9, 1.1)), order + 0.003 + j * 0.0004, { from });
+            put('rows', at(rf, a, sy + clear / 2), inn, [wr, clear, 1], tint('#ffffff', ROWS_LIT * k * vrr(0.9, 1.1)), order + 0.003 + j * 0.0004, { from });
             pieces.rows[pieces.rows.length - 1].row = [vr(), wr / BOOK_ROWS.length, vb, vt];
           }
         }
@@ -314,6 +343,26 @@ export function buildVestibule(ctx) {
       }
 
       // ── drawing it ──
+      // The light the vault's lamps give it. Hardly any of the room's own
+      // reaches 40 and more over the wall tops, so each piece's instance
+      // colour is how lit it is (`fade`, `pool`) and the candle is added in
+      // on top of what the scene lights do — the room's flame
+      // (ROOM_COLOUR[0].lamp), softened.
+      const vaultLamp = { value: new THREE.Color('#ffb784').multiplyScalar(0.85) };
+      const lampLit = (mat, key) => {
+        const prev = mat.onBeforeCompile;
+        mat.onBeforeCompile = (sh, r) => {
+          prev?.call(mat, sh, r);
+          sh.uniforms.uVaultLamp = vaultLamp;
+          sh.fragmentShader = sh.fragmentShader
+            .replace('#include <common>', `#include <common>
+          uniform vec3 uVaultLamp;`)
+            .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+          totalEmissiveRadiance += diffuseColor.rgb * uVaultLamp;`);
+        };
+        mat.customProgramCacheKey = () => key;
+      };
+      if (import.meta.env.DEV) window.__vaultLamp = vaultLamp;
       const woodMat = Std({ color: '#ffffff', map: wood.map, roughness: 0.9 });
       // Each piece is the unit box stretched by its instance, so its uv ran
       // 0..1 over every face whatever that face's size: a tile of timber
@@ -335,8 +384,9 @@ export function buildVestibule(ctx) {
           vMapUv = (mapTransform * vec3(w, 1.0)).xy;
         }`);
       };
-      woodMat.customProgramCacheKey = () => 'babel-vault-wood';
+      lampLit(woodMat, 'babel-vault-wood');
       const stoneMat = Std({ color: '#ffffff', roughness: 0.95 });
+      lampLit(stoneMat, 'babel-vault-stone');
       // The room's own bindings, but dimmed whole. The book material paints
       // the gilt, the labels and the page edges in colours of their own, so an
       // instance colour only ever darkened the leather — and a spiral of dark
@@ -368,7 +418,8 @@ export function buildVestibule(ctx) {
       const lampMat = keep(new THREE.MeshBasicMaterial({ color: '#ffffff' }));
       const meshes = [];
       // the painted rows: a quad apiece, showing its own stretch of the strip
-      const rowsMat = Std({ map: bookRowsSet.map, roughness: 0.85 });
+      // (the Vestibule's own strip, as its walls' top tiers are painted)
+      const rowsMat = Std({ map: (vestBookRowsSet ?? bookRowsSet).map, roughness: 0.85 });
       rowsMat.onBeforeCompile = (sh) => {
         sh.vertexShader = sh.vertexShader
           .replace('#include <common>', `#include <common>
@@ -376,7 +427,7 @@ export function buildVestibule(ctx) {
           .replace('#include <uv_vertex>', `#include <uv_vertex>
           vMapUv = vec2(aRow.x + uv.x * aRow.y, mix(aRow.z, aRow.w, uv.y));`);
       };
-      rowsMat.customProgramCacheKey = () => 'babel-vault-rows';
+      lampLit(rowsMat, 'babel-vault-rows');
       const make = (list, geo, mat, { spine = false, row = false } = {}) => {
         if (!list.length) return;
         const g = keep(geo);

@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { PAVILION, PAVILION_BRIDGE, PAVILION_NORTH_BRIDGE } from '../pavilionBridge';
 import { FORK, POND as POND_PLAN, MAZE, MAZE_ENTRY as ENTRY, HEART as MAZE_HEART,
-  PAVILION_PATH, MAZE_PATH, SHORE_PATH, FORK_TO_MAZE, LANTERNS, BOUNDARY } from '../gardenPlan';
+  PAVILION_PATH, MAZE_PATH, SHORE_PATH, FORK_TO_MAZE, LANTERNS, BOUNDARY, GRAVEL_TOP } from '../gardenPlan';
 import { makeRng } from '../textures';
 import { growHedge, stripLoop } from '../hedges';
 import { edgeStones, RAKE, rakeScuffs, rakeOffset, FORK_STONE, LAWN } from '../forkProps';
@@ -90,6 +90,9 @@ export function buildGarden(ctx) {
     });
   };
   for (const cell of cells) if (cell.garden) GB.grass.add(slabGeo(hexPts(cell.c, RC + 0.5), [], 4, 0));
+  // a way's gravel: sunk into the lawn, its top flush with the grass
+  const GRAVEL_FROM = 3.9;
+  const gravelGeo = (pts) => slabGeo(pts, [], GRAVEL_TOP - GRAVEL_FROM, GRAVEL_FROM);
 
   const PERGOLA0 = add(GATE, dir(150), 10);
   const J = FORK;
@@ -177,11 +180,11 @@ export function buildGarden(ctx) {
     // below)
     const old = path === PATHS[3];
     path.pts.forEach((p, i) => {
-      if (!old) GB.gravel.add(slabGeo(circlePts(p, path.w / 2, 20), [], 1.2, 4));
+      if (!old) GB.gravel.add(gravelGeo(circlePts(p, path.w / 2, 20)));
       if (i === 0) return;
       const a = path.pts[i - 1], L = dist(a, p);
       const t = [(p[0] - a[0]) / L, (p[1] - a[1]) / L], n = [-t[1], t[0]];
-      if (!old) GB.gravel.add(slabGeo([add(a, n, path.w / 2), add(p, n, path.w / 2), add(p, n, -path.w / 2), add(a, n, -path.w / 2)], [], 1.2, 4));
+      if (!old) GB.gravel.add(gravelGeo([add(a, n, path.w / 2), add(p, n, path.w / 2), add(p, n, -path.w / 2), add(a, n, -path.w / 2)]));
       for (let u = 0; u < L; u += 7) {
         for (let s = 0; s < 2; s++) {
           if (path.fading && edgeRnd() < 0.5) continue;
@@ -201,6 +204,24 @@ export function buildGarden(ctx) {
   const offPond = (p, m = 4) => ((p[0] - POND.c[0]) / (POND.rx + m)) ** 2 + ((p[1] - POND.c[1]) / (POND.rz + m)) ** 2 > 1;
   const edgeOk = (way) => (p, r) => [...PATHS.slice(0, 3), ...WAYS].every((o) => o === way || lineDist(p, o.pts) > o.w / 2 + r * 0.5) && offPond(p);
   PATHS.slice(0, 3).forEach((path, i) => rocks.push(...edgeStones(path.pts, path.w, 9161 + i * 6, { ok: edgeOk(path) })));
+  // The way into the maze ends at the maze's own floor, a stone's height over
+  // the gravel now the gravel is down in the lawn: a dressed sill across the
+  // mouth, its top the maze floor's, its face what the gravel comes up to.
+  {
+    const SILL = { w: PATHS[2].w + 1.4, d: 3.2, top: 5.04, bed: GRAVEL_FROM, z: MZ.z0 - 6 - 0.9 };
+    const x = PATHS[2].pts.at(-1)[0];
+    const g = gardenRock({
+      w: SILL.w, h: SILL.top - SILL.bed, d: SILL.d, seed: 7417, round: 0.22, cuts: 3, dressed: true, flatTop: true,
+      moss: 0.2, lichen: 0.45, tone: 1, warm: 0.3, detail: light ? 12 : 22,
+    });
+    g.computeBoundingBox();
+    const b = g.boundingBox;
+    g.translate(-(b.min.x + b.max.x) / 2, -b.min.y, -(b.min.z + b.max.z) / 2);
+    g.scale(1, (SILL.top - SILL.bed) / (b.max.y - b.min.y), 1);
+    GB.shoreStep.add(g.translate(x, SILL.bed, SILL.z));
+    // (no tuft or kerb stone growing through its ends)
+    for (const s of [-1, 1]) standing.push({ p: [x + s * (SILL.w / 2 - 1), SILL.z], r: 1.8 });
+  }
 
   // The road not taken, laid: gravel the width of the first one, edged with
   // stones as it was (half of them gone, a way less walked), from a stream of
@@ -213,11 +234,11 @@ export function buildGarden(ctx) {
     const qr = makeRng(seed), qrr = (a, b) => a + (b - a) * qr();
     const { pts, w } = way;
     pts.forEach((p, i) => {
-      GB.gravel.add(slabGeo(circlePts(p, w / 2, 20), [], 1.2, 4));
+      GB.gravel.add(gravelGeo(circlePts(p, w / 2, 20)));
       if (i === 0) return;
       const a = pts[i - 1], L = dist(a, p);
       const t = [(p[0] - a[0]) / L, (p[1] - a[1]) / L], n = [-t[1], t[0]];
-      GB.gravel.add(slabGeo([add(a, n, w / 2), add(p, n, w / 2), add(p, n, -w / 2), add(a, n, -w / 2)], [], 1.2, 4));
+      GB.gravel.add(gravelGeo([add(a, n, w / 2), add(p, n, w / 2), add(p, n, -w / 2), add(a, n, -w / 2)]));
     });
     for (let i = 1; i < pts.length; i++) {
       const L = dist(pts[i - 1], pts[i]);
@@ -249,7 +270,7 @@ export function buildForkRaked(ctx) {
   // every road at once. A groove is a dark furrow with the gravel it threw up
   // pale beside it.
   {
-    const TOP = 5.2, R0 = 9.6;   // the gravel's top (slabGeo above), the rings' reach
+    const TOP = GRAVEL_TOP, R0 = 9.6;   // the gravel's top, the rings' reach
     // (only the stretches of it `keep` keeps: a groove stops where it would
     // run out over another way's gravel)
     // (`o` may be a function of how far along: the passes of the rake wander,
@@ -403,7 +424,9 @@ export function buildPergola(ctx) {
     // (at one bearing from there, to within a fraction of a degree), and read
     // as a tree trunk.
     const Z0 = 40, BAY = 22, FRAMES = [0, 1, 2, 3, 4].map((k) => Z0 + k * BAY).filter((z) => z < L + 1).slice(0, 4);
-    const POST = 17, SPAN = 25, GROUND = 5.2;
+    // (the posts stand out on the lawn either side of the way: their plinths
+    // go down into it, LAWN_FLOOR)
+    const POST = 17, SPAN = 25, GROUND = 5.2, LAWN_FLOOR = 4;
     const TIE = [39.4, 42.8], PURLIN = [TIE[1], TIE[1] + 2.6], RAFTER = [PURLIN[1], PURLIN[1] + 1.3];
     const zA = Z0 - 6, zB = FRAMES[FRAMES.length - 1] + 6;
     // A curved brace from (u0, y0) — on the post — up to (u1, y1), under a
@@ -425,7 +448,7 @@ export function buildPergola(ctx) {
         const x = side * POST, foot = W3(x, 0, z);
         standing.push({ p: [foot.x, foot.z], r: 3.6 });
         // the base: a stone plinth, chamfered, and a drum
-        stone(bx(x - 2.5, x + 2.5, GROUND - 0.4, GROUND + 1.2, z - 2.5, z + 2.5));
+        stone(bx(x - 2.5, x + 2.5, LAWN_FLOOR - 0.4, GROUND + 1.2, z - 2.5, z + 2.5));
         stone(bx(x - 2.1, x + 2.1, GROUND + 1.2, GROUND + 1.9, z - 2.1, z + 2.1));
         stone(new THREE.LatheGeometry([[0, 0], [1.95, 0], [1.95, 0.3], [1.7, 0.8], [1.62, 1.4], [0, 1.4]].map(([r, y]) => new THREE.Vector2(r, y)), 16).translate(x, GROUND + 1.9, z));
         // the post, an octagon, with a collar where the brackets take it

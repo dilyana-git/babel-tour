@@ -254,8 +254,10 @@ export function* bakeFloorPools() {
       const z = z0 + (j + 0.5) * dv;
       for (let i = i0; i <= i1; i++) {
         const x = x0 + (i + 0.5) * du;
-        const t = Math.hypot((x - p.x) / (p.sx / 2), (z - p.z) / (p.sz / 2));
-        if (t >= 1) continue;
+        // (squared first, and a plain root: Math.hypot was most of a second)
+        const u = (x - p.x) / (p.sx / 2), v = (z - p.z) / (p.sz / 2), t2 = u * u + v * v;
+        if (t2 >= 1) continue;
+        const t = Math.sqrt(t2);
         const a = radialAt(t) * p.o, k = (j * W + i) * 3;
         acc[k] += p.c.r * a; acc[k + 1] += p.c.g * a; acc[k + 2] += p.c.b * a;
       }

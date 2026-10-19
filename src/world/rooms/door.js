@@ -8,11 +8,12 @@ import { flameGeometry, waxGlowGeometry } from '../lampPass';
 import { makeRng, SPINE_KINDS } from '../textures';
 import { shaftVolume, makeShaftMaterial, spineAt, titleAt } from '../effects';
 import { buildPortal, PORTAL } from '../portal';
-import { SPILL as DOOR_SPILL, SIDE_LAMP as DOOR_SIDE_LAMP, tentBook, splayedBook, CANDLES as DOOR_CANDLES, candleWax, LAMP_Y as DOOR_LAMP_Y, SHAFT_K } from '../doorProps';
+import { SPILL as DOOR_SPILL, MOON_BEYOND, SIDE_LAMP as DOOR_SIDE_LAMP, tentBook, splayedBook, CANDLES as DOOR_CANDLES, candleWax, LAMP_Y as DOOR_LAMP_Y, SHAFT_K } from '../doorProps';
 import { rubbleLayout, fallenBlock, fragment } from '../rubble';
 import { stoneCaster, growIvy, hangIvy } from '../ivy';
-import { FLORA, crackLines, crackRunners, crackTufts, roomSheets, caseFaces, strandFeeder, joinStrand, leadRunners, leadFaceRoots } from '../doorFlora';
+import { FLORA, roomSheets, caseFaces, strandFeeder, joinStrand, wallEnds, wallRunner } from '../doorFlora';
 import { DOOR_CRACKS, DOOR_FALLEN, deg } from '../build/common';
+import { GRAVEL_TOP, gardenness } from '../gardenPlan';
 
 export function buildDoor(ctx) {
   const { dir, add, dist, A, cellC } = ctx;
@@ -26,7 +27,7 @@ export function buildDoor(ctx) {
 export function* buildArch(ctx) {
   const { light, rnd, rr, pick, dir, add, rot3, keep, bookRowsSet, Std, M, root, placed,
     chunkGeo, rockGeo, instances, decal, haloMaterial, halos, lightWishes, point, R, A,
-    edgeFrame, hallMid, LB, fallenLeaves, doorIvy, doorRubble, petals, hangs, ivyLeaves, ivyWood,
+    edgeFrame, hallMid, LB, doorIvy, doorRubble, petals, hangs, ivyLeaves, ivyWood,
     IVY_GREEN, IVY_YOUNG, posts, links, balusters, shelved, lodRows, wallRoom, books, lampCores,
     lampShells, globes, deadGlobes, rubble, trialPanes, trialFlames, trialWax, candleLights,
     BOOKS, LAID, alongWall, lamp, DOOR, GATE } = ctx;
@@ -208,44 +209,13 @@ export function* buildArch(ctx) {
       books.push({ p: [drop[0], 6.38, drop[1]], rot: [0, 2.1, 1.57], s: [0.75, 4.4, 3.2], color: '#5a2923', k: 1.05 });
     }
     // ── The garden comes in ──────────────────────────────────────────────
-    // Moss in the joints of the pavement nearest the arch; leaves blown in
-    // across the floor; ivy up the garden face of the arch. The only green in
-    // the Library, and it has been earned.
+    // Ivy up the garden face of the arch. The only green in the Library, and
+    // it keeps to the walls: none on the floor.
     {
       const gr = makeRng(5505), within = (a, b) => a + (b - a) * gr();
-      const at = (along, into) => add(add(GATE, e.n, -into), e.t, along);
-      // Moss, laid on the pavement's own joints: the same world-projected
-      // coordinates as the floor and a texture drawn to its slab layout, so the
-      // green is IN the joints. Faded out with distance from the breach.
-      {
-        const g = new THREE.PlaneGeometry(1, 1, 24, 12).rotateX(-Math.PI / 2);
-        const pos = g.attributes.position, uv = g.attributes.uv;
-        const rgba = new Float32Array(pos.count * 4);
-        for (let i = 0; i < pos.count; i++) {
-          const along = pos.getX(i) * 110, into = (pos.getZ(i) + 0.5) * 54 - 12;
-          const q = at(along, into);
-          pos.setXYZ(i, q[0], 6.15, q[1]);
-          uv.setXY(i, q[0], q[1]);
-          const fall = Math.max(0, 1 - Math.max(0, into) / 40) * Math.max(0, 1 - Math.abs(along) / 52);
-          rgba.set([1, 1, 1, Math.min(1, fall * 1.4)], i * 4);
-        }
-        g.setAttribute('color', new THREE.BufferAttribute(rgba, 4));
-        g.computeVertexNormals();
-        const moss = new THREE.Mesh(keep(g), M.moss);
-        moss.renderOrder = 1;
-        root.add(moss);
-      }
-      // leaves, blown in and lying where they stopped
-      for (let k = 0; k < 42; k++) {
-        const into = -8 + gr() ** 1.4 * 60, along = within(-26 - into * 0.5, 26 + into * 0.5);
-        const q = at(along, into);
-        // on the threshold stone through the arch, and none on its footings
-        const x = along - 1.5, sill = Math.abs(x) < 12.6 && into < 4;
-        const leaf = { p: [q[0], (sill ? 6.4 : 6.18) + gr() * 0.05, q[1]], rot: [within(-0.15, 0.15), gr() * 6.28, within(-0.15, 0.15)], s: Array(3).fill(0.9 + gr() * 0.9),
-          color: ['#6b5a2c', '#7a6234', '#556030', '#5f4a28', '#48552a'][Math.floor(gr() * 5)] };
-        if (Math.abs(x) > 11.5 && into < 25) continue;
-        fallenLeaves.push(leaf);
-      }
+      // (the draws of the leaves that once lay blown in across the floor: the
+      // curtain below is laid from the same stream after them)
+      for (let k = 0; k < 42 * 8; k++) gr();
       for (let k = 0; k < (light ? 20 : 38); k++) {
         gr(); within(13.5, 31); gr();
         within(-0.5, 0.5); within(7, 12); within(5, 8); gr();
@@ -318,16 +288,25 @@ export function* buildArch(ctx) {
         }
         caster.dispose();
         // The garden coming on into the room (doorFlora.js, ?wflora=a|b|c):
-        // up the room's face of the arch and the cases' ends, hanging from
-        // the arch, along the cracks in the floor, and grass in them.
+        // up the room's face of the arch and the cases' ends, and hanging
+        // from the arch.
         if (FLORA) {
           const fr = makeRng(5611), FR = (a, b) => a + (b - a) * fr();
-          const more = growIvy(floraCaster, roomSheets(FLORA, FR), fr);
           // (all of it from the garden: the strands along the soffit from the
-          // garden face, the stems on the floor in across the threshold —
-          // doorFlora.js, "Rooted in the garden"; their own stream)
-          const gr = makeRng(5661);
-          leadFaceRoots(floraCaster, more, gr);
+          // garden face, the room face's stems along the passage's walls out
+          // of the ground beyond it — doorFlora.js, "Rooted in the garden";
+          // their own stream. Nothing on the floor.)
+          const gr = makeRng(5661), ends = wallEnds(FLORA, gr);
+          const more = growIvy(floraCaster, roomSheets(FLORA, FR, FLORA.face ? ends : null), fr);
+          for (const end of ends) {
+            const stem = FLORA.face ? more.stems.find((st) => st[0].u === end.u && st[0].v === end.v) : null;
+            const run = wallRunner(floraCaster, end, stem ? stem[0].r : 0.08, gr);
+            if (!run) continue;
+            if (stem) stem.unshift(...run.nodes);
+            else more.stems.push(run.nodes);
+            more.stems.push(...run.shoots);
+            more.leaves.push(...run.leaves);
+          }
           grown.stems.push(...more.stems);
           grown.leaves.push(...more.leaves);
           for (let k = 0; k < FLORA.hang; k++) {
@@ -339,17 +318,6 @@ export function* buildArch(ctx) {
             if (feed) hung = joinStrand(feed, hung);
             grown.stems.push(hung.nodes);
             grown.leaves.push(...hung.leaves);
-          }
-          const lines = crackLines(DOOR_CRACKS);
-          const run = crackRunners(lines, FLORA.runners, fr);
-          leadRunners(floraCaster, run, gr);
-          grown.stems.push(...run.stems);
-          grown.leaves.push(...run.leaves);
-          const tg = crackTufts(lines, FLORA.tufts, fr, ([x, y, z]) => new THREE.Vector3(x, y, z).applyMatrix4(portalFrame));
-          if (tg) {
-            const tufts = new THREE.Mesh(keep(tg), keep(new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.85 })));
-            tufts.name = 'lawnBlades';
-            root.add(tufts);
           }
           floraCaster.dispose();
         }
@@ -415,7 +383,7 @@ export function* buildArch(ctx) {
       globe.castShadow = true;
       root.add(globe);
     }
-    // (its pool on the floor, over the moss at 6.15: at 6.6 it drew a pale
+    // (its pool on the floor at 6.2: at 6.6 it drew a pale
     // sock round the foot of the reading corner's legs)
     lamp(add(DOOR, dir(214), 46), { light: 6500, priority: 3, strength: 1.2, pool: DOOR_SPILL.warm.near, poolSize: 140, poolY: 6.2, haze: 0.18, beam: false });
     // ── Candles at the foot of the arch ──────────────────────────────────
@@ -496,6 +464,14 @@ export function* buildArch(ctx) {
     
     point(add(GATE, e.n, DOOR_SPILL.lamp.out), 40, '#8ff0d4', DOOR_SPILL.lamp.power, 9);
     for (const [into, wide, o] of DOOR_SPILL.pools) decal(add(add(GATE, e.n, -into), e.t, 1.5), wide, wide, '#7ee8c8', o);
+    // and beyond the pergola, the moon on the gravel (doorProps.js), for as
+    // long as the eye is still among the walls
+    for (const [x, z, across, along, o] of MOON_BEYOND.pools) {
+      const m = decal([x, z], across, along, MOON_BEYOND.color, o, GRAVEL_TOP + MOON_BEYOND.lift);
+      m.onBeforeRender = (r, s, cam) => {
+        m.material.opacity = o * (1 - gardenness(cam.position.x, cam.position.z)) * (cam.position.y < 90 ? 1 : 0);
+      };
+    }
   }
   const ENTRANCE = hallMid(0, 0, 2);
 
@@ -580,7 +556,6 @@ export function* buildArch(ctx) {
   instances(rockGeo(), M.rock, rubble, { chunked: true });
   instances(chunkGeo(), M.moonRock, doorRubble, { chunked: true });
   instances(new THREE.PlaneGeometry(0.9, 0.62).rotateX(-Math.PI / 2), M.petal, petals, { cast: false });
-  instances(new THREE.PlaneGeometry(2.2, 1.3).rotateX(-Math.PI / 2), M.leaf, fallenLeaves, { cast: false });
   instances(new THREE.PlaneGeometry(1, 1), M.ivy, doorIvy, { cast: false });
   instances(new THREE.BoxGeometry(1, 1, 1), M.wallTop, posts, { chunked: true });
   return { ENTRANCE, lodGroups };

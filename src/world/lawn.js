@@ -33,18 +33,22 @@ function clumpOf(r, { ground, height, clump, out, lamp }) {
       const h = tall * R(0.55, 1.15), w = R(...clump.wide);
       const ax = -Math.sin(a) * w, az = Math.cos(a) * w, cx = Math.cos(a), cz = Math.sin(a);
       const my = ground + h * 0.62, mo = lean * h * 0.3, ty = ground + h * (1 - 0.22 * lean), to = lean * h * 0.95;
-      const B0 = [bx - ax, ground - 0.05, bz - az], B1 = [bx + ax, ground - 0.05, bz + az];
-      const M0 = [bx + cx * mo - ax * 0.62, my, bz + cz * mo - az * 0.62], M1 = [bx + cx * mo + ax * 0.62, my, bz + cz * mo + az * 0.62];
-      const T = [bx + cx * to, ty, bz + cz * to];
-      pos.push(...B0, ...B1, ...M1, ...B0, ...M1, ...M0, ...M0, ...M1, ...T);
+      // (written out value by value: spreading little arrays into these took
+      // a second of the assembly)
+      const b0x = bx - ax, b0z = bz - az, b1x = bx + ax, b1z = bz + az, by = ground - 0.05;
+      const m0x = bx + cx * mo - ax * 0.62, m0z = bz + cz * mo - az * 0.62, m1x = bx + cx * mo + ax * 0.62, m1z = bz + cz * mo + az * 0.62;
+      const tx = bx + cx * to, tz = bz + cz * to;
+      pos.push(b0x, by, b0z, b1x, by, b1z, m1x, my, m1z, b0x, by, b0z, m1x, my, m1z, m0x, my, m0z, m0x, my, m0z, m1x, my, m1z, tx, ty, tz);
       for (let v = 0; v < 9; v++) nor.push(0, 1, 0);
       const k = R(0.8, 1.15) * clump.k;
       const [gr, gg, gb0] = clump.green ?? [0.031, 0.047, 0.013];
       const g0 = dry ? (clump.straw ?? [0.07, 0.06, 0.026]) : [gr + 0.006 * hue, gg, gb0];
-      const gm = g0.map((c) => c * (1 + (clump.tip - 1) * 0.6) * k);
-      const gt = g0.map((c) => c * clump.tip * k), gb = g0.map((c) => c * k * 0.8);
-      col.push(...gb, ...gb, ...gm, ...gb, ...gm, ...gm, ...gm, ...gm, ...gt);
-      for (let v = 0; v < 9; v++) lit.push(...own);
+      const A = 1 + (clump.tip - 1) * 0.6, tip = clump.tip;
+      // (multiplied in the order they always were, so every product is the same)
+      const mr = g0[0] * A * k, mg = g0[1] * A * k, mb = g0[2] * A * k, tr = g0[0] * tip * k, tg = g0[1] * tip * k, tb = g0[2] * tip * k;
+      const br = g0[0] * k * 0.8, bg = g0[1] * k * 0.8, bb = g0[2] * k * 0.8;
+      col.push(br, bg, bb, br, bg, bb, mr, mg, mb, br, bg, bb, mr, mg, mb, mr, mg, mb, mr, mg, mb, mr, mg, mb, tr, tg, tb);
+      for (let v = 0; v < 9; v++) lit.push(own[0], own[1], own[2], own[3]);
     }
   };
 }
@@ -123,8 +127,9 @@ export function* lawnBlades({ lamps, ok, ground, seed = 6607, density = 1, heigh
 // bank, round a stone or a post — the grass stands in clumps, in runs and gaps,
 // and the open lawn between is mown and has none.
 //
-// `edges`: [{ pts, off, closed }], lines the lawn stops at and how far off each
-// the grass begins (both sides are tried; `ok` keeps the lawn's); `rings`:
+// `edges`: [{ pts, off, closed, dense }], lines the lawn stops at, how far off
+// each the grass begins (both sides are tried; `ok` keeps the lawn's) and how
+// much closer set along it than `t.step`; `rings`:
 // [{ p: [x, z], r }], feet to stand round. `t`: TUFTS. Each clump carries the
 // nearest of `lamps` whose light reaches it (as the lanterns' blades do), or
 // none, and is lit by the moon as the lawn under it is. Yields one geometry to
@@ -163,8 +168,9 @@ export function* edgeTufts({ edges, rings, ok, lamps, ground, t, seed = 6631, de
     if (r() > thick * 2.4 || !ok([x, z])) return;
     bucket(x, z)(x, z, near, lampAt(x, z));
   };
-  const step = t.step / Math.sqrt(density), [o0, o1] = t.out;
-  for (const { pts, off, closed } of edges) {
+  const [o0, o1] = t.out;
+  for (const { pts, off, closed, dense = 1 } of edges) {
+    const step = t.step / Math.sqrt(density * dense);
     const line = closed ? [...pts, pts[0]] : pts;
     for (let i = 1; i < line.length; i++) {
       const a = line[i - 1], b = line[i], L = Math.hypot(b[0] - a[0], b[1] - a[1]);

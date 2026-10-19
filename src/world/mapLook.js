@@ -23,15 +23,20 @@ export const QUIET = { near: [112, 128], flat: 0.85, relief: 0.8, tint: [0.62, 0
 
 // The garden's light over the map: each a patch of light laid on it, `k`
 // strong. The pavilion's reflection by its reach from the near foot; the
-// moon's road by where it crosses the pond (0 its west shore, 1 its east)
-// and the wash of it over the whole water;
+// moon's road by where it crosses the pond (0 its west shore, 1 its east),
+// the wash of it over the whole water, and the road itself as the lamps'
+// columns lie from the bridge (POND): `width`, its half-width far and near
+// (shares of the pond's width), `dashes` stacked down it, `soft` the band
+// under them; nothing off it (2026-10-17: 110 strokes scattered over a wide
+// band read from the map as snow on a screen);
 // the wisteria by its length along the pergola from the Door's arch, its
-// width and its height (over the leaves); the lit stone lanterns by where
-// they stand.
+// width and its height (over the leaves), and `chroma` what it keeps of its
+// violet (the most saturated thing on the map at 1); the lit stone lanterns
+// by where they stand.
 export const GARDEN_MAP = {
   pavilion: { r: 86 / Math.sqrt(3), k: 1.2 },
-  moon: { road: 0.8, wash: 0.2, k: 0.6 },
-  wisteria: { along: [28, 124], across: 36, y: 52, k: 0.85 },
+  moon: { road: 0.8, wash: 0.2, k: 0.6, width: [0.018, 0.04], dashes: 34, soft: 0.14 },
+  wisteria: { along: [28, 124], across: 36, y: 52, k: 0.85, chroma: 0.3 },
   lanterns: { at: LANTERNS.map((lamp) => lamp.at), r: 19, y: 24, k: 0.5 },
 };
 

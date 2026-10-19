@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { stairSconce } from '../lampPass';
 import { makeRng } from '../textures';
-import { shaftVolume, spineAt, titleAt, makeLampGlobeMaterial } from '../effects';
+import { shaftVolume, spineAt, titleAt } from '../effects';
 import { WELL, bookHash, MISSING, shelfLip } from '../vertigoProps';
 import { CROWN_BACK } from '../silenceProps';
 import { SPIRAL, GAPS, makeEndlessSpiral, spiralAt, bookAt } from '../spiral';
@@ -94,7 +94,7 @@ export function* buildVertigo(ctx) {
     }
     LB.floor.add(slabGeo(hexPts(c, RC), [circlePts(c, rMouth, 80)], 6, 0));
     // (0.5, under the pools' plane at 6.6: see the rings round the wells)
-    LB.inlay.add(slabGeo(circlePts(c, rMouth + 17, 80), [circlePts(c, rMouth + 14.5, 80)], 0.5, 6));
+    LB.inlayWorn.add(slabGeo(circlePts(c, rMouth + 17, 80), [circlePts(c, rMouth + 14.5, 80)], 0.5, 6));
     // Pale vellum and calf near the rim, dark leather down the throat, so the
     // funnel falls away in value before any lamp says how deep it is. Chosen by
     // where a book stands rather than drawn: every draw here belongs to the
@@ -559,10 +559,12 @@ export function* buildVertigo(ctx) {
     // should be the light at the bottom — and all of them on a chain of half
     // the gauge: from the stand a heavy one is the heaviest line in the
     // picture, cutting it from the corner to the middle.)
-    const opal = keep(makeLampGlobeMaterial({ diffused: true }));
+    // The same opal as every other room's globe — hot at the middle, amber to
+    // the rim — only brighter, for the brightest room. Diffused evenly across
+    // the glass (10-14) it printed as a white egg, edge to edge.
     hanging.forEach(([b, off, y, r], i) => lamp(add(c, dir(b), off), {
       y, r, light: i === 0 ? 4800 : 4200, priority: -1, strength: i === 0 ? 0.85 : 1.1, pool: 0, beam: false, chain: 52, link: 0.55,
-      globeMaterial: opal,
+      glow: 1.6, glass: '#ffd9b0',
     }));
 
     // The light at the bottom: a hot core in the throat, the funnel's floor

@@ -12,6 +12,7 @@ import { bracketSet, BRACKET, lotusBud, wornBar, wornPost, CAIHUA, qin, qinCloth
 import { ROOF_TIERS, roofProfile, roofTop, ROOF_SURFACE, roofTiles, tiledRoof, softenRoofTiles } from '../pavilionRoof';
 import { signPostGeometry, SIGN, signBoardGeometry, HORN, paintSignName } from '../gardenProps';
 import { bridgeFoot } from '../shore';
+import { GRAVEL_TOP } from '../gardenPlan';
 import { deg } from '../build/common';
 
 export function* buildFork(ctx) {
@@ -345,6 +346,9 @@ export function* buildFork(ctx) {
       // single pavilion burns warm" is a building lit from inside.
       FITTING.add(placed(new THREE.CylinderGeometry(0.18, 0.18, 2.6, 6), lp, 45.8));
       trialEaves.push({ p: [lp[0], 42.8, lp[1]], s: [1.15, 1.5, 1.15], color: '#ffb070', k: 0.6 });
+      // and in the water, a column under each (water.js) — the only thing on
+      // the black between the bridge and the far bank
+      waterLamps.push({ p: [lp[0], 42.8, lp[1]], color: '#ffb070', k: 0.6 });
       GB.lacquer.add(placed(new THREE.CylinderGeometry(0.75, 1.0, 0.5, 10), lp, 44.5));
       GB.lacquer.add(placed(new THREE.CylinderGeometry(1.0, 0.75, 0.45, 10), lp, 41.2));
       FITTING.add(placed(new THREE.SphereGeometry(0.34, 8, 6), lp, 40.8));
@@ -615,8 +619,8 @@ export function* buildFork(ctx) {
           GB.deck.add(g);
         }
       });
-      // Onto it from the gravel, 3.4 below the boards, by a stone step on a
-      // stone abutment; and off it onto the pavilion, 3.5 above, by another.
+      // Onto it from the gravel, 4.5 below the boards, by a stone step halfway
+      // up on a stone abutment; and off it onto the pavilion, 3.5 above, by another.
       {
         const r = runs[0];
         const steps = paintings ? GB.stone : GB.pavilionStep;
@@ -626,7 +630,7 @@ export function* buildFork(ctx) {
           // stone to step up from, its top where that slab's step was
           const foot = bridgeFoot({
             a: r.a, t: r.t, n: r.n, half: HW + 0.6, pier: [-4.2, 2.5], pierTop: TOP - 1.9,
-            step: { u0: -7.2, u1: -3.6, half: RW - 0.6, top: TOP - 1.7 }, floor: 5.2,
+            step: { u0: -7.2, u1: -3.6, half: RW - 0.6, top: (TOP + GRAVEL_TOP) / 2 }, floor: GRAVEL_TOP,
             seed: 7331 + Math.round(BR[0][0] + BR[0][1]), light,
           });
           for (const g of foot.blocks) GB.shoreStone.add(g);

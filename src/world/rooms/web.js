@@ -146,6 +146,12 @@ export function buildWeb(ctx) {
         if (!has) continue;
         const back = face + into * NICHE.deep;
         niches.push({ rect: [Math.min(face, back), zc - wide / 2, Math.max(face, back), zc + wide / 2], face, into, z: zc, wide });
+        // and the hedge grown out on its far side behind it: the 3.3 the niche
+        // leaves is less than the shoulders' two insets (2.6 each, hedges.js),
+        // so the top's outline round the niche crossed the far side's, and the
+        // top was laid over it in torn sheets standing on edge (audit VI·9·2)
+        const far = face + into * T, out = face + into * (NICHE.deep + NICHE.behind);
+        footprint.push([Math.min(far, out), zc - wide / 2 - 7, Math.max(far, out), zc + wide / 2 + 7]);
       }
     }
     plantHedge(rectUnionLoops(footprint, niches.map((q) => q.rect)), { ground: 5, H: 20, seed: 11 });

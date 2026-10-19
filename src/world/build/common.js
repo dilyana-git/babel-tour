@@ -146,6 +146,9 @@ export const PAINTED = {
   wall: ['ashlar', { seed: 107, courses: 12, blocks: 5, joint: 1, strength: 0.65, spread: ASHLAR_ON.tone ? ASHLAR.spread : 18, dress: 'flat', arris: ASHLAR_ON.arris ? ASHLAR.arris : 0 }],
   // The massive pale stone of the caps.
   pale: ['ashlar', { seed: 9, courses: 4, blocks: 2, tone: [158, 150, 136], strength: 2 }],
+  // and the same stone cut to the Echo's arches, a voussoir at a time: no
+  // joint in it, the chisel along v (rooms/echo.js)
+  voussoir: ['tooled'],
   // The wood: boards sawn from the log, grain along u (`timber`).
   wood: ['timber'],
   timber: ['timber', { seed: 23, tone: CEDAR_WOOD, ring: 9, knots: 2 }],

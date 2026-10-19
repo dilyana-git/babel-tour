@@ -84,6 +84,18 @@ export const HOOD = {
   fray: [0.03, 0.11], threads: 64,
   lamp: { at: [0, -2.1, 1.35], k: qn('wfhlamp', 4.5), half: 2.2, color: [1.0, 0.7, 0.4], face: qn('wfhface', 0.5), reach: [0.6, 1.2], cloth: [0.85, 1.5], wool: qn('wfhwool', 1.7) },
   weave: [qn('wfhweave', 9), qn('wfhrib', 1)], fleck: qn('wfhfleck', 0.2), matt: qn('wfhmatt', 0.92),
+  // `crown`: an empty hood's crown, lying in across the inside (readers.js,
+  // `hollow`) — how far below the top of the opening, how far back of the
+  // hood's middle it is centred, how much it domes, how near the cloth it
+  // comes (of the way), its shade, its dark ([middle, edge], aDark), and how
+  // far its front edge is turned up behind the brow; `seen`: how steeply it
+  // must be looked down on (the sine) before it is cloth and not the hood's dark;
+  // `lining`: the darkest the hood's inside is then (aDark); `fill`: the
+  // light it is given then (of its own colour), where no lamp reaches it.
+  // (Just under the brow, it was behind what the eye sees from above: down
+  // through the opening it is the collar's dark that shows, so it lies as
+  // low as the throat, over the collar.)
+  crown: { below: qn('wfhcrown', 2.15), back: 0.25, dome: 0.12, inset: 0.95, tone: 0.55, dark: [qn('wfhcdark', 0.55), 0.85], tuck: 0, seen: [0.3, 0.7], lining: qn('wfhclin', 0.7), fill: qn('wfhcfill', 3) },
 };
 
 // The body under the hood (readers.js, `close`). `slim`: how much narrower
@@ -94,9 +106,18 @@ export const HOOD = {
 // wrist and the end of the cuff, [out, up, forward]; `r`: its radius at the
 // shoulder, the elbow and the cuff's mouth; `hang`: how much further the
 // cuff falls in front of the arm than behind it.
+// (2026-10-18: cut to end 12.65, a hand's breadth below the shoulder, with
+// a rolled edge, the cape read as a padded roll round the shoulders — a neck
+// pillow. Now it falls to the middle of the upper arm and flares a little.
+// `fall`: how it hangs, [at the neck, more by the hem, how far forward of the
+// shoulders the hem is lifted]. Down off each shoulder it falls in a ridge,
+// in front and behind it lies in to the body, and smaller flutes break the
+// hem. `edge`: the hem's turn under, [up, in]: a cloth's thickness.)
 export const ARMS = {
   slim: 0.82,
-  cape: [[3.0, 12.65, 1.85], [3.05, 13.4, 1.85], [2.95, 13.95, 1.75], [2.65, 14.22, 1.6], [2.12, 14.42, 1.42], [1.6, 14.75, 1.25], [1.2, 15.3, 1.05]],
+  cape: [[3.32, 11.85, 2.05], [3.14, 12.7, 1.93], [3.02, 13.45, 1.82], [2.84, 13.95, 1.69], [2.5, 14.28, 1.52], [2.02, 14.48, 1.37], [1.58, 14.78, 1.23], [1.2, 15.3, 1.05]],
+  fall: [0.05, 0.42, 0.55],
+  edge: [0.03, 0.045],
   sleeve: [[2.15, 13.7, 0], [2.62, 10.5, 0.2], [2.58, 8.3, 0.75], [2.5, 7.3, 0.8]],
   r: [0.6, 0.66, 1.05],
   hang: 0.9,
@@ -132,6 +153,23 @@ export const FACE = {
 // `hollow`, no head); `lamp`: the light in the hood, of the others'; `back`:
 // how far behind the reader it comes to stand.
 export const HOODED = { book: false, cut: { hollow: true }, lamp: 0, back: qn('wfhback', 10) };
+
+// What the others wear, and what is in their hoods. (2026-10-18: one of them
+// was in the walkers' olive, the only green among the browns, and every one
+// of the six still had a face lit by a lamp under the chin, where the walk
+// has taught the reader to expect none. Now browns only, and every hood as
+// empty as the one behind the reader.) `robes`: one each, in CAST's order,
+// and the last the reader's own (finale-you takes the eighth).
+export const OTHERS = {
+  robes: ['#2b2019', '#241f1b', '#2e1d18', '#2c1f17', '#201a16', '#2a2320', '#2f2219', '#2b2019'],
+  cut: HOODED.cut, lamp: 0,
+};
+
+// The lit floor's light on the robes from below (finale.js, otherShader):
+// `k` how much (2.4 lit the hem as a band), `cloth` the brightest the cloth
+// it comes back from may be (linear luminance; the robes' own dye is about
+// 0.016, the path dust at the hem twice that).
+export const FLOOR_BOUNCE = { k: qn('wfbounce', 1.7), cloth: qn('wfbcloth', 0.018) };
 
 // The others. For each: the gate it comes in by and how many cells up that
 // way it starts; where it comes to stand — degrees round the heart (0 east, 90

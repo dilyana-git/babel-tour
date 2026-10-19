@@ -45,8 +45,13 @@ export const STRING = { y: 84, proud: 2.2, glow: 1.2, fall: 13 };
 export const COLOUR = { weight: 3.2, keep: 1.25, leathers: ['#742a22', '#2f4d36', '#8f8263'] };
 
 // The fillet: [outer, inner] radius off the room's rim (it was 72.9, 72.1),
-// how far proud of the floor, and the brass it is made of.
+// how far proud of the floor (its brass: OLD_BRASS, below).
 export const FILLET = { outer: 72.95, inner: 71.85, proud: 0.16 };
-export const FILLET_BRASS = { color: '#6b5634', roughness: 0.72, metalness: 0.35 };
+// The brass let into the floor where the walk goes (the fillet, and the ring
+// round each well, which the worn way runs straight along), gone dark and matt
+// with feet and dust to about the stone's own value. Bright, a hexagon of it
+// read as tape laid down the way, turning square at every corner. (The Echo's
+// rose keeps its bright brass: M.inlay.)
+export const OLD_BRASS = { color: '#4d3f2b', roughness: 0.85, metalness: 0.25 };
 
 

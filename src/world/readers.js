@@ -70,7 +70,10 @@ const profile = (keys) => (x) => {
 // kind of its own) — and the shoes, 6 the right and 7 the left, with .5 for
 // the hose above each, which step when the reader walks.
 // (FRAY: wool too — the threads at a hood's hem, `close`.)
-const K = { ROBE: 0, WOOL: 1, FRAY: 1.2, HEMP: 2, LEATHER: 3, PAPER: 4, SKIN: 5, FACE: 5.25, SHOE: 6 };
+// (LINING and CROWN: wool too — an empty hood's inside and its crown,
+// `hollow`, whose dark the finale sets by where they are seen from.)
+const K = { ROBE: 0, WOOL: 1, LINING: 1.05, CROWN: 1.1, FRAY: 1.2, HEMP: 2, LEATHER: 3, PAPER: 4, SKIN: 5, FACE: 5.25, SHOE: 6 };
+export const CROWN_KIND = K.CROWN, LINING_KIND = K.LINING;
 // Where the feet stand (each FOOT_X either side, FOOT_Z0 forward of the
 // middle), how high one is lifted in its step, and what a shoe turns about:
 // the ball of the foot as the heel comes up, the heel as the toe does.
@@ -335,16 +338,23 @@ export function readerGeometry({ seed = 1, color = ROBES[0], book = false, seate
   // under the hood one rounded mass. ARMS.cape, finaleLook.js.)
   const cape = close ? [0, 1, 2].map((c) => profile(ARMS.cape.map((p, k) => [k / (ARMS.cape.length - 1), p[c]]))) : null;
   const mRows = close ? 26 : 18;
+  // (`close`, ARMS.fall: falling off each shoulder in a ridge, lying in to
+  // the body in front and behind, and a few smaller flutes at the hem — four
+  // even folds all round, on a cape that short, were a padded roll)
+  const capeFold = (u) => 0.5 * Math.cos(2 * u) + 0.32 * Math.sin(5 * u + mPh) + 0.18 * Math.sin(9 * u + 2 * mPh);
   const mantle = faceOut(sheet(mRows, res(close ? 128 : 64), (v, u, i) => {
     // the first ring is the hem turned under, so the cape has an edge to it
     const t = i === 0 ? 0 : (i - 1) / (mRows - 2);
-    const y = (close ? cape[1](t) + (mHem(u) - 11.55) * (1 - t) : lerp(mHem(u), 15.3, t)) - scoop(u, t) + (i === 0 ? 0.08 : 0);
-    const d = (0.07 + 0.17 * (1 - t) ** 1.5) * mFold(u) * mDeep + gather(u, t) - (i === 0 ? 0.16 : 0);
+    const [up, under] = close ? ARMS.edge : [0.08, 0.16];
+    const lift = close ? ARMS.fall[2] * Math.max(0, Math.sin(u)) ** 2 * (1 - t) : 0;
+    const y = (close ? cape[1](t) + (mHem(u) - 11.55) * (1 - t) + lift : lerp(mHem(u), 15.3, t)) - scoop(u, t) + (i === 0 ? up : 0);
+    const d = (close ? (ARMS.fall[0] + ARMS.fall[1] * (1 - t) ** 1.4) * capeFold(u) : (0.07 + 0.17 * (1 - t) ** 1.5) * mFold(u) * mDeep) + gather(u, t) - (i === 0 ? under : 0);
     const x = close ? cape[0](t) : mx(t), z = close ? cape[2](t) : mz(t);
     return [(x + d) * Math.cos(u) * wide, y * tall, lean(y) + (z + d) * Math.sin(u) * wide];
   }, (v, u, i) => {
     const t = i === 0 ? 0 : (i - 1) / (mRows - 2);
-    const k = (i === 0 ? 0.6 : 1) * (0.72 + 0.28 * (0.5 + 0.5 * mFold(u))) * (1 - 0.2 * smooth((t - 0.8) / 0.2)) * (1 + 3.2 * gather(u, t));
+    const f = close ? Math.max(-1, Math.min(1, capeFold(u))) * smooth((1 - t) / 0.6) : mFold(u);
+    const k = (i === 0 ? (close ? 0.45 : 0.6) : 1) * (0.72 + 0.28 * (0.5 + 0.5 * f)) * (1 - 0.2 * smooth((t - 0.8) / 0.2)) * (1 + 3.2 * gather(u, t));
     // (the collar, inside the hood: seen down its opening under the chin, lit,
     // it was a shelf)
     return [...tone(base, 1.06 * k * grain()), 0.9 * smooth((t - 0.82) / 0.14)];
@@ -437,6 +447,13 @@ export function readerGeometry({ seed = 1, color = ROBES[0], book = false, seate
     // cowl's underside voted it inside out and the hood vanished but its rim)
   }), () => new THREE.Vector3(H.x, H.y * tall, H.z));
   if (bow) remap(hood, bowed);
+  // (`hollow`: its inside a kind of its own, LINING, whose dark the finale
+  // lifts when it is looked down on — from above, the dark inside the brow
+  // was a black slit across the top of the head)
+  if (hollow) {
+    const kinds = hood.attributes.aKind.array, hCols = res(close ? 88 : 44);
+    rings.forEach((r, i) => { if (r.dark) kinds.fill(K.LINING, i * hCols, (i + 1) * hCols); });
+  }
   // The hem's threads, `close`: a strip on from the edge the way the cloth
   // was going, longer in some places than others; clothShader cuts it into
   // threads, each of its own length (the strip's kind runs from K.FRAY at
@@ -457,6 +474,132 @@ export function readerGeometry({ seed = 1, color = ROBES[0], book = false, seate
     fray.getAttribute('aKind').array.forEach((_, k, kinds) => { kinds[k] = K.FRAY + (k < n ? 0 : 0.2); });
     fray.computeVertexNormals();
     if (bow) remap(fray, bowed);
+  }
+
+  // ── The crown of an empty hood ──────────────────────────────────────────
+  // (`hollow`, 2026-10-18: with nobody in it, seen from above the hood's
+  // mouth showed down past the brow into the dark as a hole in the top of
+  // the head. Across the inside a little below the brow, the crown's cloth
+  // lies in on itself: from the front, under the brow, it is in the hood's
+  // dark like the rest; from above, it is cloth in shade. HOOD.crown.)
+  let crown = null;
+  if (hollow) {
+    const C = HOOD.crown, N = res(48), M = 96;
+    const yL = hoodAt(rings.find((r) => r.rim), Math.PI / 2)[1] - C.below * tall;
+    const cx = H.x, cz = H.z - C.back;
+    // where the cloth crosses that height, every ring of it walked round
+    // (the nearest crossing in each direction from the middle is the inside)
+    const reach = new Array(N).fill(null);
+    for (const r of rings) {
+      let p0 = hoodAt(r, 0);
+      for (let k = 1; k <= M; k++) {
+        const p1 = hoodAt(r, (k / M) * TAU);
+        if ((p0[1] - yL) * (p1[1] - yL) <= 0 && p0[1] !== p1[1]) {
+          const f = (yL - p0[1]) / (p1[1] - p0[1]);
+          const x = lerp(p0[0], p1[0], f) - cx, z = lerp(p0[2], p1[2], f) - cz;
+          const b = Math.floor((((Math.atan2(z, x) % TAU) + TAU) % TAU) / TAU * N) % N;
+          const d = Math.hypot(x, z);
+          if (reach[b] === null || d < reach[b]) reach[b] = d;
+        }
+        p0 = p1;
+      }
+    }
+    // across the opening, where nothing crosses: straight from one side to the other
+    const filled = reach.map((d, b) => (d === null ? null : [Math.cos(((b + 0.5) / N) * TAU) * d, Math.sin(((b + 0.5) / N) * TAU) * d]));
+    const edge = filled.map((q, b) => {
+      if (q) return q;
+      let a = b, c = b;
+      while (!filled[a]) a = (a + N - 1) % N;
+      while (!filled[c]) c = (c + 1) % N;
+      const [ax, az] = filled[a], [bx, bz] = filled[c], th = ((b + 0.5) / N) * TAU;
+      const dx = Math.cos(th), dz = Math.sin(th), ex = bx - ax, ez = bz - az;
+      const s = (ax * ez - az * ex) / (dx * ez - dz * ex);
+      return [dx * s, dz * s];
+    });
+    if (filled.some(Boolean)) {
+      // (its phase and its unevenness from the seed, off the stream, so the
+      // parts built after it are cut as they were)
+      const cPh = seed * 2.39996;
+      crown = faceOut(sheet(7, N, (v, u) => {
+        const [ex, ez] = edge[Math.round((u / TAU) * N) % N];
+        // (its front turned up behind the brow; and its dark, aDark, is how it
+        // is seen from above — seen level, face to face, it showed as a lit
+        // line across the void, and the finale puts it in the hood's full dark
+        // there: finale.js, otherShader)
+        const front = Math.max(0, Math.sin(u)) ** 2 * v * v;
+        const y = yL + C.dome * (1 - v * v) + 0.04 * v * Math.sin(5 * u + cPh) + C.tuck * front;
+        return [cx + ex * v * C.inset, y, cz + ez * v * C.inset];
+      }, (v, u) => [...tone(base, C.tone * (0.93 + 0.07 * Math.sin(7 * u + 3 * v + cPh))), lerp(C.dark[0], C.dark[1], v * v)], K.CROWN), (p) => new THREE.Vector3(p.x, p.y - 5, p.z));
+      if (bow) remap(crown, bowed);
+    }
+  }
+
+  // ── Where the hood lies on the cape ─────────────────────────────────────
+  // (2026-10-17, audit VI; `heavyWool`, the file on the bridge, whom a walker
+  // passes closest.) The hood went down into the cape as one moulded shell:
+  // no edge, nothing to say where one cloth stops and the other begins. So
+  // where it comes down onto the shoulders and the back, its cloth is rolled
+  // under — a soft fold lying on the cape — and the cape just below the fold
+  // is in its shadow. Found from the two as built: down each of the cape's
+  // columns, where it comes out of the hood (asked of the hood's nearest
+  // outer point, which way that faces). Not across the front, where the
+  // hood's own edges come down under the chin and cross.
+  let seam = null;
+  if (heavyWool && !seated) {
+    const hp = hood.attributes.position, hn = hood.attributes.normal;
+    const hCols = res(44), first = rings.findIndex((r) => r.rim) + 1;
+    const outer = [];
+    for (let k = first * hCols; k < hp.count; k++) outer.push([hp.getX(k), hp.getY(k), hp.getZ(k), hn.getX(k), hn.getY(k), hn.getZ(k)]);
+    const inHood = (q) => {
+      let best = Infinity, s = 1;
+      for (const o of outer) {
+        const d = (q.x - o[0]) ** 2 + (q.y - o[1]) ** 2 + (q.z - o[2]) ** 2;
+        if (d < best) { best = d; s = (q.x - o[0]) * o[3] + (q.y - o[1]) * o[4] + (q.z - o[2]) * o[5]; }
+      }
+      return s < 0;
+    };
+    const mp = mantle.attributes.position, mn = mantle.attributes.normal, mc = mantle.attributes.color;
+    const mCols = res(64);
+    const line = [];
+    const a = new THREE.Vector3(), b = new THREE.Vector3(), q = new THREE.Vector3();
+    for (let j = 0; j < mCols; j++) {
+      const u = (j / mCols) * TAU;
+      if (Math.sin(u) > 0.35) continue;
+      for (let i = mRows - 1; i >= 1; i--) {
+        const k = i * mCols + j;
+        a.fromBufferAttribute(mp, k);
+        if (!inHood(a)) break;   // (its top out of the hood: the front)
+        b.fromBufferAttribute(mp, k - mCols);
+        if (inHood(b)) continue;
+        // halved down to where the cape comes out from under the hood
+        let lo = 0, hi = 1;
+        for (let n = 0; n < 6; n++) { const m = (lo + hi) / 2; if (inHood(q.lerpVectors(a, b, m))) lo = m; else hi = m; }
+        line.push({ u: u < Math.PI / 2 ? u + TAU : u, p: q.lerpVectors(a, b, hi).clone(), n: new THREE.Vector3().fromBufferAttribute(mn, k - mCols) });
+        // (the shade under the fold, on the cape's next rows down)
+        for (let i2 = i - 1; i2 >= Math.max(0, i - 4); i2--) {
+          const k2 = i2 * mCols + j, f = 1 - 0.55 * Math.exp(-(((i - 1 - i2) / 1.5) ** 2));
+          mc.setXYZ(k2, mc.getX(k2) * f, mc.getY(k2) * f, mc.getZ(k2) * f);
+        }
+        break;
+      }
+    }
+    line.sort((p, r) => p.u - r.u);
+    if (line.length > 4) {
+      // lying on the cape, a little out from where the two meet, and the
+      // steps from one of the cape's rows to the next smoothed out of it
+      // (thin, uneven, and no paler than the hood: even and round, with a lit
+      // top, it read as a rope laid round the neck)
+      const sPh = R(0, TAU), sPh2 = R(0, TAU);
+      const pts = line.map((o, k) => {
+        const s = new THREE.Vector3();
+        for (let d = -1; d <= 1; d++) s.add(line[Math.min(line.length - 1, Math.max(0, k + d))].p);
+        const t = k / (line.length - 1);
+        return s.divideScalar(3).addScaledVector(o.n, 0.04 + 0.025 * Math.sin(TAU * 2.6 * t + sPh2));
+      });
+      seam = tube(pts, (t) => (0.075 + 0.025 * Math.sin(TAU * 4.3 * t + sPh) * Math.sin(TAU * 1.7 * t + sPh2)) * smooth(t / 0.08) * smooth((1 - t) / 0.08),
+        (t, u) => [...tone(base, (0.6 + 0.3 * Math.max(0, Math.sin(u))) * grain()), 0.35 * Math.max(0, -Math.sin(u))],
+        { cols: 8, rows: res(48) });
+    }
   }
 
   // ── The face ────────────────────────────────────────────────────────────
@@ -533,6 +676,8 @@ export function readerGeometry({ seed = 1, color = ROBES[0], book = false, seate
   const parts = hollow ? [robe, mantle, hood] : [robe, mantle, hood, face];
   if (hollow) face.dispose();
   if (fray) parts.push(fray);
+  if (seam) parts.push(seam);
+  if (crown) parts.push(crown);
 
   // ── The book ────────────────────────────────────────────────────────────
   // Open in the hands. In its own frame — the gutter at the middle, x across
@@ -996,8 +1141,11 @@ export const clothShader = (sh, u) => {
       // the hollows no light reaches (aDark), and the inside of the cloth —
       // the back of the hood seen past the face, up a sleeve, under a hem —
       // which every part is wound to show as its back (faceOut, tube)
-      // (not the hem's threads, K.FRAY: they have no inside)
-      outgoingLight *= 1.0 - 0.97 * max(vDark, vKind < 1.15 && !gl_FrontFacing ? 0.9 : 0.0);
+      // (not the hem's threads, K.FRAY: they have no inside; nor an empty
+      // hood's inside, K.LINING, whose dark the finale sets by where it is
+      // seen from — from above, the back of its hem turned in under the brow
+      // was a black slit across the top of the head)
+      outgoingLight *= 1.0 - 0.97 * max(vDark, vKind < 1.15 && !gl_FrontFacing && abs(vKind - ${f3(K.LINING)}) > 0.02 ? 0.9 : 0.0);
       // (the page that is a light, uPage: the paper itself)
       if (uPage.x > 0.0 && vKind > 3.5 && vKind < 4.5) outgoingLight += diffuseColor.rgb * vec3(1.0, 0.84, 0.6) * uPage.x;
       // A face over an open book, lit from below by the page: the lamps'

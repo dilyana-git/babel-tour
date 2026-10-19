@@ -41,6 +41,16 @@ export const NEARS = {
 // the darkening past the second; and how much of the colour's letting go
 // is kept past it.
 const NEAR_REACH = [30, 70, 0.3];
+// (2026-10-17, audit VI) …or how much lamplight is on the reader: none of
+// the darkening under the first, all of it over the second (the lamps' light
+// at the chest, as three counts it, by its value). Distance alone let a
+// reader under a bridge globe go pale tan five to seven metres off: from the
+// stand a doorway holds the real lights for the room beyond (build/light.js),
+// so the bridge's readers have next to none (~0.25) and the lift is all they
+// have; step onto the bridge and its two globes take real lights, 2 to 5 on
+// a reader, and the lift was still on top of them out past NEAR_REACH. A
+// reader under a lamp is no hole from anywhere; it is held to the moorit.
+const NEAR_LIT = [0.6, 1.6];
 const PICK = Q.get('wnear') ?? 'b';
 export const NEAR_ON = !!NEARS[PICK];
 
@@ -50,6 +60,7 @@ const U = {
   uNearCol: { value: new THREE.Vector4() },
   uNearFace: { value: new THREE.Vector4() },
   uNearMisc: { value: new THREE.Vector4() },
+  uNearLit: { value: new THREE.Vector2(...NEAR_LIT) },
 };
 const set = (o) => {
   U.uNear.value.set(...o.weave);
@@ -62,6 +73,8 @@ if (import.meta.env?.DEV && typeof window !== 'undefined') {
   window.__wnear = (k) => { if (NEARS[k]) set(NEARS[k]); else U.uNearMisc.value.z = 0; return k; };
   // (and any of an option's numbers, live: __wnearTune('a', { wool: [[1, 0.8, 0.6], 0.4, 0.6] }))
   window.__wnearTune = (k, o) => { set({ ...NEARS[k], ...o }); return o; };
+  // (and the lamplight it holds over: __wnearLit(0.6, 1.6); 1e3, 2e3 = by distance alone)
+  window.__wnearLit = (a, b) => U.uNearLit.value.set(a, b).toArray();
 }
 
 // Put it into a reader's material after clothShader (readers.js), which it
@@ -79,6 +92,13 @@ export const nearMaterial = (mat, face) => {
 };
 
 const nearShader = (sh) => {
+  // (the chest, where the lamplight on the reader is asked: one place for
+  // the whole figure, so the hood is not held more than the hem)
+  sh.vertexShader = sh.vertexShader
+    .replace('#include <common>', `#include <common>
+      varying vec3 vNearChest;`)
+    .replace('#include <begin_vertex>', `#include <begin_vertex>
+      vNearChest = (modelViewMatrix * vec4(0.0, 12.0, 0.0, 1.0)).xyz;`);
   sh.fragmentShader = sh.fragmentShader
     .replace('void main() {', `
       uniform vec4 uNear;
@@ -86,6 +106,8 @@ const nearShader = (sh) => {
       uniform vec4 uNearFace;
       uniform vec4 uNearMisc;
       uniform vec4 uFaceAt;
+      uniform vec2 uNearLit;
+      varying vec3 vNearChest;
       // The cloth's relief: its height (x) and that height's gradient in the
       // reader's own frame (yzw), already let go of where a thread would be
       // finer than a few pixels. Threads run round the body and up it: round
@@ -154,8 +176,17 @@ const nearShader = (sh) => {
     // touches, and it was those that made it cream. All of it at arm's
     // length; from the stand, where lighting them made them the room's
     // subject, their light kept and some of the colour (NEAR_REACH).
+    // (and wherever a lamp is on the reader, however far off: NEAR_LIT)
     .replace('#include <opaque_fragment>', `if (uNearMisc.z > 0.0 && vKind < 1.15) {
         float nK = 1.0 - smoothstep(${NEAR_REACH[0].toFixed(1)}, ${NEAR_REACH[1].toFixed(1)}, length(vViewPosition));
+        #if NUM_POINT_LIGHTS > 0
+        float nE = 0.0;
+        for (int i = 0; i < NUM_POINT_LIGHTS; i++) {
+          nE += dot(pointLights[i].color, vec3(0.3, 0.59, 0.11))
+            * getDistanceAttenuation(length(pointLights[i].position - vNearChest), pointLights[i].distance, pointLights[i].decay);
+        }
+        nK = max(nK, smoothstep(uNearLit.x, uNearLit.y, nE));
+        #endif
         float nL = dot(outgoingLight, vec3(0.3, 0.59, 0.11));
         float nT = dot(uNearCol.rgb, vec3(0.3, 0.59, 0.11));
         outgoingLight = mix(outgoingLight, nL * uNearCol.rgb / nT, uNearCol.w * mix(${NEAR_REACH[2].toFixed(2)}, 1.0, nK)) * mix(1.0, uNearMisc.x * nT, nK);

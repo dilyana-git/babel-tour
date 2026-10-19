@@ -1,78 +1,42 @@
 // The garden coming into the Door (2026-10-15; from a canvas of three the
 // user chose b). The green stopped at the arch: ivy up its garden face and a little
-// way in along the passage, moss in the joints by the threshold, leaves blown
-// in — and then the Library's floor, clean. A garden that has broken a wall
-// down does not stop at the line where the wall stood. So the ivy comes on
-// in: along the cracks the fall opened in the pavement, which is where a root
-// finds earth and water; up the room's face of the arch; and, in the last of
-// the three, up the ends of the cases beside it. Grass and seedlings stand in
-// the cracks.
-//   a  in the cracks       tufts in the cracks near the threshold, a few
-//                          short runners along the widest, the passage's ivy
-//                          halfway through
-//   b  over the threshold  the runners in to the middle of the room, the ivy
-//                          up the room's face of the jambs and piers and
-//                          hanging from the arch, through the passage
+// way in along the passage. A garden that has broken a wall down does not
+// stop at the line where the wall stood. So the ivy comes on in: up the
+// room's face of the arch; and, in the last of the three, up the ends of the
+// cases beside it.
+//   a  in the cracks       the passage's ivy halfway through
+//   b  over the threshold  the ivy up the room's face of the jambs and piers
+//                          and hanging from the arch, through the passage
 //   c  taken back          over the gable, up the ends of the cases beside
-//                          the arch, the runners branching, tufts across the
-//                          floor
-// ?wflora=a|c puts one of the other two in its place; ?wflora=old is the
-// Door as it was.
+//                          the arch
+// ?wflora=a|c puts one of the other two in its place. (The runners b and c
+// laid along the cracks were taken up on 2026-10-16: the ivy keeps to the
+// walls — wallRunners, at the end. The grass in the cracks, the moss in the
+// joints and the leaves blown in went the same day: the floor is the
+// Library's, with no green on it.)
 //
 // All of it in the arch's frame (portal.js): x along the wall, y up, z into
 // the room. The cracks' frame (cracks.js) has the same axes, its origin 1.5
 // along: x = along − 1.5, z = into. Drawn from its own streams, never the
 // world's.
 import * as THREE from 'three';
-import { crackFields } from './cracks';
 import { PORTAL } from './portal';
-import { CRACK_LINES } from './doorCrackLines';
+import { growIvy } from './ivy';
 
 const Q = typeof location !== 'undefined' ? new URLSearchParams(location.search) : new URLSearchParams();
 
-// `tufts`: how far into the room grass stands in the cracks, and how close
-// together along them; `runners`: how far in the ivy runs along the cracks,
-// which generations of crack it takes (0 the main ones), how many; `face`:
-// how high it climbs the room's face of the arch, left and right (0: not at
+// `face`: how high it climbs the room's face of the arch, left and right (0: not at
 // all), and its leaf budget; `reveal`: how far through the passage the
 // garden face's ivy goes (into the room, from the wall's garden face);
 // `cases`: up the case ends either side, how high; `hang`: strands from the
 // arch's inner edge.
 export const FLORAS = {
-  a: { tufts: [45, 2.6], runners: { reach: 14, gens: [0], max: 4 }, face: null, reveal: 14, cases: 0, hang: 0 },
-  b: { tufts: [72, 2.0], runners: { reach: 44, gens: [0], max: 7 }, face: { left: 42, right: 30, max: 1500 }, reveal: 25, cases: 0, hang: 5 },
-  c: { tufts: [118, 1.5], runners: { reach: 84, gens: [0, 1], max: 16 }, face: { left: 104, right: 80, max: 3600 }, reveal: 25, cases: 62, hang: 9 },
+  a: { face: null, reveal: 14, cases: 0, hang: 0 },
+  b: { face: { left: 42, right: 30, max: 1500 }, reveal: 25, cases: 0, hang: 5 },
+  c: { face: { left: 104, right: 80, max: 3600 }, reveal: 25, cases: 62, hang: 9 },
 };
 const PICK = Q.get('wflora') ?? 'b';
 export const FLORA = FLORAS[PICK] ?? FLORAS.b;
-
-// The crack lines, in the arch's frame: [{ gen, pts: [x, z, half width] }].
-// Painting them takes a second and a half (crackFields, the floor's map's own
-// painting), so they are painted once ahead of time (tools/crack-lines.mjs,
-// doorCrackLines.js) and read from there while the settings they were painted
-// from are still the cracks' own (`crackKey`); if not, painted here.
-export const crackKey = (cracks) => {
-  const s = JSON.stringify(cracks);
-  let h = 0x811c9dc5;
-  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
-  return h.toString(16);
-};
-export function crackLines(cracks, { fresh = false } = {}) {
-  if (!fresh && CRACK_LINES.key === crackKey(cracks)) {
-    return CRACK_LINES.lines.map(([gen, flat]) => {
-      const pts = [];
-      for (let i = 0; i < flat.length; i += 3) pts.push([flat[i], flat[i + 1], flat[i + 2]]);
-      return { gen, pts };
-    });
-  }
-  if (!fresh) console.warn('[flora] the cracks have changed since their lines were written: run node tools/crack-lines.mjs');
-  const { lines } = crackFields(cracks);
-  return lines.map(({ pts, gen }) => {
-    const out = [];
-    for (let i = 0; i < pts.length; i += 4) out.push([pts[i] - 1.5, pts[i + 1], pts[i + 2]]);
-    return { gen, pts: out };
-  });
-}
 
 // Leaves along a run of stem nodes ({ p, n }), as growIvy sets them: on
 // stalks either side, turned out from what the stem lies on and toward
@@ -112,98 +76,9 @@ export function leavesAlong(nodes, rng, { light = new THREE.Vector3(0, 1, 0), sc
   return leaves;
 }
 
-// Ivy along the cracks: in from the threshold on the main cracks, lying in
-// the gap and a little either side of it as a stem does, thinning to its tip.
-export function crackRunners(lines, opt, rng) {
-  const R = (a, b) => a + (b - a) * rng();
-  const F = PORTAL.FLOOR, stems = [], leaves = [];
-  const up = new THREE.Vector3(0, 1, 0);
-  // the widest first, the ones that start at the breach
-  const cands = lines.filter((l) => opt.gens.includes(l.gen) && l.pts.length > 20 && l.pts[0][1] < (l.gen ? opt.reach : 12))
-    .sort((p, q) => q.pts[0][2] - p.pts[0][2]).slice(0, opt.max);
-  for (const line of cands) {
-    const reach = opt.reach * R(0.6, 1.1);
-    const nodes = [];
-    let last = null, wob = R(0, 6.28);
-    for (const [x, z, hw] of line.pts) {
-      if (z > reach) break;
-      if (last && Math.hypot(x - last[0], z - last[1]) < 0.55) continue;
-      wob += R(0.3, 0.8);
-      const off = Math.sin(wob) * Math.max(0.15, hw * 1.4);
-      nodes.push({ p: new THREE.Vector3(x + off * 0.5, F, z - off * 0.5), n: up.clone() });
-      last = [x, z];
-    }
-    if (nodes.length < 4) continue;
-    const total = nodes.length, r0 = R(0.11, 0.17) * (line.gen ? 0.7 : 1);
-    nodes.forEach((nd, k) => {
-      nd.r = 0.04 + (r0 - 0.04) * (1 - k / (total - 1)) ** 1.3;
-      nd.p.y += nd.r * 0.7;
-    });
-    stems.push(nodes);
-    leaves.push(...leavesAlong(nodes, rng, { scale: 0.85, spacing: 1.15, light: new THREE.Vector3(0, 1, 0.3).normalize() }));
-  }
-  return { stems, leaves };
-}
-
-// Grass and seedlings standing in the cracks: a tuft every so far along each,
-// fewer the further in from the breach, each a few thin blades leaning out of
-// the gap. One geometry, coloured by vertex.
-const BLADES = ['#4a6b2c', '#3d5c26', '#5a7a34', '#2f4a22', '#66863a', '#6b7a3a'];
-export function crackTufts(lines, [reach, every], rng, toWorld) {
-  const R = (a, b) => a + (b - a) * rng();
-  const F = PORTAL.FLOOR;
-  const pos = [], col = [], nrm = [];
-  const c = new THREE.Color();
-  const blade = (x, z, h, lean, turn, w, shade) => {
-    // a blade: a tapered strip, bent over as it rises (5 points up it)
-    const dx = Math.cos(turn), dz = Math.sin(turn), sx = -dz, sz = dx;
-    const ring = [];
-    for (let i = 0; i <= 4; i++) {
-      const t = i / 4, bend = lean * t * t * h;
-      ring.push([x + dx * bend, F + h * t * (1 - 0.25 * lean * t), z + dz * bend, w * (1 - t) ** 0.8]);
-    }
-    c.set(BLADES[Math.floor(rng() * BLADES.length)]).multiplyScalar(shade);
-    for (let i = 0; i < 4; i++) {
-      const [x0, y0, z0, w0] = ring[i], [x1, y1, z1, w1] = ring[i + 1];
-      const quad = [[x0 - sx * w0, y0, z0 - sz * w0], [x0 + sx * w0, y0, z0 + sz * w0], [x1 + sx * w1, y1, z1 + sz * w1], [x1 - sx * w1, y1, z1 - sz * w1]];
-      for (const k of [0, 1, 2, 0, 2, 3]) {
-        const p = toWorld(quad[k]);
-        pos.push(p.x, p.y, p.z);
-        // (a blade's light is the sky's: its normal more up than out)
-        nrm.push(dx * 0.35, 0.9, dz * 0.35);
-        const dark = i === 0 ? 0.55 : 1;
-        col.push(c.r * dark, c.g * dark, c.b * dark);
-      }
-    }
-  };
-  for (const { pts } of lines) {
-    let next = R(0, every);
-    let s = 0, prev = null;
-    for (const [x, z, hw] of pts) {
-      if (prev) s += Math.hypot(x - prev[0], z - prev[1]);
-      prev = [x, z];
-      if (s < next || z > reach || hw < 0.012) continue;
-      // fewer the further in, and not on every one
-      next = s + every * R(0.6, 1.6) * (1 + z / reach);
-      if (rng() < z / reach * 0.6) continue;
-      const n = 3 + Math.floor(rng() * 6), shade = R(0.75, 1.1);
-      const tall = R(0.5, 1.5) * (1.15 - 0.5 * z / reach);
-      for (let k = 0; k < n; k++) {
-        blade(x + R(-0.12, 0.12), z + R(-0.12, 0.12), tall * R(0.55, 1.1), R(0.2, 0.9), R(0, 6.28), R(0.035, 0.07), shade);
-      }
-    }
-  }
-  if (!pos.length) return null;
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  g.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3));
-  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
-  return g;
-}
-
 // The sheets the ivy grows over on the room's side, for growIvy: the room's
 // face of the arch (cast toward the wall), and the case ends either side.
-export function roomSheets(opt, R) {
+export function roomSheets(opt, R, ends = null) {
   const F = PORTAL.FLOOR, HW = PORTAL.HW;
   const opening = (u, v, a) => Math.abs(u) < HW + a && v < PORTAL.soffitAt(u, a) + 0.4;
   const sheets = [];
@@ -214,7 +89,8 @@ export function roomSheets(opt, R) {
       light: new THREE.Vector3(0, 1, 0.6).normalize(), max, fork: 0.09,
       allow: (u, v) => Math.abs(u) < 33 && v > F - 1 && !opening(u, v, 0.8)
         && v < (u < 0 ? left - Math.max(0, -u - 20) * 0.6 : right - Math.max(0, u - 20) * 0.6),
-      seeds: [
+      // (from where the passage's stems come round onto it: wallEnds)
+      seeds: ends ? ends.map(({ u, v, th, len, vigour }) => [u, v, th, len, vigour]) : [
         ...[-14.5, -17, -21, -25.5, -30].map((u) => [u + R(-0.6, 0.6), F + 0.2, R(-0.3, 0.3), left * R(0.8, 1.15), R(0.7, 1)]),
         ...[14.5, 18, 23, 29].map((u) => [u + R(-0.6, 0.6), F + 0.2, R(-0.3, 0.3), right * R(0.75, 1.1), R(0.55, 0.85)]),
       ],
@@ -244,16 +120,15 @@ export const caseFaces = () => [-1, 1].map((sd) => new THREE.PlaneGeometry(14, 1
 // door line, the room face's stems at the foot of its plinths. Each is now the
 // far end of a stem that runs back out to the garden: a strand's over the
 // garden face (along the ring of voussoirs, out of the ivy on it) and in along
-// the passage's soffit; the runners' and the room face's across the threshold
-// out of the ground beyond the wall.
-const UP = new THREE.Vector3(0, 1, 0);
+// the passage's soffit; the room face's along the passage's walls (wallRunners).
+// Nothing lies on the floor: "they should stay on the wall, not on the floor."
 // A stem laid on the stone along a run of rays ([o, d] a step apart), each
-// finding what it lies on; `miss` where it lies when a ray finds nothing.
-function layStem(caster, rays, { far = 30, miss = null } = {}) {
+// finding what it lies on.
+function layStem(caster, rays, { far = 30 } = {}) {
   const nodes = [];
   let prev = null;
   for (const [o, d] of rays) {
-    const h = caster.cast(o, d, far) ?? miss?.(o, d);
+    const h = caster.cast(o, d, far);
     if (!h) continue;
     // over an arris: a node at the corner, so the stem does not cut it
     const jump = prev ? h.t - prev.h.t : 0;
@@ -271,22 +146,6 @@ const settle = (nodes, r0, r1, lift = 0.9) => nodes.forEach((nd, k) => {
   nd.r = r1 + (r0 - r1) * (1 - k / Math.max(1, nodes.length - 1)) ** 1.2;
   nd.p.addScaledVector(nd.n, nd.r * lift + 0.04);
 });
-// The ground under a ray that finds no stone: the room's floor; beyond the
-// wall the garden's, lower — the gravel of the way under the pergola (5.2),
-// and the grass either side of it (4, from 9.5 out; measured by raycast).
-const groundAt = (x, z) => (z > -PORTAL.WALL - 0.6 ? PORTAL.FLOOR : 5.2 - 1.2 * Math.min(1, Math.max(0, (Math.abs(x) - 8.5) / 1)));
-const floorMiss = (o, d) => {
-  if (d.y >= 0) return null;
-  const y = groundAt(o.x, o.z);
-  return { p: new THREE.Vector3(o.x, y, o.z), n: UP.clone(), t: o.y - y };
-};
-// Rays down onto the floor along a path of plan points [x, z], a step apart.
-function downRays(plan, step = 0.55) {
-  const curve = new THREE.CatmullRomCurve3(plan.map(([x, z]) => new THREE.Vector3(x, 0, z)), false, 'centripetal');
-  const n = Math.max(2, Math.round(curve.getLength() / step));
-  return curve.getSpacedPoints(n).map((p) => [new THREE.Vector3(p.x, PORTAL.FLOOR + 4, p.z), new THREE.Vector3(0, -1, 0)]);
-}
-
 // The arch's curves about their centres: a point `r` from the centre of the
 // arc on `u`'s side, at angle `th` up from the springing.
 const arcPoint = (s, th, r) => [-s * PORTAL.CEN + s * r * Math.cos(th), PORTAL.SPR + r * Math.sin(th)];
@@ -345,77 +204,109 @@ export function joinStrand(feeder, hung) {
   return { nodes: [...feeder.nodes, ...tail], leaves: [...feeder.leaves, ...hung.leaves] };
 }
 
-// Where the garden's stems come in across the threshold: out of the grass
-// beside the gravel way a few paces beyond the wall, over the gravel to one
-// of three places at the threshold (a clump of stems at each), in across the
-// threshold stone, and to `to`.
-const ENTRIES = [-6.5, 1, 7.5];
-function leadPlan(to, rng, { entry = null } = {}) {
+// The room face's ivy, rooted in the garden and carried along the passage's
+// walls. "Those branches look very 2D and they still end in nowhere … maybe
+// they should stay on the wall, not on the floor" (2026-10-16): the stems that
+// lay across the threshold and along the cracks are gone. Each of these comes
+// out of the ground in the garden beside the arch, among the hedges at the
+// wall's foot, climbs the garden face, turns its arris into the passage, runs
+// the length of the passage's wall — wandering, never down to the floor — and
+// comes round the room's arris onto the face of the first order, where the
+// room face's ivy (roomSheets) goes on from its end.
+//
+// Where they come round, and the stems that go on from there, left and right:
+// [{ s, u, v, th, len, vigour }] (growIvy's seed, and `s` its side).
+const RUNS = { left: [4, 9.5, 15, 22], right: [5, 12, 19] };
+export function wallEnds(opt, rng) {
   const R = (lo, hi) => lo + (hi - lo) * rng();
-  const W = PORTAL.WALL, e = entry ?? ENTRIES.reduce((b, x) => (Math.abs(x - to[0]) < Math.abs(b - to[0]) ? x : b));
-  const side = Math.abs(e) > 3 ? Math.sign(e) : rng() < 0.5 ? -1 : 1;
-  return [
-    [side * R(11, 14), -W - R(5, 10)],
-    [side * R(9.5, 10.5), -W - R(3.5, 4.5)],
-    [e + R(-0.8, 0.8), -W - R(1.2, 2)],
-    [e * 0.92 + R(-0.8, 0.8), -W * 0.5 + R(-3, 3)],
-    [e + (to[0] - e) * 0.25 + R(-0.6, 0.6), PORTAL.Z0 - 2],
-    to,
-  ];
-}
-// The nodes up to (not including) the plan's last point, laid on the floor
-// and settled, the first sunk in the ground; and leaves along them (fewer in
-// the passage's shade).
-function lead(caster, plan, r0, r1, rng, opt = {}) {
-  const nodes = layStem(caster, downRays(plan), { far: 20, miss: floorMiss });
-  nodes.pop();
-  if (nodes.length < 3) return null;
-  settle(nodes, r0, r1, 0.7);
-  nodes[0].p.y -= 0.5 + r0;
-  const W = PORTAL.WALL;
-  const leaves = leavesAlong(nodes, rng, { light: new THREE.Vector3(0, 1, 0.3).normalize(), scale: opt.scale ?? 0.9, spacing: opt.spacing ?? 1.2 })
-    .filter((lf) => lf.p.z < -W + 3 || lf.p.z > -1 || rng() < 0.5);
-  leaves.forEach((lf) => { lf.young = false; });
-  return { nodes, leaves };
-}
-// Each runner (crackRunners') led back to the garden: prepended to its stem.
-export function leadRunners(caster, run, rng) {
-  for (const stem of run.stems) {
-    const p0 = stem[0].p, l = lead(caster, leadPlan([p0.x, p0.z], rng), Math.max(0.2, stem[0].r * 1.4), stem[0].r, rng);
-    if (!l) continue;
-    stem.unshift(...l.nodes);
-    run.leaves.push(...l.leaves);
+  const { HW, FLOOR: F } = PORTAL, { left, right } = opt.face ?? { left: 30, right: 24 };
+  const ends = [];
+  for (const [s, hs, top] of [[-1, RUNS.left, left], [1, RUNS.right, right]]) {
+    for (const h of hs) ends.push({ s, u: s * (HW + 1.6), v: F + h + R(-1.2, 1.2), th: s * R(0.45, 0.85), len: top * R(0.75, 1.1), vigour: s < 0 ? R(0.35, 0.6) : R(0.25, 0.5) });
   }
+  return ends;
 }
-// The room face's stems (growIvy's, from roomSheets) that start on the floor:
-// branches off a trunk either side, in from the garden along the foot of the
-// passage's wall to the door line, and from there along the floor to each.
-export function leadFaceRoots(caster, grown, rng) {
+const V3 = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
+// no two nodes nearer than `gap` (rays fanned round a corner bunch up)
+const thin = (nodes, gap) => nodes.reduce((kept, nd) => {
+  if (!kept.length || nd.p.distanceTo(kept[kept.length - 1].p) > gap) kept.push(nd);
+  return kept;
+}, []);
+// One runner, to `end` (wallEnds'), ending `r1` thick. Returns its nodes (in
+// the arch's frame, from the root), its shoots (stems of their own) and the
+// leaves of both, with a few more lying on the ground round its root.
+export function wallRunner(caster, { s, v }, r1, rng) {
   const R = (lo, hi) => lo + (hi - lo) * rng();
-  const { HW, Z0, FLOOR: F } = PORTAL;
-  const trunks = [];
-  for (const s of [-1, 1]) {
-    const roots = grown.stems.filter((st) => st[0].p.y < F + 1.5 && Math.sign(st[0].p.x) === s && Math.abs(st[0].p.x) > HW - 1);
-    if (!roots.length) continue;
-    const corner = [s * (HW - 2.6), Z0 + 2.6];
-    const big = Math.max(...roots.map((st) => st[0].r));
-    const trunk = lead(caster, [...leadPlan(corner, rng, { entry: s * (HW - 3.2) }).slice(0, -1), corner, [corner[0] + s * 0.5, corner[1] + 0.6]], big * 1.25, big * 1.05, rng, { scale: 1 });
-    if (!trunk) continue;
-    trunks.push(trunk);
-    for (const st of roots) {
-      const p0 = st[0].p;
-      // in front of the plinth it climbs from, then to it
-      const plan = [corner, [corner[0] + (p0.x - corner[0]) * 0.5, Math.max(corner[1], p0.z + R(0.8, 1.6))], [p0.x + R(-0.4, 0.4), p0.z + R(0.9, 1.4)], [p0.x, p0.z]];
-      const nodes = layStem(caster, downRays(plan), { far: 20, miss: floorMiss });
-      nodes.pop();
-      if (nodes.length < 2) continue;
-      settle(nodes, big * 1.05, st[0].r, 0.7);
-      st.unshift(...nodes);
-      grown.leaves.push(...leavesAlong(nodes, rng, { light: new THREE.Vector3(0, 1, 0.3).normalize(), scale: 0.9, spacing: 1.3 }));
+  const { HW, WALL: W, Z0, FLOOR: F } = PORTAL, GARDEN = 4.5, X = (d) => s * (HW + d), deg = Math.PI / 180;
+  // up the garden face out of the grass (4 there), and across it to the splay
+  const xr = X(GARDEN + R(3, 7)), yA = Math.min(v, F + R(2, 7)), x1 = X(GARDEN + 0.4);
+  const n1 = Math.max(4, Math.round(Math.hypot(xr - x1, yA - 4) / 0.5)), bow = R(-1.2, 1.2);
+  const up = [];
+  for (let i = 0; i <= n1; i++) {
+    const t = i / n1;
+    up.push([V3(xr + (x1 - xr) * t * t + s * bow * Math.sin(Math.PI * t), 4 + (yA - 4) * Math.sin((t * Math.PI) / 2), -W - 14), V3(0, 0, 1)]);
+  }
+  const face = layStem(caster, up, { far: 20 });
+  // along the passage's wall, a ray out to it at each step, from the arris on
+  // the garden side to the door line: climbing from where it came in to `v`,
+  // wandering up and down about that line as a stem on a wall does
+  const z0 = -W + 0.4, z1 = Z0 - 1.6, K = 6;
+  const ctrl = Array.from({ length: K + 1 }, (_, k) => {
+    const t = k / K, e = t * t * (3 - 2 * t);
+    return V3(0, yA + (v - yA) * e + (k && k < K ? R(-2.8, 2.8) : 0), z0 + (z1 - z0) * (k && k < K ? t + R(-0.04, 0.04) : t));
+  });
+  const path = new THREE.CatmullRomCurve3(ctrl, false, 'centripetal');
+  const rays = path.getSpacedPoints(Math.round((z1 - z0) / 0.5)).map((q) => [V3(s * (HW - 6), Math.max(F + 2.5, q.y), q.z), V3(s, 0, 0)]);
+  const along = layStem(caster, rays, { far: 20 });
+  // round the room's arris onto the first order's face: rays fanned from a
+  // point in the opening, swept from the wall round to the face
+  const fan = [];
+  for (let a = 56; a >= 34; a -= 1.5) fan.push([V3(s * (HW - 3), v, Z0 + 3), V3(s * Math.cos(a * deg), 0, -Math.sin(a * deg))]);
+  const round = layStem(caster, fan, { far: 12 });
+  if (face.length < 2 || along.length < 6) return null;
+  const nodes = thin([
+    { p: V3(xr, 3.2, -W - 0.7), n: V3(0, 0.3, -1).normalize() },
+    ...face,
+    { p: V3(X(GARDEN + 0.05), yA, -W - 0.05), n: V3(-s * 0.4, 0, -1).normalize() },
+    ...along, ...round,
+  ], 0.4);
+  settle(nodes, R(0.34, 0.42), r1);
+  // leaves all along it, and shoots off it up (a few down) the passage's
+  // wall, each with its leaves: a stem the length of the passage is not a
+  // bare cable with a leaf every so often
+  const leaves = leavesAlong(nodes, rng, { light: V3(0, 0.8, -0.7).normalize(), scale: 1.05, spacing: 0.8 });
+  leaves.forEach((lf) => { lf.young = false; });
+  const seeds = [];
+  for (let at = R(1, 3), run = 0, k = 1; k < along.length; k++) {
+    run += along[k].p.distanceTo(along[k - 1].p);
+    if (run < at) continue;
+    at = run + R(2.5, 5);
+    const down = rng() < 0.25;
+    seeds.push([along[k].p.z, along[k].p.y, down ? Math.PI + R(-0.6, 0.6) : R(-1.1, 1.1), down ? R(1.5, 3.5) : R(2.5, 8), 0.2]);
+  }
+  const shoots = growIvy(caster, [{
+    ray: (u, y, o, d) => { o.set(s * (HW - 6), y, u); d.set(s, 0, 0); }, far: 20, scale: 0.95, fork: 0.12,
+    light: V3(0, 0.7, -1).normalize(), max: 600,
+    allow: (u, y) => u > -W + 0.6 && u < Z0 - 1.4 && y > F + 2 && y < 42,
+    seeds,
+  }], rng);
+  // (a shoot is a third the thickness growIvy gives a root; laid back to the wall to match)
+  for (const st of shoots.stems) {
+    for (const nd of st) {
+      const r = 0.035 + (nd.r - 0.045) * 0.4;
+      nd.p.addScaledVector(nd.n, (r - nd.r) * 0.9);
+      nd.r = r;
     }
   }
-  for (const t of trunks) {
-    grown.stems.push(t.nodes);
-    grown.leaves.push(...t.leaves);
+  leaves.push(...shoots.leaves);
+  // and the ivy it rose from, lying on the ground about its root
+  const m = new THREE.Matrix4();
+  for (let k = 0; k < 9; k++) {
+    const a = R(0, 6.28), d = R(0.4, 2.6);
+    const face = V3(R(-0.35, 0.35), 1, R(-0.35, 0.35)).normalize(), tip = V3(Math.cos(a), 0, Math.sin(a));
+    tip.addScaledVector(face, -tip.dot(face)).normalize();
+    m.makeBasis(V3().crossVectors(tip, face).normalize(), tip, face);
+    leaves.push({ p: V3(xr + Math.cos(a) * d, 4.08 + R(0, 0.25), Math.min(-W - 0.4, -W - 0.6 + Math.sin(a) * d)), q: new THREE.Quaternion().setFromRotationMatrix(m), s: R(0.9, 1.4) });
   }
+  return { nodes, leaves, shoots: shoots.stems };
 }

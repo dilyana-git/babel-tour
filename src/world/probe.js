@@ -20,7 +20,7 @@ export const SHOULDER = 4;
 
 const solid = (o) => {
   if (!o.isMesh || o.isInstancedMesh || !o.visible) return false;
-  if (['doorway', 'stars', 'sky'].includes(o.name)) return false;
+  if (['doorway', 'stars', 'sky', 'below'].includes(o.name)) return false;
   const m = o.material;
   if (!m || Array.isArray(m)) return false;
   if (m.blending === THREE.AdditiveBlending) return false;   // lit air, glows, stars

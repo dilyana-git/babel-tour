@@ -4,7 +4,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { PAVILION_BRIDGE_HALF_WIDTH } from '../pavilionBridge';
-import { PAVILION_PATH, gardenWalks } from '../gardenPlan';
+import { PAVILION_PATH, gardenWalks, GRAVEL_TOP } from '../gardenPlan';
 import { makeRng, FOLIAGE_KINDS } from '../textures';
 import { makeSparkles, makeFoliageDepthMaterial, crossedCards, makeBackdropFoliage } from '../effects';
 import { Wood, growTree, BLOSSOM as CHERRY_BLOSSOM } from '../trees';
@@ -552,7 +552,8 @@ export function* buildMist(ctx) {
         return [POND.c[0] + Math.cos(a) * (POND.rx + LAWN.bank), POND.c[1] + Math.sin(a) * (POND.rz + LAWN.bank)];
       });
       const edges = [
-        ...ways.map((o) => ({ pts: o.pts, off: o.w / 2 + 0.15 })),
+        // (right to the gravel's edge, now it lies flush: the blades lean over it)
+        ...ways.map((o) => ({ pts: o.pts, off: o.w / 2 - 0.2, dense: TUFTS.ways })),
         ...hedgeGround.map((loop) => ({ pts: loop, off: 0.6, closed: true })),
         { pts: bankRing, off: 0, closed: true },
         { pts: mazeRect, off: 0.2, closed: true },
@@ -561,7 +562,14 @@ export function* buildMist(ctx) {
         ...standing.map((st) => ({ p: st.p, r: st.r + 0.2 })),
         ...rocks.filter((rk) => rk.bank === undefined).map((rk) => ({ p: [rk.p[0], rk.p[2]], r: Math.max(rk.s[0], rk.s[2]) * 0.8 })),
       ];
-      for (const g of edgeTufts({ edges, rings, ok: (p) => ok(p) && offMaze(p), lamps: lawnLamps, ground: 4, t: TUFTS, density: light ? 0.5 : 1 })) {
+      // and up to the kerb's stones, not through them: a tuft rooted under a
+      // stone's top comes up through it
+      const kerb = rocks.filter((rk) => rk.edge).map((rk) => ({ p: [rk.p[0], rk.p[2]], r: Math.min(rk.s[0], rk.s[2]) * 0.85 }));
+      const tuftOk = (p) => inGarden(p) && ways.every((o) => lineDist(p, o.pts) > o.w / 2 + 0.05) && offPond(p, LAWN.bank)
+        && !standing.some((st) => dist(p, st.p) < st.r + 0.2)
+        && !kerb.some((st) => Math.abs(st.p[0] - p[0]) < st.r && Math.abs(st.p[1] - p[1]) < st.r && dist(st.p, p) < st.r)
+        && !hedged.some((h) => p[0] > h.x0 && p[0] < h.x1 && p[1] > h.z0 && p[1] < h.z1 && inLoop(p, h.loop));
+      for (const g of edgeTufts({ edges, rings, ok: (p) => tuftOk(p) && offMaze(p), lamps: lawnLamps, ground: 4, t: TUFTS, density: light ? 0.5 : 1 })) {
         const m = new THREE.Mesh(keep(g), M.lawnBlade);
         m.receiveShadow = true;
         m.name = 'lawnBlades';
@@ -601,7 +609,7 @@ export function* buildMist(ctx) {
     // how far outside the nearest way's gravel (negative: on it)
     const offWay = (p) => Math.min(...floors.map((o) => lineDist(p, o.pts) - o.w / 2));
     const gravelAt = (x, z) => ss(1.2, -1.2, offWay([x, z]));
-    const floorAt = (x, z) => 4 + 1.2 * gravelAt(x, z);
+    const floorAt = (x, z) => 4 + (GRAVEL_TOP - 4) * gravelAt(x, z);
     // the way up onto each bridge's step, kept to the gravel (the walk's own
     // line onto the Pavilion's: in from the path, then square up the run)
     const approaches = bridges.map((BR) => {
@@ -617,7 +625,7 @@ export function* buildMist(ctx) {
       let y = Infinity;
       const dd = deckD(p) - (HWB + 1.2), cd = approachD(p) - 5.5;
       if (dd < 2) y = 6.4 + Math.max(0, dd) * 0.6;
-      if (cd < 3) y = Math.min(y, 4.95 + Math.max(0, cd) * 0.75);
+      if (cd < 3) y = Math.min(y, GRAVEL_TOP - 0.25 + Math.max(0, cd) * 0.75);
       return y;
     };
     const clear = (p, r, across) => offWay(p) > across - 0.8

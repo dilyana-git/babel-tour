@@ -582,6 +582,8 @@ function koiTemplate() {
 export function makeKoi({ pond, clear, time, gather = null, seed = 2718 }) {
   const rnd = makeRng(seed), rr = (a, b) => a + (b - a) * rnd();
   // Twelve fish, the proportions a garden pond has: mostly kohaku and sanke.
+  // (The 'red strokes' seen from the bridge on 2026-10-16 were the water's
+  // shatter glow, not these — see water.js; sinking the fish only lost them.)
   const kinds = ['kohaku', 'kohaku', 'sanke', 'showa', 'kohaku', 'yamabuki', 'sanke', 'chagoi', 'tancho', 'platinum', 'asagi', 'orenji'];
   const fish = [];
   kinds.forEach((kind, n) => {

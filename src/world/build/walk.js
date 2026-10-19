@@ -5,14 +5,13 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { pavilionCrossing, pavilionRound } from '../pavilionBridge';
-import { PAVILION_PATH, SHORE_PATH } from '../gardenPlan';
+import { PAVILION_PATH, SHORE_PATH, GRAVEL_TOP } from '../gardenPlan';
 import { buildFinale } from '../finale';
 import { makeDoorway } from '../doorway';
 import { STAND_TURN, STAND_PITCH } from '../vertigoProps';
 import { STAND as FORK_STAND } from '../forkProps';
 import { standOn, STAND as PAV_STAND } from '../pavilionProps';
 import { BELT } from '../webProps';
-import { POND as POND_GLOW } from '../gardenProps';
 import { STAND as DOOR_STAND, CANDLES as DOOR_CANDLES } from '../doorProps';
 import { VANTAGES } from '../vantages';
 import { hexAislePoint, roundAislePoint, pathToPoint, makeWalkCurve } from '../walkPath';
@@ -25,9 +24,9 @@ export function buildStands(ctx) {
     HEART, COURT_HALF, at } = ctx;
   // ── Where a reader stands, and the ways on ────────────────────────────────
   // Eye height is a reader's (the figures stand 18 tall). The ground is 6 on
-  // the Library's floors, 5.2 on the garden's gravel, 8.6 on the bridge, 5 in
+  // the Library's floors, 4.06 on the garden's gravel, 8.6 on the bridge, 5 in
   // the maze, and each tread's height on the Echo's stair.
-  const EYE = 15, FLOOR = 6, GRAVEL = 5.2, DECK = 8.6, MAZE = 5;
+  const EYE = 15, FLOOR = 6, GRAVEL = GRAVEL_TOP, DECK = 8.6, MAZE = 5;
   const C0 = cellC(0, 0), C1 = cellC(1, -1), C2 = cellC(2, -2);
   const ring = (c, a, r) => add(c, dir(a), r);
   // Use the aisle's two boundaries, including the corners of a hexagon.
@@ -58,8 +57,8 @@ export function buildStands(ctx) {
   const bridgeAxis = unit(SHORE, BRIDGE[1]);
   const bridgeEntry = [
     eye(add(SHORE, bridgeAxis, -10), GRAVEL),
-    eye(add(SHORE, bridgeAxis, -5.4), 6.9),
-    eye(add(SHORE, bridgeAxis, -3.6), 6.7),
+    eye(add(SHORE, bridgeAxis, -5.4), (GRAVEL + DECK) / 2),
+    eye(add(SHORE, bridgeAxis, -3.6), (GRAVEL + DECK) / 2 - 0.2),
     eye(SHORE, DECK),
   ];
   const pergola = unit(PERGOLA0, J);
@@ -302,7 +301,7 @@ export function buildWornFloor(ctx) {
 }
 
 export function buildWaterView(ctx) {
-  const { dist, water, glows, waterLamps, POND, PV, POOLS } = ctx;
+  const { dist, water, glows, waterLamps, POND, POOLS } = ctx;
   // ── What the water has to look at ─────────────────────────────────────────
   // Every lit thing in the world offers itself to the pond, and the few that
   // would actually show in it are the ones it keeps. A lamp in water is not a
@@ -331,8 +330,6 @@ export function buildWaterView(ctx) {
       .sort((a, b) => b.seen - a.seen)
       .slice(0, 12)
       .forEach(({ g }) => water.addLamp([g.p[0], g.p[2]], g.p[1], g.color, g.k ?? 1));
-    // and the Pavilion's lit columns, for the chop to break up (gardenProps.js)
-    if (POND_GLOW.on) water.setGlow([PV[0], 30, PV[1]], POND_GLOW.glow.color);
   }
 }
 
@@ -471,21 +468,48 @@ export function* buildEnding(ctx) {
   // them all three; each fades to what can be seen (`seen`). A line costs a
   // fifth of a millisecond here. `sight`: the body's line of sight (body.js),
   // handed in by World.jsx.
-  let sight = null;
-  const setSight = (fn) => { sight = fn; };
+  // `whole`: whether every tree the body asks is built yet; until then a
+  // clear line far off may only mean the wall in the way is not built, so a
+  // halo past NEAR_OK is not believed seen (World.jsx starts building them
+  // six seconds after the map is up).
+  let sight = null, whole = () => true;
+  const NEAR_OK = 60;
+  const setSight = (fn, ready = () => true) => { sight = fn; whole = ready; };
   let seenNext = 0, seenT = -1;
   const toLamp = new THREE.Vector3(), aside = new THREE.Vector3(), seenAt = new THREE.Vector3(), UP = new THREE.Vector3(0, 1, 0);
   const SIDE = [0, 1, -1];
+  // (2026-10-16) An answer asked from far off says nothing about here. Over
+  // the flight in the eye moves thirty units a frame at twelve frames a
+  // second, four questions a frame never caught up with it, and a halo never
+  // asked counts as seen: every lamp behind the walls showed its glow through
+  // the stone, "the outlines of the spheres". So a halo near enough to be
+  // asked about, with no answer from within STALE of the eye, is hidden until
+  // it has one: a glow missing for a moment, never one through a wall. (Far
+  // more than a walk covers between two questions, so walking does not
+  // flicker them.)
+  const STALE = 40, ASK = 900;
+  let wasWhole = false;
   const occlude = (t, eye, gaze) => {
     const dt = seenT < 0 ? 0 : Math.min(0.1, Math.max(0, t - seenT));
     seenT = t;
     if (!sight || !eye || !halos.length) return;
+    // (the last tree built: ask them all again, the far ones were not believed)
+    const isWhole = whole();
+    if (isWhole && !wasWhole) for (const h of halos) h.tries = 0;
+    wasWhole = isWhole;
+    for (const h of halos) {
+      if (h.from && h.from.distanceToSquared(eye) <= STALE * STALE) continue;
+      if (h.sprite.position.distanceToSquared(eye) > ASK * ASK) continue;
+      h.open = [0, 0, 0];
+      h.seenTo = 0;
+      (h.from ??= new THREE.Vector3()).set(Infinity, Infinity, Infinity);
+    }
     let asked = 0, n = 0;
-    for (; n < halos.length && asked < 4; n++) {
+    for (; n < halos.length && asked < 8; n++) {
       const h = halos[(seenNext + n) % halos.length];
       toLamp.subVectors(h.sprite.position, eye);
       const d = toLamp.length();
-      if (d < 1 || d > 900 || (gaze && toLamp.dot(gaze) < d * 0.3)) continue;
+      if (d < 1 || d > ASK || (gaze && toLamp.dot(gaze) < d * 0.3)) continue;
       if (!h.from || h.from.distanceToSquared(eye) > 2.25) {
         (h.from ??= new THREE.Vector3()).copy(eye);
         h.tries = 0;
@@ -496,7 +520,7 @@ export function* buildEnding(ctx) {
       const r = Math.max(1.2, h.size * 0.05), short = Math.max(1.6, h.size * 0.08);
       aside.crossVectors(toLamp, UP).normalize().multiplyScalar(r * SIDE[h.tries % 3]);
       seenAt.copy(h.sprite.position).add(aside);
-      h.open[h.tries % 3] = sight(eye, seenAt, short) ? 1 : 0;
+      h.open[h.tries % 3] = sight(eye, seenAt, short) && (d < NEAR_OK || whole()) ? 1 : 0;
       h.tries++;
       h.seenTo = (h.open[0] + h.open[1] + h.open[2]) / 3;
     }

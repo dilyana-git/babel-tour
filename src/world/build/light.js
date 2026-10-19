@@ -129,9 +129,12 @@ export function* buildLight(ctx) {
     const live = lightPool.slice(0, budget);
     const lit = new Set(live.filter((s) => s.level > 0.05).map((s) => s.wish));
     const rank = (w) => Math.min(near2(w, eye), far ? near2(w, far) : Infinity) * (lit.has(w) ? 0.55 : 1);
+    // (`gate`: a lamp behind stone that is still up — libraryFace.js — asks
+    // for no light, or it would light the lawn through the wall)
+    const shut = (w) => w.gate !== undefined && w.gate < 0.01;
     const wanted = eye
-      ? [...lightWishes].sort((a, b) => (owns(b) - owns(a)) || (rank(a) - rank(b))).slice(0, budget)
-      : byPriority.slice(0, budget);
+      ? lightWishes.filter((w) => !shut(w)).sort((a, b) => (owns(b) - owns(a)) || (rank(a) - rank(b))).slice(0, budget)
+      : byPriority.filter((w) => !shut(w)).slice(0, budget);
     // A lamp and its twin are one light seen from either side of a doorway:
     // a light carrying the one is handed the other at once, where it stands,
     // rather than going out for it to come on again.
@@ -148,7 +151,7 @@ export function* buildLight(ctx) {
         // three.js stops compiling it into the shader, which is the whole point
         // of doing this at all.
         slot.level = Math.max(0, slot.level - dt * 4);
-        slot.light.intensity = slot.wish ? slot.wish.intensity * 0.9 * slot.level : 0;
+        slot.light.intensity = slot.wish ? slot.wish.intensity * 0.9 * slot.level * (slot.wish.gate ?? 1) : 0;
         if (slot.level <= 0.001) { slot.wish = null; slot.light.visible = false; }
         return;
       }
@@ -162,7 +165,7 @@ export function* buildLight(ctx) {
       }
       const on = slot.wish && wanted.includes(slot.wish);
       slot.level = on ? Math.min(1, slot.level + dt * 2.5) : Math.max(0, slot.level - dt * 4);
-      slot.light.intensity = slot.wish ? slot.wish.intensity * 0.9 * slot.level : 0;
+      slot.light.intensity = slot.wish ? slot.wish.intensity * 0.9 * slot.level * (slot.wish.gate ?? 1) : 0;
     });
     twinning = !!far;
     placeLights(twinning);
@@ -244,7 +247,7 @@ export function* buildUnexplored(ctx) {
     });
     water.setMapPavilion(PV, GARDEN_MAP.pavilion.r, GARDEN_MAP.pavilion.k, mapWarm);
     // the moon on the pond: a wash of it over the whole water, and its road —
-    // broken lengths of silver, lying across the way the map looks
+    // one column of silver down the water, as a lamp's lies from the bridge
     glow(paint(256, 196, (g, w, h) => {
       // (strongest toward the far shore, and gone short of the bank all round)
       g.save();
@@ -257,15 +260,29 @@ export function* buildUnexplored(ctx) {
       g.fillStyle = wash;
       g.fillRect(-w / 2, -w / 2, w, w);
       g.restore();
+      // (the road, widening toward the near shore: a soft band, and dashes
+      // stacked down it each nearly the band's width, so it reads as one
+      // broken column and not as glitter; nothing lies off it)
       g.lineCap = 'round';
-      const road = GARDEN_MAP.moon.road * w;
+      const { road: roadAt, width: [far, near], dashes, soft } = GARDEN_MAP.moon;
+      const road = roadAt * w, halfAt = (y) => (far + (near - far) * (y / h)) * w;
       const inside = (x, y) => ((x - w / 2) / (w / 2 - 12)) ** 2 + ((y - h / 2) / (h / 2 - 12)) ** 2 < 1;
-      for (let k = 0; k < 110; k++) {
-        const y = gr(0.06, 0.94) * h, off = gr(-1, 1), half = (0.05 + 0.08 * (y / h)) * w;
-        const x = road + off * Math.abs(off) * half, len = gr(3, 13) * (1 - 0.5 * Math.abs(off));
+      for (let y = 0; y < h; y++) {
+        const half = halfAt(y);
+        for (let x = Math.floor(road - 2 * half); x <= road + 2 * half; x++) {
+          if (!inside(x, y)) continue;
+          const a = soft * Math.exp(-0.5 * ((x - road) / (0.6 * half)) ** 2);
+          g.fillStyle = `rgba(200,218,255,${a.toFixed(3)})`;
+          g.fillRect(x, y, 1, 1);
+        }
+      }
+      // (unevenly: a ladder of even rungs read as drawn, not as water)
+      for (let k = 0; k < dashes; k++) {
+        const y = (0.08 + 0.84 * (k + gr(-0.4, 1.4)) / dashes) * h, half = halfAt(y);
+        const x = road + gr(-0.35, 0.35) * half, len = gr(0.5, 1.7) * half;
         if (!inside(x - len / 2, y) || !inside(x + len / 2, y)) continue;
-        g.strokeStyle = `rgba(214,228,255,${(gr(0.25, 0.9) * (1 - 0.6 * Math.abs(off))).toFixed(3)})`;
-        g.lineWidth = gr(0.8, 1.7);
+        g.strokeStyle = `rgba(214,228,255,${(gr(0.2, 0.75) * (1 - 0.3 * gr(0, 1))).toFixed(3)})`;
+        g.lineWidth = gr(0.7, 1.4);
         g.beginPath();
         g.moveTo(x - len / 2, y);
         g.lineTo(x + len / 2, y);
@@ -273,16 +290,21 @@ export function* buildUnexplored(ctx) {
       }
     }), POND.c, [POND.rx * 2, POND.rz * 2], WATER_Y + 0.45, GARDEN_MAP.moon.k);
     // the wisteria: its racemes hang under the pergola's rafters, and from
-    // above there is only the mat of leaves over them
+    // above there is only the mat of leaves over them (its violet let down
+    // toward a grey lilac: `chroma`)
     {
       const a = PATHS[0].pts[0], L = dist(a, J), t = [(J[0] - a[0]) / L, (J[1] - a[1]) / L];
       const [z0, z1] = GARDEN_MAP.wisteria.along, mid = add(a, t, (z0 + z1) / 2);
+      const lilac = [[178, 134, 255], [150, 110, 236], [206, 170, 255], [226, 196, 255]].map((c) => {
+        const grey = 0.3 * c[0] + 0.59 * c[1] + 0.11 * c[2];
+        return c.map((v) => Math.round(grey + (v - grey) * GARDEN_MAP.wisteria.chroma));
+      });
       glow(paint(96, 256, (g, w, h) => {
         for (let k = 0; k < 420; k++) {
           const u = gr(-1, 1), v = gr(-1, 1);
           const edge = (1 - Math.abs(u) ** 3) * (1 - Math.abs(v) ** 6);
           const x = (0.5 + 0.44 * u) * w, y = (0.5 + 0.47 * v) * h, r = gr(3, 9);
-          const [cr, cg, cb] = [[178, 134, 255], [150, 110, 236], [206, 170, 255], [226, 196, 255]][Math.floor(gr(0, 4))];
+          const [cr, cg, cb] = lilac[Math.floor(gr(0, 4))];
           const grd = g.createRadialGradient(x, y, 0, x, y, r);
           grd.addColorStop(0, `rgba(${cr},${cg},${cb},${(gr(0.2, 0.55) * edge).toFixed(3)})`);
           grd.addColorStop(1, `rgba(${cr},${cg},${cb},0)`);
@@ -353,7 +375,7 @@ export function* buildUnexplored(ctx) {
     };
     mat.customProgramCacheKey = () => `${prevKey.call(mat)}-pitfade`;
   };
-  [M.step, M.shelf, M.shelfLip, M.floor, M.inlay, pitCarved].forEach((m) => m && pitFade(m));
+  [M.step, M.shelf, M.shelfLip, M.floor, M.inlay, M.inlayWorn, pitCarved].forEach((m) => m && pitFade(m));
   // And the tops of the bookcases, which stand to the head of the wall: from
   // the map each would be a pale band inside its cell's rim, timber gone grey
   // under the moon, the brightest cold thing left once the coping round it has

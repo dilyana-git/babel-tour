@@ -50,6 +50,9 @@ import { buildTrees, buildMist } from './build/grounds';
 import { buildLight, buildUnexplored, buildCulling, buildOverlay } from './build/light';
 import { buildStands, buildCrossing, buildWornFloor, buildWaterView, buildEnding } from './build/walk';
 import { lightRooms, tintRooms } from './roomColour';
+import { buildWellsBelow, OPEN_WELLS } from './wellsBelow';
+import { buildShelvesAbove } from './shelvesAbove';
+import { buildLibraryFace } from './libraryFace';
 
 export { FRAME, MASS_H, CAP, PAINTED } from './build/common';
 
@@ -93,6 +96,9 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
   // (each gallery's flame on its lamps, once the four are up and before the
   // globes are instanced with the Door's: roomColour.js)
   lightRooms(ctx);
+  // (the galleries' face on the garden, and the lanterns behind it: before the
+  // Door, whose globes the lanterns' panes are instanced with — libraryFace.js)
+  Object.assign(ctx, buildLibraryFace(ctx));
   yield 'The Door';
   Object.assign(ctx, buildDoor(ctx));
   yield 'The arch';
@@ -133,5 +139,21 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
   const world = yield* buildEnding(ctx);
   // (each gallery's stone, wood and metal, on top of every other patch: roomColour.js)
   tintRooms(ctx);
+  // (the face that goes when it is looked at: libraryFace.js)
+  const tick = world.tick;
+  world.tick = (t, eye, gaze, ...rest) => { ctx.libraryFace.tick(t, eye, gaze); return tick(t, eye, gaze, ...rest); };
+  world.face = ctx.libraryFace;
+  yield 'The galleries below';
+  // (the storeys under the Vestibule's and the Silence's wells, last, so they
+  // see every patch on every material: wellsBelow.js)
+  const below = yield* buildWellsBelow({ root: ctx.root, keep: ctx.keep, levels: light ? 1 : 3,
+    wells: Object.entries(OPEN_WELLS).map(([cell, shaft]) => ({ c: ctx.cellC(...cell.split(',').map(Number)), shaft })) });
+  yield 'The shelves above';
+  // (over the Echo and the Silence their walls go on up, every shelf full:
+  // shelvesAbove.js; after the storeys below, which are not to copy them)
+  const above = yield* buildShelvesAbove(ctx, { levels: light ? 3 : 8 });
+  const cull = world.cull;
+  world.cull = (eye, ...rest) => { below.show(eye); above.show(eye); return cull(eye, ...rest); };
+  world.below = below;
   return world;
 }

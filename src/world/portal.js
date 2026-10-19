@@ -61,7 +61,15 @@ const soffitAt = (x, a = 0) => {
   if (Math.abs(x) >= HW + a) return FLOOR;
   return SPR + Math.sqrt(Math.max(0, r * r - dx * dx));
 };
-export const PORTAL = { HW, CEN, R0, SPR, WALL, Z0, ZS, ZG, ZF, JAMB, PIER, FLOOR, crownAt, soffitAt, GABLE, PIN };
+// The piers' blind lancets: [half across, foot, springing of the head] of each
+// frame, the lower two on the lower stage's face (ZF) and one on the upper's
+// (ZF - 1.4); `frame`, how wide the frame is; `sink`, how far the field lies
+// back of the face (1.3: 12.5 cm).
+const LANCET = {
+  rects: [[2.2, FLOOR + 5, IMPOST - 4.6], [2.2, SPR + 2.2, 55.8], [2, 64.6, 77.4]],
+  face: [ZF, ZF, ZF - 1.4], frame: 0.6, sink: 1.3,
+};
+export const PORTAL = { HW, CEN, R0, SPR, WALL, Z0, ZS, ZG, ZF, JAMB, PIER, FLOOR, crownAt, soffitAt, GABLE, PIN, LANCET, X: HW + JAMB };
 
 // ── Sections ─────────────────────────────────────────────────────────────────
 // A moulding's section, in its own plane: `a` out from the opening into the
@@ -637,21 +645,34 @@ export function buildPortal({ light = false } = {}) {
   // A buttress each side, standing in front of the end of the bookcase: two
   // stages with a weathered set-off between, a blind lancet on each face of
   // each stage, a gablet at the top of its face and a pinnacle over it.
-  const panel = (x0, x1, y0, y1, z) => {
-    // a sunk lancet: its frame stands out from the face, the field inside it is the face
+  // A blind lancet's outline, `inset` in from its frame's outer edge.
+  const lancet = ([x0, x1, y0, y1], inset) => {
     const w = (x1 - x0) / 2, cx = (x0 + x1) / 2;
-    const lancet = (inset) => {
-      const pts = [[cx - w + inset, y0 + inset], [cx + w - inset, y0 + inset], [cx + w - inset, y1]];
-      const r = 2 * w - 2 * inset, n = 10;
-      for (let k = 1; k <= n; k++) { const f = (Math.PI / 3) * (k / n); pts.push([cx - w + inset + r * Math.cos(f), y1 + r * Math.sin(f)]); }
-      for (let k = n - 1; k >= 0; k--) { const f = (Math.PI / 3) * (k / n); pts.push([cx + w - inset - r * Math.cos(f), y1 + r * Math.sin(f)]); }
-      return pts;
-    };
-    return upright(lancet(0), z - 0.3, z + 0.55, [lancet(0.6)]);
+    const pts = [[cx - w + inset, y0 + inset], [cx + w - inset, y0 + inset], [cx + w - inset, y1]];
+    const r = 2 * w - 2 * inset, n = 10;
+    for (let k = 1; k <= n; k++) { const f = (Math.PI / 3) * (k / n); pts.push([cx - w + inset + r * Math.cos(f), y1 + r * Math.sin(f)]); }
+    for (let k = n - 1; k >= 0; k--) { const f = (Math.PI / 3) * (k / n); pts.push([cx + w - inset - r * Math.cos(f), y1 + r * Math.sin(f)]); }
+    return pts;
+  };
+  // its frame, standing out from the face at z
+  const panel = (rect, z) => upright(lancet(rect, 0), z - 0.3, z + 0.55, [lancet(rect, LANCET.frame)]);
+  // A stage of a pier, its face at z: the stone behind it, and the face itself
+  // a skin SINK thick with the lancets cut through it, so each field lies SINK
+  // back and its reveals hold shadow (drawn on a flat face, a lancet was a pale
+  // outline). Its uv as the box it replaces had them, the face's 0 to 1.
+  const stage = (lo, hi, y0, y1, z, rects) => {
+    D(box(lo, hi, y0, y1, -0.2, z - LANCET.sink));
+    const skin = upright([[lo, y0], [hi, y0], [hi, y1], [lo, y1]], z - LANCET.sink, z, rects.map((r) => lancet(r, LANCET.frame)));
+    const p = skin.attributes.position, uv = skin.attributes.uv;
+    for (let i = 0; i < p.count; i++) uv.setXY(i, (p.getX(i) - lo) / (hi - lo), (p.getY(i) - y0) / (y1 - y0));
+    D(skin);
   };
   for (const side of [-1, 1]) {
     const x0 = side * X, x1 = side * (X + PIER), lo = Math.min(x0, x1), hi = Math.max(x0, x1);
-    D(box(lo, hi, FLOOR + 2, 60, -0.2, ZF));
+    // blind lancets on the front of each stage, clear of the impost
+    const cx = (lo + hi) / 2;
+    const [low, mid, top] = LANCET.rects.map(([w, y0, y1]) => [cx - w, cx + w, y0, y1]);
+    stage(lo, hi, FLOOR + 2, 60, ZF, [low, mid]);
     // The set-off: where the pier steps back, a sloped weathering to throw the
     // water off — drawn as its side view and run across the pier.
     {
@@ -660,14 +681,12 @@ export function buildPortal({ light = false } = {}) {
       C(upright(side, 0, w).rotateY(-Math.PI / 2).translate(hi + 0.3, 0, 0));
       C(box(lo - 0.3, hi + 0.3, y0 - 0.7, y0, -0.2, ZF + 0.3));
     }
-    D(box(lo + 0.3, hi - 0.3, 62.6, PIN.base - 2, -0.2, ZF - 1.4));
+    stage(lo + 0.3, hi - 0.3, 62.6, PIN.base - 2, ZF - 1.4, [top]);
     C(box(lo - 0.1, hi + 0.1, PIN.base - 2, PIN.base - 0.8, -0.2, ZF - 1.2));
     C(box(lo - 0.4, hi + 0.4, PIN.base - 0.8, PIN.base, -0.2, ZF - 0.9));
-    // blind lancets on the front of each stage, clear of the impost
-    const cx = (lo + hi) / 2;
-    C(panel(cx - 2.2, cx + 2.2, FLOOR + 5, IMPOST - 4.6, ZF));
-    C(panel(cx - 2.2, cx + 2.2, SPR + 2.2, 55.8, ZF));
-    C(panel(cx - 2, cx + 2, 64.6, 77.4, ZF - 1.4));
+    C(panel(low, ZF));
+    C(panel(mid, ZF));
+    C(panel(top, ZF - 1.4));
     // a gablet at the head of the upper stage's face
     {
       const gz = ZF - 1.4, gy = 82.5, gw = (hi - lo) / 2 - 0.2;

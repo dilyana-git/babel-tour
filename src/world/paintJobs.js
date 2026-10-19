@@ -12,7 +12,7 @@
 // because materials are made from these textures, and shaders compiled for
 // them, long before the paint arrives (effects.js reads the spine atlas's size
 // as it compiles the books).
-import { ashlar, flagstones, paving, walnut, timber, spineAtlas, spineAtlas2, spineTitles, bookRows, bookRowsLayout, hedgeLeaves, limestone, bark, SPINE_COLS, SPINE_ROWS, HIDE_SIZE, TITLE_COLS, TITLE_ROWS } from './textures';
+import { ashlar, flagstones, paving, walnut, timber, spineAtlas, spineAtlas2, spineTitles, bookRows, bookRowsLayout, hedgeLeaves, limestone, tooled, bark, SPINE_COLS, SPINE_ROWS, HIDE_SIZE, TITLE_COLS, TITLE_ROWS } from './textures';
 import { floorCracks, crackSize } from './cracks';
 import { rubbleStone } from './rubble';
 import { shoreRock, shoreBank } from './shore';
@@ -33,6 +33,8 @@ export const PAINTERS = {
   // over the breach's frame, its size from the frame
   floorCracks: { paint: floorCracks, cost: 1500, gives: (a) => { const { w, h } = crackSize(a); return { map: map(w, h, false) }; } },
   limestone: { paint: limestone, cost: 360, gives: (a = {}) => stoneSet(a.size ?? 1024) },
+  // one jointless face of the pale stone, tooled along v (the Echo's voussoirs)
+  tooled: { paint: tooled, cost: 90, gives: (a = {}) => stoneSet(a.size ?? 512) },
   // the grain of the stone that came down in the Door (2026-10-07, rubble.js)
   rubbleStone: { paint: rubbleStone, cost: 450, gives: (a = {}) => stoneSet(a.size ?? 1024) },
   // the garden's granite and the pond's pebbled bank (2026-10-07, shore.js)

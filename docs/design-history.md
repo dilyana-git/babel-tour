@@ -65,6 +65,33 @@ path, and this document in full (`git show 0857f2a:docs/design-history.md`).
   physical Library shelves. Before/after: `.ux-review/shots/book-before-room0.png`
   and `.ux-review/book-qa/book-pointer.png`.
 
+- **The way's "tape" was the brass** (audit V·2·2, "the way glow is still
+  tape: a crisp gold band of constant width, turning square at a corner").
+  Measured from a walking eye: the band stayed with the glow off and went
+  with the brass hidden. It was the inlay ring round each well (hexagon,
+  `shaft + 16.6…18`, 0.5 proud), whose apothem (~57) is the line the worn way
+  follows, so it ran down the middle of the way; and the fillet at the cases'
+  foot. The glow alone was a soft even wash, edged by the worn strip. Options
+  canvas: https://claude.ai/artifact/64LP4HSHm2k4uYyurpbLNv. **Picked A + G2**
+  (my recommendation).
+  - Brass. Was: inlay `#9c7c3c` rough 0.4 metal 0.7; fillet `#6b5634` rough
+    0.72 metal 0.35. **A** (picked): both `#4d3f2b` rough 0.85 metal 0.25
+    (`OLD_BRASS`). The rings round the wells (Vestibule/Silence hexagons, the
+    Echo's two circles, the Vertigo's mouth) are their own batch,
+    `inlayWorn`; the Echo rose keeps `M.inlay`. C: no brass at all (floor
+    reads bare by the cases). Tried, dropped: the ring moved in to the
+    well's lip (the way hugs the well, so it still ran along it); a pale
+    stone strip in its place (read as white tape).
+  - Glow, all on the old window and gain. Was: even across the strip.
+    **G2** (picked): each slab its own half-width (0.32–0.9 of the strip),
+    profile `1 − smoothstep(0.45h, h, across + 0.18·noise)`, strength
+    0.55–1.05, nothing in the joints (roughness G > 0.8–0.92), ×1.2; an even
+    0.45 where a pixel spans 6–28 texels. G1 feathered:
+    `exp(−6.5·a²)`, a = across + 0.32·noise(0.22) + 0.12·noise(0.9), joints
+    ×0.45, ×1.25. G3 hollows: a 32-tap same-slab share (radii 14–104
+    texels), `smoothstep(0.35, 0.95, s)²`, `exp(−3.5·a²)`, ×1.7. The
+    options were in-page mock-ups only, never committed.
+
 - **Cherry blossom: a soft cloud on rounded limbs** (audit V·8·3, "blossom
   as popcorn, on sticks": hard-edged flat pink cards, evenly bright, and
   few-sided straight limbs that read as sticks beside the new lawn). Options
@@ -98,6 +125,85 @@ path, and this document in full (`git show 0857f2a:docs/design-history.md`).
     `?wblossomunder` dials. B and C were never committed; their values are
     above.
 
+## 2026-10-19
+
+- **The ways lie in the lawn** ("the paths in the Fork are still
+  boardwalks", after V·8·2). The gravel was a slab from the lawn's top (4) to
+  5.2 with a sheer side, and the edge stones were centred at 5 on its rim.
+  Now `GRAVEL_TOP` (gardenPlan.js, 4.06) is the gravel's top everywhere: the
+  slabs (3.9 up to it), the rake, the walk's `GRAVEL`, the shore's `floorAt`
+  and the bridge feet (whose step is now halfway between gravel and deck,
+  two even risers). The stones are a kerb (forkProps.js `KERB`): bedded at
+  the lawn's top with a third to a half showing, long side along the way,
+  inner side just over the gravel. The edge tufts root from the gravel's
+  edge and stop at a kerb stone's outline. Knock-ons: the pergola's plinths
+  go down into the lawn (they had floated 0.8 over it); the way into the
+  maze, now a stone's height under the maze floor (5), ends at a dressed
+  sill flush with that floor. Still a slab: the maze floor's own margin
+  outside its hedges, 1 proud of the lawn.
+
+## 2026-10-18
+
+- **The Vertigo globe is glass again** (audit VI·6·1, "still a white egg").
+  The 10-14 diffused opal spread the light evenly to the rim and printed
+  white edge to edge. The well's hanging lamps are back in the shared globe
+  batch with the Echo's and the Vestibule's opal (hot middle, amber rim,
+  glazed), with two new `lamp()` options for a room that keeps its own flame:
+  `glow: 1.6` (brightness) and `glass: '#ffd9b0'` (the Vestibule's tint, since
+  roomColour.js leaves the Vertigo's globes untinted). At glow 2 in the old
+  near-white glass the rim still printed grey-cream. The diffused branch of
+  `makeLampGlobeMaterial` is gone. `public/og-card.jpg` was re-shot from the
+  stand (VI·12·3) with every overlay hidden.
+
+## 2026-10-17
+
+- **The shelves climb on** (audit VI·4·3, "the Library still has a sky").
+  Canvas of four, mocked in the page from the stands
+  (claude.ai/artifact/TCGLvsVqKsPUkckCr8ciKW): A the Vestibule's spiral over
+  every room; B the floors above (wellsBelow turned upward, ribbed ceilings);
+  C the walls stacked up into the dark; D a black lid. The user picked C,
+  "but I want all of the shelves to be filled in", and nothing on the Door.
+  The mock had copied the rooms' triangles, so it brought the doorways, the
+  pier glasses and the far view's bare boards up with them. Now
+  `shelvesAbove.js` draws shelfWall again (detail 1, `stream: 0`) along all
+  six edges of the Echo and the Silence, 8 storeys of 123 (3 when `light`),
+  a whole wall of books on every edge, with the stone behind, a cap course
+  at each storey's head and a black lid at the top. They are meshes of their
+  own on the world's materials (no new programs), shown only within 300 /
+  170 of the room and under 140, so the map still looks into open hexagons.
+  The lamp chains there are drawn to `CHAIN_ABOVE` (489). Cost: 0.20 M
+  vertices, 23 meshes. Found while mocking: the pale patch over the
+  Vestibule's arch on arrival is mostly the Echo's moon column (additive,
+  to y 134), not the sky. The shelves take the blue out of it; the grey glow
+  stays with the column.
+- **The Echo's arch, close up** (audit VI·4·1). "The soffit reads as
+  timber; the joints are pencil lines; the tool marks ignore the stones."
+  The voussoirs were in `cap` (the pale ashlar, projected on world axes)
+  with ECHO_STONE's streaks running the curve, and a 0.1 slot over the
+  black `joint`. Now each voussoir is its own extrusion with its arrises
+  chamfered (0.07) and its own uv: v out along its joint line on its faces,
+  through the wall on its soffit, in a jointless painted face tooled along
+  v (`tooled`, textures.js; `M.voussoir`), a patch and a shade of its own
+  from a hash of its number. The streaks keep to the faces (`worked.ring`).
+  The lime is `M.archMortar` (#6f685d), 0.12 in. The hallway arches
+  (shelves.js) still take `cap` and `joint`.
+- **Readers under a lamp** (audit VI). "This reader, about 2 m away by eye
+  and lit full on by the pier glass's lamp, prints as a pale tan felt: the
+  hood one moulded shell, the shoulders without a seam." The reader was
+  5 to 7 m off, on the bridge's end under its globe, so the near look was
+  half to wholly let go (30 → 70 units). From the stand a doorway holds the
+  real lights for the Echo, so the bridge's readers get ~0.25 of lamplight
+  and the lift is all they have. On the bridge its two globes take real
+  lights, 2 to 5 on a reader, and the lift came on top of them. Now the
+  darkening also holds wherever the lamplight at the chest is over 1.6 (none
+  under 0.6: `NEAR_LIT`, readerNear.js). Robe value (sRGB luma, mean, one
+  mask per distance) under the globe at 5 / 7 m: 52 / 63 → 41 / 39, against
+  20 at 2 m and 31 at 3 m, where nothing changed (what rise is left is the
+  room's haze and the figure's edges at that size). The stand frame is
+  unchanged. The bridge readers'
+  hood now lies on the cape with a rolled lip, its cape in shade under it
+  (readers.js, `heavyWool`).
+
 ## 2026-10-16
 
 - **The others' bodies, and the court from above.** "The hood is right. The
@@ -116,6 +222,37 @@ path, and this document in full (`git show 0857f2a:docs/design-history.md`).
   it. The paving: a multiply disc over the court (`PAVING`, finale.js) takes
   it down a stop as the eye rises from 28 to 70 above the ground; from where
   the reader stands it is as it was.
+- **The galleries below.** "There are holes like that in 2 of the rooms, but
+  they show nothing … a lost opportunity." The Vestibule's and the Silence's
+  wells were a liner 236 deep onto a disc of stars, and from a stand only its
+  top courses showed. A canvas of five, each mocked in the engine
+  (claude.ai/artifact/QNCkmXd7aB8DMjgqSsQpix): A the galleries below, B lamps
+  let down the well on one chain, C a well of books (the room's cases ring
+  under ring), D black water at the brim with the room upside down in it, E
+  loose pages on the shaft's draught. Picked **A** for both. `wellsBelow.js`:
+  each room's own triangles and instances, laid three storeys down (128 each,
+  one on the phone), shaded as the room above and darkened ×0.62 a storey;
+  under the first only the middle of the room (80) and no readers or carved
+  balustrades; the frames' gilt not at all. The two liners now stop under the
+  slab (−5), with no stars. Compiled and sent after the world is up (about 7 s
+  later), so the opening is no slower; ~1.2M vertices for both, drawn only
+  near their room.
+- **Door ivy off the floor.** "Those branches look very 2D and they still end
+  in nowhere … maybe they should stay on the wall, not on the floor." The ivy
+  runners along the floor cracks (`crackRunners`, FLORAS `runners` reach
+  14/44/84) and their leads across the threshold (`leadRunners`,
+  `leadFaceRoots`) are gone. Instead `wallRunners` (doorFlora.js): 4 stems
+  left and 3 right come out of the ground among the hedges at the garden
+  face's foot, climb it, turn into the passage, wander its walls (never below
+  floor + 2.5) with leafy shoots off them, and come round onto the first
+  order's face, where the room face's ivy now grows from their ends (it used
+  to start at the floor by the plinths). The grass in the cracks stays.
+- **Garden grass darker, closer.** "Too light and sparse": edge tufts' green
+  [0.046, 0.058, 0.014] → [0.019, 0.04, 0.011], straw share 0.1 → 0.04, k
+  0.68 → 0.52, tip 1.35 → 1.4, blades [14, 26] → [16, 28] and finer (wide
+  [0.05, 0.09] → [0.035, 0.065]), gaps (`bare`) 0.3 → 0.22, and set 1.7× closer
+  along the ways only (`TUFTS.ways`). The lanterns' sward sheet 0.35 → 0.24.
+  Grass triangles 452k → 607k.
 - **Old paths removed.** Every `?w…=old` switch and its code went, and the
   board modules were folded into one per room or subject: `mapLook.js`
   (mapFix, 3, 4, 5, 6), `mapMotion.js` (mapFix7), `phone.js` (phoneFix, 7),
@@ -186,8 +323,9 @@ path, and this document in full (`git show 0857f2a:docs/design-history.md`).
   stopped at the wall line; of a (grass in the cracks), b (ivy along the
   cracks, up the jambs and piers, hanging from the arch, through the passage)
   and c (b, up to the gable and over the cases), picked **b**, grown on the
-  arch's stone along the floor's own cracks. Lines painted ahead into
-  `doorCrackLines.js` (`node tools/crack-lines.mjs`).
+  arch's stone along the floor's own cracks. (10-16: all green taken off the
+  floor — runners, grass in the cracks, moss in the joints, fallen leaves;
+  the ivy keeps to the walls.)
 
 ## 2026-10-14
 

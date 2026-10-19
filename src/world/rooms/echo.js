@@ -281,8 +281,8 @@ export function buildEcho(ctx) {
         }
       }
     }
-    LB.inlay.add(slabGeo(circlePts(c, 50.5, 60), [circlePts(c, 49, 60)], 0.5, 6));
-    LB.inlay.add(slabGeo(circlePts(c, 79 + ECHO_R - R, 60), [circlePts(c, 77.2 + ECHO_R - R, 60)], 0.5, 6));
+    LB.inlayWorn.add(slabGeo(circlePts(c, 50.5, 60), [circlePts(c, 49, 60)], 0.5, 6));
+    LB.inlayWorn.add(slabGeo(circlePts(c, 79 + ECHO_R - R, 60), [circlePts(c, 77.2 + ECHO_R - R, 60)], 0.5, 6));
     // ── Arcades answering arcades ─────────────────────────────────────────
     // What the room is called after: two storeys of arcade round the well on
     // twelve bays, so that from anywhere in the gallery you are looking through
@@ -426,6 +426,48 @@ export function buildEcho(ctx) {
       // stones' own underside, and stands a little proud of both faces. Behind
       // them, a mortar ring set back from every face shows in their joints.
       const PROUD = 0.25, KEY_PROUD = 0.6, JOINT = 0.05;
+      // A stone cut as a stone (board VI·4·1: at 2.2× the soffit read as a
+      // bent lath, the joints as pencil lines and the tooling ran through
+      // them). Every arris is chamfered, so a joint is a narrow V with a lit
+      // lip over it and a shadowed one under it, and the lime in it is a
+      // little behind the chamfers' roots (`MORTAR_IN`), paler than either.
+      // Its uv is its own: on its faces v runs out along its joint line, so
+      // the chisel (textures.js, tooled) is radial; on the soffit, across it
+      // through the wall; each stone a patch of the tooling of its own and a
+      // shade of its own, from a hash of its number (not the world's stream).
+      const CHAMFER = 0.07, MORTAR_IN = 0.12;
+      const hash = (i, s) => { const x = Math.sin(i * 127.1 + s * 311.7) * 43758.5453; return x - Math.floor(x); };
+      const voussoir = (outline, depth, axis, id, centre, ang) => {
+        const g = new THREE.ExtrudeGeometry(new THREE.Shape(outline.map(([u, v]) => new THREE.Vector2(u, v))), {
+          depth: depth - 2 * CHAMFER, curveSegments: 1,
+          bevelEnabled: true, bevelThickness: CHAMFER, bevelSize: CHAMFER, bevelOffset: -CHAMFER, bevelSegments: 1,
+        });
+        g.translate(0, 0, -(depth - 2 * CHAMFER) / 2);
+        const pos = g.attributes.position, nor = g.attributes.normal, count = pos.count;
+        const rx = Math.cos(axis), ry = Math.sin(axis), ou = hash(id, 1) * 16, ov = hash(id, 2) * 16;
+        const uv = new Float32Array(count * 2), col = new Float32Array(count * 3);
+        const v = 0.94 + 0.12 * hash(id, 3), warm = hash(id, 4) - 0.5;
+        for (let i = 0; i < count; i++) {
+          const x = pos.getX(i), y = pos.getY(i) - top, z = pos.getZ(i);
+          const along = x * -ry + y * rx, out = x * rx + y * ry;
+          const nz = Math.abs(nor.getZ(i)), nr = Math.abs(nor.getX(i) * rx + nor.getY(i) * ry);
+          const nt = Math.abs(nor.getX(i) * -ry + nor.getY(i) * rx);
+          // a face: across and out; the soffit: along the arch and through the
+          // wall; a joint's bed: through the wall and out
+          const [u, w] = nz >= nr && nz >= nt ? [along, out] : nr >= nt ? [along, z] : [z, out];
+          uv[i * 2] = u + ou;
+          uv[i * 2 + 1] = w + ov;
+          col[i * 3] = v * (1 + 0.03 * warm);
+          col[i * 3 + 1] = v;
+          col[i * 3 + 2] = v * (1 - 0.045 * warm);
+        }
+        g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+        g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+        g.rotateY(-Math.atan2(Math.sin(ang * deg), Math.cos(ang * deg)));
+        g.translate(centre[0], 0, centre[1]);
+        g.userData.uvOwn = true;
+        return g;
+      };
       // the key's head: radial through the ring, then a little wider to the
       // cap that carries it up under the dentils
       const keyCapH = rad * 0.35, keyTop = rise + band - 1.45 - keyCapH;
@@ -480,13 +522,13 @@ export function buildEcho(ctx) {
         for (let n = 0; n < VOUSSOIRS; n++) {
           const g0 = n ? JOINT / span : 0, g1 = n < VOUSSOIRS - 1 ? JOINT / span : 0;
           const a0 = cuts[n] + g0, a1 = cuts[n + 1] - g1;
-          LB.joint.add(profileGeo(archOutline(0.08, archWidth - 0.02, cuts[n], cuts[n + 1], 4), wall + 2 * PROUD - 0.3, mid, turn));
+          LB.archMortar.add(profileGeo(archOutline(0.08, archWidth - 0.02, cuts[n], cuts[n + 1], 4), wall + 2 * PROUD - 2 * MORTAR_IN, mid, turn));
           if (n !== key) {
-            LB.cap.add(profileGeo(archOutline(0, archWidth, a0, a1, 4), wall + 2 * PROUD, mid, turn));
+            LB.voussoir.add(voussoir(archOutline(0, archWidth, a0, a1, 4), wall + 2 * PROUD, (a0 + a1) / 2, k * VOUSSOIRS + n + top * 31, mid, turn));
             continue;
           }
           const D = wall + 2 * KEY_PROUD;
-          LB.cap.add(profileGeo(keyOutline(a0, a1), D, mid, turn));
+          LB.voussoir.add(voussoir(keyOutline(a0, a1), D, Math.PI / 2, k * VOUSSOIRS + n + top * 31, mid, turn));
           const w = keyAt(a0, keyTop)[0] * (1 + 0.12 * (keyTop - rise - archWidth) / archWidth) * 2;
           LB.cap.add(placed(new THREE.BoxGeometry(w + rad * 0.12, keyCapH * 0.4, D + 0.25), mid, top + keyTop + keyCapH * 0.2, -turn * deg));
           LB.cap.add(placed(new THREE.BoxGeometry(w + rad * 0.34, keyCapH * 0.6, D + 0.5), mid, top + keyTop + keyCapH * 0.7, -turn * deg));

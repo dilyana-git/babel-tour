@@ -214,19 +214,28 @@ export function paintSward(g, s, rng) {
 // ── 6. The hips' curled ends (pavilionRoof.js: `horns`, their own mesh) ───────
 export const HORN = { color: '#4a3b2a', roughness: 0.58, metalness: 0.55, sky: 0.3 };
 
-// ── 7. The pond (water.js, `shatter`) ─────────────────────────────────────────
-// A second, steeper chop that only the lamps see: `steep` times the slope the
-// wave train has at each point, `tight` the lobe each lamp lays in it, `gain`
-// how bright, `reach` how far from a lamp's foot it lies (units). And `glow`:
-// the lit Pavilion itself — lanterns, lacquer, the lamp on its table — as a
-// light lying on the water round its foot: its colour, `k` how strong, from
-// `from` units off its middle and fading over `fade` more, on every facet of
-// the chop that leans toward it (`lean`: the slope at which a facet begins to
-// take it, and takes all of it).
+// ── 7. The pond (water.js, `column`) ──────────────────────────────────────────
+// Each lamp's column: the long smear a lantern lays on black water, running
+// from under it toward the eye and no wider than the lantern. A facet sends a
+// lamp to the eye when it tilts by the slope that lamp needs there, and the
+// slope a facet can have is spread far ALONG the line of sight (a wave that
+// faces you swings the reflection up and down the column) and hardly at all
+// ACROSS it — which is why the column is long and narrow, and why the water
+// between two lamps stays black. `steep`: how far the chop's along-view tilt
+// is exaggerated, for the glints; `dash`: their tolerance along and across;
+// `smear`: the soft column under them, the slope spread along and across;
+// `gain`: glints, smear.
+//
+// Until 2026-10-16 this was a "shatter" pass with a `glow`: the lit Pavilion
+// as one low red light on every facet of the chop that leaned toward it, in a
+// ring from 30 units out. Seen from the bridge that was a field of short
+// red-orange strokes, evenly spread on both sides — a rash on the water, not
+// a reflection of anything.
 export const POND = {
-  on: true,
-  steep: qn('wpondsteep', 9), tight: qn('wpondtight', 26), gain: qn('wpondgain', 1.1), reach: qn('wpondreach', 95),
-  glow: { color: '#ff8a40', k: qn('wpondglow', 0.85), from: 30, fade: qn('wpondfade', 24), lean: [0.006, 0.034] },
+  steep: qn('wpondsteep', 7),
+  dash: [qn('wponddash', 0.05), qn('wponddashx', 0.012)],
+  smear: [qn('wpondsmear', 0.3), qn('wpondsmearx', 0.014)],
+  gain: [qn('wpondgain', 16), qn('wpondsoft', 3)],
 };
 
 // ── 8. The armillary's plinth, and its rings ──────────────────────────────────
@@ -305,7 +314,9 @@ export const BEAD = { r: 0.085, in: 0.1 };
 // lit (`lamp`: its light's strength, and how much lower than the signpost's
 // it hangs — at the height of the chest); in the wider, a stone seat.
 export const NICHE = {
-  ahead: qn('wnicheahead', 0), wide: [9, 13.4], deep: 5.2, seat: { w: 7.6, d: 3.3, h: 4.3 },
+  // (`behind`: the hedge left at the back of it, grown out on the far side to
+  // take the shoulders' insets either side — rooms/web.js)
+  ahead: qn('wnicheahead', 0), wide: [9, 13.4], deep: 5.2, behind: 6.2, seat: { w: 7.6, d: 3.3, h: 4.3 },
   lamp: { k: qn('wnichek', 620), dy: -2.3 },
 };
 
@@ -330,7 +341,7 @@ export const SWARD = {
   gain: qn('wswgain', 0.45),
   // and the lantern's light off the cut grass (its `sward`),
   // which was set for the near-black lawn and over this one glowed mustard
-  lampSward: qn('wswlamp', 0.35),
+  lampSward: qn('wswlamp', 0.24),
 };
 
 // ── 4. The moon on the ground ─────────────────────────────────────────────────
@@ -474,16 +485,21 @@ export const MIST_COLOR = MOON_GROUND.mist;
 // runs and gaps, and not out in the open lawn. `step`: how far apart along an
 // edge a clump may stand; `out`: how far off the edge (most of them close in);
 // `run`: the length of the runs and gaps; `bare` the share that is gap.
+// `ways`: how much closer set they are along the ways' sides, which are walked
+// past and seen up close (elsewhere they cost frames no one sees).
 // `height`: a clump's (uncut grass, a hand or two high); `stone`: clumps round
 // each stone's foot.
 export const TUFTS = {
   on: true,
-  step: qn('wtuftstep', 0.75), out: [0.3, 3.2], run: 9, bare: qn('wtuftbare', 0.3),
+  step: qn('wtuftstep', 0.75), out: [0.3, 3.6], run: 9, bare: qn('wtuftbare', 0.22), ways: qn('wtuftways', 1.7),
   height: qn('wtufth', 1.5), stone: [1, 3],
-  blades: [14, 26], spread: [0.05, 0.55], wide: [0.05, 0.09], tip: 1.35, k: qn('wtuftk', 0.68),
-  // a blade's root green (a little lighter and yellower than the sward, as
-  // uncut grass is), and the share gone to straw
-  green: [0.046, 0.058, 0.014], straw: [0.085, 0.072, 0.03], dry: 0.1,
+  blades: [16, 28], spread: [0.05, 0.6], wide: [0.035, 0.065], tip: 1.4, k: qn('wtuftk', 0.52),
+  // a blade's root green (deep in the clump, in its own shade), and the share
+  // gone to straw. 2026-10-16 "the grass is too light and sparse, make it
+  // darker and more realistic": was [0.046, 0.058, 0.014] with a tenth gone
+  // to straw — read as hay under the lanterns; now a deep green whose tips
+  // only catch the light, finer blades, fewer gaps, closer set by the ways.
+  green: [0.019, 0.04, 0.011], straw: [0.05, 0.046, 0.02], dry: 0.04,
 };
 
 // Dev: `__ground({ r, g, b, detail, macro, lr, lb, fog })` turns the dials live.

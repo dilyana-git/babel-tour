@@ -2672,6 +2672,78 @@ export function limestone({ size = 1024, seed = 61, tone = [164, 157, 144], hone
   };
 }
 
+// Tooled: one dressed face of the pale stone with no joint in it, for stones
+// cut to a shape of their own that carry their own uv (the Echo's voussoirs,
+// rooms/echo.js). The broad chisel's strokes all run along v, so a stone that
+// lays v along its own axis is tooled the way it was cut, and the strokes stop
+// where it does. (On the pale ashlar they ran at one slant across every
+// voussoir, the spandrel and the joints between: board VI·4·1.)
+export function tooled({ size = 512, seed = 113, tone = [160, 152, 138], strength = 2 } = {}) {
+  const rnd = makeRng(seed);
+  const [col, c] = canvas(size);
+  const [hei, hg] = canvas(size);
+  const [rou, rg] = canvas(size);
+  c.fillStyle = `rgb(${tone[0]},${tone[1]},${tone[2]})`;
+  c.fillRect(0, 0, size, size);
+  hg.fillStyle = grey(150);
+  hg.fillRect(0, 0, size, size);
+  rg.fillStyle = grey(205);
+  rg.fillRect(0, 0, size, size);
+  const tiled = (x, y, r, paint) => {
+    for (const dx of [-size, 0, size]) {
+      for (const dy of [-size, 0, size]) {
+        if (x + dx + r < 0 || x + dx - r > size || y + dy + r < 0 || y + dy - r > size) continue;
+        paint(x + dx, y + dy);
+      }
+    }
+  };
+  // the stone's clouding
+  for (let k = 0; k < 40; k++) {
+    const x = rnd() * size, y = rnd() * size, r = size * (0.06 + rnd() * 0.22), light = rnd() < 0.45, a = 0.03 + rnd() * 0.06;
+    tiled(x, y, r, (px, py) => {
+      const b = c.createRadialGradient(px, py, 0, px, py, r);
+      b.addColorStop(0, light ? `rgba(232,220,198,${a})` : `rgba(26,19,12,${a * 1.4})`);
+      b.addColorStop(1, 'rgba(0,0,0,0)');
+      c.fillStyle = b;
+      c.fillRect(px - r, py - r, r * 2, r * 2);
+    });
+  }
+  // The chisel: short bites the width of its edge, each with the lip it
+  // raised beside it, all along v; clear in the height, all but gone in the
+  // colour. (Strokes a finger long, darker in the colour, read as the grain
+  // of boards on a soffit in shadow.)
+  for (let k = 0, n = Math.round((size * size) / 55); k < n; k++) {
+    const x = rnd() * size, y = rnd() * size, L = 3 + rnd() * 10, a = Math.PI / 2 + (rnd() - 0.5) * 0.14;
+    const dark = 0.05 + rnd() * 0.08, w = 1 + rnd() * 1.4, ex = Math.cos(a) * L, ey = Math.sin(a) * L;
+    tiled(x, y + L / 2, L, (px, py) => {
+      py -= L / 2;
+      for (const [g, style, lw, off] of [[hg, `rgba(0,0,0,${dark})`, w, 0], [hg, `rgba(255,255,255,${dark * 0.5})`, 1, w * 0.5 + 0.8], [c, `rgba(30,22,14,${dark * 0.06})`, w, 0]]) {
+        g.strokeStyle = style;
+        g.lineWidth = lw;
+        g.beginPath();
+        g.moveTo(px + off, py);
+        g.lineTo(px + off + ex, py + ey);
+        g.stroke();
+      }
+    });
+  }
+  for (let k = 0, n = Math.round((size * size) / 70); k < n; k++) {
+    hg.fillStyle = rnd() < 0.5 ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)';
+    hg.fillRect(rnd() * size, rnd() * size, 1 + rnd(), 1 + rnd());
+  }
+  pits([c, hg, rg], rnd, size, 600, { dark: 0.11, big: 1.3 });
+  for (let k = 0; k < 4000; k++) {
+    const a = rnd() * 0.05;
+    c.fillStyle = rnd() < 0.5 ? `rgba(230,218,196,${a})` : `rgba(16,12,8,${a})`;
+    c.fillRect(rnd() * size, rnd() * size, 1 + rnd() * 3, 1 + rnd() * 2);
+  }
+  return {
+    map: toTexture(col),
+    normalMap: toTexture(normalsFrom(hei, strength), { srgb: false }),
+    roughnessMap: toTexture(rou, { srgb: false }),
+  };
+}
+
 // Purbeck: the dark shelly marble the shafts of a Gothic doorway were cut
 // from, polished — near black-brown with the fossil shell showing grey in it.
 // The one polished thing in a pale doorway, so the colonnettes stand off the

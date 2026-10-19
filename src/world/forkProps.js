@@ -109,9 +109,20 @@ export const rakeScuffs = (k, wi, length) => {
 // side; gaps between of five to sixteen paces (twice that on a way less
 // walked). Sizes run three to one. `ok(p, r)`: whether a stone of reach r may
 // sit at p. Returns rocks as buildWorld's `rocks` hold them, flagged `edge`.
+// Set as a kerb: bedded in the ground at the gravel's edge (KERB.ground, the
+// lawn's top, which the gravel is flush with), a third to a half of each
+// standing out of it, the long way along the way. Centred at 5, on the rim of
+// a gravel slab 1.2 proud of the lawn, they sat on the slab's edge like
+// stones set out on a step.
 // (Where a way comes to the water its edge is the pond's kerb, shore.js's:
 // set in groups the same way there, pondShore's `kerbVary`.)
 const TONES = ['#5f5b55', '#4e4b46', '#6b665f'];
+// `ground` the lawn's top; `bed` where a stone's middle sits against it, in
+// its own heights (0: half in the ground; the garden's rocks are 1.24 tall
+// and set 0.3 lower again by grounds.js); `in` how far the middle stands out
+// from the gravel's edge, in its own sizes (its inner side just over the
+// gravel); `turn` how far a stone strays from lying along the way.
+export const KERB = { ground: 4, bed: 0.23, in: 0.4, turn: 0.25 };
 export const edgeStones = (pts, w, seed, { sparse = false, ok = () => true } = {}) => {
   const r = makeRng(seed), R = (a, b) => a + (b - a) * r();
   const segs = pts.slice(1).map((b, i) => {
@@ -135,8 +146,11 @@ export const edgeStones = (pts, w, seed, { sparse = false, ok = () => true } = {
     const q = [p[0] + n[0] * across, p[1] + n[1] * across];
     const sx = k * R(0.85, 1.2), sz = k * R(0.75, 1.1), sy = k * flat;
     if (!ok(q, Math.max(sx, sz) * 0.6)) return;
+    // (its long side, x, along the way: three.js turns x to (cos a, -sin a))
+    const along = Math.atan2(-t[1], t[0]);
     out.push({
-      p: [q[0], 5 - sy * sink, q[1]], rot: [R(-0.6, 0.6), R(0, 6.28), R(-0.6, 0.6)], s: [sx, sy, sz],
+      p: [q[0], KERB.ground + sy * (KERB.bed - sink), q[1]],
+      rot: [R(-0.6, 0.6), along + KERB.turn * (R(0, 2) - 1), R(-0.6, 0.6)], s: [sx, sy, sz],
       color: TONES[Math.floor(r() * 3)], edge: true,
     });
   };
@@ -145,8 +159,9 @@ export const edgeStones = (pts, w, seed, { sparse = false, ok = () => true } = {
     while (s < total) {
       const big = r() < 0.2, sunk = r() < 0.3;
       const k = big ? R(2.6, 3.4) : R(1.4, 2.4);
-      // the lead: set in the way's edge, a big one further into the gravel
-      const across = side * (w / 2 + R(-0.4, 1.2) - (big ? 0.6 : 0));
+      // the lead: set in the way's edge, its inner side just over the gravel
+      // (a big one a little further over it)
+      const across = side * (w / 2 + k * KERB.in + 0.3 * R(-0.4, 1.2) - (big ? 0.3 : 0));
       put(s, across, k, R(0.55, 0.8), sunk ? R(0.25, 0.45) : R(0, 0.12));
       let reach = k * 0.55;
       for (let c = 0, n = r() < 0.2 ? 0 : 1 + Math.floor(r() * 3); c < n; c++) {

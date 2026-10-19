@@ -179,6 +179,58 @@ function walkLoop(loop, { round, step }) {
   return out;
 }
 
+// The top's triangles, turned over until none is a sliver (Lawson's flips, to
+// the Delaunay triangulation inside the outline). Earcut alone clips ears off
+// the outline itself: three points running along one straight edge, in line
+// seen from above but each at its own height on the lumpy top. Such a triangle
+// stands on its edge, and with the top's texture laid on from above, the leaf
+// ran down it in vertical green-black smears along the hedge's crest (audit
+// VI·9·2). `pts` are the outline's points in (x, z); the triangles keep the
+// way round earcut gave them.
+function flipToDelaunay(pts, tris) {
+  const orient = (a, b, c) => (pts[b].x - pts[a].x) * (pts[c].y - pts[a].y) - (pts[b].y - pts[a].y) * (pts[c].x - pts[a].x);
+  // (earcut's way round, whichever it is, counted as positive)
+  const sign = Math.sign(tris.reduce((s, [a, b, c]) => s + orient(a, b, c), 0)) || 1;
+  const area = ([a, b, c]) => orient(a, b, c) * sign;
+  // s inside the circle through a, b, r
+  const inCircle = (a, b, r, s) => {
+    const ax = pts[a].x - pts[s].x, ay = pts[a].y - pts[s].y, bx = pts[b].x - pts[s].x, by = pts[b].y - pts[s].y;
+    const rx = pts[r].x - pts[s].x, ry = pts[r].y - pts[s].y;
+    return sign * ((ax * ax + ay * ay) * (bx * ry - rx * by) - (bx * bx + by * by) * (ax * ry - rx * ay) + (rx * rx + ry * ry) * (ax * by - bx * ay));
+  };
+  const T = tris.map((t) => [...t]);
+  const edges = new Map(), key = (p, q) => (p < q ? `${p},${q}` : `${q},${p}`);
+  const each = (ti, f) => T[ti].forEach((p, k) => f(key(p, T[ti][(k + 1) % 3])));
+  const link = (ti) => each(ti, (k) => (edges.get(k) ?? edges.set(k, []).get(k)).push(ti));
+  const unlink = (ti) => each(ti, (k) => { const on = edges.get(k); on.splice(on.indexOf(ti), 1); });
+  T.forEach((_, ti) => link(ti));
+  // a triangle read from corner `v` on
+  const from = (t, v) => { const i = T[t].indexOf(v); return [v, T[t][(i + 1) % 3], T[t][(i + 2) % 3]]; };
+  const queue = [...edges.keys()];
+  for (let guard = 40 * T.length; queue.length && guard > 0; guard--) {
+    const k = queue.pop(), on = edges.get(k);
+    if (!on || on.length !== 2) continue;   // the outline's own edges stay
+    const [p, q] = k.split(',').map(Number);
+    // the two as (a, b, r) and (b, a, s): the edge a-b between them
+    let A = from(on[0], p);
+    if (A[1] !== q) A = from(on[0], q);
+    const [a, b, r] = A, s = from(on[1], b)[2];
+    // the other diagonal, r-s, only where it lies inside the two
+    const n1 = [a, s, r], n2 = [s, b, r];
+    if (area(n1) <= 0 || area(n2) <= 0) continue;
+    if (Math.min(area(A), area(from(on[1], b))) > 0 && inCircle(a, b, r, s) <= 1e-9) continue;
+    const [t1, t2] = on;
+    unlink(t1);
+    unlink(t2);
+    T[t1] = n1;
+    T[t2] = n2;
+    link(t1);
+    link(t2);
+    queue.push(key(a, s), key(s, b), key(b, r), key(r, a));
+  }
+  return T;
+}
+
 // The hedge's section, from below the ground to the top: `y` above the ground,
 // `d` how far in from the footprint. A leggy foot, pulled in where it has
 // thinned to stems; the fullest point a little above the ground; a batter up
@@ -306,7 +358,7 @@ export function growHedge(loops, { ground, H, seed = 1, leaf = '#566e3d', detail
       if (bi === 0) contour.push(...ring);
       else holeRings.push(ring);
     });
-    const tris = THREE.ShapeUtils.triangulateShape(contour, holeRings);
+    const tris = flipToDelaunay([...contour, ...holeRings.flat()], THREE.ShapeUtils.triangulateShape(contour, holeRings));
     for (const [a, b, c] of tris) idx.push(capBase + a, capBase + c, capBase + b);
   }
 

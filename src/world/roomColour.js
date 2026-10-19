@@ -156,12 +156,12 @@ const roomTinted = (mat, tint, { rough = false, tag }) => {
   mat.needsUpdate = true;
 };
 
-const STONE = ['floor', 'floorBand', 'mass', 'vestMass', 'cap', 'capShade', 'step', 'nosing', 'carve', 'carveShade', 'dressed',
+const STONE = ['floor', 'floorBand', 'mass', 'vestMass', 'cap', 'voussoir', 'archMortar', 'capShade', 'step', 'nosing', 'carve', 'carveShade', 'dressed',
   'column', 'well', 'wellGlow', 'wornFloor', 'wornStep'];
 const WOOD = ['shelf', 'shelfBack', 'shelfLip', 'oak', 'shelfWorn', 'wood', 'plank', 'lacquer'];
 const CASES = new Set(['shelf', 'shelfBack', 'shelfLip']);
 const EXTRA_STONE = new Set(['portalCarve', 'portalDressed', 'rubble', 'rubbleBig', 'rubbleBlocks']);
-const METAL = ['gilt', 'giltDeep', 'frame', 'bronze', 'bronzeDim', 'bronzeWorn', 'inlay', 'fillet', 'gold', 'iron'];
+const METAL = ['gilt', 'giltDeep', 'frame', 'bronze', 'bronzeDim', 'bronzeWorn', 'inlay', 'inlayWorn', 'fillet', 'gold', 'iron'];
 
 // After the world is built (other patches set first): the materials.
 // `extra`: { stone, wood, metal } materials that are not in M.

@@ -962,7 +962,7 @@ export function buildFlightDressing(ctx) {
     // is their own: along each moulding, round each baluster)
     balustrade: new Batch(M.carve), balustradeShade: new Batch(M.carveShade),
     shelf: new Batch(M.shelf, G), shelfLip: new Batch(M.shelfLip), shelfBack: new Batch(M.shelfBack, { cast: false, ...G }),
-    bronze: new Batch(M.bronze), bronzeDim: new Batch(M.bronzeDim), inlay: new Batch(M.inlay, { cast: false }), fillet: new Batch(M.fillet, { cast: false }),
+    bronze: new Batch(M.bronze), bronzeDim: new Batch(M.bronzeDim), inlay: new Batch(M.inlay, { cast: false }), inlayWorn: new Batch(M.inlayWorn, { cast: false }), fillet: new Batch(M.fillet, { cast: false }),
     liner: new Batch(M.liner, { cast: false }), stars: new Batch(M.stars, { cast: false, receive: false }),
     well: new Batch(M.well, { cast: false, ...P }), wellGlow: new Batch(M.wellGlow, { cast: false, ...P }),
     step: new Batch(M.step, P), mirror: new Batch(M.mirror, { cast: false }), stone: new Batch(M.stone, P),
@@ -971,7 +971,7 @@ export function buildFlightDressing(ctx) {
     frieze: new Batch(M.frieze, P), plate: new Batch(M.plate), letters: new Batch(M.letters, { cast: false }), scallop: new Batch(M.scallop, { cast: false }),
     floorBand: new Batch(M.floorBand, { cast: false, ...P }),
     bronzeWorn: new Batch(M.bronzeWorn), oak: new Batch(M.oak, G), shade: new Batch(M.shade, { cast: false }),
-    shadeDead: new Batch(M.shadeDead), paper: new Batch(M.paper), wax: new Batch(M.wax), leather: new Batch(M.leather), tuft: new Batch(M.tuft, { cast: false }),
+    shadeDead: new Batch(M.shadeDead), paper: new Batch(M.paper), pageOld: new Batch(M.pageOld), wax: new Batch(M.wax), leather: new Batch(M.leather), tuft: new Batch(M.tuft, { cast: false }),
     shelfWorn: new Batch(M.shelfWorn, { cast: false, ...G }), dust: new Batch(M.dust, { cast: false }),
     contact: new Batch(M.contact, { cast: false, receive: false }), riserShade: new Batch(M.riserShade, { cast: false, receive: false }), joint: new Batch(M.joint, { cast: false }), deadShards: new Batch(M.deadShards, { cast: false }),
     wornFloor: new Batch(M.wornFloor, { cast: false }), wornStep: new Batch(M.wornStep, { cast: false }),
@@ -997,10 +997,12 @@ export function buildFlightDressing(ctx) {
     // (the Echo's: echo.js)
     nosing: new Batch(M.nosing, P), riserSoft: new Batch(M.riserSoft, { cast: false, receive: false }),
     column: new Batch(M.column), columnBox: new Batch(M.column, P),
+    // the arcade's voussoirs, each laying its own uv and shade (echo.js)
+    voussoir: new Batch(M.voussoir), archMortar: new Batch(M.archMortar, { cast: false }),
     bookRows: new Batch(M.bookRows, { cast: false }), bookRowsLit: new Batch(M.bookRowsLit, { cast: false }),
     vestBookRowsLit: new Batch(M.vestBookRowsLit, { cast: false }),
   };
-  const fallenLeaves = [], doorIvy = [], doorRubble = [], petals = [], hangs = [];
+  const doorIvy = [], doorRubble = [], petals = [], hangs = [];
   // the Door's ivy and the pergola's wisteria leaves, and both their wood (ivy.js)
   const ivyLeaves = [], vineLeaves = [], ivyWood = new Wood(7);
   const IVY_GREEN = ['#26401f', '#2d4a24', '#34522a', '#2a4422', '#3a5a2c', '#22381c', '#304d26'];
@@ -1035,7 +1037,7 @@ export function buildFlightDressing(ctx) {
   // Old leather, not a paint chart (see textures.js): the gold on the spines is
   // what should catch the eye, not the bindings.
   const BOOKS = ['#4a3a2c', '#3e2f26', '#35382e', '#4f4130', '#383d40', '#4c392b', '#56372c', '#2f3830', '#3a3346', '#5e4b36', '#6b5a44', '#402a26', '#2e3a3c'];
-  return { flightDress, wallRing, mirrors, P, G, LB, fallenLeaves, doorIvy, doorRubble, petals,
+  return { flightDress, wallRing, mirrors, P, G, LB, doorIvy, doorRubble, petals,
     hangs, ivyLeaves, vineLeaves, ivyWood, IVY_GREEN, IVY_YOUNG, posts, links, balusters, shelved,
     shelvedWalls, lodRows, wallRoom, lodFor, books, lampCores, lampShells, globes, deadGlobes,
     rubble, dust, trialPanes, trialPaper, trialEaves, trialFlames, trialWax, glows, candleLights,

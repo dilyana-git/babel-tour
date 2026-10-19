@@ -26,8 +26,8 @@
 // a function of that time, so any moment of it can be held and looked at.
 import * as THREE from 'three';
 import { makeRng } from './textures';
-import { readerGeometry, ROBES, clothShader } from './readers';
-import { FLOOD, RISE, STEP, HOOD, CAST, HOODED, PAVING } from './finaleLook';
+import { readerGeometry, clothShader, CROWN_KIND, LINING_KIND } from './readers';
+import { FLOOD, RISE, STEP, HOOD, CAST, HOODED, OTHERS, FLOOR_BOUNCE, PAVING } from './finaleLook';
 
 const clamp01 = (x) => Math.min(1, Math.max(0, x));
 const smooth = (a, b, x) => { const t = clamp01((x - a) / (b - a)); return t * t * (3 - 2 * t); };
@@ -451,14 +451,29 @@ const otherShader = (u) => (sh) => {
   clothShader(sh, u);
   sh.vertexShader = sh.vertexShader
     .replace('#include <common>', `#include <common>
-      varying vec3 vOther;`)
+      varying vec3 vOther;
+      varying float vAbove;`)
     .replace('#include <begin_vertex>', `#include <begin_vertex>
-      vOther = position;`);
+      vOther = position;
+      vAbove = 0.0;`)
+    // (an empty hood's crown and inside, readers.js: the crown in the hood's
+    // full dark seen level, face to face, and the inside as dark as it is
+    // built; seen from above, both cloth in shade — HOOD.crown.seen, how
+    // steeply down on them, [still dark, wholly cloth], and `lining`, the
+    // darkest the inside then is)
+    .replace('#include <project_vertex>', `#include <project_vertex>
+      if (abs(aKind - ${CROWN_KIND.toFixed(2)}) < 0.02 || abs(aKind - ${LINING_KIND.toFixed(2)}) < 0.02) {
+        vec3 oEye = normalize(cameraPosition - (modelMatrix * vec4(transformed, 1.0)).xyz);
+        float oAbove = smoothstep(${HOOD.crown.seen[0].toFixed(2)}, ${HOOD.crown.seen[1].toFixed(2)}, oEye.y);
+        vAbove = oAbove;
+        vDark = aKind >${((CROWN_KIND + LINING_KIND) / 2).toFixed(3)} ? mix(0.985, aDark, oAbove) : mix(aDark, min(aDark, ${HOOD.crown.lining.toFixed(2)}), oAbove);
+      }`);
   sh.fragmentShader = sh.fragmentShader
     .replace('#include <common>', `#include <common>
       uniform float uReveal;
       uniform float uFloor;
       varying vec3 vOther;
+      varying float vAbove;
       float oHash(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
       float oNoise(vec3 x) {
         vec3 i = floor(x), f = fract(x);
@@ -476,9 +491,19 @@ const otherShader = (u) => (sh) => {
       float oRim = 1.0 - smoothstep(0.0, 0.06, oCut - oN);
       // the rim of the cut, and the lit floor's light coming up onto the hem
       // (as the cloth's own colour gives it back: added flat, it turned the
-      // dark robes to pale ghosts from the knee down)
+      // dark robes to pale ghosts from the knee down) — but the cloth's own
+      // colour without the dust of the paths at its hem, which is paler: given
+      // back by it, the hem was a pale band round every figure, an outline
+      // (2026-10-18; FLOOR_BOUNCE: how much, and the brightest cloth it is
+      // given back by)
+      float oLum = dot(vColor.rgb, vec3(0.2126, 0.7152, 0.0722));
+      vec3 oCloth = vColor.rgb * min(1.0, ${FLOOR_BOUNCE.cloth.toFixed(4)} / max(oLum, 1e-4));
       totalEmissiveRadiance += vec3(1.0, 0.7, 0.34) * oRim * 3.0
-        + vColor.rgb * vec3(1.0, 0.8, 0.55) * uFloor * pow(1.0 - oUp, 2.0) * 2.4;`);
+        + oCloth * vec3(1.0, 0.8, 0.55) * uFloor * pow(1.0 - oUp, 2.0) * ${FLOOR_BOUNCE.k.toFixed(3)}
+        // (an empty hood's inside, looked down into: the lamps are all above
+        // it and it faces down, so it was unlit, a slit of black under the
+        // brow; some of the night's light, as cloth in shade has — HOOD.crown.fill)
+        + vColor.rgb * vAbove * ${HOOD.crown.fill.toFixed(2)};`);
 };
 
 // (A step was 11 — a metre — when the robe had no feet under it; with them,
@@ -759,9 +784,16 @@ export function* buildFinale({
     const mat = keep(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.96, metalness: 0, side: THREE.DoubleSide }));
     mat.onBeforeCompile = otherShader(u);
     mat.customProgramCacheKey = () => 'babel-other';
-    const geo = readerGeometry({ seed: 11 + i * 7, color: ROBES[i % ROBES.length], book, close: true, ...(opt.cut ?? {}) });
+    const geo = readerGeometry({ seed: 11 + i * 7, color: OTHERS.robes[i % OTHERS.robes.length], book, close: true, ...(opt.cut ?? {}) });
     const mesh = new THREE.Mesh(keep(geo), mat);
-    
+    // (drawn after the flood's light on the floor, its contact shadow and the
+    // paving's dimming, all laid a little over the stone: the light, added
+    // over the hem where it stands below that, drew a pale band round every
+    // figure — 2026-10-18. Opaque still; `transparent` only so it is drawn
+    // in that order.)
+    mat.transparent = true;
+    mesh.renderOrder = 5;
+
     u.uWool = { value: new THREE.Vector4(...HOOD.weave, HOOD.fleck, HOOD.matt) };
     u.uHood = { value: new THREE.Vector4(...mesh.geometry.userData.hood, HOOD.lamp.k * (opt.lamp ?? 1)) };
     u.uHoodTint = { value: new THREE.Vector4(...HOOD.lamp.color, HOOD.lamp.half) };
@@ -813,7 +845,7 @@ export function* buildFinale({
   
   for (const [i, [g, n, round, out, show, go, arrive, opt]] of CAST.entries()) {
     yield;
-    others.push(comeIn(g, n, radial(round * deg, out), show, go, arrive, i, !!opt.book, opt));
+    others.push(comeIn(g, n, radial(round * deg, out), show, go, arrive, i, !!opt.book, { cut: OTHERS.cut, lamp: OTHERS.lamp, ...opt }));
   }
   // (One more sat among them on a stool, the Silence's reader: the user did not
   // like it — 2026-10-12, "drop that" — and it is gone.)

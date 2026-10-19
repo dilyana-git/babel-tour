@@ -3,7 +3,7 @@
 // and the painted textures.
 
 import * as THREE from 'three';
-import { friezeBand, giltLetters, purbeck, hanging, glow as glowTexture, foliageAtlas, makeRng, bookRowsLayout, pavingLayout } from '../textures';
+import { friezeBand, giltLetters, purbeck, hanging, glow as glowTexture, foliageAtlas, makeRng, bookRowsLayout } from '../textures';
 import { makeShaftMaterial } from '../effects';
 import { makeWater } from '../water';
 import { makeLilyPads } from '../pond';
@@ -271,6 +271,9 @@ export function* buildKit(ctx) {
   const crackMap = keep(painter.take('cracks').map);
   const wall = scaled(painter.take('wall'), 1 / 38);
   const pale = scaled(painter.take('pale'), 1 / 42);
+  // (the same stone, jointless, cut to the Echo's arches: a voussoir lays its
+  // own uv in world units, so this too is the size of the stone)
+  const voussoirSet = scaled(painter.take('voussoir'), 1 / 16);
   // (the wood is a board's length of timber along u and its width across v:
   // WALNUT_TILE and CEDAR_TILE, laid by uvGrain along each piece)
   const wood = scaled(painter.take('wood'), 1 / WALNUT_TILE[0], 1 / WALNUT_TILE[1]);
@@ -358,10 +361,7 @@ export function* buildKit(ctx) {
   }), [1, 1], false);
   for (const t of [gradTex, wornTex]) { t.channel = 1; t.wrapS = THREE.ClampToEdgeWrapping; }
   // The Door's: pale dust thinning away from the breach (v runs into the
-  // room); moss drawn along the joints of the floor's own layout (textures.js,
-  // `pavingLayout` — or the old tiles' four rows, three to a row, every other
-  // row offset half a slab), laid in the same world units so it sits in them;
-  // one leaf; a globe.
+  // room); a globe.
   const dustFanTex = tex(paint(128, 128, (g, w, h) => {
     const dr = makeRng(303);
     for (let y = 0; y < h; y++) {
@@ -374,38 +374,6 @@ export function* buildKit(ctx) {
     }
   }), [1, 1]);
   dustFanTex.wrapS = dustFanTex.wrapT = THREE.ClampToEdgeWrapping;
-  const mossTex = tex(paint(1024, 1024, (g, S) => {
-    const mr = makeRng(808), mrr = (a, b) => a + (b - a) * mr();
-    const tuft = (x, y, r) => {
-      g.fillStyle = `hsla(${mrr(72, 100)},${mrr(24, 42)}%,${mrr(12, 24)}%,${mrr(0.55, 0.9)})`;
-      g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
-    };
-    
-    // (a slab's end joint is drawn again a canvas to either side, so a
-    // tuft on the edge comes back in at the other)
-    for (const row of pavingLayout({ size: S })) {
-      for (let x = 0; x < S; x += mrr(3, 7)) if (mr() < 0.75) tuft(x, row.y + mrr(-3, 3), mrr(3, 9));
-      for (const J of row.joints.slice(0, -1)) {
-        const x0 = (row.x0 + J) % S;
-        for (let y = row.y; y < row.y + row.h; y += mrr(3, 7)) {
-          if (mr() < 0.75) { const x = x0 + mrr(-3, 3), r = mrr(3, 9); for (const dx of [-S, 0, S]) tuft(x + dx, y, r); }
-        }
-        for (let n = 0; n < 3; n++) { const x = x0 + mrr(-10, 10), y = row.y + mrr(-10, 10), r = mrr(8, 18); for (const dx of [-S, 0, S]) tuft(x + dx, y, r); }
-      }
-    }
-  }), [1 / 32, 1 / 32]);
-  const leafTex = tex(paint(64, 40, (g, w, h) => {
-    g.clearRect(0, 0, w, h);
-    g.fillStyle = '#ffffff';
-    g.beginPath();
-    g.moveTo(2, h / 2);
-    g.quadraticCurveTo(w * 0.45, -h * 0.15, w - 2, h / 2);
-    g.quadraticCurveTo(w * 0.45, h * 1.15, 2, h / 2);
-    g.fill();
-    g.strokeStyle = 'rgba(0,0,0,0.35)';
-    g.lineWidth = 1.5;
-    g.beginPath(); g.moveTo(4, h / 2); g.lineTo(w - 6, h / 2); g.stroke();
-  }), [1, 1]);
   const globeTex = tex(paint(512, 256, (g, w, h) => {
     const gr = makeRng(404), grr = (a, b) => a + (b - a) * gr();
     g.fillStyle = '#b9a47c';
@@ -427,9 +395,9 @@ export function* buildKit(ctx) {
   }), [1, 1]);
   return { rnd, stream, rr, pick, dir, add, lerp2, unit2, dist, hexPts, circlePts, rot3, detail,
     disposables, keep, paint, tex, withRepeat, grassTex, GRAVEL_COLOR, gravelTex, starTex, roofTex,
-    radialTex, lanternPoolTex, wisteriaTex, ivyTex, again, flag, crackMap, wall, pale, wood,
+    radialTex, lanternPoolTex, wisteriaTex, ivyTex, again, flag, crackMap, wall, pale, voussoirSet, wood,
     whiteTex, timber, spines, titles, bookRowsSet, vestBookRowsSet, rowV, friezeTex, gilt, hedge, carveSet,
     rubbleSet, shoreRockSet, shoreBankSet, dressedSet, marbleSet, columnSet, hangTex, glowTex,
     lampHaloTex, water, wind, lilyPads, leaves, barkSet, shaftMaterial, gradTex, wornTex,
-    dustFanTex, mossTex, leafTex, globeTex };
+    dustFanTex, globeTex };
 }

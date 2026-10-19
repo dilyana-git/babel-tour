@@ -25,6 +25,19 @@ export const SPILL = {
   warm: { near: qn('wdwarm', 0.2), side: 0.24 },
 };
 
+// The garden beyond the arch, from the room. Among the walls the moon is a
+// third of what it is out under it (World.jsx), the Library's mass shades the
+// ground by the wall, and the pergola's lamp is too far off to be among the
+// lights the stand holds: through the doorway, one lantern floated in black.
+// So the moon on the gravel where the ways part, past the pergola's end,
+// laid on as light: `pools` [x, z, across, along, strength] in the world, on
+// the gravel's top + `lift`; gone as the reader comes out into the garden,
+// where the moon is the moon again (gardenPlan.js gardenness).
+export const MOON_BEYOND = {
+  pools: [[1186, 236, 64, 80, qn('wdmoonk', 0.6)], [1183, 150, 40, 96, qn('wdmoonk', 0.6) * 0.7]],
+  color: '#9fb2cc', lift: 0.35,
+};
+
 // The lamp to the left of the portal: its globe (it was 9), how hard it
 // burns to the eye (1.05), and its halo (0.6). Its light is not touched.
 export const SIDE_LAMP = { r: qn('wdlampr', 7), strength: qn('wdlampk', 0.55), haze: qn('wdlamph', 0.4) };
@@ -106,7 +119,7 @@ export function candleWax(h, r, seed) {
 // A folio fallen open on its back, splayed, its boards on the floor and
 // its leaves standing up out of the gutter, lifting: in its own frame, the
 // gutter along z, the floor at y = 0. Comes back as [geometry, 'leather' or
-// 'paper'] pieces.
+// 'pageOld'] pieces.
 export function splayedBook(seed = 11) {
   const rng = makeRng(seed), R = (a, b) => a + (b - a) * rng();
   const LEN = 4.4, WB = 3.1, WP = WB - 0.22, LP = LEN - 0.34, out = [];
@@ -124,7 +137,7 @@ export function splayedBook(seed = 11) {
     }
     const block = new THREE.ExtrudeGeometry(sh, { depth: LP, bevelEnabled: false, curveSegments: 1 }).translate(0, 0.13, -LP / 2);
     if (side < 0) block.rotateY(Math.PI);
-    out.push([block.rotateZ(side * lift), 'paper']);
+    out.push([block.rotateZ(side * lift), 'pageOld']);
   }
   out.push([new THREE.BoxGeometry(0.5, 0.14, LEN).translate(0, 0.05, 0), 'leather']);
   // the leaves lifting: each a sheet bent from the gutter, standing at `a`
@@ -145,7 +158,7 @@ export function splayedBook(seed = 11) {
       p.setXYZ(i, cx[k] - Math.sin(t) * y, Math.max(0.2, cy[k] + Math.cos(t) * y), z);
     }
     leaf.computeVertexNormals();
-    out.push([leaf, 'paper']);
+    out.push([leaf, 'pageOld']);
   }
   return out;
 }
@@ -159,7 +172,7 @@ export function tentBook() {
   for (const side of [-1, 1]) {
     const lay = (g) => g.rotateZ(-side * (Math.PI / 2 - FALL)).translate(0, HR, 0);
     out.push([lay(new THREE.BoxGeometry(WB, 0.13, LEN).translate(side * WB / 2, 0, 0)), 'leather']);
-    out.push([lay(new THREE.BoxGeometry(WB - 0.25, 0.3, LEN - 0.3).translate(side * (WB / 2 + 0.02), -0.215, 0)), 'paper']);
+    out.push([lay(new THREE.BoxGeometry(WB - 0.25, 0.3, LEN - 0.3).translate(side * (WB / 2 + 0.02), -0.215, 0)), 'pageOld']);
   }
   return { parts: out, spine: [HR + 0.03, 0.8, LEN] };
 }
@@ -218,6 +231,10 @@ export const LAMP_Y = qn('wdlampy', 72);
 // `frame`: { origin: [x, z], x: [x, z], z: [x, z] } of the arch in the world.
 // `P`: portal.js's PORTAL.
 export const REVEAL = { turn: qn('wdrev', 0.5), deep: qn('wddeep', 0.28), under: qn('wdunder', 0.45) };
+// The piers' blind lancets (portal.js LANCET), cut back into the face: how
+// much light their sunk fields keep, and their reveals where they meet the
+// field (going from the face's own tone at their front edge).
+export const SUNK = { field: qn('wdsunk', 0.62), reveal: qn('wdsunkr', 0.48) };
 const f = (x) => (Number.isInteger(x) ? `${x}.0` : `${x}`);
 export const revealShade = (mat, frame, P, key) => {
   const before = mat.onBeforeCompile;
@@ -256,6 +273,16 @@ export const revealShade = (mat, frame, P, key) => {
           float turned = smoothstep(0.3, 0.85, dot(n.xy, inward));
           float under = smoothstep(0.2, 0.75, -n.y);
           float revealK = 1.0 - within * (${f(REVEAL.deep)} * deep + max(${f(REVEAL.turn)} * turned, ${f(REVEAL.under)} * under) * (0.55 + 0.45 * deep));
+          // the piers' blind lancets: a field sunk behind the face, and the
+          // reveals down to it, in shadow (no lamp here casts one)
+          {
+            float ax = abs(abs(p.x) - ${f(P.X + P.PIER / 2)});
+            ${P.LANCET.rects.map(([w, y0, y1], i) => {
+              const z = P.LANCET.face[i], hw = w - P.LANCET.frame, top = y1 + 2 * hw * 0.866;
+              return `if (ax < ${f(hw + 0.05)} && p.y > ${f(y0 + P.LANCET.frame - 0.05)} && p.y < ${f(top + 0.05)} && p.z < ${f(z - 0.04)} && p.z > ${f(z - P.LANCET.sink - 0.1)})
+              revealK *= abs(n.z) > 0.5 ? ${f(SUNK.field)} : mix(1.0, ${f(SUNK.reveal)}, smoothstep(${f(z)}, ${f(z - P.LANCET.sink)}, p.z));`;
+            }).join('\n            ')}
+          }
           diffuseColor.rgb *= revealK;
         }`);
   };

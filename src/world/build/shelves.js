@@ -8,7 +8,10 @@ import { SPINE_KINDS, PLATE_CELLS, makeRng, TITLE_COUNT } from '../textures';
 import { shaftVolume } from '../effects';
 import { FILLET, COLOUR, STRING } from '../libraryProps';
 import { ROOM_BINDINGS } from '../roomColour';
+import { OPEN_WELLS } from '../wellsBelow';
+import { SHELVES_ABOVE, CHAIN_ABOVE } from '../shelvesAbove';
 import { LADDER_U as DOOR_LADDER_U } from '../doorProps';
+import { faceEdge } from '../libraryFace';
 import { BINDINGS, TIERS, TIER_BASE, TIER_H, FRIEZE_Y, SHELVES, CASE_BACK, BOOK_ROWS, shelvesOf, BOARD, MASS_H, CAP, deg } from './common';
 
 export function buildBooks(ctx) {
@@ -419,7 +422,18 @@ export function* buildFurniture(ctx) {
     HALL, ARCH_SPRING, ARCH_R, WAY_IN, cellC, rimAt, deepAt, NB, cells, inFrame, routeDist, hallway,
     edgeFrame, hallMid, mouldGeo, wallRing, mirrors, LB, posts, links,
     balusters, books, globes, deadGlobes, dust, glows, LAID, roman, hexNumber,
-    shelfWall, instances } = ctx;
+    shelfWall } = ctx;
+  // The galleries' walls onto the garden are the face that goes when it is
+  // looked at (libraryFace.js): their stone is handed over (`facePieces`),
+  // their rail left off, and their cases drawn into nothing — drawn, so the
+  // world's stream is drawn on exactly as before.
+  const isFace = faceEdge(ctx), facePieces = [];
+  const sink = { add: (g) => { g.dispose?.(); return sink; } };
+  const unseen = (fn) => {
+    const kept = { ...LB };
+    for (const k of Object.keys(LB)) LB[k] = sink;
+    try { fn(); } finally { Object.assign(LB, kept); }
+  };
   // ── Furniture ─────────────────────────────────────────────────────────────
   // What gives a person's scale back to a room whose every wall is eleven
   // metres of books: a gallery overhead that you are not on, a ladder left
@@ -622,14 +636,16 @@ export function* buildFurniture(ctx) {
   // depthTest OFF so it can lie over the stone it lights; within about sixty
   // units of where a reader stands that becomes a hundred-unit disc of light in
   // FRONT of the room, and the gallery goes milky. Lamps near a stand turn it down.
-  const lamp = (p, { y = LAMP_Y, lightY = y - 4, light: power = 0, priority = 0, color = '#ffb466', strength = 1, pool = 0.3, poolSize = 200, poolY = 6.6, poolAt = p, r = 9, beam = true, out = false, ember = 0, haze = 1, chain = Infinity, link = 1, globeMaterial = null } = {}) => {
+  // `glow`, `glass`: the globe's own brightness against its strength's, and the
+  // colour of its glass, for a room lit brighter than the rest that keeps its
+  // own flame (the Vertigo's well; roomColour.js tints every other room's
+  // globes), where the plain globe printed grey.
+  const lamp = (p, { y = LAMP_Y, lightY = y - 4, light: power = 0, priority = 0, color = '#ffb466', strength = 1, pool = 0.3, poolSize = 200, poolY = 6.6, poolAt = p, r = 9, beam = true, out = false, ember = 0, haze = 1, chain = Infinity, link = 1, glow = 1, glass = '#fff3e2' } = {}) => {
     // One opal globe, with no clear shell round it: a lit globe is the light
     // (makeLampGlobeMaterial), a dead one is the same globe in cold, dull
     // glass.
     const G = r * 0.55;
-    const globe = { p: [p[0], y, p[1]], s: [G, G, G], ...(out ? { ember } : { color: '#fff3e2', k: 0.45 + strength * 0.5 }) };
-    if (globeMaterial && !out) instances(new THREE.SphereGeometry(1, 32, 20), globeMaterial, [globe], { cast: false, receive: false });
-    else (out ? deadGlobes : globes).push(globe);
+    (out ? deadGlobes : globes).push({ p: [p[0], y, p[1]], s: [G, G, G], ...(out ? { ember } : { color: glass, k: (0.45 + strength * 0.5) * glow }) });
     // The fitting sits ON the globe, outside it: a collar gripping its neck, a
     // bead of rim where the glass goes in, a cap, and a loop for the chain; a
     // small drop finishes the bottom of the glass.
@@ -645,7 +661,10 @@ export function* buildFurniture(ctx) {
     // cable from the top of the frame to the bottom across the one thing the
     // room is for — the look down the funnel. The chain still rises out of the
     // light; it just stops being drawn once there is nothing left to light it.
-    const chainTop = Math.min(MASS_H + 40, y + G * 1.58 + chain);
+    // (over the Echo and the Silence, whose walls go on up, up into the dark
+    // between them: shelvesAbove.js)
+    const shaft = Object.keys(SHELVES_ABOVE).some((k) => { const q = cellC(...k.split(',').map(Number)); return dist(p, q) < rimAt(q); });
+    const chainTop = Math.min(shaft ? CHAIN_ABOVE : MASS_H + 40, y + G * 1.58 + chain);
     for (let cy = y + G * 1.58, k = 0; cy < chainTop; cy += 1.55 * link, k++) {
       links.push({ p: [p[0], cy, p[1]], rot: [0, k % 2 ? Math.PI / 2 : 0, 0], s: [link, link, link] });
     }
@@ -776,6 +795,7 @@ export function* buildFurniture(ctx) {
   };
   const balustrade = (cell, halls) => {
     for (let k = 0; k < 6; k++) {
+      if (isFace(cell, k)) continue;
       const e = edgeFrame(cell.c, k);
       const a = add(e.i0, e.n, 3.5), b = add(e.i1, e.n, 3.5);
       const rim = rimAt(cell.c);
@@ -829,6 +849,7 @@ export function* buildFurniture(ctx) {
       const mid = piece.reduce((m, q) => [m[0] + q[0] / piece.length, m[1] + q[1] / piece.length], [0, 0]);
       const bearing = (Math.atan2(mid[1] - c[1], mid[0] - c[0]) / deg + 360) % 360;
       const uvAt = wayInSide !== null && Math.abs(((bearing - wayInSide + 540) % 360) - 180) < 30 ? WAY_IN.by : null;
+      if (isFace(cell, Math.floor(bearing / 60) % 6)) { facePieces.push({ piece, cell, k: Math.floor(bearing / 60) % 6 }); continue; }
       (room === 0 ? LB.vestMass : LB.mass).add(slabGeo(piece, [], MASS_H, 0), uvAt);
       LB.cap.add(slabGeo(piece, [], CAP, MASS_H), uvAt);
     }
@@ -913,6 +934,7 @@ export function* buildFurniture(ctx) {
       // standard wall, or everything built after them would move)
       const stream = wider ? dist(add(c, dir(60 * k), R), add(c, dir(60 * k + 60), R)) : undefined;
       if (lit && k === 4 && paintings) shelfWall(e.i0, e.i1, inward, { from: 3, to: TIERS - 1, ...dress, words: wallWords(k), stream });
+      else if (isFace(cell, k)) unseen(() => shelfWall(e.i0, e.i1, inward, { from: fromTier, to: TIERS - 1, ...dress, words: wallWords(k), stream }));
       else shelfWall(e.i0, e.i1, inward, { from: fromTier, to: TIERS - 1, ...dress, words: wallWords(k), stream });
     }
     if (lit) hangPainting(room, [c[0], c[1] - A - deepAt(c) + 2.5], 38, [0, 1], 80);
@@ -922,8 +944,14 @@ export function* buildFurniture(ctx) {
       // bronze plinth or the parapet: at 3 a sliver of it showed beside the
       // parapet's foot, in the floor's own plane)
       const lining = lit && room === 0 ? LB.wellGlow : LB.well;
-      lining.add(slabGeo(hexPts(c, shaft + 2.5), [hexPts(c, shaft)], 236, -230));
-      LB.stars.add(slabGeo(hexPts(c, shaft + 2), [], 1, -232));
+      // (the Vestibule's and the Silence's open through the floor onto the
+      // storeys below, wellsBelow.js: a liner only as deep as the slab and the
+      // gap under it, and no stars)
+      if (OPEN_WELLS[cell.k] !== undefined) lining.add(slabGeo(hexPts(c, shaft + 2.5), [hexPts(c, shaft)], 11, -5));
+      else {
+        lining.add(slabGeo(hexPts(c, shaft + 2.5), [hexPts(c, shaft)], 236, -230));
+        LB.stars.add(slabGeo(hexPts(c, shaft + 2), [], 1, -232));
+      }
       if (lit && room === 0) {
         // (the Vestibule's well rail is laid with its bridge, as one run
         // round each half of the well: vestibuleBridge.js)
@@ -994,7 +1022,7 @@ export function* buildFurniture(ctx) {
       // (decal), and a ring whose top stood in that very plane fought them
       // for every pixel: a comb of lit and unlit teeth down the brass that
       // changed with every step, which is the "blinking rails on the floor".
-      if (lit && room !== 4) LB.inlay.add(slabGeo(hexPts(c, shaft + 18), [hexPts(c, shaft + 16.6)], 0.5, 6));
+      if (lit && room !== 4) LB.inlayWorn.add(slabGeo(hexPts(c, shaft + 18), [hexPts(c, shaft + 16.6)], 0.5, 6));
     }
     if (!lit && framed && rnd() < 0.14 + 0.5 * near) {
       const strength = 0.15 + 0.6 * near;
@@ -1021,5 +1049,5 @@ export function* buildFurniture(ctx) {
     gallery(S, 0); gallery(S, 3); ladder(S, 4, -20); readingCorner(S, 3, 12, { lit: false });
     gallery(Dr, 1); gallery(Dr, 4); ladder(Dr, 0, DOOR_LADDER_U); readingCorner(Dr, 3, -10);
   }
-  return { alongWall, distantReaders, lamp, mounts, hangPainting, archGeo, RAIL_H, railRun };
+  return { alongWall, distantReaders, lamp, mounts, hangPainting, archGeo, RAIL_H, railRun, facePieces };
 }

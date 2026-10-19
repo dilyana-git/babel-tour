@@ -19,7 +19,7 @@ import { swardLawn, moonBlades, BANK_SWARD, FEATHER, signLit, SIGN, plinthLit, P
 import { WALLS } from '../webProps';
 import { BLOSSOM } from '../trees';
 import { HEART } from '../gardenPlan';
-import { FILLET_BRASS, ECHO_STONE, STRING, COLOUR } from '../libraryProps';
+import { ECHO_STONE, STRING, COLOUR, OLD_BRASS } from '../libraryProps';
 import { QUIET, TONE } from '../mapLook';
 import { ROOM_LEATHER } from '../roomColour';
 import { softGain } from '../lightModel';
@@ -32,10 +32,10 @@ import { DOOR_CRACKS, stoneTint, HEDGE_DIAL, ROUTE_LIGHT, MASS_H, CAP, RIM_WARM,
 
 export function buildMaterials(ctx) {
   const { light, rr, dir, add, unit2, dist, keep, grassTex, GRAVEL_COLOR, gravelTex, starTex,
-    roofTex, radialTex, wisteriaTex, ivyTex, again, flag, crackMap, wall, pale, wood, whiteTex,
+    roofTex, radialTex, wisteriaTex, ivyTex, again, flag, crackMap, wall, pale, voussoirSet, wood, whiteTex,
     timber, spines, titles, bookRowsSet, vestBookRowsSet, friezeTex, gilt, hedge, carveSet, rubbleSet, shoreRockSet,
     shoreBankSet, dressedSet, marbleSet, columnSet, hangTex, glowTex, lampHaloTex, wind, lilyPads,
-    leaves, barkSet, gradTex, wornTex, dustFanTex, mossTex, leafTex, globeTex } = ctx;
+    leaves, barkSet, gradTex, wornTex, dustFanTex, globeTex } = ctx;
   // ── Materials ─────────────────────────────────────────────────────────────
   const Std = (o) => keep(new THREE.MeshStandardMaterial(o));
   // the pond, for the stones' wet line (filled in where POND is laid out)
@@ -118,6 +118,7 @@ export function buildMaterials(ctx) {
           varying vec3 vStoneW;
           varying float vStoneDown;
           varying float vStoneSide;
+          ${worked?.ring ? 'varying vec3 vStoneNW;' : ''}
           ${sink ? `uniform vec3 uBounceRooms[${bounceRooms.value.length}];
           uniform float uMapWarm;` : ''}
           ${placed ? 'varying vec3 vStoneAt;' : ''}`)
@@ -146,7 +147,8 @@ export function buildMaterials(ctx) {
           }` : ''}`)
         .replace('#include <beginnormal_vertex>', `#include <beginnormal_vertex>
           vStoneDown = max(0.0, -normalize(mat3(modelMatrix) * objectNormal).y);
-          vStoneSide = 1.0 - abs(normalize(mat3(modelMatrix) * objectNormal).y);`);
+          vStoneSide = 1.0 - abs(normalize(mat3(modelMatrix) * objectNormal).y);
+          ${worked?.ring ? 'vStoneNW = normalize(mat3(modelMatrix) * objectNormal);' : ''}`);
       sh.fragmentShader = sh.fragmentShader
         .replace('#include <common>', `#include <common>
           uniform vec3 uBounceRooms[${bounceRooms.value.length}];
@@ -158,6 +160,7 @@ export function buildMaterials(ctx) {
           varying float vStoneSide;
           ${placed ? 'varying vec3 vStoneAt;' : ''}
           ${worked ? 'uniform vec3 uWorkAt;' : ''}
+          ${worked?.ring ? 'varying vec3 vStoneNW;' : ''}
           ${wash || vestibule ? 'uniform vec4 uWashA, uWashB;' : ''}
           ${beds ? `uniform vec4 uAshLedge[${LEDGES_MAX}];
           uniform vec2 uAshLedgeR[${LEDGES_MAX}];` : ''}
@@ -234,7 +237,11 @@ export function buildMaterials(ctx) {
             float workTone = (1.0 + ${(ECHO_STONE.tone * tone).toFixed(3)} * (workA - 0.5) + ${(ECHO_STONE.tone * tone * 0.45).toFixed(3)} * (workB - 0.5))
               * (1.0 - ${ECHO_STONE.soffit.toFixed(3)} * smoothstep(0.12, 0.8, vStoneDown)) * (1.0 + ${ECHO_STONE.up.toFixed(3)} * workUp);
             // (and what has run down its upright faces over the years, in streaks)
-            workTone *= 1.0 - ${ECHO_STONE.streak.toFixed(3)} * vStoneSide * smoothstep(0.5, 0.85, stoneNoise3(vStoneW * vec3(0.8, 0.06, 0.8) + 2.9));
+            workTone *= 1.0 - ${ECHO_STONE.streak.toFixed(3)} * vStoneSide * smoothstep(0.5, 0.85, stoneNoise3(vStoneW * vec3(0.8, 0.06, 0.8) + 2.9))
+              ${worked.ring ? `// (\`ring\`: an arch's stones about the well, streaked down their
+              // faces, which look in or out from the middle — not along the
+              // soffit, where the streaks ran the curve as a lath's grain)
+              * abs(dot(normalize(vStoneNW.xz + 1e-4), normalize(vStoneW.xz - uWorkAt.xy + 1e-4)))` : ''};
             ${worked.joints ? `#ifdef USE_MAP
               workTone *= 1.0 - ${(ECHO_STONE.joints * worked.joints).toFixed(3)} * (1.0 - smoothstep(0.05, 0.2, dot(sampledDiffuseColor.rgb, vec3(0.333))));
             #endif` : ''}
@@ -345,7 +352,7 @@ export function buildMaterials(ctx) {
           outgoingLight *= stoneSurf;
           #include <opaque_fragment>`);
     };
-    mat.customProgramCacheKey = () => `babel-stone-${weather ? 'w' : night ? 'n' : 'b'}${(weather || night) && WALLS.spec ? 's' : ''}-${bounceRooms.value.length}${'-rim'}${quiet ? '-quiet' : ''}${route ? '-route' : ''}${sink ? '-sink' : ''}${aged ? '-aged' : ''}${worked ? `-work${worked.polish ?? 0}${worked.joints ?? 0}${worked.foot ? 'f' : ''}` : ''}${wash ? '-wash' : ''}${vestibule ? '-vestibule' : ''}${beds ? '-beds' : ''}${soot ? '-soot' : ''}${tone !== 1 ? '-tone' : ''}`;
+    mat.customProgramCacheKey = () => `babel-stone-${weather ? 'w' : night ? 'n' : 'b'}${(weather || night) && WALLS.spec ? 's' : ''}-${bounceRooms.value.length}${'-rim'}${quiet ? '-quiet' : ''}${route ? '-route' : ''}${sink ? '-sink' : ''}${aged ? '-aged' : ''}${worked ? `-work${worked.polish ?? 0}${worked.joints ?? 0}${worked.foot ? 'f' : ''}${worked.ring ? 'r' : ''}` : ''}${wash ? '-wash' : ''}${vestibule ? '-vestibule' : ''}${beds ? '-beds' : ''}${soot ? '-soot' : ''}${tone !== 1 ? '-tone' : ''}`;
     return mat;
   };
   // Less of the sky in a surface's gloss, `k` of it, and `direct` of the
@@ -531,7 +538,22 @@ export function buildMaterials(ctx) {
   const WAY_SHOWN = typeof window === 'undefined' || new URLSearchParams(window.location.search).get('wway') !== '0';
   // how much light it catches at the full of it (?wwaygain= to try another)
   const WAY_GAIN = (typeof window !== 'undefined' && Number(new URLSearchParams(window.location.search).get('wwaygain'))) || 0.9;
-  const wayU = { uWay: { value: new THREE.Vector4(0, 0, 0, -1) }, uWayY: { value: 0 }, uWayOn: { value: 0 } };
+  // Worn slab by slab: each slab the way crosses was worn its own
+  // width and its own depth, and the joints between them not at all, so the
+  // light it catches is polish from feet and not a band laid along it. The
+  // slab under a pixel is read from the paving's roughness map as paveShade
+  // reads it (R: the slab's id, B: the tile it began in, G: rough, the joints
+  // roughest); far off, where a pixel spans many texels, an even mean.
+  const wayU = { uWay: { value: new THREE.Vector4(0, 0, 0, -1) }, uWayY: { value: 0 }, uWayOn: { value: 0 }, uWayPave: { value: flag.roughnessMap } };
+  const wayWorn = `
+            vec4 wayPave = texture2D(uWayPave, vMapUv);
+            vec2 wayFw = fwidth(vMapUv) * 1024.0;
+            float wayNear = 1.0 - smoothstep(6.0, 28.0, max(wayFw.x, wayFw.y));
+            vec3 waySlab = wayHash(vec3(floor(vMapUv) - vec2(floor(wayPave.b * 2.0 + 0.5) - 1.0, 0.0), floor(wayPave.r * 15.9375)) + vec3(0.37, 0.71, 0.13));
+            float wayAcross = abs(vAlphaMapUv.x - 0.5) * 2.0 + 0.18 * (wayNoise(vWayW.xz * 0.9 + 7.0) - 0.5);
+            float wayHalf = mix(0.32, 0.9, waySlab.x);
+            float wayWear = (1.0 - smoothstep(wayHalf * 0.45, wayHalf, wayAcross)) * (1.0 - smoothstep(0.8, 0.92, wayPave.g)) * mix(0.55, 1.05, waySlab.y);
+            wayGlow *= 1.2 * mix(0.45, wayWear, wayNear);`;
   const wayLit = (mat, key) => {
     if (!WAY_SHOWN) return mat;
     mat.onBeforeCompile = (sh) => {
@@ -545,7 +567,19 @@ export function buildMaterials(ctx) {
         .replace('#include <common>', `#include <common>
           uniform vec4 uWay;
           uniform float uWayY, uWayOn;
-          varying vec3 vWayW;`)
+          uniform sampler2D uWayPave;
+          varying vec3 vWayW;
+          vec3 wayHash(vec3 p) {
+            p = fract(p * vec3(0.1031, 0.1030, 0.0973));
+            p += dot(p, p.yxz + 33.33);
+            return fract((p.xxy + p.yxx) * p.zyx);
+          }
+          float wayNoise(vec2 x) {
+            vec2 i = floor(x), f = fract(x);
+            f = f * f * (3.0 - 2.0 * f);
+            return mix(mix(wayHash(vec3(i, 5.1)).x, wayHash(vec3(i + vec2(1.0, 0.0), 5.1)).x, f.x),
+              mix(wayHash(vec3(i + vec2(0.0, 1.0), 5.1)).x, wayHash(vec3(i + vec2(1.0, 1.0), 5.1)).x, f.x), f.y);
+          }`)
         .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
           {
             // from about two strides ahead (where the floor comes into view at
@@ -556,7 +590,7 @@ export function buildMaterials(ctx) {
             float wAcross = abs(wd.x * uWay.w - wd.y * uWay.z);
             float wRise = abs(vWayW.y - uWayY) - 0.6 * max(wAlong, 0.0);
             float wayGlow = uWayOn * smoothstep(8.0, 18.0, wAlong) * (1.0 - smoothstep(38.0, 66.0, wAlong))
-              * (1.0 - smoothstep(7.0, 13.0, wAcross)) * (1.0 - smoothstep(6.0, 12.0, wRise));
+              * (1.0 - smoothstep(7.0, 13.0, wAcross)) * (1.0 - smoothstep(6.0, 12.0, wRise));${wayWorn}
             totalEmissiveRadiance += diffuseColor.rgb * vec3(1.0, 0.76, 0.46) * ${WAY_GAIN.toFixed(3)} * wayGlow;
           }`);
     };
@@ -735,6 +769,12 @@ export function buildMaterials(ctx) {
     mass: stoneShade(Std({ map: wall.map, normalMap: wall.normalMap, roughnessMap: wall.roughnessMap, color: stoneTint('#b6a897', '#ada89e'), roughness: 1, side: THREE.DoubleSide }), { weather: true, quiet: true, aged: true, wash: true, route: true }),
     vestMass: stoneShade(Std({ map: wall.map, normalMap: wall.normalMap, roughnessMap: wall.roughnessMap, color: stoneTint('#b6a897', '#ada89e'), roughness: 1, side: THREE.DoubleSide }), { weather: true, quiet: true, aged: true, wash: true, route: true, vestibule: true }),
     cap: stoneShade(Std({ map: pale.map, normalMap: pale.normalMap, roughnessMap: pale.roughnessMap, color: stoneTint('#b3a894', '#b0aa9d'), roughness: 1, side: THREE.DoubleSide }), { night: WALLS.spec, quiet: true, worked: { polish: 0.3, joints: 1 }, wash: true, route: true }),
+    // the Echo's voussoirs: the same stone, a stone at a time — jointless,
+    // tooled along each one's own axis, each its own shade (rooms/echo.js)
+    voussoir: stoneShade(Std({ map: voussoirSet.map, normalMap: voussoirSet.normalMap, roughnessMap: voussoirSet.roughnessMap, color: stoneTint('#b3a894', '#b0aa9d'), roughness: 1, vertexColors: true }), { night: WALLS.spec, quiet: true, worked: { polish: 0.3, ring: true }, wash: true, route: true }),
+    // and the lime in their joints: in the shade of the chamfers either side
+    // but paler than that shade, not the black slot of `joint`
+    archMortar: stoneShade(Std({ map: voussoirSet.map, color: '#6f685d', roughness: 1 }), { night: WALLS.spec, quiet: true, wash: true, route: true }),
     // the same stone in the Silence's flights, where the lamp over the landing
     // reached in under it (no lamp casts a shadow) and drew a lit line along
     // every voussoir and string: a striped ziggurat in the quietest room
@@ -809,6 +849,10 @@ export function buildMaterials(ctx) {
     shade: ((m) => (shadeLit(m, 6 + 7.6 + 3.75, 6 + 7.6 + 5.55)))(Std({ color: '#7a4a22', emissive: '#ff9a48', emissiveIntensity: 1.3, roughness: 0.7, side: THREE.DoubleSide })),
     shadeDead: Std({ color: '#4d3e32', roughness: 0.85, side: THREE.DoubleSide }),
     paper: Std({ color: '#cdbf9e', roughness: 0.9 }),
+    // the Door's fallen books' leaves: foxed and gone to tea, out under the
+    // candles (doorProps.js; in the open book's paper they were the brightest
+    // thing in the room after the flames)
+    pageOld: Std({ color: '#a08b68', roughness: 0.95 }),
     // the front edge of a shelf where books have gone in and out for centuries
     shelfWorn: Std({ map: wood.map, normalMap: wood.normalMap, roughnessMap: wood.roughnessMap, color: new THREE.Color().setRGB(2.5, 2.3, 1.9), roughness: 0.8 }),
     dust: Std({ color: '#8b857a', roughness: 1 }),
@@ -834,8 +878,6 @@ export function buildMaterials(ctx) {
     joint: Std({ color: '#2a241e', roughness: 1 }),
     deadShards: Std({ color: '#3d3833', roughness: 0.22, metalness: 0, envMapIntensity: 0.8, side: THREE.DoubleSide }),
     dustFan: Std({ map: dustFanTex, color: '#bdb3a2', roughness: 1, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }),
-    moss: Std({ map: mossTex, roughness: 1, transparent: true, depthWrite: false, vertexColors: true, polygonOffset: true, polygonOffsetFactor: -3 }),
-    leaf: Std({ map: leafTex, alphaTest: 0.5, roughness: 0.85, side: THREE.DoubleSide }),
     globeMap: Std({ map: globeTex, roughness: 0.55 }),
     // What came down with the Door's wall lies in the light that comes in
     // through it: no lamp reaches it, and unlit it read as black chips.
@@ -866,8 +908,10 @@ export function buildMaterials(ctx) {
     bronze: Std({ color: '#7d5d38', roughness: 0.46, metalness: 0.8, side: THREE.DoubleSide }),
     bronzeDim: Std({ color: '#4e3d2b', roughness: 0.7, metalness: 0.3, side: THREE.DoubleSide }),
     inlay: Std({ color: '#9c7c3c', roughness: 0.4, metalness: 0.7, side: THREE.DoubleSide }),
-    // (the fillet round each floor, in its own duller brass: libraryProps.js)
-    fillet: Std({ ...FILLET_BRASS, side: THREE.DoubleSide }),
+    // (the rings let into the floors where the walk goes, and the fillet round
+    // each floor: brass worn dark, libraryProps.js)
+    inlayWorn: Std({ ...OLD_BRASS, side: THREE.DoubleSide }),
+    fillet: Std({ ...OLD_BRASS, side: THREE.DoubleSide }),
     mirror: Std({ color: '#767c82', roughness: 0.34, metalness: 0.95, envMapIntensity: 2.4 }),
     liner: Std({ color: '#2a2219', roughness: 1, side: THREE.DoubleSide }),
     well: wellStone(),
@@ -1057,6 +1101,32 @@ export function buildMaterials(ctx) {
   const CHUNK = 450;
   const chunkKey = (x, z) => `${Math.floor(x / CHUNK)},${Math.floor(z / CHUNK)}`;
   const centre = new THREE.Vector3();
+  // A merged patch's sphere, the very one computeBoundingSphere gives (its
+  // box's centre, out to the furthest vertex), read straight off
+  // the positions: three's two passes a vertex at a time took a second and a
+  // half of the assembly (2026-10-16).
+  const boundsOf = (geo) => {
+    const p = geo.attributes.position;
+    if (p.isInterleavedBufferAttribute || p.normalized || p.itemSize !== 3 || !p.count) { geo.computeBoundingSphere(); return; }
+    const a = p.array, n = p.count * 3;
+    let x0 = Infinity, y0 = Infinity, z0 = Infinity, x1 = -Infinity, y1 = -Infinity, z1 = -Infinity;
+    for (let i = 0; i < n; i += 3) {
+      const x = a[i], y = a[i + 1], z = a[i + 2];
+      if (x < x0) x0 = x;
+      if (x > x1) x1 = x;
+      if (y < y0) y0 = y;
+      if (y > y1) y1 = y;
+      if (z < z0) z0 = z;
+      if (z > z1) z1 = z;
+    }
+    const cx = (x0 + x1) * 0.5, cy = (y0 + y1) * 0.5, cz = (z0 + z1) * 0.5;
+    let r2 = 0;
+    for (let i = 0; i < n; i += 3) {
+      const dx = cx - a[i], dy = cy - a[i + 1], dz = cz - a[i + 2], d = dx * dx + dy * dy + dz * dz;
+      if (d > r2) r2 = d;
+    }
+    geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(cx, cy, cz), Math.sqrt(r2));
+  };
   class Batch {
     // `project`: lay this batch's texture in world units rather than per face.
     constructor(mat, { cast = true, receive = true, project = false } = {}) { Object.assign(this, { mat, cast, receive, project, chunks: new Map() }); }
@@ -1086,7 +1156,7 @@ export function buildMaterials(ctx) {
       for (const geos of this.chunks.values()) {
         const geo = keep(mergeGeometries(geos, false));
         geos.forEach((g) => g.dispose());
-        geo.computeBoundingSphere();
+        boundsOf(geo);
         const m = new THREE.Mesh(geo, this.mat);
         m.castShadow = this.cast;
         m.receiveShadow = this.receive;

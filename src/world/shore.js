@@ -464,7 +464,7 @@ export function rockVariants(n, { seed = 6151, detail = 12, moss = 0.6 } = {}) {
 // ── Where the bank and its stones lie ────────────────────────────────────────
 // `edge`: the pond's outline, the very points its water is cut to (so the
 // bank meets the water's own edge, chord for chord). `world`:
-//   floorAt(x, z)  the ground there (lawn 4, gravel 5.2)
+//   floorAt(x, z)  the ground there (lawn 4, gravel 4.06)
 //   gravelAt(x, z) how much of it is gravel, 0..1
 //   under(x, z)    the most the bank may rise there (under a bridge's deck,
 //                  across the way onto it), or Infinity

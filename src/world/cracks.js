@@ -206,10 +206,14 @@ export function crackFields({
 
   // Spreading from the breach, into the room: fanned out from along it, each
   // turned away from the middle as much as it starts from it, so that they part.
+  // (narrow: the taper opens them half again as wide at the breach and the
+  // blow there wider still, so at 0.36-0.48 they were 8-15 cm gaps, dark
+  // grey from wall to wall and black only down the middle — from the
+  // threshold, soft smears laid over the pavement, not broken stone)
   const [ba0, ba1, bb0, bb1] = breach;
   for (let c = 0, n = 7; c < n; c++) {
     const f = (c + 0.5) / n, spread = (f - 0.5) * 1.5 + gauss() * 0.1;
-    queue.push({ a: ba1 - f * (ba1 - ba0) + R(-1, 1), b: R(bb0, bb1), dir: Math.PI / 2 + spread, len: R(70, 130), w: R(0.36, 0.48), gen: 0 });
+    queue.push({ a: ba1 - f * (ba1 - ba0) + R(-1, 1), b: R(bb0, bb1), dir: Math.PI / 2 + spread, len: R(70, 130), w: R(0.11, 0.15), gen: 0 });
   }
   // Under each block that fell: the slab it struck burst, cracks out from under
   // it all round and an arc or two of them farther out.
