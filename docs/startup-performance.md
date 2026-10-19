@@ -7,6 +7,37 @@ The `profile` field can be saved as a `.cpuprofile` for Chrome or Edge DevTools.
 Use separate names for before and after runs. Avoid concurrent builds or browser
 tests while measuring.
 
+## 2026-10-19: reduce waste while planting the garden
+
+Baseline: `553122d`. Garden path checks allocated a sliced array, a mapped
+array and a projected point for each segment on every query. They now walk
+the segments directly and skip a full distance calculation when either axis
+already exceeds the nearest distance. The projection arithmetic is unchanged.
+The same helper checks the garden boundary.
+
+Trees excluded by the paths still spend their established growth and leaf
+draws, but no longer refine bark or create vertex buffers that would immediately
+be discarded. Their leaf-colour draws are retained without mixing unused colours.
+All planted trees retain their full detail.
+
+The local Node benchmark of 40,000 queries against a 119-segment path improved
+from **162.4 ms to 66.8 ms** (seven-run medians after two warm-ups; 59% less CPU
+time). Tests compare exact distances over 10,500 seeded queries and cover
+endpoints and degenerate paths. Tree checks compare growth, foliage and the
+next growth, weeping and tint draws with and without bark construction.
+
+Headless Edge/GPU at 960×600 measured navigation-to-ready at 18.3 seconds
+before and 17.2 / 30.8 seconds after. The variation in painting, construction
+and driver waits prevents a reliable claim about total loading-time savings.
+These changes reduce specific startup work; they do not establish a general
+page-load percentage improvement.
+
+Scene fingerprints retain identical geometry for all 1,345 objects, material
+code and all 414 captured shader sources. The raw comparison still differs in
+23 animated material values, 27 transforms and one animated instance buffer.
+The map, Fork and Pavilion captures were inspected. Profiles, fingerprints,
+the distance benchmark and pictures are in `.ux-review/qa/load-2026-10-19/`.
+
 ## 2026-10-19: skip secondary views outside the frame
 
 Baseline: `08b1c7c`. Doorways checked their projected corners, treating a

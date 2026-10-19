@@ -14,6 +14,7 @@ import { LANTERN_HALO } from '../doorProps';
 import { gardenRock } from '../shore';
 import { ivyLeafGeometry, leafletGeometry, twineWisteria, compoundLeaf } from '../ivy';
 import { HEDGE_DIAL } from '../build/common';
+import { segmentDistance as segDist, lineDistance as lineDist } from '../gardenDistance';
 
 export function buildGarden(ctx) {
   const { paintings, light, rnd, dir, add, lerp2, unit2, dist, hexPts, circlePts,
@@ -115,13 +116,6 @@ export function buildGarden(ctx) {
     { pts: MAZE_PATH, w: 14 },
     { pts: [J, [1120, 160], [1000, 88], [890, 30], [840, -40]], w: 14, fading: true },
   ];
-  const segDist = (p, a, b) => {
-    const vx = b[0] - a[0], vz = b[1] - a[1];
-    const length2 = vx * vx + vz * vz;
-    const t = length2 ? Math.max(0, Math.min(1, ((p[0] - a[0]) * vx + (p[1] - a[1]) * vz) / length2)) : 0;
-    return dist(p, [a[0] + vx * t, a[1] + vz * t]);
-  };
-  const lineDist = (p, pts) => Math.min(...pts.slice(1).map((b, i) => segDist(p, pts[i], b)));
   const pathDist = (p) => Math.min(...PATHS.map((path) => lineDist(p, path.pts)));
   // ── The road not taken, taken ────────────────────────────────────────────
   // The Fork parts the two ways a reader has: the Pavilion straight on, and to
@@ -168,7 +162,7 @@ export function buildGarden(ctx) {
   // outside but grass going on into the dark, and a reader could walk out into
   // it. (Both ends stand in the Library's stone. The trees beyond it are the
   // skyline they always were.)
-  const boundaryDist = (p) => Math.min(...BOUNDARY.slice(1).map((b, i) => segDist(p, BOUNDARY[i], b)));
+  const boundaryDist = (p) => lineDist(p, BOUNDARY);
 
   // Keep the shared random budget fixed for the relocated approaches; their
   // edging uses its own stream so longer paths do not move later sections.

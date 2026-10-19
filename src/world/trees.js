@@ -52,6 +52,7 @@ const UP = V(0, 1, 0);
 // a direction from a bearing (radians, in the xz plane) and an elevation
 const heading = (bearing, elevation) => V(Math.cos(elevation) * Math.cos(bearing), Math.sin(elevation), Math.cos(elevation) * Math.sin(bearing));
 const bearingOf = (d) => Math.atan2(d.z, d.x);
+const NO_WOOD = { tube() {}, finish() {} };
 
 // Tapered tubes, indexed, with a uv for the bark (round the stem a whole
 // number of times, up it by length) and a colour per vertex.
@@ -404,11 +405,13 @@ function bloomCherry(rng, wood, tint, kept, { S, detail }) {
 // `weeping` (a willow's, pavilionProps.js): a stream of its own to dress the
 // willow from, as a weeping one — see the end of this.
 // `spire` (a cedar's, webProps.js): dressed as a spire — see the cedar.
+// A null `wood` spends the same growth and leaf draws without building bark
+// for a tree excluded from the planting.
 export function growTree(species, rng, wood, { H, S, lean = null, detail = true, skirt = 0, weeping = null, spire = null }) {
   const R = (a, b) => a + (b - a) * rng();
   const tint = new THREE.Color(BARK[species]);
   const sprays = [], whips = [];
-  const form = new TreeWood(wood, species, detail);
+  const form = wood ? new TreeWood(wood, species, detail) : NO_WOOD;
   let willow = null, maple = null, cherry = null, tintRng = null;
 
   // A limb from `from` along `dir`: `n` segments over `len`, radius r0 to r1,

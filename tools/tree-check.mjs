@@ -45,6 +45,19 @@ for (const fixture of planting) {
   });
 }
 
+test('excluded trees preserve growth, foliage and tint streams without building bark', () => {
+  for (const fixture of planting) {
+    const { species, seed, weepingSeed } = fixture;
+    const grow = (wood) => {
+      const rng = makeRng(seed), weeping = weepingSeed ? makeRng(weepingSeed) : null;
+      const grown = growTree(species, rng, wood, { ...fixture, weeping });
+      return { sprays: grown.sprays, was: grown.was, whips: grown.whips,
+        next: rng(), nextWeeping: weeping?.(), nextTint: grown.tintRng?.() };
+    };
+    assert.deepEqual(grow(null), grow(new Wood(7)), species);
+  }
+});
+
 const distanceTo = (nodes, p) => {
   let distance = Infinity;
   for (let i = 1; i < nodes.length; i++) {

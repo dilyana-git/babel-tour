@@ -115,7 +115,10 @@ export function* buildTrees(ctx) {
       if (species === 'willow') shape.S = shape.H * 0.5;
       // willows and pines by the water lean out over it
       const lean = gap < 135 ? Math.atan2(POND.c[1] - p[1], POND.c[0] - p[0]) + trr(-0.5, 0.5) : null;
-      const wood = new Wood(7);
+      // Spend growth and leaf-colour draws for excluded trees, but omit bark
+      // refinement and buffers that would immediately be thrown away.
+      const gone = wayDist(p) < 24 || (NORTH_OPEN && onNorthBridge(p, 20)) || boundaryDist(p) < 14;
+      const wood = gone ? null : new Wood(7);
       // (pavilionProps.js: a willow is dressed as a weeping one, from a
       // stream of its own — the trees' stream is spent as it always was)
       const weeping = species === 'willow' ? makeRng(6100 + placedTrees.length * 17) : null;
@@ -123,13 +126,10 @@ export function* buildTrees(ctx) {
       // (one on the road not taken, the way along the shore, the road's old
       // second bridge or the hedge that closes the garden is grown all the
       // same — its own stream spent to the draw — and not stood up)
-      const gone = wayDist(p) < 24 || (NORTH_OPEN && onNorthBridge(p, 20)) || boundaryDist(p) < 14;
       if (!gone) treeList.push({ p, species, H: +shape.H.toFixed(1), gap: Math.round(gap), walk: Math.round(walk) });
-      const g = wood.geometry().translate(p[0], GROUND_T, p[1]);
       const key = chunkKey(p[0], p[1]);
       if (!woodChunks.has(key)) woodChunks.set(key, []);
-      if (gone) g.dispose();
-      else woodChunks.get(key).push(g);
+      if (wood) woodChunks.get(key).push(wood.geometry().translate(p[0], GROUND_T, p[1]));
 
       const palette = species === 'maple' && tr() < 0.2 ? TINT.mapleTurning : TINT[species];
       const base = new THREE.Color(tpick(palette));
@@ -149,8 +149,9 @@ export function* buildTrees(ctx) {
         const at = [sp.p[0] + p[0], sp.p[1] + GROUND_T, sp.p[2] + p[1]];
         // nothing in the walk's way at head height
         if (walkDist([at[0], at[2]]) < 8 + sp.s[0] * 0.5 && at[1] - sp.s[1] * 0.5 < 30) continue;
-        tone.copy(base).lerp(pickTone.set(tintOf(palette)), 0.3);
+        const tint = tintOf(palette);
         if (gone) continue;
+        tone.copy(base).lerp(pickTone.set(tint), 0.3);
         foliage.push({
           p: at, rot: sp.rot, s: sp.s, color: tone.getHex(), k: sp.shade, kind: sp.kind,
           crown: [sp.crown[0] + p[0], sp.crown[1] + GROUND_T, sp.crown[2] + p[1], sp.crown[3]],
