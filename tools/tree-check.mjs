@@ -44,7 +44,7 @@ for (const fixture of planting) {
     assert.equal(source(), fixture.next);
     assert.equal(createHash('sha256').update(JSON.stringify(grown)).digest('hex'), fixture.foliage);
     if (fixture.plantingFoliage) {
-      const planting = { sprays: grown.was, whips: grown.whips, was: null, tintRng: null };
+      const planting = { sprays: grown.was, whips: [], was: null, tintRng: null };
       assert.equal(createHash('sha256').update(JSON.stringify(planting)).digest('hex'), fixture.plantingFoliage);
     }
   });

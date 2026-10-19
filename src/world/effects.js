@@ -780,7 +780,7 @@ export function makeFoliageMaterial(map, wind, kinds = 1, { prepassed = false, f
         varying float vDeep;
         varying float vCrowned;`)
       .replace('#include <color_fragment>', `#include <color_fragment>
-        diffuseColor.rgb *= mix(0.42, 1.0, smoothstep(0.1, 0.95, vDeep));`)
+        diffuseColor.rgb *= mix(0.6, 1.0, smoothstep(0.1, 0.95, vDeep));`)
       .replace('#include <normal_fragment_begin>', `
         float faceDirection = gl_FrontFacing ? 1.0 : - 1.0;
         vec3 normal = normalize(vNormal);
@@ -791,7 +791,7 @@ export function makeFoliageMaterial(map, wind, kinds = 1, { prepassed = false, f
         // The far side of a clump, seen through it or from under it, is its
         // inside: the side of it turned away from the eye is lit only for
         // someone standing over there.
-        diffuseColor.rgb *= mix(0.5, 1.0, smoothstep(-0.5, 0.35, dot(normal, normalize(vViewPosition))));`)
+        diffuseColor.rgb *= mix(0.7, 1.0, smoothstep(-0.5, 0.35, dot(normal, normalize(vViewPosition))));`)
       // No sheen. A normal turned out from a clump is, over half of it,
       // turned away from the eye, where three's Fresnel is at its grazing
       // peak — and it mirrored the moonlit sky: pines from below were
@@ -799,6 +799,10 @@ export function makeFoliageMaterial(map, wind, kinds = 1, { prepassed = false, f
       .replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
         reflectedLight.indirectSpecular *= 0.0;
         reflectedLight.directSpecular *= 0.2;
+        // Soft light scattered through the crown keeps its shaded leaf
+        // readable without giving it a glossy surface.
+        reflectedLight.indirectDiffuse += BRDF_Lambert(material.diffuseContribution)
+          * vec3(0.16, 0.2, 0.13) * mix(0.55, 1.0, vDeep);
         ${mapFill ? `// Diffuse sky fill keeps the planted crowns readable from above.
         float leafTone = max(material.diffuseContribution.r, max(material.diffuseContribution.g, material.diffuseContribution.b));
         reflectedLight.indirectDiffuse += uFoliageMap * vec3(10.0, 12.0, 10.0)

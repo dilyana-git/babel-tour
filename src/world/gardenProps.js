@@ -332,16 +332,16 @@ export const FEATHER = { on: true, near: qn('wfeathernear', 70), far: qn('wfeath
 // texture's light and dark is kept (its colour is not). `macro`: the sizes of
 // the patches, in units (a unit is 9.4 cm), and `k` how far apart in value.
 export const SWARD = {
-  color: new THREE.Color().setRGB(qn('wswr', 0.054), qn('wswg', 0.06), qn('wswb', 0.009)),
-  deep: new THREE.Color().setRGB(0.03, 0.042, 0.007),
-  dry: new THREE.Color().setRGB(0.08, 0.068, 0.016),
+  color: new THREE.Color().setRGB(qn('wswr', 0.046), qn('wswg', 0.048), qn('wswb', 0.004)),
+  deep: new THREE.Color().setRGB(0.023, 0.03, 0.003),
+  dry: new THREE.Color().setRGB(0.053, 0.052, 0.008),
   detail: qn('wswdetail', 0.8),
-  macro: [7, 23, 71],
-  k: qn('wswmacro', 0.45),
-  gain: qn('wswgain', 0.45),
+  macro: [13, 41, 113],
+  k: qn('wswmacro', 0.24),
+  gain: qn('wswgain', 0.28),
   // and the lantern's light off the cut grass (its `sward`),
   // which was set for the near-black lawn and over this one glowed mustard
-  lampSward: qn('wswlamp', 0.24),
+  lampSward: qn('wswlamp', 0.17),
 };
 
 // ── 4. The moon on the ground ─────────────────────────────────────────────────
@@ -350,7 +350,7 @@ export const SWARD = {
 // lawn's fog goes from the night's teal toward a grey of its own value.
 // `mist`: the mist sheets' colour, a moonlit grey for the cyan they were.
 export const MOON_GROUND = {
-  light: new THREE.Vector3(qn('wmglr', 1.3), 1.0, qn('wmglb', 0.5)),
+  light: new THREE.Vector3(qn('wmglr', 1.5), 1.0, qn('wmglb', 0.28)),
   fog: qn('wmgfog', 1),
   fogTint: new THREE.Vector3(1.25, 1.12, 0.6),
   mist: '#b6b8b0',
@@ -375,14 +375,18 @@ export const SWARD_GLSL = /* glsl */ `
   }
   vec3 swardColor(vec3 tex, vec3 mean, vec2 xz) {
     float y = dot(tex, vec3(0.2126, 0.7152, 0.0722)), my = max(dot(mean, vec3(0.2126, 0.7152, 0.0722)), 1e-4);
-    float detail = clamp(y / my, 0.35, 2.4);
+    float detail = clamp(y / my, 0.5, 1.7);
+    xz += vec2(gnNoise(xz / 39.0 + 13.0), gnNoise(xz / 33.0 + 61.0)) * 9.0;
     // three sizes of patch, the larger the stronger (the eye finds those first)
     float tone = (gnNoise(xz / ${SWARD.macro[0].toFixed(1)}) - 0.5) * 0.5
       + (gnNoise(xz / ${SWARD.macro[1].toFixed(1)} + 17.3) - 0.5) * 0.8
       + (gnNoise(xz / ${SWARD.macro[2].toFixed(1)} + 41.7) - 0.5) * 0.9;
     vec3 c = mix(uSward, uSwardDeep, smoothstep(0.0, -0.5, tone));
-    c = mix(c, uSwardDry, smoothstep(0.12, 0.6, tone) * 0.75);
+    c = mix(c, uSwardDry, smoothstep(0.18, 0.65, tone) * 0.35);
     c *= 1.0 + tone * uSwardK.y;
+    float nap = gnNoise(xz * vec2(8.0, 14.0)) * 0.55
+      + gnNoise(xz * vec2(17.0, 11.0) + 13.0) * 0.45;
+    c *= mix(1.0, 0.65 + nap * 0.7, 1.0 - smoothstep(0.2, 1.2, length(fwidth(xz))));
     return c * mix(1.0, detail, uSwardK.x) * uSwardK.z;
   }
 `;
@@ -493,13 +497,9 @@ export const TUFTS = {
   on: true,
   step: qn('wtuftstep', 0.75), out: [0.3, 3.6], run: 9, bare: qn('wtuftbare', 0.22), ways: qn('wtuftways', 1.7),
   height: qn('wtufth', 1.5), stone: [1, 3],
-  blades: [16, 28], spread: [0.05, 0.6], wide: [0.035, 0.065], tip: 1.4, k: qn('wtuftk', 0.52),
-  // a blade's root green (deep in the clump, in its own shade), and the share
-  // gone to straw. 2026-10-16 "the grass is too light and sparse, make it
-  // darker and more realistic": was [0.046, 0.058, 0.014] with a tenth gone
-  // to straw — read as hay under the lanterns; now a deep green whose tips
-  // only catch the light, finer blades, fewer gaps, closer set by the ways.
-  green: [0.019, 0.04, 0.011], straw: [0.05, 0.046, 0.02], dry: 0.04,
+  blades: [16, 28], spread: [0.05, 0.6], wide: [0.03, 0.055], tip: 1.25, k: qn('wtuftk', 0.48),
+  // Dark roots and subdued tips keep the edge growth in the turf's greens.
+  green: [0.014, 0.032, 0.012], straw: [0.038, 0.039, 0.019], dry: 0.02,
 };
 
 // Dev: `__ground({ r, g, b, detail, macro, lr, lb, fog })` turns the dials live.

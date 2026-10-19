@@ -949,7 +949,7 @@ export function buildMaterials(ctx) {
     glass: Std({ color: '#ffe2b8', transparent: true, opacity: 0.3, roughness: 0.04, metalness: 0, envMapIntensity: 2.2, depthWrite: false }),
     iron: Std({ color: '#2a2520', roughness: 0.6, metalness: 0.6 }),
     // (its colour, patches and moonlight: gardenProps.js)
-    grass: swardLawn(Std({ map: grassTex, color: '#5e6d63', roughness: 1, side: THREE.DoubleSide })),
+    grass: swardLawn(Std({ map: grassTex, bumpMap: grassTex, bumpScale: 0.13, color: '#5e6d63', roughness: 1, side: THREE.DoubleSide })),
     gravel: Std({ map: gravelTex, color: GRAVEL_COLOR, roughness: 1, side: THREE.DoubleSide }),
     mazeFloor: Std({ map: gravelTex, color: '#635f57', roughness: 1, side: THREE.DoubleSide }),
     wood: Std({ map: timber.map, normalMap: timber.normalMap, roughnessMap: timber.roughnessMap, color: '#9d7d5e', roughness: 0.85 }),

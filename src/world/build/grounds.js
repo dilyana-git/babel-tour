@@ -19,6 +19,29 @@ import { SCREEN, screenPlaces, GATE as WEB_GATE, FLIES, BELT, closeBelt, SPIRE, 
 import { pondShore, rockVariants, guardStones } from '../shore';
 import { ONE_TREE, NO_BOUND } from './common';
 
+const GARDEN_GREEN = ['#4c6541', '#435d3f', '#546d46', '#3e553b', '#496343'];
+
+// Small-leaved, overlapping mounds share the trees' greens. Their skirt
+// starts in the turf and their irregular shoots break the dome's edge.
+function shrubMound(foliage, sprig, seed, light) {
+  const rng = makeRng(seed), R = (a, b) => a + (b - a) * rng();
+  const [x, , z] = sprig.p, radius = sprig.s[0] * R(0.4, 0.52);
+  const height = Math.max(3.2, sprig.p[1] - 4 + radius * 0.3);
+  const crown = [x, 4 + height * 0.32, z, Math.max(radius, height) * 1.12];
+  const count = light ? 11 : 18, turn = R(0, Math.PI * 2);
+  const tint = new THREE.Color(), deep = new THREE.Color('#293e2b');
+  for (let k = 0; k < count; k++) {
+    const f = Math.sqrt((k + 0.5) / count), a = turn + k * 2.399963 + R(-0.24, 0.24);
+    const r = radius * f * R(0.88, 1.1), up = Math.sqrt(1 - f * f);
+    const y = 4.15 + height * up * R(0.82, 1.04);
+    const w = Math.min(radius * 0.95, R(3.4, 5.3));
+    tint.set(GARDEN_GREEN[Math.floor(rng() * GARDEN_GREEN.length)]).lerp(deep, (1 - up) * 0.32);
+    foliage.push({ p: [x + Math.cos(a) * r, y, z + Math.sin(a) * r],
+      s: [w, w * R(0.72, 1.05), w], rot: [R(-0.45, 0.45), R(0, Math.PI * 2), R(-0.45, 0.45)],
+      kind: 6, color: tint.getHex(), k: 0.65 + up * 0.36, crown });
+  }
+}
+
 export function* buildTrees(ctx) {
   const { light, paintings, rnd, rr, pick, dir, add, dist, keep, M, root, instances, chunkKey, inGarden, hangs,
     GATE, foliage, beltFoliage, beltWood, LEAF, BLOSSOM, PERGOLA0, J, POND, MZ,
@@ -50,8 +73,8 @@ export function* buildTrees(ctx) {
     // Leaf colours by kind. Greens toward olive — the moon cools them enough —
     // and the maples in their autumn reds, which the lanterns catch.
     const TINT = {
-      broad: ['#56683f', '#4d6140', '#5d6c43', '#48593b', '#526542'],
-      pine: ['#3e5034', '#445636', '#394a31'],
+      broad: GARDEN_GREEN,
+      pine: ['#40583a', '#475f3e', '#374f36'],
       maple: ['#a43424', '#b4452a', '#9a2a22', '#b85a2c', '#c07434'],
       mapleTurning: ['#8c7a36', '#9a6a30'],
       cherry: CHERRY_BLOSSOM.tints,
@@ -152,6 +175,7 @@ export function* buildTrees(ctx) {
         const tint = tintOf(palette);
         if (gone) continue;
         tone.copy(base).lerp(pickTone.set(tint), 0.3);
+        if (sp.tint) tone.set(sp.tint);
         foliage.push({
           p: at, rot: sp.rot, s: sp.s, color: tone.getHex(), k: sp.shade, kind: sp.kind,
           crown: [sp.crown[0] + p[0], sp.crown[1] + GROUND_T, sp.crown[2] + p[1], sp.crown[3]],
@@ -200,7 +224,7 @@ export function* buildTrees(ctx) {
           for (const sp of grown.sprays) {
             const at = [sp.p[0] + p[0], sp.p[1] + GROUND_T, sp.p[2] + p[1]];
             if (walkDist([at[0], at[2]]) < 9 + sp.s[0] * 0.5 && at[1] - sp.s[1] * 0.5 < 30) continue;
-            foliage.push({ p: at, rot: sp.rot, s: sp.s, color: tint.getHex(), k: sp.shade, kind: sp.kind,
+            foliage.push({ p: at, rot: sp.rot, s: sp.s, color: sp.tint ?? tint.getHex(), k: sp.shade, kind: sp.kind,
               crown: [sp.crown[0] + p[0], sp.crown[1] + GROUND_T, sp.crown[2] + p[1], sp.crown[3]] });
           }
           treeList.push({ p, species, H: +H.toFixed(1), grove: true });
@@ -210,9 +234,10 @@ export function* buildTrees(ctx) {
             const q = [p[0] + range(-18, 18), p[1] + range(-18, 18)];
             if (blocked(q, -10) || wayDist(q) < 18 || walkDist(q) < 20 || boundaryDist(q) < 12) continue;
             const size = range(9, 16);
-            foliage.push({ p: [q[0], range(7, 10), q[1]], rot: [0, range(0, Math.PI * 2), 0],
+            const sprig = { p: [q[0], range(7, 10), q[1]], rot: [0, range(0, Math.PI * 2), 0],
               s: [size, size * 0.8, size], color: choose(TINT.broad), k: range(0.7, 0.9),
-              crown: [q[0], 5, q[1], size * 0.75] });
+              crown: [q[0], 5, q[1], size * 0.75] };
+            shrubMound(foliage, sprig, 0x73687262 ^ Math.round(q[0] * 1024) ^ Math.round(q[1] * 4096), light);
             ctx.rocks.push({ p: [q[0] + 4, 4.5, q[1] - 3], rot: [0, range(0, 3), 0],
               s: [range(2.5, 4), range(1.5, 2.5), range(2, 3.5)], color: '#aaa293' });
           }
@@ -272,6 +297,7 @@ export function* buildTrees(ctx) {
             leafQ.setFromEuler(angles.set(...sp.rot)).premultiply(yawQ);
             angles.setFromQuaternion(leafQ);
             tone.copy(tint).lerp(pickTone.set(tintOf(palette)), 0.25);
+            if (sp.tint) tone.set(sp.tint);
             foliage.push({ p: position, rot: [angles.x, angles.y, angles.z], s: size, color: tone.getHex(),
               k: sp.shade, kind: sp.kind, crown: [...at(sp.crown), sp.crown[3] * scale] });
           }
@@ -281,8 +307,9 @@ export function* buildTrees(ctx) {
             const q = [p[0] + range(-20, 20), p[1] + range(-20, 20)];
             if (blocked(q, -10) || wayDist(q) < 18 || walkDist(q) < 22 || boundaryDist(q) < 12) continue;
             const size = range(10, 18);
-            foliage.push({ p: [q[0], range(7, 11), q[1]], rot: [0, range(0, Math.PI * 2), 0],
-              s: [size, size * 0.8, size], color: choose(TINT.broad), k: range(0.7, 0.9), crown: [q[0], 5, q[1], size * 0.75] });
+            const sprig = { p: [q[0], range(7, 11), q[1]], rot: [0, range(0, Math.PI * 2), 0],
+              s: [size, size * 0.8, size], color: choose(TINT.broad), k: range(0.7, 0.9), crown: [q[0], 5, q[1], size * 0.75] };
+            shrubMound(foliage, sprig, 0x73687262 ^ Math.round(q[0] * 1024) ^ Math.round(q[1] * 4096), light);
             if (k === 0) ctx.rocks.push({ p: [q[0] + 5, 4.4, q[1] - 3], rot: [0, range(0, 3), 0],
               s: [range(2.5, 4), range(1.5, 2.5), range(2, 3.5)], color: '#aaa293' });
           }
@@ -387,7 +414,7 @@ export function* buildTrees(ctx) {
       const gone = wayDist(p) < 16 || (NORTH_OPEN && onNorthBridge(p, 12)) || boundaryDist(p) < 12;
       for (let s2 = 0; s2 < 3; s2++) {
         const sprig = { p: [p[0] + rr(-4, 4), rr(7, 12), p[1] + rr(-4, 4)], rot: [0, rr(0, 6.28), 0], s: Array(3).fill(size * rr(0.55, 0.75)), color: tint, k: rr(0.6, 0.85), crown: [p[0], 4, p[1], size * 0.75] };
-        if (!gone) foliage.push(sprig);
+        if (!gone) shrubMound(foliage, sprig, 0x73687262 ^ Math.round(sprig.p[0] * 1024) ^ Math.round(sprig.p[2] * 4096), light);
       }
     }
   }
@@ -571,6 +598,19 @@ export function* buildMist(ctx) {
         && !kerb.some((st) => Math.abs(st.p[0] - p[0]) < st.r && Math.abs(st.p[1] - p[1]) < st.r && dist(st.p, p) < st.r)
         && !hedged.some((h) => p[0] > h.x0 && p[0] < h.x1 && p[1] > h.z0 && p[1] < h.z1 && inLoop(p, h.loop));
       for (const g of edgeTufts({ edges, rings, ok: (p) => tuftOk(p) && offMaze(p), lamps: lawnLamps, ground: 4, t: TUFTS, density: light ? 0.5 : 1 })) {
+        const m = new THREE.Mesh(keep(g), M.lawnBlade);
+        m.receiveShadow = true;
+        m.name = 'lawnBlades';
+        root.add(m);
+        yield;
+      }
+      // Short, irregular turf extends out from the taller edge growth,
+      // giving the near lawn depth where it is seen from walking height.
+      const turf = { ...TUFTS, step: 1.25, out: [1.5, 14], run: 4.5, bare: 0.12,
+        height: 0.55, blades: [7, 12], spread: [0.04, 0.35], wide: [0.025, 0.045], tip: 1.15, k: 0.46 };
+      const margins = ways.map((o) => ({ pts: o.pts, off: o.w / 2 + 1.5, dense: 0.7 }));
+      for (const g of edgeTufts({ edges: margins, rings: [], ok: (p) => tuftOk(p) && offMaze(p),
+        lamps: lawnLamps, ground: 4, t: turf, seed: 0x74757266, density: light ? 0.5 : 1 })) {
         const m = new THREE.Mesh(keep(g), M.lawnBlade);
         m.receiveShadow = true;
         m.name = 'lawnBlades';

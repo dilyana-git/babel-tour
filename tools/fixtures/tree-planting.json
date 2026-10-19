@@ -7,7 +7,8 @@
     "S": 30,
     "draws": 484,
     "next": 0.25872425362467766,
-    "foliage": "984c9356dbdd928f9ceaaced3575b7b553aae2ef7b12947f49b0ae09bc5bb7da"
+    "foliage": "d07703faa7a9053a29d7999e56e854e275a85f2305163eaf95e4145ef5930423",
+    "plantingFoliage": "984c9356dbdd928f9ceaaced3575b7b553aae2ef7b12947f49b0ae09bc5bb7da"
   },
   {
     "species": "broad",
@@ -17,7 +18,8 @@
     "S": 30,
     "draws": 556,
     "next": 0.3667471408843994,
-    "foliage": "ef47c4a4a6df64a5c67f73db802ad5849a0e675d67f8f4055d9e64034c7dee0b"
+    "foliage": "bb9ceb52019f8af713df605a03a087f93b0843e04ef9773d54b637e4e65b3b7c",
+    "plantingFoliage": "ef47c4a4a6df64a5c67f73db802ad5849a0e675d67f8f4055d9e64034c7dee0b"
   },
   {
     "species": "pine",
@@ -27,7 +29,7 @@
     "S": 30,
     "draws": 374,
     "next": 0.6671993820928037,
-    "foliage": "841c3345be4f1b1818282fb9ceae6a5f5168f9395244385311c2cd64e8e5bba9",
+    "foliage": "f7a0f4ab5d6eb553df3060134a26bf65257d5914b82096b4758dc1a333c8b462",
     "plantingFoliage": "26b870f1f5cb60db80b499f14089f6050083a4dfe38b65dd0e190c1da9f2e8b4"
   },
   {
@@ -38,7 +40,7 @@
     "S": 30,
     "draws": 617,
     "next": 0.23872895492240787,
-    "foliage": "84e2c212b13feb3b6f94c3272167ff0181ea1d7df9af5d9f5b5037600f0f5e13",
+    "foliage": "1ede11924581f0d20626e7e450cb0b7943e5101597c86118eb3a92f159c6dda9",
     "plantingFoliage": "fa0cc810ce0d7774fc05f2f10cd16088a735b0820c5ed2350a768a5861b1cc8b"
   },
   {
@@ -49,7 +51,8 @@
     "S": 30,
     "draws": 540,
     "next": 0.5421078419312835,
-    "foliage": "686d0c08941904e0b9cf60f21f4ce99246e78625165223843de163ba5161c60c"
+    "foliage": "80460c3c7fd6df85487066e5e63c6d8a3a8b8ee11c3271b7513fc270edcf918d",
+    "plantingFoliage": "d68981d65b4d2e996ffcad13418318aab4ffb7d2f80317b685114831cd2e754e"
   },
   {
     "species": "maple",
@@ -59,7 +62,8 @@
     "S": 30,
     "draws": 692,
     "next": 0.5038336399011314,
-    "foliage": "9a37599e09837e2921cf62259c36d68e05d5f6ab56daa8a5abe54c62224c8704"
+    "foliage": "c6496ac57fdbcc5090677383bd47fbee400bb1a406069844a3d50e27574c6055",
+    "plantingFoliage": "805b389f9f1b19676ae2f2612d7d892973b57c7ec48dcf30b204961cf485e6fb"
   },
   {
     "species": "cherry",
@@ -69,7 +73,8 @@
     "S": 30,
     "draws": 543,
     "next": 0.264761321246624,
-    "foliage": "f39d2d7801541c8cd65cb605148ea77d29723c7aff3105035662a72d829ba4d4"
+    "foliage": "9be49b334150d49ec2829a8ebc903aa2f48bd27b75ca764b5d87ac9f2b858f14",
+    "plantingFoliage": "b51a6b224ea204cfc1c78931e5d3fb5582040c8ca08585fbd13b3438e5af3338"
   },
   {
     "species": "cherry",
@@ -79,7 +84,8 @@
     "S": 30,
     "draws": 543,
     "next": 0.264761321246624,
-    "foliage": "1fd1b82f0551751cf8b91d08e824f3bb0df4b73ec7b32f562fa5dfca30417e4c"
+    "foliage": "6b58aed2b9a220ec661fe3dffdbf4ff4ea034abf074a43861b730c88d7496b0e",
+    "plantingFoliage": "b51a6b224ea204cfc1c78931e5d3fb5582040c8ca08585fbd13b3438e5af3338"
   },
   {
     "species": "willow",
@@ -89,7 +95,8 @@
     "S": 30,
     "draws": 654,
     "next": 0.11130842892453074,
-    "foliage": "c7d58f64da2960782a13f674c76f862b6e4675a234d3efc0c8cecbbe91f30889"
+    "foliage": "e3c5bd7ed33b7f4f5c29d5d55a84d016bf330ae06d36ca77957e3819ec962050",
+    "plantingFoliage": "121f57eea7562a2ef89a8016ccb8c5693da3b5958a46d2846a321fe146e9bd68"
   },
   {
     "species": "willow",
@@ -99,7 +106,8 @@
     "S": 30,
     "draws": 936,
     "next": 0.05508561874739826,
-    "foliage": "3cedb26d6e30cdcedb2bc3b96132855d16ce767859e08b527c85633d60da4ba7"
+    "foliage": "6fe33702661f5cfd34bbbd0fcd5c09797d6670b4d381d6ef2182d8dcf76e19d7",
+    "plantingFoliage": "3b34c0147de83f05cad8533818f8da76a196a37adeb49bddfc87ecd3d9c47a86"
   },
   {
     "species": "cedar",
@@ -109,7 +117,8 @@
     "S": 30,
     "draws": 598,
     "next": 0.14264882844872773,
-    "foliage": "997e9137968f9b59c776cf857edebb1f3992f01d5b1f587cabcce9af1f8f7ae5"
+    "foliage": "cfe9a2c245a923053220cb6f9dea08925e2ee895e39251dbae549e386f8eaca3",
+    "plantingFoliage": "997e9137968f9b59c776cf857edebb1f3992f01d5b1f587cabcce9af1f8f7ae5"
   },
   {
     "species": "cedar",
@@ -119,7 +128,8 @@
     "S": 30,
     "draws": 598,
     "next": 0.14264882844872773,
-    "foliage": "997e9137968f9b59c776cf857edebb1f3992f01d5b1f587cabcce9af1f8f7ae5"
+    "foliage": "a14f6cb171f8bf74cb6eee19d7ede8d849cd20e768355b627695965209af7133",
+    "plantingFoliage": "997e9137968f9b59c776cf857edebb1f3992f01d5b1f587cabcce9af1f8f7ae5"
   },
   {
     "species": "willow",
@@ -130,7 +140,8 @@
     "weepingSeed": 6117,
     "draws": 936,
     "next": 0.2685222194995731,
-    "foliage": "6dc28c533de5a523da7c1d758358e239467c8555a039b5bebf36f4b115ff6955"
+    "foliage": "3a32fe7831fd30db7ca863b0ee4c8f0896e53bb0e577db9b094fad1cb23682b8",
+    "plantingFoliage": "e7461ec0cc39f028795d0eef3da30d9e5f9b1d4ce61e2dc0cd0b9521b6a9e5d7"
   },
   {
     "species": "cedar",
@@ -151,6 +162,7 @@
     },
     "draws": 1063,
     "next": 0.6128838898148388,
-    "foliage": "9dff0b09294445c2863d9b5e3172fe530f6b5b32c9cb7b23dcb8bae5f9b57355"
+    "foliage": "419ef16dac58e13cf1e02e4ffdc12217472b0c87acc4edbc1e3e08f00d07983d",
+    "plantingFoliage": "9dff0b09294445c2863d9b5e3172fe530f6b5b32c9cb7b23dcb8bae5f9b57355"
   }
 ]

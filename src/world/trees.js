@@ -396,6 +396,71 @@ function bloomCherry(rng, wood, tint, kept, { S, detail }) {
   }));
 }
 
+// Layer small sprays through each billow and grow leafy side shoots along
+// exposed boughs. The established skeleton and its planting draws stay intact.
+function fillCrown(species, rng, form, limbs, sprays, { H, detail }) {
+  const R = (a, b) => a + (b - a) * rng();
+  const kind = species === 'cherry' ? LEAF.broad : LEAF[species];
+  const original = sprays.slice();
+  for (const sp of original) {
+    const count = species === 'cedar' || species === 'cherry' ? 1 : 2;
+    for (let k = 0; k < count; k++) {
+      const a = R(0, Math.PI * 2), w = sp.s[0], size = R(0.62, 0.83);
+      const p = [sp.p[0] + Math.cos(a) * w * R(0.14, 0.3), sp.p[1] - w * R(0.04, 0.22), sp.p[2] + Math.sin(a) * w * R(0.14, 0.3)];
+      sprays.push({ ...sp, p, s: sp.s.map((v) => v * size),
+        rot: [R(-0.35, 0.35), R(0, Math.PI * 2), R(-0.35, 0.35)],
+        kind: sp.kind, shade: sp.shade * R(0.85, 1.05) });
+    }
+  }
+  const tint = new THREE.Color(BARK[species]);
+  const leafyShoot = (on, forward, dir, reach, r0, w, bough = false) => {
+    const tip = on.clone().addScaledVector(dir, reach);
+    const curve = new THREE.CubicBezierCurve3(on, on.clone().addScaledVector(forward, reach * 0.4),
+      tip.clone().addScaledVector(dir, -reach * 0.3).add(V(0, reach * (species === 'willow' ? 0.12 : -0.18), 0)), tip);
+    form.tube(Array.from({ length: 7 }, (_, n) => ({ p: curve.getPoint(n / 6), r: r0 + (0.015 - r0) * (n / 6) ** 0.8 })), 5, tint);
+    const crown = [tip.x, tip.y - w * 0.2, tip.z, w * 1.2];
+    for (const along of bough ? [0.38, 0.7, 0.98] : [0.56, 0.94]) {
+      const p = curve.getPoint(along).add(V(0, w * 0.14, 0));
+      sprays.push({ p: p.toArray(), s: [w, w * (species === 'pine' ? 0.7 : 0.9), w],
+        rot: [R(-0.25, 0.25), R(0, Math.PI * 2), R(-0.25, 0.25)], kind, crown, shade: R(0.72, 1.05),
+        ...(species === 'cherry' ? { tint: '#4c6541' } : {}) });
+    }
+  };
+  if (species === 'pine') {
+    // Unequal boughs spiral through the crown; needles clothe their length
+    // as well as their tips, leaving smaller, irregular windows of sky.
+    const trunk = limbs[0], count = detail ? 12 : 9, turn = R(0, Math.PI * 2);
+    for (let b = 0; b < count; b++) {
+      const t = 0.38 + b / (count - 1) * 0.55 + R(-0.012, 0.012);
+      const f = t * (trunk.length - 1), i = Math.floor(f), u = f - i;
+      const on = trunk[i].p.clone().lerp(trunk[i + 1].p, u);
+      if (on.y < 22) continue;
+      const forward = trunk[i + 1].p.clone().sub(trunk[i].p).normalize();
+      const dir = heading(turn + b * 2.399963 + R(-0.3, 0.3), R(-0.04, 0.18));
+      const reach = H * R(0.24, 0.3) * (1 - t * 0.65), w = H * R(0.1, 0.14) * (1 - t * 0.25);
+      leafyShoot(on, forward, dir, reach, R(0.15, 0.28) * (1 - t * 0.6), w, true);
+    }
+  }
+  for (const nodes of limbs.slice(1)) {
+    const start = nodes[0], end = nodes.at(-1), axis = end.p.clone().sub(start.p), length = axis.length();
+    if (start.r < 0.14 || start.r > 1.35 || length < 6 || Math.hypot(axis.x, axis.z) < length * 0.3) continue;
+    const count = detail ? 2 : 1;
+    for (let k = 0; k < count; k++) {
+      const t = (k ? 0.73 : 0.43) + R(-0.06, 0.08), f = t * (nodes.length - 1), i = Math.floor(f), u = f - i;
+      const on = nodes[i].p.clone().lerp(nodes[i + 1].p, u);
+      // New woody detail stays above walking height; lower crowns gain leaf.
+      if (on.y < 22) continue;
+      const forward = nodes[i + 1].p.clone().sub(nodes[i].p).normalize();
+      const a = bearingOf(forward) + (k % 2 ? -1 : 1) * R(0.6, 1.15);
+      const dir = forward.clone().lerp(heading(a, species === 'willow' ? -0.18 : R(0.1, 0.5)), 0.7).normalize();
+      const reach = Math.min(length * R(0.25, 0.4), H * 0.16);
+      const r0 = Math.min(0.13, start.r * 0.22);
+      const w = Math.max(3, Math.min(H * R(0.075, 0.11), reach * 1.6));
+      leafyShoot(on, forward, dir, reach, r0, w);
+    }
+  }
+}
+
 // Grows a tree. `H` is its height, `S` how far its crown reaches out from the
 // trunk, `lean` the bearing it leans toward (a willow to the water), `detail`
 // false for one only ever seen across the garden: no twigs, fewer sprays.
@@ -411,7 +476,12 @@ export function growTree(species, rng, wood, { H, S, lean = null, detail = true,
   const R = (a, b) => a + (b - a) * rng();
   const tint = new THREE.Color(BARK[species]);
   const sprays = [], whips = [];
-  const form = wood ? new TreeWood(wood, species, detail) : NO_WOOD;
+  const bark = wood ? new TreeWood(wood, species, detail) : NO_WOOD;
+  const limbs = [];
+  const form = {
+    tube(nodes, ...args) { limbs.push(nodes); bark.tube(nodes, ...args); },
+    finish() { bark.finish(); },
+  };
   let willow = null, maple = null, cherry = null, pine = null, tintRng = null;
 
   // A limb from `from` along `dir`: `n` segments over `len`, radius r0 to r1,
@@ -839,6 +909,11 @@ export function growTree(species, rng, wood, { H, S, lean = null, detail = true,
     for (const sp of sprays) { lo = Math.min(lo, sp.p[1]); hi = Math.max(hi, sp.p[1]); }
     for (const sp of sprays) sp.shade = 0.5 + 0.42 * ((sp.p[1] - lo) / Math.max(1, hi - lo)) + 0.12 * Math.min(1, Math.hypot(sp.p[0] - c.x, sp.p[2] - c.z) / Rd);
   }
+  was ??= sprays.slice();
+  const canopySeed = 0x4c555348 ^ Math.round(H * 4096) ^ Math.round(S * 65536)
+    ^ Math.round(sprays[0]?.p[0] * 1048576) ^ Math.round(sprays[0]?.p[2] * 262144);
+  tintRng ??= makeRng(canopySeed ^ 0x74696e74);
+  fillCrown(species, makeRng(canopySeed), form, limbs, sprays, { H, detail });
   form.finish();
   return { sprays, whips, was, tintRng };
 }

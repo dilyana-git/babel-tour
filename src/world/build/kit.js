@@ -74,13 +74,13 @@ export function* buildKit(ctx) {
     g.fillStyle = '#1a2c21';
     g.fillRect(0, 0, s, s);
     for (let k = 0; k < 800 * detail; k++) {
-      g.fillStyle = rnd() < 0.5 ? `rgba(0,0,0,${rr(0.03, 0.1)})` : `rgba(96,140,96,${rr(0.02, 0.06)})`;
+      g.fillStyle = rnd() < 0.5 ? `rgba(0,0,0,${rr(0.012, 0.035)})` : `rgba(96,140,96,${rr(0.008, 0.018)})`;
       g.beginPath(); g.arc(rr(0, s), rr(0, s), rr(10, 70), 0, Math.PI * 2); g.fill();
     }
     for (let k = 0; k < 36000 * detail; k++) {
-      g.strokeStyle = `hsla(${rr(95, 150)},${rr(20, 42)}%,${rr(12, 30)}%,${rr(0.4, 0.8)})`;
-      g.lineWidth = rr(0.6, 1.4);
-      const x = rr(0, s), y = rr(0, s), a = rr(0, Math.PI * 2), L = rr(2, 7);
+      g.strokeStyle = `hsla(${rr(95, 125)},${rr(14, 28)}%,${rr(14, 23)}%,${rr(0.35, 0.6)})`;
+      g.lineWidth = rr(0.5, 1.1);
+      const x = rr(0, s), y = rr(0, s), a = rr(0, Math.PI * 2), L = rr(3, 9);
       g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(a) * L, y + Math.sin(a) * L); g.stroke();
     }
   }), [1 / 46, 1 / 46]);

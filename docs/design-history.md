@@ -27,6 +27,31 @@ path, and this document in full (`git show 0857f2a:docs/design-history.md`).
 
 ## 2026-10-19
 
+- **A fuller, more coherent garden.** Sparse tip-only crowns, pale mottled
+  turf and oversized shrub sprays made the planting feel artificial. All six
+  tree species now carry layered inner foliage and small leafy side shoots.
+  Pines also grow 9–12 unequal boughs through the upper crown, with needle
+  sprays along each bough rather than only at its tip. Broad and maple leaf
+  textures have smaller leaves with independently seeded fine growth;
+  flowering cherries retain blossom layers above their green branchlets.
+  Softer crown occlusion and a small diffuse fill keep shaded leaf readable.
+  Existing trunks, placement and the clipped growth/tint budgets are kept;
+  the fixtures retain hashes of those original budgets alongside the new
+  foliage. New canopy detail uses seed `0x4c555348`, combined with each
+  specimen's dimensions and existing foliage position.
+
+  Shrubs are overlapping mounds of 11–18 small box-leaf sprays per original
+  sprig, rooted at the turf and coloured from the broad trees' palette. Their
+  detail uses independent seed `0x73687262` and planting coordinates. The
+  lawn's base is a deeper green (linear RGB .046, .048, .004; gain .28), with
+  subdued, warped patches, fine directional nap and slight blade relief.
+  Cooler moonlight on the turf is reduced; tips and straw at the paths are
+  darker. Short grass grows in irregular runs beyond the taller path fringe,
+  with seed `0x74757266`. Commit `97d96d9` holds the previous garden. Review
+  images are in `.ux-review/qa/garden-lush/`: `before-*`, the intermediate
+  `after-*` and `final-*`, the `polished-*` views, and the settled
+  `settled-*` ground and path views.
+
 - **Pines without a cross silhouette.** The green tree behind the blossoms
   had opposing boughs at almost the same height. Pine boughs now occupy
   staggered tiers from .29 to .86 of the trunk, with a little of their

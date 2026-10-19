@@ -2224,6 +2224,18 @@ export function foliageAtlas({ size = 256, seed = 37 } = {}) {
   // how far out a point lies (0 at the middle, 1 at the rim) and how lit its
   // side is (the light is up and to the left, as on every spray in the garden)
   const place = (cx, cy, x, y) => ({ out: Math.min(1, Math.hypot(x - cx, y - cy) / R), lit: (cx - x + cy - y) / (S * 1.4) });
+  // Fine leaves fill around the established shoots on their own stream.
+  // A spray stays intricate close up instead of becoming a few giant leaves.
+  const fineLeaves = (marks, kind) => {
+    const r = makeRng(0x6c656166 ^ seed ^ (kind * 131)), range = (a, b) => a + (b - a) * r();
+    for (let k = 0; k < marks.length; k++) {
+      const m = marks[Math.floor(r() * marks.length)], a = range(0, Math.PI * 2);
+      const x = m.x + Math.cos(a) * range(3, 10), y = m.y + Math.sin(a) * range(3, 10);
+      const L = range(8, 12), tone = 34 + m.out * 20 + m.lit * 10 + range(-4, 5);
+      if (kind === 1) palm(x, y, a, L * 0.7, `hsl(28,18%,${tone}%)`, 5);
+      else blade(x, y, a, L, L * (kind === 6 ? 0.3 : 0.34), `hsl(104,14%,${tone}%)`, `hsla(104,12%,${tone - 8}%,0.55)`);
+    }
+  };
   for (let kind = 0; kind < FOLIAGE_KINDS; kind++) {
     const x0 = kind * S, cx = x0 + S / 2, cy = S / 2;
     c.save();
@@ -2241,20 +2253,20 @@ export function foliageAtlas({ size = 256, seed = 37 } = {}) {
           for (const side of [-1, 1]) {
             if (rnd() < 0.12) continue;
             const a = ang + side * rr(0.55, 1.15);
-            if (kind === 0) marks.push({ x, y, a, L: (23 - t * 7) * rr(0.8, 1.2), ...place(cx, cy, x, y) });
+            if (kind === 0) marks.push({ x, y, a, L: (16 - t * 4) * rr(0.8, 1.2), ...place(cx, cy, x, y) });
             else {
               const stalk = rr(4, 8);
-              marks.push({ x: x + Math.cos(a) * stalk, y: y + Math.sin(a) * stalk, a, L: (12 - t * 3) * rr(0.8, 1.2), sx: x, sy: y, ...place(cx, cy, x, y) });
+              marks.push({ x: x + Math.cos(a) * stalk, y: y + Math.sin(a) * stalk, a, L: (9 - t * 2) * rr(0.8, 1.2), sx: x, sy: y, ...place(cx, cy, x, y) });
             }
           }
-          if (i === pts.length - 1) marks.push({ x, y, a: ang, L: kind === 0 ? 20 : 11, ...place(cx, cy, x, y) });
+          if (i === pts.length - 1) marks.push({ x, y, a: ang, L: kind === 0 ? 14 : 8, ...place(cx, cy, x, y) });
         });
       }
       // and the leaves of the spray's heart, which the twigs are hidden under
       for (let k = 0; k < (kind === 0 ? 46 : 60); k++) {
         const a = rnd() * Math.PI * 2, rho = Math.sqrt(rnd()) * R * 0.55;
         const x = cx + Math.cos(a) * rho, y = cy + Math.sin(a) * rho;
-        marks.push({ x, y, a: rnd() * Math.PI * 2, L: kind === 0 ? rr(16, 22) : rr(9, 12), ...place(cx, cy, x, y) });
+        marks.push({ x, y, a: rnd() * Math.PI * 2, L: kind === 0 ? rr(11, 15) : rr(7, 9), ...place(cx, cy, x, y) });
       }
       marks.sort((p, q) => p.out - q.out);
       for (const m of marks) {
@@ -2273,6 +2285,7 @@ export function foliageAtlas({ size = 256, seed = 37 } = {}) {
           palm(m.x, m.y, m.a, m.L, gold ? `hsl(${rr(42, 52)},${rr(30, 44)}%,${L + 6}%)` : `hsl(${rr(16, 36)},${rr(10, 26)}%,${L}%)`, rnd() < 0.5 ? 5 : 7);
         }
       }
+      fineLeaves(marks, kind);
     } else if (kind === 2) {
       // twigs under the brushes, then the brushes, dark ones first
       for (let s = 0; s < 6; s++) stem(shoot(cx, cy, (s / 6) * Math.PI * 2 + rr(-0.4, 0.4), R * rr(0.5, 0.85), 5), 2, 1, 'rgba(62,44,32,1)');
@@ -2342,15 +2355,15 @@ export function foliageAtlas({ size = 256, seed = 37 } = {}) {
           if (i < 1) return;
           for (const side of [-1, 1]) {
             if (rnd() < 0.08) continue;
-            marks.push({ x, y, a: ang + side * rr(0.7, 1.2), L: rr(13, 18) * (1 - (i / pts.length) * 0.25), ...place(cx, cy, x, y) });
+            marks.push({ x, y, a: ang + side * rr(0.7, 1.2), L: rr(9, 13) * (1 - (i / pts.length) * 0.25), ...place(cx, cy, x, y) });
           }
-          if (i === pts.length - 1) marks.push({ x, y, a: ang, L: 12, ...place(cx, cy, x, y) });
+          if (i === pts.length - 1) marks.push({ x, y, a: ang, L: 9, ...place(cx, cy, x, y) });
         });
       }
       for (let k = 0; k < 40; k++) {
         const a = rnd() * Math.PI * 2, rho = Math.sqrt(rnd()) * R * 0.5;
         const x = cx + Math.cos(a) * rho, y = cy + Math.sin(a) * rho;
-        marks.push({ x, y, a: rnd() * Math.PI * 2, L: rr(13, 18), ...place(cx, cy, x, y) });
+        marks.push({ x, y, a: rnd() * Math.PI * 2, L: rr(9, 13), ...place(cx, cy, x, y) });
       }
       marks.sort((p, q) => p.out - q.out);
       for (const m of marks) {
@@ -2367,6 +2380,7 @@ export function foliageAtlas({ size = 256, seed = 37 } = {}) {
         c.beginPath(); c.moveTo(m.L * 0.12, 0); c.lineTo(m.L * 0.85, 0); c.stroke();
         c.restore();
       }
+      fineLeaves(marks, kind);
     } else if (kind === 5) {
       // A fountain: shoots spring from high in the middle, arch out to either
       // side and fall, and the narrow leaves hang off them — so a crown laid
