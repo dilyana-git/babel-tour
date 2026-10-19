@@ -34,6 +34,7 @@ import { useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { DPR_LADDER, FRAME_BUDGET_MS, GOVERNS, lightPoolSize } from './capability';
 import { judge, PATIENCE, GROSS } from './governorRule';
+import { QUIET } from './world/quiet';
 
 // What it gives back, and in what ORDER. Pixels last.
 //
@@ -95,6 +96,10 @@ export default function Governor({ onQuality }) {
   // read 59, and dropped the pixels too: it spent the whole budget reacting to
   // its own cost. One window discarded is enough for the recompile to be over.
   const settle = useRef(0);
+  // A window in which the work left over from the opening ran (the storeys
+  // under the wells compiling and uploading, world/quiet.js) is thrown away
+  // too, for the same reason: its hitches are that work, not the machine.
+  const busy = useRef(false);
 
   useFrame((_, delta) => {
     const ms = delta * 1000;
@@ -110,12 +115,14 @@ export default function Governor({ onQuality }) {
 
     frames.current.push(ms);
     elapsed.current += ms;
+    if (QUIET.busy) busy.current = true;
     if (elapsed.current < WINDOW_MS) return;
 
     const sorted = frames.current.sort((a, b) => a - b);
     const mid = sorted[sorted.length >> 1];
     frames.current = [];
     elapsed.current = 0;
+    if (busy.current) { busy.current = false; return; }
     if (settle.current > 0) { settle.current -= 1; return; }
 
     // The concessions come first, one to a window, on the same terms the ratio

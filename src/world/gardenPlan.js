@@ -1,5 +1,15 @@
 // Shared ground coordinates for the garden, its routes, lighting and map.
+// The ways' gravel lies flush with the lawn (whose top is 4), a hair over it.
+// A slab 1.2 proud of the grass with a sheer side read as a boardwalk.
+export const GRAVEL_TOP = 4.06;
 export const FORK = [1186, 236];
+// How far out in the garden a point is, 0 among the walls to 1 out under the
+// moon, across the Library's garden wall (World.jsx eases the light, the fog
+// and the print between the two by it, for where the eye stands).
+export const gardenness = (x, z) => {
+  const t = Math.min(1, Math.max(0, ((x - 720) * 0.889 + 20 - z + 60) / 140));
+  return t * t * (3 - 2 * t);
+};
 export const POND = { c: [1300, -174], rx: 148, rz: 112 };
 export const PAVILION = [1305, -182];
 export const BRIDGE = [[1214, -70], [1262, -106], [1252, -126], [1276, -136], [1285, -155]];

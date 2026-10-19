@@ -37,7 +37,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { EffectComposer, Bloom, Vignette, N8AO, ToneMapping, Noise, wrapEffect } from '@react-three/postprocessing';
 import { BlendFunction, ToneMappingMode, KernelSize } from 'postprocessing';
 import * as THREE from 'three';
-import { SPIRAL, spiralAt, railIntent, atBreak } from './spiral';
+import { SPIRAL, spiralAt, railIntent, atBreak, gapPart } from './spiral';
 import { assembleWorld, PAINTED } from './buildWorld';
 import { makePainter } from './paint';
 import { makeLights } from './build/light';
@@ -54,12 +54,14 @@ import { prepareEnvironment } from './effects';
 import { probeClearance, probeRay } from './probe';
 import { GLASS } from './mirror';
 import { makeBody, EYE, ROOM_STAND } from './body';
+import { QUIET, stillFor } from './quiet';
 import { READER_LIT } from './readers';
 import { bookOf, makeShelfHand, shelfRoute } from './shelfHand';
 import { makeWalkCurve, makeWalkPace, makeGazeTrack, bendPace, viewPace, LOOK_AHEAD, PACE } from './walkPath';
 import { pendingFinale } from './finaleLifecycle';
 import { STEP } from './finaleLook';
 import { WATER } from './water';
+import { gardenness } from './gardenPlan';
 import { DPR_MAX, LIGHT_MESH } from '../capability';
 import Governor from '../Governor';
 import Perf, { PERF } from './Perf';
@@ -144,6 +146,27 @@ const BRINK_HELD = 0.4;
 const BRINK_GO = 1.6;
 const BRINK_REACH = 3;         // how far out the head goes, leaning right out
 const BRINK_DIP = 1;
+// ── Where the rail has gone, walking down ────────────────────────────────────
+// Walking on down the Vertigo's stair, the open side goes by unnoticed: the
+// way is round the turn, and the gap in the rail (spiral.js GAPS, one every
+// turn) is beside the reader, not ahead. So the body stops there of itself,
+// as anyone does who comes on a missing rail with a drop beside it: GAP_STOP
+// of the way into the gap the feet pull up (EASE_STOP), the body turns to the
+// well (GAP_TURN) and the head goes down over it (GAP_DOWN, all told: the
+// body walks the stair already looking 29° down, from the stand). It stands there
+// while W is still held from before. W pressed again walks out over the edge
+// (BRINK: the lean, and the fall). Turned back along the stair, it walks on
+// down. ?wgap=0 walks past.
+const GAP_HALT = typeof window === 'undefined' || new URLSearchParams(window.location.search).get('wgap') !== '0';
+// (and, set off from inside one — the stand is GAP 0.42 into the first, and
+// W from it goes on down the stair — GAP_STOP_LATE: so the first gap stops
+// the reader too, not only the next one, a whole turn and half a minute on)
+const GAP_STOP = 0.22;
+const GAP_STOP_LATE = 0.6;
+const GAP_TURN = 0.9;          // rad/s at most, easing in over the last of it
+// rad (50°) below level: over the edge, across the well to the turns below and
+// down it (72° saw only the tread and the book at the feet)
+const GAP_DOWN = 0.87;
 // ── A guiding hand ───────────────────────────────────────────────────────────
 // Walking on their own, a reader who is plainly about to walk into something
 // is turned aside before they do: the body feels ahead along the way they face
@@ -891,6 +914,9 @@ const breathe = () => new Promise((resolve) => { setTimeout(resolve, 0); });
 const pause = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
 // Target work per slice; an individual geometry or driver call can take longer.
 const SLICE_MS = 12;
+// How long the reader stands still in a room before the work left over from
+// the opening goes on (quiet.js)
+const STILL_MS = 1500;
 // Where each step ends on the way to 1, roughly as long as each took (cold).
 const SHARE = { setup: 0.12, build: 0.5, compile: 0.94, upload: 0.99 };
 // Named sections in assembleWorld; unnamed yields split work within a section.
@@ -954,7 +980,7 @@ const startShaders = async (gl, root, camera, scene, alive, options) => {
       for (const material of gl.compile(stand, camera, scene)) materials.add(material);
       gl.setRenderTarget(was);
       if (performance.now() - since > SLICE_MS) {
-        await breathe();
+        await (options?.rest ?? breathe)();
         if (!alive()) return null;
         since = performance.now();
       }
@@ -974,7 +1000,9 @@ const shaderReady = (gl, material) => {
 };
 // Driver reflection (uniform and attribute locations) is deferred beyond link
 // completion. Visit every compiled variant while the opening can still yield.
-const prepareUniforms = async (gl, materials, alive) => {
+// (`rest`: what each pause between slices waits for; the first frame's work
+// only breathes, the work done after it also waits for the reader to be still)
+const prepareUniforms = async (gl, materials, alive, rest = breathe) => {
   const programs = new Set();
   for (const material of materials ?? []) {
     for (const program of gl.properties.get(material).programs?.values() ?? []) programs.add(program);
@@ -983,7 +1011,7 @@ const prepareUniforms = async (gl, materials, alive) => {
   for (const program of programs) {
     program.getUniforms();
     if (performance.now() - since > SLICE_MS) {
-      await breathe();
+      await rest();
       if (!alive()) return;
       since = performance.now();
     }
@@ -991,7 +1019,8 @@ const prepareUniforms = async (gl, materials, alive) => {
 };
 // Send vertex and instance buffers in short slices before the first visible
 // frame. The one-pixel renders use the finished scene's shader configuration.
-const prepareBuffers = async (gl, root, camera, scene, alive, progress) => {
+// (`given`: lights from outside `root`, for a part of the world prepared on its own)
+const prepareBuffers = async (gl, root, camera, scene, alive, progress, given = null, rest = breathe) => {
   const target = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType });
   const was = gl.getRenderTarget();
   const shadows = { auto: gl.shadowMap.autoUpdate, needed: gl.shadowMap.needsUpdate };
@@ -1011,6 +1040,7 @@ const prepareBuffers = async (gl, root, camera, scene, alive, progress) => {
       if (!uploaded.has(buffers)) { uploaded.add(buffers); objects.push(o); }
     }
   });
+  for (const o of given ?? []) { const stand = Object.create(o); stand.children = []; lights.push(stand); }
   try {
     gl.shadowMap.autoUpdate = gl.shadowMap.needsUpdate = false;
     let since = performance.now();
@@ -1029,14 +1059,14 @@ const prepareBuffers = async (gl, root, camera, scene, alive, progress) => {
       gl.setRenderTarget(was);
       progress(Math.min(1, (i + stands.length) / objects.length));
       if (performance.now() - since > SLICE_MS) {
-        await breathe();
+        await rest();
         if (!alive()) return;
         since = performance.now();
       }
     }
     // The shadow renderer uses additional depth programs. A complete tiny
     // render prepares those and the scene callbacks before the visible frame.
-    scratch.children = [root];
+    scratch.children = given ? [...lights, root] : [root];
     gl.shadowMap.needsUpdate = true;
     gl.setRenderTarget(target);
     gl.render(scratch, camera);
@@ -1207,6 +1237,42 @@ function WorldContent({ rooms = false, onProgress, onHold, onAssembled, onPlan, 
       assembledRef.current?.(true);
       holdRef.current?.(false);
       made.held = false;
+      // The storeys under the open wells (wellsBelow.js): compiled and sent
+      // in the background once the world is up, then hung in. Until then the
+      // wells open onto the dark.
+      // (2026-10-16: not on the map or in flight, quiet.js — only once the
+      // reader stands in a room, and stopping whenever they move again)
+      if (world.below) try {
+        const still = async () => {
+          QUIET.busy = 0;
+          while (alive && !stillFor(STILL_MS)) await pause(250);
+          QUIET.busy = 1;
+        };
+        const rest = async () => { await breathe(); await still(); };
+        await still();
+        if (!alive) return;
+        const lights = [];
+        world.root.traverseVisible((o) => { if (o.isLight) lights.push(o); });
+        const later = await startShaders(gl, world.below.root, camera, scene, () => alive, { lights, rest });
+        if (!alive) return;
+        const since = performance.now();
+        while (later && [...later].some((m) => !shaderReady(gl, m)) && performance.now() - since < COMPILE_GIVE_UP_MS) {
+          await pause(100);
+          if (!alive) return;
+        }
+        await prepareUniforms(gl, later, () => alive, rest);
+        if (!alive) return;
+        await still();
+        await prepareBuffers(gl, world.below.root, camera, scene, () => alive, () => {}, lights, rest);
+        if (!alive) return;
+        await still();
+        world.below.attach();
+        mark('below-ready');
+      } catch (error) {
+        console.warn('[world] the storeys below the wells could not be prepared:', error);
+      } finally {
+        QUIET.busy = 0;
+      }
     })().catch((error) => { if (alive) setFailed(error); });
 
     return () => {
@@ -1339,7 +1405,7 @@ function LiveWorld({
   // The same solids tell a lamp's halo when stone stands between it and the
   // eye (buildWorld's `occlude`).
   useEffect(() => {
-    world.setSight?.(feel ? feel.sight : null);
+    world.setSight?.(feel ? feel.sight : null, feel ? feel.sightWhole : undefined);
     return () => world.setSight?.(null);
   }, [world, feel]);
   const scrubRef = useRef(null);   // DEV: a move held at a fraction of itself
@@ -1348,6 +1414,8 @@ function LiveWorld({
   const lastFade = useRef(-1);
   const liveFrames = useRef(0);
   const readied = useRef(false);
+  // the eye last frame, for whether the reader is standing still (quiet.js)
+  const lastEye = useRef({ p: new THREE.Vector3(), q: new THREE.Quaternion(), seen: false });
 
   useEffect(() => {
     if (!hand || !handRef) return undefined;
@@ -1955,9 +2023,46 @@ function LiveWorld({
   // the world's say in where the feet can go (body.js), and the eye riding on
   // top of it all — following the floor up and down the treads, dipping once a
   // stride as the walks the piece makes do. Then where that has taken them.
+  // Walking down the Vertigo's stair into a gap in its rail (see GAP_HALT):
+  // whether the body is stopped there. It stops GAP_STOP of the way in, met
+  // walking down, and stands until W is pressed again or S stepped back.
+  const atGap = (b, hold) => {
+    if (!GAP_HALT || placeRef.current !== 3 || !world.pit) {
+      b.gapWas = null;
+      b.halt = null;
+      return false;
+    }
+    const center = [world.pit.x, world.pit.z], st = spiralAt(center, (5.5 - b.feet.y) / SPIRAL.drop);
+    const r = Math.hypot(b.feet.x - center[0], b.feet.z - center[1]);
+    const u = b.feet.y < 5 && r > st.edge - 2 && r < st.outer ? gapPart(center, b.feet) : null;
+    const press = walkRef?.current.press ?? 0;
+    if (b.halt && (hold < 0 || press !== b.halt.press || u === null)) b.halt = null;
+    // (once a gap: walked on from it, the late stop does not stop them again)
+    if (u === null || u > 1) b.gapDone = false;
+    const crossed = (s) => b.gapWas < s && u >= s;
+    if (!b.halt && !b.gapDone && hold > 0 && b.speed > WALK_SPEED * 0.3 && !b.pressing && u !== null && b.gapWas != null
+      && u - b.gapWas < 0.2 && (crossed(GAP_STOP) || crossed(GAP_STOP_LATE))) {
+      b.halt = { press };
+      b.gapDone = true;
+      b.follow = null;
+    }
+    b.gapWas = u;
+    return !!b.halt;
+  };
+  // Stopped there: the body comes round to the well, unless the reader has
+  // the head (a look of their own, or a drag), and the feet go nowhere.
+  const atGapTurn = (b, dt) => {
+    const own = Math.abs(look.current.yaw) > 0.05 || lookRef?.current?.dragging;
+    const diff = own ? 0 : turnTo(heading(b), gapIn.set(world.pit.x - b.feet.x, 0, world.pit.z - b.feet.z).normalize());
+    const turn = Math.sign(diff) * Math.min(GAP_TURN, Math.abs(diff) * 2);
+    b.omega = (b.omega ?? 0) + (turn - (b.omega ?? 0)) * (1 - Math.exp(-dt / TURN_EASE));
+    return { turn: b.omega, keep: 0, direction: gapStill };
+  };
+
   const stroll = (b, hold, dt) => {
     if (placeRef.current === 3 && world.spiral?.update(b.feet.y)) feel.refresh();
-    const g = steer(b, hold, dt);
+    const halted = atGap(b, hold);
+    const g = halted ? atGapTurn(b, dt) : steer(b, hold, dt);
     if (g.turn) turnBody(b, g.turn * dt);
     // At an edge (BRINK): how far ahead the floor falls away, if it does, and
     // whether that is at the Vertigo's broken rail, where nothing holds the
@@ -1969,12 +2074,13 @@ function LiveWorld({
     const ahead = (g.direction && g.direction.lengthSq() > 1e-6 ? g.direction : heading(b)).clone().normalize();
     const edge = (hold <= 0 && !b.pressing) ? null : feel.brink(b.feet, ahead.x, ahead.z, BRINK_FAR);
     const open = edge !== null && byTheBreak(brinkAt.set(b.feet.x + ahead.x * edge, b.feet.y, b.feet.z + ahead.z * edge));
-    b.pressing = hold > 0 && edge !== null && (open ? edge <= BRINK_OPEN : edge <= BRINK_RAIL && (b.pressing || b.stalled));
+    // (stopped at a gap, the W still held from before is not pressing on: only a new press is)
+    b.pressing = !halted && hold > 0 && edge !== null && (open ? edge <= BRINK_OPEN : edge <= BRINK_RAIL && (b.pressing || b.stalled));
     b.edge = edge;
-    const want = b.pressing ? 0 : hold > 0 ? WALK_SPEED * g.keep : hold < 0 ? -BACK_SPEED : 0;
+    const want = b.pressing || halted ? 0 : hold > 0 ? WALK_SPEED * g.keep : hold < 0 ? -BACK_SPEED : 0;
     {
       const was = b.speed;
-      springTo(b, want, dt, !hold ? EASE_STOP : b.speed * want <= 0 || Math.abs(want) < Math.abs(b.speed) ? EASE_CHECK : EASE_GATHER);
+      springTo(b, want, dt, !hold || halted ? EASE_STOP : b.speed * want <= 0 || Math.abs(want) < Math.abs(b.speed) ? EASE_CHECK : EASE_GATHER);
       // (put down, a stride does not swing back the other way)
       if (!want && was * b.speed < 0) b.speed = 0;
     }
@@ -1999,7 +2105,7 @@ function LiveWorld({
     if (moved) throughDoor(b, fromX, fromZ);
     b.stalled = hold > 0 && b.speed > 2 && moved < b.speed * dt * 0.5;
     // (DEV: who turned the head this frame, how much of the stride was kept, what held the feet)
-    if (import.meta.env.DEV) b.dbg = { turn: +g.turn.toFixed(3), keep: +g.keep.toFixed(2), by: b.follow ? 'way' : g.turn ? 'hand' : '', stop: stop ? `${stop}: ${feel.why()}` : '' };
+    if (import.meta.env.DEV) b.dbg = { turn: +g.turn.toFixed(3), keep: +g.keep.toFixed(2), by: halted ? 'gap' : b.follow ? 'way' : g.turn ? 'hand' : '', stop: stop ? `${stop}: ${feel.why()}` : '' };
     b.stride += moved;
     b.gait += (clamp01(moved / Math.max(dt, 1e-3) / (WALK_SPEED * 0.4)) - b.gait) * (1 - Math.exp(-dt * 6));
     // Let the torso lift through a tread instead of jolting the eye up with
@@ -2017,8 +2123,11 @@ function LiveWorld({
     if (!reducedMotion) pose.position.y += (Math.sin((b.stride / STRIDE) * Math.PI) ** 2 - 0.5) * 0.5 * b.gait;
     pose.quaternion.copy(b.base);
     // the head going down to look over the edge ahead, and further leaning out
-    // (not while the reader has the head tipped themselves: it is theirs)
-    const tiltTo = edge === null || hold <= 0 || Math.abs(look.current.pitch) > 0.05 ? 0
+    // (not while the reader has the head tipped themselves: it is theirs) —
+    // and stopped at a gap in the Vertigo's rail, down over it, W held or not
+    const tiltTo = Math.abs(look.current.pitch) > 0.05 ? 0
+      : halted ? Math.max(0, GAP_DOWN + Math.asin(THREE.MathUtils.clamp(gapIn.set(0, 0, -1).applyQuaternion(b.base).y, -1, 1)))
+      : edge === null || hold <= 0 ? 0
       : BRINK_TILT * smooth((BRINK_FAR - edge) / (BRINK_FAR - BRINK_NEAR)) + BRINK_LEAN_TILT * (b.leanAmount ?? 0);
     b.tilt = (b.tilt ?? 0) + (tiltTo - (b.tilt ?? 0)) * (1 - Math.exp(-dt * BRINK_EASE));
     if (b.tilt < 1e-4) b.tilt = 0;
@@ -2228,6 +2337,7 @@ function LiveWorld({
   // The committed walking course. A glance or a tilt does not change it.
   const facing = new THREE.Vector3(), turnQ = new THREE.Quaternion();
   const tiltQ = new THREE.Quaternion(), gazeQ = new THREE.Quaternion(), brinkAt = new THREE.Vector3();
+  const gapIn = new THREE.Vector3(), gapStill = Object.freeze(new THREE.Vector3());
   const heading = (b) => {
     facing.set(0, 0, -1).applyQuaternion(b.base).setY(0);
     return facing.lengthSq() > 1e-6 ? facing.normalize() : facing.set(0, 0, 0);
@@ -2364,6 +2474,8 @@ function LiveWorld({
         // down, the lean, and whether W is pressing on there
         brink: { edge: bodyRef.current.edge ?? null, tilt: +(bodyRef.current.tilt ?? 0).toFixed(3),
           lean: +(bodyRef.current.leanAmount ?? 0).toFixed(3), pressing: !!bodyRef.current.pressing },
+        // (on the Vertigo's stair: how far into a gap in its rail, and whether stopped there, GAP_HALT)
+        gap: { at: bodyRef.current.gapWas == null ? null : +bodyRef.current.gapWas.toFixed(3), halted: !!bodyRef.current.halt },
       },
       move: moveRef.current && {
         kind: moveRef.current.kind,
@@ -2939,7 +3051,7 @@ function LiveWorld({
       f.feel = feel;
       f.room = placeRef.current;
     }
-    const garden = THREE.MathUtils.smoothstep((camera.position.x - 720) * 0.889 + 20 - camera.position.z, -60, 80);
+    const garden = gardenness(camera.position.x, camera.position.z);
     // In the Vertigo the air takes the colour of the light at the bottom of the
     // well, and thins enough to let the eye reach it 450 down.
     const pit = world.pit
@@ -3031,6 +3143,17 @@ function LiveWorld({
     // scene a frame late; the assembly puts it there before this ever runs,
     // and each drawing of the whole world at 4096² was a tenth of a second.)
     liveFrames.current += 1;
+    // Still: in a room, and the eye has not moved this frame (quiet.js).
+    // The map, a flight, a walk and a turn of the head all hold the work
+    // left over from the opening back.
+    {
+      const p = camera.position, q = camera.quaternion, was = lastEye.current;
+      const moved = placeRef.current === null || !was.seen
+        || p.distanceToSquared(was.p) > 1e-4 || Math.abs(q.dot(was.q)) < 1 - 1e-7;
+      if (moved) QUIET.since = Infinity;
+      else if (QUIET.since === Infinity) QUIET.since = performance.now();
+      was.p.copy(p); was.q.copy(q); was.seen = true;
+    }
     if (liveFrames.current === 1) {
       gl.shadowMap.needsUpdate = true;
     } else {
@@ -3046,7 +3169,10 @@ function LiveWorld({
       });
       // What the feet will need, built a slice at a time once the first
       // frames have been judged (Governor.jsx's warm-up), nearest the map's
-      // first room first.
+      // first room first. (Not held back to a still reader, quiet.js: the
+      // lamps' halos ask these trees what stands in front of them, and a tree
+      // not built yet hides nothing — held back, every halo showed through
+      // the stone over the map and in flight.)
       if (rooms) feel.warm(new THREE.Vector3(...world.stands[0].eye), 6000);
     }
   });
@@ -3060,8 +3186,7 @@ function LiveWorld({
 // ?wsieve=0 no NaN sieve, ?wbloom=on restores the bloom,
 // ?wmsaa=4 multisampling — and read the
 // note over the composer before trusting that last one).
-const DIAL = typeof window === 'undefined' ? new URLSearchParams() : new URLSearchParams(window.location.search);
-const dialOff = (name) => DIAL.get(name) === '0';
+const DIAL = typeof window === 'undefined' ? new URLSearchParams() : new URLSearchParams(window.location.search);const dialOff = (name) => DIAL.get(name) === '0';
 const DPR_DIAL = Number(DIAL.get('wdpr')) || null;
 // Where a walk STARTS: a ceiling guessed before a frame has been drawn.
 // <Governor> measures what it was worth and steps down from here.

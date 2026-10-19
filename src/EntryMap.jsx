@@ -216,6 +216,8 @@ const MAP_NUMERAL = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'];
 const HINT_IDLE_MS = 15000;
 // How long the one word on steering stays up after the reader's first walk.
 const HINT_TIP_MS = 9000;
+// The Vertigo, where the walk down the stair halts at the rail's gaps (World's GAP_HALT).
+const VERTIGO = 3;
 // The seal of the eight rooms beside the walk, which is the map's button: the
 // Library's four up their diagonal, as on the map, and the garden's four
 // stepping on from where the fall lands (pointy cells, 17.3 apart).
@@ -441,7 +443,10 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
       walkRef.current.press += 1;
       setWalked(true);
       setAfoot(true);
-      if (!tipSaid.current) {
+      // (not on the Vertigo's stair: the first walk there stops at a gap in
+      // the rail and turns to the well, where turning is not the choice — the
+      // tip waits for the first walk in another room)
+      if (!tipSaid.current && place !== VERTIGO) {
         tipSaid.current = true;
         setTip(true);
       }
@@ -1407,15 +1412,6 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
         </aside>
       </div>
 
-      {worldRooms && place === null && target !== null && (
-        <button
-          type="button"
-          className="room-skip room-entry-map"
-          {...actionHandlers(returnToMap)}
-        >
-          Return to the map
-        </button>
-      )}
       {worldRooms && place !== null && (
         <div ref={hudRef} inert={reading !== null} data-room={NODES[place].slug} className={`room-hud${isGarden(place) ? ' is-garden' : ''}${moving ? ' is-moving' : ''}${finale !== null ? ` is-finale is-finale-${finalePhase ?? 'walk'}` : ''}`}>
           <section

@@ -1965,11 +1965,6 @@
   transition: opacity calc(var(--t-slow) * 2) var(--leave);
 }
 
-.room-entry-map {
-  z-index: 4;
-  animation: none;
-}
-
 .room-skip svg {
   flex: none;
   width: 1.9rem;

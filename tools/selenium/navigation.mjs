@@ -442,7 +442,7 @@ export function navigationScenarios(driver, baseUrl, options = {}) {
       await map(15000);
       await speed(1); await click('.map-enter');
       await waitUntil(driver, async () => (await read()).walk.move?.kind === 'flight', 'Second entry flight never began');
-      await click('.room-entry-map'); await speed(SPEED); await map(15000);
+      await tapKey('Escape'); await speed(SPEED); await map(15000);
       await choose(0);
     }],
     ['map recovery during walking and climbing', async () => {

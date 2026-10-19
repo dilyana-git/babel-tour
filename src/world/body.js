@@ -80,14 +80,14 @@ const REACH = 40;
 const CHEST = 12;
 export const ROOM_STAND = 9;
 
-const MOVING = /^(bridge-reader|finale|koi)/;
+const MOVING = /^(bridge-reader|finale|koi|below|above)/;
 // (and the doorways that open somewhere else: a picture of a room, walked into)
 // Wear and inlaid colour sit over existing stone. Their thin overlapping
 // triangles must not replace the supporting floor in a foot probe.
 // (`moonLand`, the moon laid on the Echo's treads, is a sheet a twentieth over
 // them, unnamed until 2026-10-09: once it was carried down to the first riser,
 // that step read as a climb onto nothing a stair is, and was refused)
-const AIR = new Set(['stars', 'sky', 'dust', 'dustFan', 'shafts', 'doorway', 'wornPath', 'floorBand', 'inlay', 'moonLand']);
+const AIR = new Set(['stars', 'sky', 'dust', 'dustFan', 'shafts', 'doorway', 'wornPath', 'floorBand', 'inlay', 'inlayWorn', 'moonLand']);
 // The books on the galleries' shelves, real-sized since 2026-10-06, are never
 // reached: the shelves' boards run out to the case's front past them at every
 // height the column has, and the case's ledge keeps the feet off. There are
@@ -787,6 +787,8 @@ export function makeBody(root) {
     }).length,
     warm,
     sight,
+    // whether every tree is built, so a clear `sight` can be believed
+    sightWhole: () => warming === true,
     refresh: () => { nearFrom.set(Infinity, 0, 0); },
     count: colliders.length,
     dispose: () => {

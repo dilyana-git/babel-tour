@@ -32,6 +32,9 @@ export function atBreak(center, p, margin = 0) {
   if (p.y > 5) return false;
   return wrap(Math.atan2(p.z - center[1], p.x - center[0]) - gapFrom + margin) <= gapSpan + 2 * margin;
 }
+// How far round into a gap `p` is, walking down: 0 where it opens, 1 where
+// the rail takes up again; past 1, anywhere else on the turn.
+export const gapPart = (center, p) => wrap(Math.atan2(p.z - center[1], p.x - center[0]) - gapFrom) / gapSpan;
 // The open book left where the rail has gone, the same on every turn: a few
 // treads into the gap, on the open side of the tread. The step it lies on (a
 // fraction of the way down), at the gap that starts at `t0`.
