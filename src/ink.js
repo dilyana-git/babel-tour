@@ -159,19 +159,6 @@ const makeGlow = () => {
   return c;
 };
 
-// One dot of a path not taken.
-const makeDot = () => {
-  const c = canvasOf(8, 8);
-  const g = c.getContext('2d');
-  const grd = g.createRadialGradient(4, 4, 0, 4, 4, 4);
-  grd.addColorStop(0, 'rgba(190,214,150,1)');
-  grd.addColorStop(0.55, 'rgba(178,196,128,0.85)');
-  grd.addColorStop(1, 'rgba(178,196,128,0)');
-  g.fillStyle = grd;
-  g.fillRect(0, 0, 8, 8);
-  return c;
-};
-
 // The shelving, drawn once: five shelves of books in gold ink along a strip
 // four walls long, each wall showing its own stretch of it. A wall is filled
 // with it, one textured fill a wall. (Each book was a stroke of its own, and
@@ -400,7 +387,6 @@ export function startInk(canvas, { reducedMotion = false, devPace = 0 } = {}, em
   }
   const still = reducedMotion;
   const glow = makeGlow();
-  const dot = makeDot();
   const shelving = g.createPattern(makeShelving(), 'repeat');
   const vestibule = cellC(0, 0);
   const echo = cellC(1, -1);
@@ -921,17 +907,30 @@ export function startInk(canvas, { reducedMotion = false, devPace = 0 } = {}, em
     const tips = [];
     const P = [0, 0];
     // the paths that fork off the walk, dotted, as the map draws the road not taken
-    g.globalAlpha = Math.min(1, GARDEN_INK.fork[3] * gardenInk);
+    // Concentric paths keep the dots soft with three fills for the whole
+    // garden, rather than a separate textured draw for every dot each frame.
+    const dots = [new Path2D(), new Path2D(), new Path2D()];
+    const radii = [1.3 * dpr, dpr, 0.6 * dpr];
     for (const s of strokes) {
       if (s.kind !== 'fork' || s.start < 0) continue;
       const reach = still ? s.len : Math.min(s.len, s.age * GARDEN_PEN);
       for (const [d, x, z] of s.dots) {
         if (d > reach) break;
-        if (project(x, 8, z)) g.drawImage(dot, out[0] - 1.4 * dpr, out[1] - 1.4 * dpr, 2.8 * dpr, 2.8 * dpr);
+        if (project(x, 8, z)) {
+          for (let i = 0; i < dots.length; i++) {
+            dots[i].moveTo(out[0] + radii[i], out[1]);
+            dots[i].arc(out[0], out[1], radii[i], 0, Math.PI * 2);
+          }
+        }
       }
       if (!still && reach < s.len && project(lerp(s.pts[0][0], s.pts[1][0], reach / s.len), 8, lerp(s.pts[0][1], s.pts[1][1], reach / s.len))) {
         tips.push(out[0], out[1], out[2] * 0.6);
       }
+    }
+    for (let i = 0; i < dots.length; i++) {
+      g.globalAlpha = Math.min(1, GARDEN_INK.fork[3] * gardenInk) * [0.18, 0.45, 0.8][i];
+      g.fillStyle = i === 2 ? 'rgb(190,214,150)' : 'rgb(178,196,128)';
+      g.fill(dots[i]);
     }
     g.globalAlpha = 1;
     for (const kind of GARDEN_KINDS) {

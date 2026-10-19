@@ -7,6 +7,25 @@ The `profile` field can be saved as a `.cpuprofile` for Chrome or Edge DevTools.
 Use separate names for before and after runs. Avoid concurrent builds or browser
 tests while measuring.
 
+## 2026-10-20: batch the opening's green dots
+
+The green forking paths stamped a separate gradient image for every dot on
+every frame. They now collect the projected dots into three concentric paths
+and fill each path once. Three translucent discs approximate the former soft
+dot; planting, path positions, reveal times and the opening's camera are kept.
+
+A controlled replay of the completed garden at 960×600, progress 0.94 and
+12 seconds recorded **553 dot image draws replaced by three fills per frame**.
+The whole ink frame went from 751 image draws / 593 fills / 171 strokes to
+198 image draws / 596 fills / 171 strokes. This counts Canvas API operations,
+not GPU draw calls or an established improvement in overall startup time.
+
+Worker timers alone did not improve a controlled two-second main-thread stall.
+CPU rasterization also failed to improve the measured cadence consistently;
+both experiments were removed. The final change retains accelerated canvas
+drawing and the existing animation scheduler. `npm run check` passes; replay
+counts and rendered opening captures are in `.ux-review/qa/ink-lag/`.
+
 ## 2026-10-19: reduce waste while planting the garden
 
 Baseline: `553122d`. Garden path checks allocated a sliced array, a mapped
