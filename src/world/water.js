@@ -57,7 +57,7 @@
 // Plus the shore: waves feel the bottom and shrink as they come in, the water
 // goes over to silt where you can see through it, and the mirror gives out.
 import * as THREE from 'three';
-import { POND } from './gardenProps';
+import { POND } from './gardenProps.js';
 
 const MAX_LAMPS = 12;
 const WAVES = 6;
@@ -130,6 +130,7 @@ export function makeWater({ mirror = true } = {}) {
   const time = { value: 0 };
   const lamps = [];
   const surfaces = [];
+  const waterMaterials = new WeakSet(), reflectors = [];
 
   const waveA = [];   // xy: direction, z: 2π/wavelength, w: amplitude
   const waveB = [];   // x: angular speed, y: wavelength, z: phase
@@ -453,12 +454,17 @@ export function makeWater({ mirror = true } = {}) {
           }`);
     };
     m.customProgramCacheKey = () => 'babel-water';
+    waterMaterials.add(m);
     return m;
   };
 
   // Every mesh that lies in the surface, so the pass below can take them out
   // of the world before it draws the world into their own mirror.
-  const surface = (mesh) => { surfaces.push(mesh); return mesh; };
+  const surface = (mesh) => {
+    surfaces.push(mesh);
+    if (waterMaterials.has(mesh.material)) reflectors.push(mesh);
+    return mesh;
+  };
 
   // ── The mirror ────────────────────────────────────────────────────────────
   // The world drawn again from a camera reflected through WATER_Y. Three's
@@ -492,13 +498,30 @@ export function makeWater({ mirror = true } = {}) {
   const UP = new THREE.Vector3(0, 1, 0);
   const BIAS = new THREE.Matrix4().set(0.5, 0, 0, 0.5, 0, 0.5, 0, 0.5, 0, 0, 0.5, 0.5, 0, 0, 0, 1);
   const buffer = new THREE.Vector2();
+  const frustum = new THREE.Frustum(), view = new THREE.Matrix4(), bounds = new THREE.Box3();
+  const surfaceVisibility = [];
   let size = [0, 0];
+
+  const inView = (camera) => {
+    frustum.setFromProjectionMatrix(view.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+    for (const mesh of reflectors) {
+      if (!mesh.material.visible) continue;
+      let shown = true;
+      for (let o = mesh; o; o = o.parent) if (!o.visible) { shown = false; break; }
+      if (!shown) continue;
+      mesh.updateWorldMatrix(true, false);
+      if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
+      bounds.copy(mesh.geometry.boundingBox).applyMatrix4(mesh.matrixWorld);
+      if (frustum.intersectsBox(bounds)) return true;
+    }
+    return false;
+  };
 
   // `near`: how far the reader is from the nearest water. The caller knows the
   // ponds; this only knows how to draw one.
   const reflect = (renderer, scene, camera, near) => {
     if (!target) return;
-    if (near > WATER.reach || camera.position.y < WATER_Y + 1) {
+    if (near > WATER.reach || camera.position.y < WATER_Y + 1 || !inView(camera)) {
       shared.uMirror.value = 0;
       return;
     }
@@ -546,7 +569,7 @@ export function makeWater({ mirror = true } = {}) {
     // that threw once would otherwise stay invisible for the rest of the walk.
     const was = renderer.getRenderTarget();
     const wasShadow = renderer.shadowMap.autoUpdate;
-    surfaces.forEach((m) => { m.visible = false; });
+    surfaces.forEach((m, i) => { surfaceVisibility[i] = m.visible; m.visible = false; });
     try {
       renderer.shadowMap.autoUpdate = false;
       renderer.setRenderTarget(target);
@@ -555,7 +578,7 @@ export function makeWater({ mirror = true } = {}) {
     } finally {
       renderer.setRenderTarget(was);
       renderer.shadowMap.autoUpdate = wasShadow;
-      surfaces.forEach((m) => { m.visible = true; });
+      surfaces.forEach((m, i) => { m.visible = surfaceVisibility[i]; });
     }
 
     shared.uMirrorMap.value = target.texture;

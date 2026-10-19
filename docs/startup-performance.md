@@ -7,6 +7,38 @@ The `profile` field can be saved as a `.cpuprofile` for Chrome or Edge DevTools.
 Use separate names for before and after runs. Avoid concurrent builds or browser
 tests while measuring.
 
+## 2026-10-19: skip secondary views outside the frame
+
+Baseline: `08b1c7c`. Doorways checked their projected corners, treating a
+corner behind the near plane as a full-screen opening. An entire doorway
+behind the eye could therefore render the far room unnecessarily. A world-space
+frustum check now rejects an invisible opening before that fallback, while
+retaining openings that genuinely cross the near plane.
+
+The water reflection previously checked distance alone. It now checks the
+visible bounds of actual water meshes, including their parent visibility;
+fish and pebbles registered to be hidden during reflection cannot request a
+reflection themselves. Looking back refreshes the reflection in the same frame.
+The pass also restores each surface item's previous visibility rather than
+making every registered object visible after drawing.
+
+Headless Edge, GPU/D3D11, 1440×900, `?wperf`, settled DPR 1:
+
+- Echo arrival: secondary scene passes fell from about 2.7 to 1.7 per frame,
+  and rendered triangles from 8.3M to 7.5M. The measured frame rate remained
+  about 14–15 fps; the main room and its mirrors are still expensive.
+- Looking up from the Fork: the pond pass is skipped, leaving one scene pass,
+  270 calls and 3.5M triangles (45–50 fps in this capture).
+- The normal Fork and Pavilion views still draw their visible water reflection.
+  Their rendering cost is substantially unchanged; these checks do not show a
+  general frame-rate improvement.
+
+Five rendering regression checks cover invisible and near-plane doorways,
+crossing while looking away, reflection visibility/return, and restoration after
+a failed draw. They run in `npm run check`. Inspected before/after captures and
+runtime samples are in `.ux-review/qa/performance-2026-10-19/` (`runtime-*`,
+`visibility-*`).
+
 ## 2026-10-19: keep the curved trees, reduce repeated work
 
 Baseline: `8160d31`. The new wood refinement rebuilt centripetal spline

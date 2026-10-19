@@ -131,6 +131,8 @@ export function makeDoorway({ root, keep, at, out, half, floor, top, by }) {
   // The far eye, and the corners of the opening, for asking where it is on the screen.
   const eye = new THREE.PerspectiveCamera();
   const corners = [-1, 1].flatMap((s) => [floor, top].map((y) => new THREE.Vector3(at[0] - out[1] * half * s, y, at[1] + out[0] * half * s)));
+  const bounds = new THREE.Box3().setFromPoints(corners).expandByScalar(0.01);
+  const frustum = new THREE.Frustum(), view = new THREE.Matrix4();
   const p = new THREE.Vector3(), plane = new THREE.Plane(), clip = new THREE.Vector4(), q = new THREE.Vector4();
   const cut = new THREE.Matrix4();
   const normal = new THREE.Vector3(out[0], 0, out[1]);
@@ -163,6 +165,10 @@ export function makeDoorway({ root, keep, at, out, half, floor, top, by }) {
     near = ahead < 70 && across(camera.position.x, camera.position.z) < half + 40;
     // Only from this side, and near enough for the doorway to be more than a speck.
     if (ahead <= 0 || ahead > 900) return show(false);
+    // Reject an off-screen opening before handling corners at the near plane:
+    // that conservative full-frame case also includes openings behind the eye.
+    frustum.setFromProjectionMatrix(view.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+    if (!frustum.intersectsBox(bounds)) return show(false);
     // Its patch of the screen, from its corners (all of it, if any corner is
     // behind the eye); none, if it is off the screen.
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
