@@ -1556,7 +1556,7 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
                   : (
                     <>
                       <span className="room-key">Hold <kbd>W</kbd>to walk</span>
-                      <span className="room-key"><kbd>drag</kbd>to look</span>
+                      <span className="room-key">drag to look</span>
                       <span className="room-key"><kbd>M</kbd>for the map</span>
                     </>
                   )}
