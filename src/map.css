@@ -557,11 +557,10 @@
 .map-ending::before {
   content: '';
   position: absolute;
-  inset: -0.5rem -0.9rem;
+  inset: -3rem -8rem -4rem -5rem;
   z-index: -1;
-  border-radius: 1.6rem;
-  background: var(--shade);
-  box-shadow: 0 0 2.2rem 1.5rem var(--shade);
+  background: radial-gradient(ellipse 65% 50% at 30% 50%,
+    var(--shade) 0%, var(--shade-mid) 35%, rgba(8, 6, 5, 0.2) 65%, transparent 100%);
   pointer-events: none;
 }
 
