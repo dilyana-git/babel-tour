@@ -31,6 +31,15 @@ path, and this document in full (`git show 0857f2a:docs/design-history.md`).
 
 ## 2026-10-19
 
+- **Tall-map numerals belong inside their rooms** (audit VI·11·1). Above
+  the upper rim, each number read as the room above it on the phone's
+  steeper map; VII also crowded the byline. Tall layouts now centre every
+  numeral in its projected room or landmark, with a centred text baseline.
+  The Fork and Web retain their gravel junction and court marks. Wide maps
+  keep the raised rim placement. Before/after at 390 × 844:
+  `.ux-review/shots/numerals-tall/numerals-phone-before-map.png` and
+  `.ux-review/shots/numerals-tall/numerals-phone-after-map.png`.
+
 - **A book taken by hand** (third audit, picked 2026-10-12). The chosen
   treatment is a shelf spine picked directly, a walk over to it, and the
   volume itself open at two facing pages. The built spread was only reachable

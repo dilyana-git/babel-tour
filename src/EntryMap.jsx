@@ -155,11 +155,7 @@ function numeralAt(poly) {
   });
   return [x, (Number.isFinite(top) ? top : b.y0) - NUMERAL_LIFT];
 }
-// ...unless that is inside another room's outline. On a phone, where the map
-// is turned to look along the walk, what lies over the Fork's top edge is the
-// Pavilion's pond, and the Fork's VI stood inside the Pavilion's ring as if
-// it were its number (board 14 · 3: "VI, VII and VIII in one knot"). Such a
-// numeral stands inside its own room instead, `drop` under that edge.
+// Keep a raised numeral inside its own room if it would overlap another.
 const insidePoly = ([x, y], poly) => {
   let inside = false;
   for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
@@ -168,9 +164,17 @@ const insidePoly = ([x, y], poly) => {
   }
   return inside;
 };
-const numeralsFor = (rooms, drop) => rooms.map(numeralAt).map(([x, y], i) => (
-  rooms.some((poly, k) => k !== i && insidePoly([x, y - 6], poly)) ? [x, y + NUMERAL_LIFT + drop] : [x, y]
-));
+const numeralsFor = (rooms, tall) => {
+  // The tall map stacks rooms along the walk: their upper rims are seams
+  // with the room above, so each numeral belongs at its own room's centre.
+  if (tall) return rooms.map((poly) => {
+    const { x0, y0, x1, y1 } = boundsOf(poly);
+    return [(x0 + x1) / 2, (y0 + y1) / 2];
+  });
+  return rooms.map(numeralAt).map(([x, y], i) => (
+    rooms.some((poly, k) => k !== i && insidePoly([x, y - 6], poly)) ? [x, y + NUMERAL_LIFT + 38] : [x, y]
+  ));
+};
 
 // The lantern: the walk's rooms, and the way between them through the
 // Library, are left lit and the rest of the honeycomb is dimmed, so the walk
@@ -1168,12 +1172,13 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
         );
       })}
       <g className="map-numerals" aria-hidden="true">
-        {numeralsFor(layout.marks ?? layout.rooms, tall ? 19 : 38).map(([x, y], i) => {
+        {numeralsFor(layout.marks ?? layout.rooms, tall).map(([x, y], i) => {
           return (
             <text
               key={i}
               x={x}
               y={y}
+              dominantBaseline={tall ? 'central' : undefined}
               className={`map-numeral${i === shown ? ' is-shown' : ''}${isGarden(i) ? ' is-garden' : ''}`}
             >
               {MAP_NUMERAL[i]}
