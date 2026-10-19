@@ -1,10 +1,15 @@
-// Procedural room tone for the tour — no audio assets. Brown noise breathed
-// through a low-pass filter reads as air moving through the stacks; two low,
-// slightly detuned sines beat slowly against each other underneath. Descent
-// darkens the filter and leans on the drones, so the deep chapters *sound*
-// deeper. Crossing into the garden opens the air back up: a band-passed hush
-// of leaves gusts in while the stone drones recede. Everything stays very
-// quiet. The Pavilion's qin has its own close, woody resonance and score.
+// Procedural room tone for the tour — no audio assets. Air moves through the
+// stacks as noise sent through five narrow resonances on the room's chord, like
+// wind over the mouth of a bottle, so the room breathes on a pitch, with
+// a soft pipe on the room's root beneath it. Now and then a bowl is struck in
+// the room's scale and left to die away into the room (chime): long in the Vertigo,
+// said again in the Echo, short and high as wind chimes in the garden. Only a
+// trace of plain noise is left under it all. The Pavilion's qin has its own
+// close, woody resonance and score, and the bowls give way to it.
+//
+// (Until 10-16 the bed was brown noise over two sines at 37–73 Hz. Laptop
+// speakers and earbuds hardly play below 150 Hz, so the tone went missing and
+// what was heard was the noise.)
 //
 // It was the plate tour's, and is the world's now (worldSound.js drives it):
 // the same air and the same root for each room, and three things the world
@@ -43,12 +48,30 @@ const ROOTS = [
   61.74, // VII  The Pavilion     B1
   73.42, // VIII The Web of Time   D2
 ];
-// The second sine sits this much above the first, so the two beat against each
-// other. Proportional rather than a fixed offset in Hz, which means the beat
-// slows as the rooms get lower — about one every three seconds in the Vestibule,
-// one every five in the Vertigo. Deep rooms breathe more slowly; that falls out
-// of the arithmetic rather than needing a table of its own.
-const DETUNE = 1 + 0.3 / 55;
+// ROOTS are where the rooms rest, but they are pitched too low for small
+// speakers to play. Everything heard is voiced from LIFT × the root upward.
+const LIFT = 2;
+
+// ── What each room rings with ────────────────────────────────────────────────
+// `chord`: the five notes the air resonates on (semitones above LIFT × root),
+// slid tone by tone into the next room's on a crossing. `scale`: what the
+// bowls are struck in. `ring`: how long a bowl rings, relative to the
+// Vestibule's. Every note stays in A natural minor, like ROOTS; the Pavilion's
+// are also in the qin's E minor.
+const ROOM_TONE = [
+  { chord: [12, 19, 24, 27, 31], scale: [0, 3, 5, 7, 10], ring: 1 },    // Vestibule  A C E
+  { chord: [12, 19, 24, 26, 31], scale: [0, 2, 5, 7, 10], ring: 1.1 },  // Echo       G, open
+  { chord: [12, 19, 23, 24, 28], scale: [0, 2, 4, 7, 11], ring: 0.9 },  // Silence    F maj7
+  { chord: [12, 19, 22, 24, 27], scale: [0, 2, 3, 7, 10], ring: 1.45 }, // Vertigo    D min, unresolved
+  { chord: [12, 19, 24, 28, 31], scale: [0, 2, 4, 7, 9], ring: 0.8 },   // Door       G major
+  { chord: [12, 19, 24, 26, 31], scale: [0, 2, 5, 7, 10], ring: 0.6 },  // Fork       A, open
+  { chord: [12, 15, 20, 24, 27], scale: [0, 3, 5, 8, 10], ring: 0.6 },  // Pavilion   G/B
+  { chord: [12, 19, 24, 26, 31], scale: [0, 2, 5, 7, 9], ring: 0.7 },   // Web        D, open
+];
+
+// A struck bowl: partials as [ratio, level, how long it rings relative to the
+// fundamental]. The upper ones are inharmonic and die first, as in metal.
+const BOWL = [[1, 1, 1], [2.01, 0.3, 0.55], [2.76, 0.45, 0.4], [4.07, 0.18, 0.25], [5.4, 0.12, 0.16]];
 
 function brownNoiseBuffer(ctx) {
   const length = ctx.sampleRate * NOISE_SECONDS;
@@ -70,9 +93,6 @@ function brownNoiseBuffer(ctx) {
   return buffer;
 }
 
-// White noise for the garden's leaves — brown noise has no energy left up
-// where leaf-hiss lives. Same loop taper; the brief dip every eight seconds
-// reads as the wind drawing breath.
 // ── The room ─────────────────────────────────────────────────────────────────
 // What a footfall is heard IN: how much of it comes back from
 // far walls (`hall`, a long dark tail), how much from near ones (`room`, a
@@ -80,15 +100,17 @@ function brownNoiseBuffer(ctx) {
 // Echo's flights answering each other), and how far the air and the drone are
 // let down (`quiet`: in the Silence the reader's own steps are what is left).
 // The garden's rooms have a sky over them and nearly nothing comes back.
+// The bowls and the air are heard in the same two tails, at their own
+// levels (`ringHall`, `ringRoom`): a bell wants more room than a footfall.
 const ROOM_AIR = {
-  vestibule: { hall: 0.3, room: 0.3, slap: 0, quiet: 0 },
-  echo: { hall: 0.5, room: 0.15, slap: 0.5, quiet: 0 },
-  silence: { hall: 0, room: 0.2, slap: 0, quiet: 1 },
-  vertigo: { hall: 0.75, room: 0.1, slap: 0.12, quiet: 0.2 },
-  door: { hall: 0.2, room: 0.3, slap: 0, quiet: 0 },
-  fork: { hall: 0, room: 0.04, slap: 0, quiet: 0 },
-  pavilion: { hall: 0, room: 0.1, slap: 0, quiet: 0 },
-  web: { hall: 0, room: 0.06, slap: 0, quiet: 0 },
+  vestibule: { hall: 0.3, room: 0.3, slap: 0, quiet: 0, ringHall: 0.45, ringRoom: 0.3 },
+  echo: { hall: 0.5, room: 0.15, slap: 0.5, quiet: 0, ringHall: 0.6, ringRoom: 0.15 },
+  silence: { hall: 0, room: 0.2, slap: 0, quiet: 1, ringHall: 0.2, ringRoom: 0.5 },
+  vertigo: { hall: 0.75, room: 0.1, slap: 0.12, quiet: 0.2, ringHall: 0.8, ringRoom: 0.1 },
+  door: { hall: 0.2, room: 0.3, slap: 0, quiet: 0, ringHall: 0.3, ringRoom: 0.4 },
+  fork: { hall: 0, room: 0.04, slap: 0, quiet: 0, ringHall: 0, ringRoom: 0.7 },
+  pavilion: { hall: 0, room: 0.1, slap: 0, quiet: 0, ringHall: 0, ringRoom: 0.7 },
+  web: { hall: 0, room: 0.06, slap: 0, quiet: 0, ringHall: 0.05, ringRoom: 0.7 },
 };
 
 // A room's answer, made rather than recorded: noise dying away, darker as it
@@ -143,18 +165,16 @@ function pluckBuffer(ctx, freq, seconds = 7) {
   return { buffer, rate: (freq * (period + 0.5)) / sr };
 }
 
+// White noise: for the air's resonances, the leaves and the footsteps' scuff
+// (brown noise has no energy left up there). No taper. White noise has
+// no seam to click, and a dip every eight seconds would be heard through the
+// resonances as the whole chord ducking.
 function whiteNoiseBuffer(ctx) {
   const length = ctx.sampleRate * NOISE_SECONDS;
   const buffer = ctx.createBuffer(1, length, ctx.sampleRate);
   const data = buffer.getChannelData(0);
   for (let i = 0; i < length; i++) {
     data[i] = Math.random() * 2 - 1;
-  }
-  const taper = Math.floor(ctx.sampleRate * 0.25);
-  for (let i = 0; i < taper; i++) {
-    const g = i / taper;
-    data[i] *= g;
-    data[length - 1 - i] *= g;
   }
   return buffer;
 }
@@ -174,6 +194,8 @@ export default class AmbientSound {
     this.qinVoices = new Set();
     this.qinPresence = 0;
     this.qinBearing = 0;
+    this.station = null;     // setStation's, for the bowls
+    this.nextBell = null;    // audio-clock time of the next bowl
   }
 
   // Must be called from a user gesture (the entry-veil click).
@@ -211,18 +233,25 @@ export default class AmbientSound {
     // The room (setRoom). Footfalls are said into `stepBus`, which
     // is heard plain and is also sent to two tails and, in the Echo, round a
     // delay that says it again, darker and fainter each time.
+    // The air and the bowls are said into `ringBus`, which feeds the same two
+    // tails at its own levels, and is not heard plain (each source sets its
+    // own dry level).
     this.stepBus = ctx.createGain();
     this.stepBus.connect(this.master);
+    this.ringBus = ctx.createGain();
     const tail = (seconds, dark) => {
-      const send = ctx.createGain();
-      send.gain.value = 0;
       const verb = ctx.createConvolver();
       verb.buffer = tailBuffer(ctx, seconds, dark);
-      this.stepBus.connect(send).connect(verb).connect(this.master);
-      return send;
+      verb.connect(this.master);
+      return [this.stepBus, this.ringBus].map((bus) => {
+        const send = ctx.createGain();
+        send.gain.value = 0;
+        bus.connect(send).connect(verb);
+        return send;
+      });
     };
-    this.hallSend = tail(3.4, 0.08);
-    this.roomSend = tail(0.9, 0.3);
+    [this.hallSend, this.hallRing] = tail(3.4, 0.08);
+    [this.roomSend, this.roomRing] = tail(0.9, 0.3);
     this.slapSend = ctx.createGain();
     this.slapSend.gain.value = 0;
     const slap = ctx.createDelay(1);
@@ -235,6 +264,16 @@ export default class AmbientSound {
     this.stepBus.connect(this.slapSend).connect(slap).connect(slapDark);
     slapDark.connect(slapAgain).connect(slap);
     slapDark.connect(this.master);
+
+    // The bowls: heard plain, in the room's tails, and (the Echo) said again.
+    this.bellBus = ctx.createGain();
+    const bellDry = ctx.createGain();
+    bellDry.gain.value = 0.55;
+    this.bellBus.connect(bellDry).connect(this.master);
+    this.bellBus.connect(this.ringBus);
+    this.bellSlap = ctx.createGain();
+    this.bellSlap.gain.value = 0;
+    this.bellBus.connect(this.bellSlap).connect(slap);
 
     // The soundboard gives every string the same wooden body. Its short,
     // dark stereo tail belongs to the instrument, independent of footsteps.
@@ -262,41 +301,78 @@ export default class AmbientSound {
     this.qinWave = ctx.createPeriodicWave(new Float32Array(4), new Float32Array([0, 1, 0.17, 0.05]));
 
     // Air: looping brown noise, filtered dark, gain slowly breathing via LFO.
+    // Only a trace now. The resonances below carry the air.
     const noise = ctx.createBufferSource();
     noise.buffer = brownNoiseBuffer(ctx);
     noise.loop = true;
     this.noiseFilter = ctx.createBiquadFilter();
     this.noiseFilter.type = 'lowpass';
-    this.noiseFilter.frequency.setValueAtTime(320, now);
+    this.noiseFilter.frequency.setValueAtTime(240, now);
     this.noiseFilter.Q.value = 0.5;
     this.noiseGain = ctx.createGain();
-    this.noiseGain.gain.value = 0.05;
+    this.noiseGain.gain.value = 0.012;
     noise.connect(this.noiseFilter).connect(this.noiseGain).connect(this.master);
     noise.start();
 
     const lfo = ctx.createOscillator();
     lfo.frequency.value = 0.045;
     const lfoDepth = ctx.createGain();
-    lfoDepth.gain.value = 0.016;
+    lfoDepth.gain.value = 0.004;
     lfo.connect(lfoDepth).connect(this.noiseGain.gain);
     lfo.start();
 
-    // Ground: two low sines a hair apart, beating slowly against each other.
-    // Their pitch is not fixed — setStation slides it between the ROOTS above as
-    // the reader walks, so each gallery rests on its own note.
+    // Ground: a soft stopped pipe on the room's root, an octave above ROOTS so
+    // that it is played by the speakers it is heard on. setStation slides it
+    // between the roots as the reader walks, so each gallery rests on its own note.
+    const pipeWave = ctx.createPeriodicWave(new Float32Array(7), new Float32Array([0, 1, 0.45, 0.2, 0.12, 0.06, 0.03]));
     this.droneGain = ctx.createGain();
-    this.droneGain.gain.value = 0.018;
+    this.droneGain.gain.value = 0;
     this.droneGain.connect(this.master);
-    this.droneOsc = [ROOTS[0], ROOTS[0] * DETUNE].map((freq) => {
-      const osc = ctx.createOscillator();
-      osc.type = 'sine';
-      osc.frequency.value = freq;
+    const pipeToTail = ctx.createGain();
+    pipeToTail.gain.value = 0.4;
+    this.droneGain.connect(pipeToTail).connect(this.ringBus);
+    this.droneOsc = ctx.createOscillator();
+    this.droneOsc.setPeriodicWave(pipeWave);
+    this.droneOsc.frequency.value = ROOTS[0] * LIFT;
+    const pipeSoft = ctx.createBiquadFilter();
+    pipeSoft.type = 'lowpass';
+    pipeSoft.frequency.value = 900;
+    this.droneOsc.connect(pipeSoft).connect(this.droneGain);
+    this.droneOsc.start();
+
+    // The tuned air: white noise through five narrow band-passes on the room's
+    // chord (setStation tunes them), each swelling and fading on its own slow
+    // cycle so the chord shifts inside itself instead of holding still.
+    const hush = whiteNoiseBuffer(ctx);
+    const air = ctx.createBufferSource();
+    air.buffer = hush;
+    air.loop = true;
+    this.toneGain = ctx.createGain();
+    this.toneGain.gain.value = 0;
+    const toneDry = ctx.createGain();
+    toneDry.gain.value = 0.7;
+    const toneToTail = ctx.createGain();
+    toneToTail.gain.value = 0.6;
+    this.toneGain.connect(toneDry).connect(this.master);
+    this.toneGain.connect(toneToTail).connect(this.ringBus);
+    this.resonators = ROOM_TONE[0].chord.map((semis, i) => {
+      const band = ctx.createBiquadFilter();
+      band.type = 'bandpass';
+      band.frequency.value = ROOTS[0] * LIFT * 2 ** (semis / 12);
+      band.Q.value = 45;
+      const base = 0.585 * (1 - i * 0.08);
       const g = ctx.createGain();
-      g.gain.value = 0.5;
-      osc.connect(g).connect(this.droneGain);
-      osc.start();
-      return osc;
+      g.gain.value = base * 0.55;
+      const swell = ctx.createOscillator();
+      swell.frequency.value = 0.012 + Math.random() * 0.038;
+      const depth = ctx.createGain();
+      depth.gain.value = base * 0.45;
+      swell.connect(depth).connect(g.gain);
+      swell.start(now + Math.random() * 20);
+      air.connect(band).connect(g).connect(this.toneGain);
+      return band;
     });
+    air.start(now, 3.1);
 
     // A dedicated channel for chapter-change swells: the same air, one octave
     // of filter brighter, silent until swell() opens it.
@@ -312,21 +388,21 @@ export default class AmbientSound {
     swellNoise.start();
     swellNoise.connect(swellFilter).connect(this.swellGain).connect(this.master);
 
-    // Leaves: white noise band-passed to a high hush, silent until the reader
-    // crosses into the garden. A very slow LFO gusts it; the gust depth is
-    // scaled with the garden blend in applyTone so the library stays still.
+    // Leaves: white noise band-passed to a high, faint hush, silent until the
+    // reader crosses into the garden. A very slow LFO gusts it; the gust depth
+    // is scaled with the garden blend in applyTone so the library stays still.
     this.gardenGain = ctx.createGain();
     this.gardenGain.gain.value = 0;
     const leaves = ctx.createBufferSource();
-    leaves.buffer = whiteNoiseBuffer(ctx);
+    leaves.buffer = hush;
     // Kept for the footsteps' scuff component (brown noise has no energy left
     // up where a sole brushing stone lives).
-    this.scuffBuffer = leaves.buffer;
+    this.scuffBuffer = hush;
     leaves.loop = true;
     const leafFilter = ctx.createBiquadFilter();
     leafFilter.type = 'bandpass';
-    leafFilter.frequency.value = 1350;
-    leafFilter.Q.value = 0.7;
+    leafFilter.frequency.value = 2400;
+    leafFilter.Q.value = 0.6;
     leaves.connect(leafFilter).connect(this.gardenGain).connect(this.master);
     leaves.start();
     const gust = ctx.createOscillator();
@@ -340,18 +416,18 @@ export default class AmbientSound {
   // Both blend inputs write through one mixer so their per-frame updates
   // never fight over the same nodes.
   applyTone() {
-    const d = this.descent;
     const g = this.garden;
-    // The library darkens with depth; the garden opens the air back up and
-    // trades the stone drones for leaf-hiss.
-    // (and the Silence lets both down, a little at a time: quieter than quiet)
+    // The depth of a room is in its chord and its bowls now (ROOM_TONE), not
+    // in a darker filter. The garden opens the trace of air up and adds leaves.
+    // (and the Silence lets everything down, a little at a time: quieter than quiet)
     this.quietNow += (this.quiet - this.quietNow) * 0.02;
-    const q = this.quietNow;
-    this.noiseFilter.frequency.value = (320 - d * 190 + g * 320) * (1 - q * 0.35);
-    this.noiseGain.gain.value = 0.05 * (1 - q * 0.6);
-    this.droneGain.gain.value = (0.018 + d * 0.014) * (1 - g * 0.55) * (1 - q * 0.8) * (1 - this.qinPresence * 0.7);
-    this.gardenGain.gain.value = g * 0.02;
-    this.gustDepth.gain.value = g * 0.007;
+    const hush = 1 - this.quietNow * 0.45;
+    this.noiseFilter.frequency.value = 240 + g * 460;
+    this.noiseGain.gain.value = (0.012 - g * 0.004) * hush;
+    this.droneGain.gain.value = 0.00225 * hush * (1 - this.qinPresence * 0.7);
+    this.toneGain.gain.value = hush;
+    this.gardenGain.gain.value = g * 0.0025;
+    this.gustDepth.gain.value = g * 0.0018;
   }
 
   // p in [0,1]: 0 at the threshold, 1 in The Silence. Called every frame; cheap.
@@ -380,7 +456,8 @@ export default class AmbientSound {
   // between two notes spends most of its time near the top and arrives with a
   // lurch, while this glides evenly and lands exactly on the next root. The
   // crossing takes about seven seconds, which is slow enough that the slide is
-  // felt as the room changing rather than heard as a portamento.
+  // felt as the room changing rather than heard as a portamento. The air's five
+  // resonances slide the same way, each into the same voice of the next chord.
   //
   // Written every frame like the tone above, and for the same reason: the
   // per-frame change is minute, so the parameter moves smoothly without any
@@ -391,11 +468,78 @@ export default class AmbientSound {
     }
     const top = ROOTS.length - 1;
     const at = Math.min(Math.max(d, 0), top);
+    this.station = at;
     const i = Math.min(Math.floor(at), top - 1);
     const f = at - i;
-    const root = ROOTS[i] * Math.pow(ROOTS[i + 1] / ROOTS[i], f);
-    this.droneOsc[0].frequency.value = root;
-    this.droneOsc[1].frequency.value = root * DETUNE;
+    const glide = (a, b) => a * Math.pow(b / a, f);
+    this.droneOsc.frequency.value = glide(ROOTS[i], ROOTS[i + 1]) * LIFT;
+    this.resonators.forEach((band, k) => {
+      band.frequency.value = glide(
+        ROOTS[i] * LIFT * 2 ** (ROOM_TONE[i].chord[k] / 12),
+        ROOTS[i + 1] * LIFT * 2 ** (ROOM_TONE[i + 1].chord[k] / 12),
+      );
+    });
+  }
+
+  // The bowls' clock, called every frame (worldSound.js). Every four to eleven
+  // seconds (half that in the garden) one is struck in the scale of the room
+  // nearest, and now and then a second answers it a scale step or two away. In
+  // the garden they are an octave higher and ring shorter, as wind chimes. Near
+  // the Pavilion they give way to the qin.
+  chime() {
+    if (!this.ctx || this.muted || this.ctx.state !== 'running' || this.station === null) {
+      return;
+    }
+    const now = this.ctx.currentTime;
+    // First call, or back from a hidden tab: start again shortly, never catch up.
+    if (this.nextBell === null || now > this.nextBell + 2) {
+      this.nextBell = now + 1.5 + Math.random() * 2.5;
+      return;
+    }
+    if (now < this.nextBell - 0.1) {
+      return;
+    }
+    const at = Math.max(this.nextBell, now);
+    const open = this.garden > 0.5;
+    const room = Math.round(this.station);
+    const base = open ? 36 : 24;
+    const level = 1 - this.qinPresence * 0.8;
+    const deg = Math.floor(Math.random() * ROOM_TONE[room].scale.length * 1.6);
+    this.strike(room, deg, base, at, level);
+    if (Math.random() < (open ? 0.5 : 0.3)) {
+      const step = [-2, -1, 1, 2][Math.floor(Math.random() * 4)];
+      this.strike(room, deg + step, base, at + 0.5 + Math.random() * 0.9, level);
+    }
+    this.nextBell = at + (4 + Math.random() * 7) * (open ? 0.5 : 1);
+  }
+
+  // One bowl: `deg` steps up the room's scale from `base` semitones above
+  // LIFT × its root, struck at audio time `t`, somewhere a little off centre.
+  strike(room, deg, base, t, level) {
+    const ctx = this.ctx;
+    const { scale, ring } = ROOM_TONE[room];
+    const n = scale.length;
+    const semis = base + scale[((deg % n) + n) % n] + 12 * Math.floor(deg / n);
+    const freq = ROOTS[room] * LIFT * 2 ** (semis / 12);
+    const T = 6 * ring;
+    const peak = 0.022 * level * (1 - this.quietNow * 0.45);
+    const out = ctx.createStereoPanner ? ctx.createStereoPanner() : ctx.createGain();
+    if (out.pan) out.pan.value = Math.random() - 0.5;
+    out.connect(this.bellBus);
+    BOWL.forEach(([ratio, amp, life], k) => {
+      if (freq * ratio > 7000) return;
+      const osc = ctx.createOscillator();
+      osc.frequency.value = freq * ratio;
+      const env = ctx.createGain();
+      env.gain.setValueAtTime(0.0001, t);
+      env.gain.exponentialRampToValueAtTime(Math.max(peak * amp, 0.0002), t + 0.006);
+      env.gain.exponentialRampToValueAtTime(0.0001, t + T * life);
+      osc.connect(env).connect(out);
+      // The fundamental rings longest; when it ends the whole bowl is done.
+      if (k === 0) osc.onended = () => out.disconnect();
+      osc.start(t);
+      osc.stop(t + T * life + 0.05);
+    });
   }
 
   // The room the reader stands in (its slug): what their footfalls are heard in.
@@ -409,6 +553,9 @@ export default class AmbientSound {
     this.hallSend.gain.setTargetAtTime(air.hall, t, 0.9);
     this.roomSend.gain.setTargetAtTime(air.room, t, 0.9);
     this.slapSend.gain.setTargetAtTime(air.slap, t, 0.9);
+    this.hallRing.gain.setTargetAtTime(air.ringHall, t, 0.9);
+    this.roomRing.gain.setTargetAtTime(air.ringRoom, t, 0.9);
+    this.bellSlap.gain.setTargetAtTime(air.slap, t, 0.9);
     this.quiet = air.quiet;
   }
 

@@ -3,10 +3,11 @@
 // it. This drives the same engine (ambientSound.js — made, not recorded; no
 // audio files) from the world:
 //
-//   the room     each gallery rests on its own low note, the Library's falling
-//                to the Vertigo and the garden's climbing out of it, and the
-//                air opens with leaves beyond the Door; on a walk between two
-//                rooms the one slides into the other.
+//   the room     each gallery rests on its own note and its own chord in the
+//                air, the Library's falling to the Vertigo and the garden's
+//                climbing out of it, with a bowl struck now and then in the
+//                room's scale; the air opens with leaves beyond the Door; on a
+//                walk between two rooms the one slides into the other.
 //   the feet     a footfall every stride the eye actually travels (World says
 //                where the eye is; nothing here knows why it moved), on what
 //                the body says is under it: stone, the Pavilion's timber, the
@@ -102,6 +103,7 @@ export function useWorldSound({ on, place, target, finale, finalePhase, feetRef 
         engine.setRoom(NODES[Math.round(station)].slug);
       }
       engine.setPresence(f?.eye ?? 0);
+      engine.chime();
 
       // The crossings that are not walks: the fall down the Vertigo's well is
       // a long rush of air, and the heart of the maze opens on a breath and,
