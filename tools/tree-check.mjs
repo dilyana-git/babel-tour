@@ -8,7 +8,8 @@ import { TreeCurve } from '../src/world/treeCurve.js';
 import { makeRng } from '../src/world/textures.js';
 
 // Growth and leaf-colour draws are shared by established plantings. A wood
-// refinement must leave those draws and the existing foliage untouched.
+// refinement must leave those draws untouched. A crown revision also keeps
+// its original sprays for the planting's clipped tint budget.
 const planting = JSON.parse(readFileSync(new URL('./fixtures/tree-planting.json', import.meta.url)));
 
 test('cached tree curves retain three.js positions, lengths and tangents exactly, including repeated controls', () => {
@@ -33,7 +34,7 @@ test('cached tree curves retain three.js positions, lengths and tangents exactly
 
 for (const fixture of planting) {
   const { species, detail, seed, weepingSeed } = fixture;
-  test(`${species}, ${weepingSeed ? 'weeping' : fixture.spire ? 'spire' : detail ? 'near' : 'distant'}: wood keeps the established planting stream and foliage`, () => {
+  test(`${species}, ${weepingSeed ? 'weeping' : fixture.spire ? 'spire' : detail ? 'near' : 'distant'}: keeps the established planting stream and expected foliage`, () => {
     const source = makeRng(seed);
     let draws = 0;
     const grown = growTree(species, () => { draws++; return source(); }, { tube() {} }, {
@@ -42,6 +43,10 @@ for (const fixture of planting) {
     assert.equal(draws, fixture.draws);
     assert.equal(source(), fixture.next);
     assert.equal(createHash('sha256').update(JSON.stringify(grown)).digest('hex'), fixture.foliage);
+    if (fixture.plantingFoliage) {
+      const planting = { sprays: grown.was, whips: grown.whips, was: null, tintRng: null };
+      assert.equal(createHash('sha256').update(JSON.stringify(planting)).digest('hex'), fixture.plantingFoliage);
+    }
   });
 }
 

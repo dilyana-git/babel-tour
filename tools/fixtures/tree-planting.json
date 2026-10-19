@@ -27,7 +27,8 @@
     "S": 30,
     "draws": 374,
     "next": 0.6671993820928037,
-    "foliage": "26b870f1f5cb60db80b499f14089f6050083a4dfe38b65dd0e190c1da9f2e8b4"
+    "foliage": "841c3345be4f1b1818282fb9ceae6a5f5168f9395244385311c2cd64e8e5bba9",
+    "plantingFoliage": "26b870f1f5cb60db80b499f14089f6050083a4dfe38b65dd0e190c1da9f2e8b4"
   },
   {
     "species": "pine",
@@ -37,7 +38,8 @@
     "S": 30,
     "draws": 617,
     "next": 0.23872895492240787,
-    "foliage": "fa0cc810ce0d7774fc05f2f10cd16088a735b0820c5ed2350a768a5861b1cc8b"
+    "foliage": "84e2c212b13feb3b6f94c3272167ff0181ea1d7df9af5d9f5b5037600f0f5e13",
+    "plantingFoliage": "fa0cc810ce0d7774fc05f2f10cd16088a735b0820c5ed2350a768a5861b1cc8b"
   },
   {
     "species": "maple",

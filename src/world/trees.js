@@ -412,7 +412,7 @@ export function growTree(species, rng, wood, { H, S, lean = null, detail = true,
   const tint = new THREE.Color(BARK[species]);
   const sprays = [], whips = [];
   const form = wood ? new TreeWood(wood, species, detail) : NO_WOOD;
-  let willow = null, maple = null, cherry = null, tintRng = null;
+  let willow = null, maple = null, cherry = null, pine = null, tintRng = null;
 
   // A limb from `from` along `dir`: `n` segments over `len`, radius r0 to r1,
   // `steer(d, t, i)` turning it at every node.
@@ -519,6 +519,7 @@ export function growTree(species, rng, wood, { H, S, lean = null, detail = true,
     const limbs = 5 + Math.floor(rng() * 3);
     let bearing = lb + Math.PI + R(-0.8, 0.8);
     const heights = Array.from({ length: limbs }, () => R(0.3, 0.9)).sort((a, b) => a - b);
+    const boughs = [];
     for (const t of heights) {
       bearing += 2.4 + R(-0.5, 0.5);
       const from = at(trunk, t);
@@ -528,17 +529,20 @@ export function growTree(species, rng, wood, { H, S, lean = null, detail = true,
         d.y += i === 4 ? 0.35 : (i % 2 ? 0.2 : -0.22) * rng();
         wobble(d, 0.18);
       });
-      tube(limb);
+      const bough = { t, nodes: [limb], first: sprays.length };
       const rp = R(5.5, 8.5) * (1.15 - t * 0.45) * Math.min(1.3, H / 50);
       pad(end(limb).p.clone().add(V(0, rp * 0.2, 0)), rp);
       if (detail && rng() < 0.7) {
         const on = at(limb, R(0.45, 0.75));
         const sub = grow(on.p, heading(bearingOf(on.d) + (rng() < 0.5 ? -1 : 1) * R(0.6, 1.1), R(0, 0.25)), len * R(0.35, 0.5), 0.16, 0.1, 2, (d) => wobble(d, 0.2));
-        tube(sub);
+        bough.nodes.push(sub);
         pad(end(sub).p.clone().add(V(0, rp * 0.15, 0)), rp * R(0.55, 0.7));
       }
+      bough.last = sprays.length;
+      boughs.push(bough);
     }
     pad(top.p.clone().add(V(0, 1, 0)), R(5, 7) * Math.min(1.3, H / 50));
+    pine = { trunk, boughs, seed: 0x70696e65 ^ Math.round(r0 * 0x1000000) ^ Math.round(phase * 0x10000) };
   } else if (species === 'maple') {
     // Retain the established stream and spray positions for the planting's
     // colour budget. The curved wood and its leaf use their own stream below.
@@ -747,6 +751,30 @@ export function growTree(species, rng, wood, { H, S, lean = null, detail = true,
   // handed back too. Whoever stands the tree up draws a tint for each spray
   // from the trees' stream, and must draw for those and not for these.)
   let was = null;
+  if (pine) {
+    // Keep the original spray positions for the planting's clipped tint
+    // budget. Move each complete bough, forks and foliage together, so its
+    // attachment stays joined while the crown opens into staggered tiers.
+    was = sprays.slice();
+    tintRng = makeRng(pine.seed);
+    for (const [i, bough] of pine.boughs.entries()) {
+      const from = at(pine.trunk, bough.t).p;
+      const tier = i / (pine.boughs.length - 1);
+      const to = at(pine.trunk, 0.29 + tier * 0.57 + (bough.t - 0.3 - tier * 0.6) * 0.12).p;
+      const scale = 0.78 + 0.16 * ((i * 0.618034) % 1), lift = 0.1 + 0.04 * (i % 3);
+      const move = (p) => {
+        const q = p.clone().sub(from).multiplyScalar(scale);
+        q.y += Math.hypot(q.x, q.z) * lift;
+        return q.add(to);
+      };
+      for (const nodes of bough.nodes) tube(nodes.map((n) => ({ ...n, p: move(n.p) })));
+      for (let j = bough.first; j < bough.last; j++) {
+        const sp = sprays[j], c = move(V(...sp.crown.slice(0, 3)));
+        sprays[j] = { ...sp, p: move(V(...sp.p)).toArray(), s: sp.s.map((v) => v * scale),
+          crown: [c.x, c.y, c.z, sp.crown[3] * scale] };
+      }
+    }
+  }
   if (maple) {
     was = sprays.slice();
     tintRng = makeRng(maple.seed);

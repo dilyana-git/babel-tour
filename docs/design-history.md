@@ -27,6 +27,17 @@ path, and this document in full (`git show 0857f2a:docs/design-history.md`).
 
 ## 2026-10-19
 
+- **Pines without a cross silhouette.** The green tree behind the blossoms
+  had opposing boughs at almost the same height. Pine boughs now occupy
+  staggered tiers from .29 to .86 of the trunk, with a little of their
+  original height variation. Their reaches scale to .78–.94 and their tips
+  rise by .10–.18 of their horizontal reach. Forks and needle pads move with
+  each bough; trunks and planting stay in place. Original sprays retain the
+  clipped tint budget, with revised needle tints on an independent stream
+  seeded by `0x70696e65` and the specimen's existing trunk measurements.
+  Commit `e031dc2` holds the previous silhouette. Before/after garden views:
+  `.ux-review/qa/pine-staggered/` (`*-pine-garden`, `*-pond-back`).
+
 - **Trees with curved, tapering wood.** Long limbs still looked like straight
   spokes. All six species now refine their established growth skeleton into
   continuous curves, with daughters following their parent's tangent before
