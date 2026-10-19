@@ -44,6 +44,26 @@ were removed on 2026-10-12 (their artwork had already gone). They are in git
 history: the last commit holding the art is the parent of `391c5fe`, and the
 last holding the tour's source is `e50afe9`.
 
+## Project files and local outputs
+
+`src/` builds the experience, `public/` holds shipped assets, `tools/` holds
+checks and screenshot tools, and `docs/` records decisions and development
+guidance. `.github/`, `.agents/` and `.claude/` contain the CI and assistant
+workflows used by this project.
+
+`node_modules/`, `dist/` and `.ux-review/` are ignored local outputs. Keep the
+installed dependencies and any build a running preview is serving. Review
+cleanup can remove temporary source copies, old browser profiles, scratch
+scripts, patch/index backups and superseded screenshots. Keep complete
+navigation reports and their failure evidence, documented comparisons,
+pending design options and reusable saved camera views. The local
+`.ux-review/README.md` indexes the retained evidence; `.ux-review/` is not a
+source archive or part of the deployed site.
+
+Design choices live in `docs/design-history.md` and Git. The
+`archive/before-old-fold` branch preserves the earlier alternatives; recovery
+branches and stashes retain other historical snapshots.
+
 ## Checks
 
 After every change, run `npm run check`: lint, the frame-rate rule, the

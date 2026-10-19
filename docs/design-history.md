@@ -152,8 +152,6 @@ path, and this document in full (`git show 0857f2a:docs/design-history.md`).
     `?wblossomunder` dials. B and C were never committed; their values are
     above.
 
-## 2026-10-19
-
 - **The ways lie in the lawn** ("the paths in the Fork are still
   boardwalks", after V·8·2). The gravel was a slab from the lawn's top (4) to
   5.2 with a sheer side, and the edge stones were centred at 5 on its rim.
