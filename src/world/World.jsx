@@ -55,6 +55,7 @@ import { probeClearance, probeRay } from './probe';
 import { GLASS } from './mirror';
 import { makeBody, EYE, ROOM_STAND } from './body';
 import { READER_LIT } from './readers';
+import { bookOf, makeShelfHand, shelfRoute } from './shelfHand';
 import { makeWalkCurve, makeWalkPace, makeGazeTrack, bendPace, viewPace, LOOK_AHEAD, PACE } from './walkPath';
 import { pendingFinale } from './finaleLifecycle';
 import { STEP } from './finaleLook';
@@ -1237,6 +1238,7 @@ function LiveWorld({
   world, sky, budgetRef,
   rooms = false, scenes, target = null, vantage = false, finale = null, reducedMotion = false, lookRef, walkRef, fadeRef, aoRef,
   onReady, onArrive, onSettle, onRoam, onGo, onFinale, onLayout, reserveLeft = false, tall = false, feetRef = null,
+  handRef, reading = false, onRead, onBookMove,
 }) {
   const { scene, camera, gl, size } = useThree();
   // The one thing the governor reaches into the built world for (see GIVE).
@@ -1329,6 +1331,11 @@ function LiveWorld({
   // (Not in the plate tour, where nobody walks the world.)
   const feel = useMemo(() => (rooms ? makeBody(world.root) : null), [world, rooms]);
   useEffect(() => () => feel?.dispose(), [feel]);
+  const hand = useMemo(() => (feel ? makeShelfHand(world.root, feel) : null), [world, feel]);
+  useEffect(() => () => hand?.dispose(), [hand]);
+  const bookTravel = useRef(null);
+  const readingRef = useRef(reading);
+  useEffect(() => { readingRef.current = reading; }, [reading]);
   // The same solids tell a lamp's halo when stone stands between it and the
   // eye (buildWorld's `occlude`).
   useEffect(() => {
@@ -1341,6 +1348,57 @@ function LiveWorld({
   const lastFade = useRef(-1);
   const liveFrames = useRef(0);
   const readied = useRef(false);
+
+  useEffect(() => {
+    if (!hand || !handRef) return undefined;
+    const canvas = gl.domElement, stage = canvas.closest('.map-stage');
+    let pointer = null;
+    const allowed = () => !readingRef.current && !bookTravel.current && !moveRef.current
+      && placeRef.current !== null && targetRef.current === placeRef.current
+      && wishUpRef.current === upRef.current && finaleRef.current === null;
+    const pick = (x, y) => {
+      if (!allowed()) return null;
+      const bounds = canvas.getBoundingClientRect();
+      return hand.pick(camera, x ?? bounds.left + bounds.width / 2, y ?? bounds.top + bounds.height / 2, bounds, placeRef.current);
+    };
+    handRef.current = {
+      hover(x, y) { pointer = x === null ? null : { x, y }; },
+      update() {
+        const hot = pointer ? pick(pointer.x, pointer.y) : null;
+        hand.hover(hot);
+        stage?.classList.toggle('has-book', !!hot);
+      },
+      take(x, y, input) {
+        const hit = pick(x, y);
+        if (!hit) return false;
+        const b = setOff();
+        if (!b) return false;
+        const path = shelfRoute(feel, b.feet, hit.end, world.overlay.rooms[placeRef.current]);
+        if (!path) return false;
+        b.base.copy(camera.quaternion);
+        b.speed = 0;
+        b.gait = 0;
+        b.follow = null;
+        zeroLook();
+        if (walkRef?.current) walkRef.current.hold = 0;
+        if (lookRef?.current?.keys) Object.keys(lookRef.current.keys).forEach((k) => { lookRef.current.keys[k] = false; });
+        bodyRef.current = b;
+        bookTravel.current = { hit, path, next: 1, input };
+        pointer = null;
+        onBookMove?.(true);
+        return true;
+      },
+    };
+    return () => {
+      handRef.current = null;
+      bookTravel.current = null;
+      hand.hover(null);
+      stage?.classList.remove('has-book');
+      onBookMove?.(false);
+    };
+  // The bridge reads mutable camera/body refs at the time of the gesture.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hand, handRef, camera, gl, feel, world, onBookMove, lookRef, walkRef]);
 
   const zeroLook = () => {
     look.current.yaw = 0;
@@ -2592,6 +2650,10 @@ function LiveWorld({
     // the reader sets off on their own feet from wherever that is. (Not in the
     // air: the flights, the fall and the heart of the maze are films.)
     const hold = walkRef?.current?.hold ?? 0;
+    if (bookTravel.current && (hold || targetRef.current !== placeRef.current || wishUpRef.current !== upRef.current || finaleRef.current !== null)) {
+      bookTravel.current = null;
+      onBookMove?.(false);
+    }
     if (rooms && placeRef.current === 3 && !bodyRef.current && !moveRef.current) {
       camera.getWorldDirection(scratch.gaze);
       const feet = new THREE.Vector3(camera.position.x, camera.position.y - EYE, camera.position.z);
@@ -2716,7 +2778,42 @@ function LiveWorld({
       pose.quaternion.copy(rest.quaternion);
       Object.assign(pose, { fov: TILT_FOV, shift: rest.shift, veil: 1, eye: 0, fade: 0, near: rest.distance * 0.05 });
     } else if (bodyRef.current) {
-      stroll(bodyRef.current, hold, walkDt);
+      const trip = bookTravel.current, b = bodyRef.current;
+      if (trip) {
+        const end = trip.path[trip.next], step = end.clone().sub(b.feet);
+        step.y = 0;
+        const left = step.length();
+        const pace = Math.min(WALK_SPEED, Math.sqrt(2 * ARRIVE_BRAKE * left));
+        b.speed += (pace - b.speed) * (1 - Math.exp(-walkDt * 6));
+        step.multiplyScalar(left > 0 ? Math.min(left, b.speed * walkDt) / left : 0);
+        const result = feel.step(b.feet, step);
+        b.stride += result.moved;
+        b.gait = clamp01(b.speed / (WALK_SPEED * 0.4));
+        b.eyeY += (b.feet.y + EYE - b.eyeY) * (1 - Math.exp(-walkDt * 12));
+        const eye = new THREE.Vector3(b.feet.x, b.eyeY, b.feet.z);
+        const aim = trip.next === trip.path.length - 1 ? trip.hit.at : end.clone().setY(b.eyeY);
+        const q = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().lookAt(eye, aim, WORLD_UP));
+        b.base.slerp(q, 1 - Math.exp(-walkDt * 5));
+        pose.position.copy(eye);
+        pose.quaternion.copy(b.base);
+        Object.assign(pose, { fov: ROOM_FOV, shift: 0, veil: 0, eye: 1, fade: 0, near: 0.5 });
+        if (left < 0.3) {
+          trip.next++;
+          if (trip.next === trip.path.length) {
+            b.speed = 0;
+            b.gait = 0;
+            bookTravel.current = null;
+            onBookMove?.(false);
+            onRead?.({ ...bookOf(trip.hit.item), input: trip.input });
+          }
+        } else if (result.moved < step.length() * 0.2) {
+          bookTravel.current = null;
+          onBookMove?.(false);
+        }
+      } else if (reading) {
+        pose.position.set(b.feet.x, b.eyeY, b.feet.z);
+        pose.quaternion.copy(b.base);
+      } else stroll(b, hold, walkDt);
     } else {
       const s = standPose(spotAt(world, placeRef.current, upRef.current));
       pose.position.copy(s.position);
@@ -2753,7 +2850,7 @@ function LiveWorld({
     // the PIECE is making takes the head back, so its arrival lands on the view
     // the room was composed for.
     const wish = lookRef?.current;
-    const standing = placeRef.current !== null && !move;
+    const standing = placeRef.current !== null && !move && !bookTravel.current && !reading;
     // Walking and the reader's turn use the same clock. At lower frame rates
     // the animation cap made A/D much weaker than the automatic stair turn.
     const headDt = bodyRef.current ? walkDt : dt;
@@ -2823,6 +2920,8 @@ function LiveWorld({
     // (and the gallery walls near the eye, or near the far side of an open
     // doorway, shelved book by book; the rest painted — see buildWorld's cull)
     world.cull(pose.eye > 0.9 ? camera.position : null, farEye ? [camera.position, farEye] : [camera.position]);
+    handRef?.current?.update();
+    hand?.tick(dt);
     world.setViewport((size.height * gl.getPixelRatio()) / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)));
 
     const e = pose.eye;

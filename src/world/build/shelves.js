@@ -88,7 +88,7 @@ export function buildBooks(ctx) {
   // plates and leather shelf-edges).
   // `stream`: the length of wall the world's stream is drawn for, when that is
   // not this wall's (the Echo's are longer than the walls it was drawn for).
-  const shelfWall = (a, b, inward, { from = 0, to = TIERS - 1, room, detail = 0, words = null, stream } = {}) => {
+  const shelfWall = (a, b, inward, { from = 0, to = TIERS - 1, room, hex, wallNo, detail = 0, words = null, stream } = {}) => {
     const len = dist(a, b);
     const t = [(b[0] - a[0]) / len, (b[1] - a[1]) / len];
     const s0 = 12, s1 = len - 12;
@@ -193,7 +193,10 @@ export function buildBooks(ctx) {
       // One bay of one shelf, from `ua` to `ub` along the wall, its books
       // standing on `sy` with `clear` over them. A set runs on from bay to bay
       // and shelf to shelf, as a set on a real shelf does.
+      let shelf = 0, volume = 0;
       const shelveBay = (tier, sy, clear, ua, ub) => {
+        const take = (book) => shelved.push({ ...book,
+          read: { room, hex, wall: wallNo, shelf, volume: ++volume, inward } });
         const SH = SHELVES[tier];
         let u = ua + br() * 0.1, lean = 0;
         while (u < ub - 0.3) {
@@ -223,7 +226,7 @@ export function buildBooks(ctx) {
                 const th = within(SH.w) * 1.1, wn = w2 * (0.86 + br() * 0.14), dn = within(SH.d);
                 if (lie + th > sy + clear - 0.4) break;
                 const q = on(u + w2 / 2 + (br() - 0.5) * 0.15, 11.7 - dn / 2);
-                shelved.push({
+                take({
                   wall,
                   p: [q[0], lie + th / 2, q[1]], rot: [0, face + (br() - 0.5) * 0.1, 0], s: [wn, th, dn],
                   color: pickBinding().cols[0], k: 0.85 + br() * 0.2, spine: LAID + kindCell(B.kind === 'vellum' ? 'vellum' : 'label', br()), dust,
@@ -248,12 +251,12 @@ export function buildBooks(ctx) {
             // the book across it.
             const th = Math.min(0.36, Math.asin(Math.min(0.9, lean / hh)));
             const c2 = on(u + (w / 2) * Math.cos(th) - (hh / 2) * Math.sin(th), inset);
-            shelved.push({ ...book, wall, p: [c2[0], sy + (w / 2) * Math.sin(th) + (hh / 2) * Math.cos(th), c2[1]], rot: [0, face, th], s: [w, hh, R.d] });
+            take({ ...book, wall, p: [c2[0], sy + (w / 2) * Math.sin(th) + (hh / 2) * Math.cos(th), c2[1]], rot: [0, face, th], s: [w, hh, R.d] });
             u += w * Math.cos(th) + 0.04;
             lean = 0;
           } else {
             const p = on(u + w / 2, inset);
-            shelved.push({ ...book, wall, p: [p[0], sy + hh / 2, p[1]], rot: [0, face, 0], s: [w, hh, R.d] });
+            take({ ...book, wall, p: [p[0], sy + hh / 2, p[1]], rot: [0, face, 0], s: [w, hh, R.d] });
             u += w + 0.006 + br() * 0.035;
           }
           run--;
@@ -265,6 +268,8 @@ export function buildBooks(ctx) {
         // (a set does not run on into a tier of another size)
         run = 0;
         shelvesOf(tier, y).forEach(({ y: sy, clear }, j) => {
+          shelf = SHELVES.slice(0, tier).reduce((n, s) => n + s.n, 0) + j + 1;
+          volume = 0;
           const mid = (CASE_BACK + 12) / 2;
           if (j > 0) LB.shelf.add(boxGeo(on(s0, mid), on(s1, mid), BOARD, 12 - CASE_BACK, sy - BOARD));
           // between the uprights, not through them
@@ -836,10 +841,10 @@ export function* buildFurniture(ctx) {
     // Shelves: every tier in the lit galleries, fewer as the Library recedes.
     const topTier = lit ? TIERS - 1 : framed ? (light ? 1 : (near > 0.3 ? 4 : 2)) : 0;
     const fromTier = lit ? 0 : TIERS - 1 - topTier;
-    const dress = { room, detail: lit ? 2 : near > 0.5 ? 1 : 0 };
     const hexNo = lit ? hexNumber(cell.i, cell.j) : null;
     const wallWords = (k) => hexNo && [`HEXAGON ${hexNo} · WALL ${roman(k + 1)}`, `HEXAGON ${hexNo}`];
     for (let k = 0; k < 6; k++) {
+      const dress = { room, hex: hexNo, wallNo: k + 1, detail: lit ? 2 : near > 0.5 ? 1 : 0 };
       // "Between two shelves the stone gives way" — so the Door's broken wall
       // keeps its shelving either side of the breach, right up to the jamb.
       // It had none at all, which left the way out a bare slot in masonry.

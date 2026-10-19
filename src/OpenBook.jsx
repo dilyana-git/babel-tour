@@ -1,7 +1,6 @@
 // ── A volume, open ───────────────────────────────────────────────────────────
-// What a reader sees when one of the Library's books is taken down (audit III,
-// 8·2; the user's picks of 2026-10-12: taken by hand, and shown as the book
-// itself, open at two pages). It is the book the story describes — "each book
+// What a reader sees when one of the Library's books is taken down, open at
+// two pages. It is the book the story describes — "each book
 // is of four hundred and ten pages; each page, of forty lines, each line, of
 // some eighty letters which are black in color" — in the Library's twenty-five
 // symbols (twenty-two letters, the comma, the period and the space): two
@@ -12,18 +11,11 @@
 // things, with the shelf it came from, because forty lines to a page is small
 // print on a laptop and the sentence is the point.
 //
-// The pages are the same every time for the same room (a seeded stream), so a
-// volume is a thing with contents, not a new roll of the dice; the seed is
-// the place to hang "any book can be taken down" on, later.
-//
-// Not yet wired to a hand in the world: EntryMap opens it for a look with
-// ?wread (the volume of the room stood in).
+// Each shelf instance seeds its own pages, so putting a volume back and
+// taking it down again returns to the same contents.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { STORY, VOICES } from './voices';
 import './book.css';
-
-const Q = typeof location !== 'undefined' ? new URLSearchParams(location.search) : new URLSearchParams();
-export const READ_PREVIEW = Q.has('wread');
 
 const SYMBOLS = 'abcdefghilmnopqrstuvxyz,.';
 const LINES = 40;
@@ -45,20 +37,15 @@ const WIDE = {
   ',': 0.222, '.': 0.2, ' ': 0.234,
 };
 const widthOf = (text) => [...text].reduce((w, c) => w + (WIDE[c] ?? 0.45), 0);
-const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'];
 
-// Which of a room's lines (voices.js) its volume holds, and where: the wall
-// and shelf it stands on, its number on that shelf, the page it falls open
-// at, and how far down that page the line is.
+// Which of a room's lines its volumes hold, the page they fall open at, and
+// how far down that page the line is. The picked spine supplies the shelf-mark.
 const VOLUMES = {
-  vestibule: { line: 3, wall: 3, shelf: 2, volume: 17, page: 205, at: 15 },
-  echo: { line: 2, wall: 5, shelf: 4, volume: 9, page: 121, at: 22 },
-  silence: { line: 3, wall: 2, shelf: 3, volume: 31, page: 409, at: 30 },
-  vertigo: { line: 3, wall: 6, shelf: 1, volume: 24, page: 77, at: 11 },
-  door: { line: 3, wall: 1, shelf: 5, volume: 3, page: 263, at: 19 },
-  fork: { line: 3, wall: 4, shelf: 2, volume: 12, page: 39, at: 26 },
-  pavilion: { line: 1, wall: 2, shelf: 1, volume: 28, page: 311, at: 8 },
-  web: { line: 0, wall: 6, shelf: 5, volume: 35, page: 187, at: 17 },
+  vestibule: { line: 3, page: 205, at: 15 },
+  echo: { line: 2, page: 121, at: 22 },
+  silence: { line: 3, page: 409, at: 30 },
+  vertigo: { line: 3, page: 77, at: 11 },
+  door: { line: 3, page: 263, at: 19 },
 };
 
 const stream = (seed) => {
@@ -94,10 +81,11 @@ const inSymbols = (text) => text
   .replace(/^[ ,.]+/, '')
   .trim();
 
-function pagesOf(slug) {
-  const v = VOLUMES[slug] ?? VOLUMES.vestibule;
+function pagesOf(volume) {
+  const { slug } = volume;
+  const v = { ...(VOLUMES[slug] ?? VOLUMES.vestibule), ...volume };
   const said = (VOICES[slug] ?? VOICES.vestibule)[v.line];
-  const rnd = stream(seedOf(slug) + v.volume * 1000 + v.page);
+  const rnd = stream(seedOf(volume.id) + v.volume * 1000 + v.page);
   const verso = Array.from({ length: LINES }, () => [{ t: noise(rnd, MEASURE) }]);
   // The line, where it falls: after the noise before it on its row, and run
   // on to the next row where the row ends first.
@@ -127,9 +115,10 @@ function pagesOf(slug) {
   return { v, said, verso, recto: recto.slice(0, LINES), letters: inSymbols(said).length };
 }
 
-export default function OpenBook({ slug, index, garden = false, onClose }) {
-  const book = useMemo(() => pagesOf(slug), [slug]);
+export default function OpenBook({ volume, onClose }) {
+  const book = useMemo(() => pagesOf(volume), [volume]);
   const backRef = useRef(null);
+  const [keyboard, setKeyboard] = useState(volume.input === 'keyboard');
   const [reduced] = useState(() => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   // The line is found as the opening finds its sentence: its letters stand in
   // the Library's noise at first and come right from the left, a few at a time.
@@ -148,8 +137,10 @@ export default function OpenBook({ slug, index, garden = false, onClose }) {
     const was = document.activeElement;
     backRef.current?.focus({ preventScroll: true });
     const onKey = (e) => {
-      if (e.key === 'Escape') onClose?.();
-      if (e.key !== 'Tab') e.stopPropagation();
+      setKeyboard(true);
+      if (e.key === 'Escape') { e.preventDefault(); onClose?.(); }
+      if (e.key === 'Tab') { e.preventDefault(); backRef.current?.focus({ preventScroll: true }); }
+      e.stopPropagation();
     };
     window.addEventListener('keydown', onKey, true);
     return () => {
@@ -158,7 +149,7 @@ export default function OpenBook({ slug, index, garden = false, onClose }) {
     };
   }, [onClose]);
 
-  const scramble = useMemo(() => stream(seedOf(slug) * 3 + tick), [slug, tick]);
+  const scramble = useMemo(() => stream(seedOf(volume.id) * 3 + tick), [volume.id, tick]);
   let done = 0;
   const row = (segments, k) => (
     <p key={k} className="book-line">
@@ -173,18 +164,14 @@ export default function OpenBook({ slug, index, garden = false, onClose }) {
   );
 
   const { v } = book;
-  // (the garden has paths, not hexagons, and no shelves: what its volumes are
-  // — the board showed loose leaves of the novel — is still to be settled)
-  const place = garden
-    ? `Path ${ROMAN[index] ?? 'V'} · the novel`
-    : `Hexagon ${ROMAN[index] ?? 'I'} · wall ${v.wall} · shelf ${v.shelf}`;
+  const place = `Hexagon ${volume.hex} · wall ${v.wall} · shelf ${v.shelf}`;
   return (
     <div
-      className={`open-book${garden ? ' is-garden' : ''}`}
+      className={`open-book${keyboard ? ' is-keyboard' : ''}`}
       role="dialog"
       aria-modal="true"
       aria-labelledby="book-said"
-      onPointerDown={(e) => { if (e.target === e.currentTarget) onClose?.(); }}
+      onPointerDown={(e) => { setKeyboard(false); if (e.target === e.currentTarget) onClose?.(); }}
     >
       <div className="book" aria-hidden="true">
         <div className="book-block">
@@ -192,7 +179,7 @@ export default function OpenBook({ slug, index, garden = false, onClose }) {
             <div className="book-leaf">
               <div className="book-head">
                 <span>{v.page - 1}</span>
-                <span>{place}</span>
+                <span>{STORY.library}</span>
               </div>
               <div className="book-lines">{book.verso.map(row)}</div>
             </div>
@@ -219,7 +206,7 @@ export default function OpenBook({ slug, index, garden = false, onClose }) {
           <p className="book-mark">{`${place} · volume ${v.volume} · page ${v.page}`}</p>
           <p className="book-said" id="book-said">
             {`“${book.said}”`}
-            <span className="book-from">{garden ? STORY.garden : STORY.library}</span>
+            <span className="book-from">{STORY.library}</span>
           </p>
         </div>
         <button ref={backRef} type="button" className="book-back" onClick={() => onClose?.()}>

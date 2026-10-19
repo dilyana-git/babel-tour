@@ -35,7 +35,7 @@ import { INK_OFF, INK_PATIENCE_MS } from './ink';
 import { PASSAGES, STORY, VOICES } from './voices';
 import { noteHere, sharedSlug, writeSlug } from './memory';
 import { useWorldSound } from './worldSound';
-import OpenBook, { READ_PREVIEW } from './OpenBook';
+import OpenBook from './OpenBook';
 import { LOOK } from './world/mapLook';
 import { POND, MAZE_BOUNDS, FORK, PAVILION_PATH, BRIDGE, PAVILION, SHORE_PATH, MAZE_PATH, MAZE_ENTRY, HEART } from './world/gardenPlan';
 import { ENDING, SKIP } from './world/finaleLook';
@@ -299,6 +299,7 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
   // is the room's own small walk, and it moves the same way the big one does.
   const [up, setUp] = useState(false);
   const [toUp, setToUp] = useState(false);
+  const [bookWalking, setBookWalking] = useState(false);
   // The walking foot: the key the reader has down (+1 forward, -1 back). World
   // walks them wherever they are looking for as long as it is held.
   const walkRef = useRef({ hold: 0, press: 0 });
@@ -360,7 +361,7 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
   const [skipTrace, setSkipTrace] = useState(false);
   const last = NODES.length - 1;
   const vantage = place === null ? null : VANTAGES[place] ?? null;
-  const moving = finale !== null || target !== place || up !== toUp;
+  const moving = bookWalking || finale !== null || target !== place || up !== toUp;
   // the room the hallway the reader is standing in runs on to
   const beyond = between?.find((r) => r !== place);
   const onMap = place === null && target === null;
@@ -369,12 +370,16 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
   // The sound (worldSound.js): World says where the eye is and what the feet
   // are on, each frame, in `feetRef`; the rest is heard from the walk's state.
   const feetRef = useRef({ x: 0, y: 0, z: 0, fx: 0, fz: -1, eye: 0, feel: null });
-  // A volume taken down and open (OpenBook.jsx): the room it is of, else null.
-  // Not yet taken by hand in the world: ?wread opens the room's for a look.
+  // The actual shelf instance taken down, with its stable catalogue identity.
+  const handRef = useRef(null);
   const [reading, setReading] = useState(null);
-  useEffect(() => {
-    if (READ_PREVIEW) setReading(place);
-  }, [place]);
+  const takeBook = useCallback((book) => {
+    walkRef.current.hold = 0;
+    Object.keys(lookRef.current.keys).forEach((key) => { lookRef.current.keys[key] = false; });
+    setAfoot(false);
+    setHolding(false);
+    setReading(book);
+  }, []);
   const shutBook = useCallback(() => setReading(null), []);
   const sound = useWorldSound({ on: !!worldRooms, place, target, finale, finalePhase, feetRef });
   const fadeRef = useRef(null);
@@ -832,6 +837,7 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
     const keys = lookRef.current.keys;
     const HELD = HELD_KEYS, STEP = STEP_KEYS;
     const onDown = (e) => {
+      if (reading) return;
       if (e.altKey || e.ctrlKey || e.metaKey) return;
       if (e.key === 'm' || e.key === 'M' || e.key === 'Escape') {
         e.preventDefault();
@@ -853,10 +859,14 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
         if (!e.repeat) foot(STEP[e.key]);
         e.preventDefault();
       } else if (e.key === 'e' || e.key === 'E') climb();
+      else if ((e.key === 'r' || e.key === 'R') && !e.repeat) {
+        e.preventDefault();
+        handRef.current?.take(null, null, 'keyboard');
+      }
     };
     window.addEventListener('keydown', onDown);
     return () => window.removeEventListener('keydown', onDown);
-  }, [worldRooms, place, target, foot, climb, finale, returnToMap]);
+  }, [worldRooms, place, target, foot, climb, finale, returnToMap, reading]);
 
   // The touch walk button let go of: stand where they are, as letting go of W.
   const standStill = () => {
@@ -876,7 +886,7 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
       // The drag is refused only
       // while the piece is doing the carrying.
       if (e.button !== 0 || moving) return;
-      dragRef.current = { id: e.pointerId, x: e.clientX, y: e.clientY };
+      dragRef.current = { id: e.pointerId, x: e.clientX, y: e.clientY, startX: e.clientX, startY: e.clientY, moved: false };
       // (the guiding hand keeps off the head while the reader's own is on it)
       lookRef.current.dragging = true;
       e.currentTarget.setPointerCapture(e.pointerId);
@@ -884,14 +894,23 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
     },
     onPointerMove: (e) => {
       const d = dragRef.current;
-      if (!d || d.id !== e.pointerId) return;
+      if (!d || d.id !== e.pointerId) { handRef.current?.hover(e.clientX, e.clientY); return; }
+      if (!d.moved && Math.hypot(e.clientX - d.startX, e.clientY - d.startY) < 6) return;
+      d.moved = true;
+      handRef.current?.hover(null);
       lookRef.current.yaw -= (e.clientX - d.x) * 0.0045;
       lookRef.current.pitch -= (e.clientY - d.y) * 0.0035;
       d.x = e.clientX;
       d.y = e.clientY;
     },
-    onPointerUp: (e) => { if (dragRef.current?.id === e.pointerId) letGo(); },
+    onPointerUp: (e) => {
+      const d = dragRef.current;
+      if (d?.id !== e.pointerId) return;
+      if (!d.moved) handRef.current?.take(e.clientX, e.clientY, 'pointer');
+      letGo();
+    },
     onPointerCancel: (e) => { if (dragRef.current?.id === e.pointerId) letGo(); },
+    onPointerLeave: () => handRef.current?.hover(null),
   };
 
   const node = NODES[shown];
@@ -1210,7 +1229,7 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
       data-endin={(landing && ENDIN) || undefined}
       style={{ '--zoom-origin': origin, '--hud-h': `${hudHeight}px` }}
     >
-      <div className="map-stage" ref={stageRef} {...(worldRooms && place !== null ? lookHandlers : {})}>
+      <div className="map-stage" ref={stageRef} inert={reading !== null} {...(worldRooms && place !== null ? lookHandlers : {})}>
         {worldOn && !worldFailed && (worldRooms || scenes) && (
           <WorldBoundary onError={() => setWorldFailed(true)}>
             <Suspense fallback={null}>
@@ -1235,6 +1254,10 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
                 onLayout={setLayout}
                 tall={tall}
                 feetRef={worldRooms ? feetRef : null}
+                handRef={handRef}
+                reading={reading !== null}
+                onRead={takeBook}
+                onBookMove={setBookWalking}
               />
             </Suspense>
           </WorldBoundary>
@@ -1268,7 +1291,7 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
       <div className="map-scrim" aria-hidden="true" />
 
       {worldRooms && reading !== null && place !== null && (
-        <OpenBook slug={NODES[place].slug} index={place} garden={isGarden(place)} onClose={shutBook} />
+        <OpenBook volume={reading} onClose={shutBook} />
       )}
 
       {/* The sound's one control, in the corner nothing else uses: five
@@ -1278,6 +1301,7 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
         <button
           type="button"
           className={`map-sound${sound.muted ? ' is-muted' : ''}${skipTrace ? ' is-trace' : ''}`}
+          inert={reading !== null}
           aria-label="Sound"
           aria-pressed={!sound.muted}
           title={sound.muted ? 'Sound is off' : 'Sound is on'}
@@ -1345,7 +1369,7 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
         </button>
       )}
       {worldRooms && place !== null && (
-        <div ref={hudRef} data-room={NODES[place].slug} className={`room-hud${isGarden(place) ? ' is-garden' : ''}${moving ? ' is-moving' : ''}${finale !== null ? ` is-finale is-finale-${finalePhase ?? 'walk'}` : ''}`}>
+        <div ref={hudRef} inert={reading !== null} data-room={NODES[place].slug} className={`room-hud${isGarden(place) ? ' is-garden' : ''}${moving ? ' is-moving' : ''}${finale !== null ? ` is-finale is-finale-${finalePhase ?? 'walk'}` : ''}`}>
           <section
             ref={plateRef}
             className={`room-plate${paged && voiced ? ' is-voiced' : ''}${captionSunk ? ' is-sunk' : ''}`}
@@ -1509,6 +1533,7 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
         return (
           <div
             ref={assistRef}
+            inert={reading !== null}
             className={`room-assist${COARSE ? ' is-touch' : ''}${hintAt ? ' is-inline' : ''}${hintAt?.width ? ' is-tight' : ''}`}
             style={hintAt ? { left: `${hintAt.left}px`, bottom: `${hintAt.bottom}px`, maxWidth: hintAt.width ? `${hintAt.width}px` : undefined } : undefined}
           >

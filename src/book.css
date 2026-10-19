@@ -37,10 +37,6 @@
   animation: book-dim var(--t) var(--arrive) backwards;
 }
 
-.open-book.is-garden {
-  --mark: var(--jade);
-}
-
 @keyframes book-dim {
   from { opacity: 0; }
 }
@@ -332,7 +328,11 @@
   color: var(--mark);
 }
 
-.book-back:focus-visible {
+.book-back:focus {
+  outline: none;
+}
+
+.open-book.is-keyboard .book-back:focus {
   outline: 2px solid var(--mark);
   outline-offset: 6px;
 }

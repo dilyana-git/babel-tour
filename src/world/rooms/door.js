@@ -514,6 +514,15 @@ export function* buildArch(ctx) {
     return g;
   })();
   instances(shelvedBox, M.books, shelved, { group: (it) => it.wall, attrs: bookAttrs, name: 'shelvedBooks' });
+  // Keep the shelf catalogue in the same order as each wall's instances.
+  const shelfItems = new Map();
+  for (const book of shelved) {
+    if (!shelfItems.has(book.wall)) shelfItems.set(book.wall, []);
+    shelfItems.get(book.wall).push(book);
+  }
+  for (const mesh of root.children) {
+    if (mesh.name === 'shelvedBooks') mesh.userData.books = shelfItems.get(mesh.userData.group);
+  }
   yield;
   // Each wall's painted copy, a mesh to a wall, to stand in for its boxes
   // when no eye is near: through an arch two galleries off, or from the map,

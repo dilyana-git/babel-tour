@@ -130,8 +130,9 @@ export function* buildVertigo(ctx) {
     // set starts, as the giants were where they stood. On a stream of their
     // own: every draw on the world's here belongs to the garden (see `resume`).
     const vr = makeRng(0x7e5d1);
-    const shelveRing = (t, sy, clear, rf, from, to, wall) => {
+    const shelveRing = (t, sy, clear, rf, from, to, wall, shelf) => {
       const S = SHELVES[t], within = ([lo, hi]) => lo + (hi - lo) * vr();
+      let volume = 0;
       let a = from + (vr() * 0.2) / rf / deg, run = 0, R = null, lean = 0;
       while (a < to) {
         if (run <= 0) {
@@ -159,7 +160,8 @@ export function* buildVertigo(ctx) {
         // (pivoted on its foot at the edge of the gap, its head on the book across it)
         const th = lean ? Math.min(0.36, Math.asin(Math.min(0.9, lean / hh))) : 0;
         const am = a + ((w / 2) * Math.cos(th) - (hh / 2) * Math.sin(th)) / rf / deg, p = add(c, dir(am), rf + R.set + R.d / 2);
-        shelved.push({ ...book, p: [p[0], sy + (w / 2) * Math.sin(th) + (hh / 2) * Math.cos(th), p[1]], rot: [0, -(am + 90) * deg, th], s: [w, hh, R.d] });
+        shelved.push({ ...book, p: [p[0], sy + (w / 2) * Math.sin(th) + (hh / 2) * Math.cos(th), p[1]], rot: [0, -(am + 90) * deg, th], s: [w, hh, R.d],
+          read: { room: 3, hex: 'IV', wall: Math.floor(((am % 360) + 360) % 360 / 60) + 1, shelf, volume: ++volume, inward: dir(am).map((n) => -n) } });
         a += (w * Math.cos(th) + 0.006 + vr() * 0.035) / rf / deg;
         lean = 0;
         run--;
@@ -228,7 +230,7 @@ export function* buildVertigo(ctx) {
           if (j > 0) LB.shelf.add(ringGrain(slabGeo(arcSlab(rFace, rFace + 4.6, a0, a1), [], BOARD, sy - BOARD), c[0], c[1]));
           if (j > 0) LB.shelfLip.add(shelfLip(c, rFace, sy, sy - BOARD, a0, a1));
           if (tier < 3) {
-            shelveRing(tier, sy, clear, rFace, a0, a1, wall);
+            shelveRing(tier, sy, clear, rFace, a0, a1, wall, SHELVES.slice(0, tier).reduce((n, s) => n + s.n, 0) + j + 1);
             paintedRing(lodFor(wall, 3), tier, sy, clear, rFace, a0, a1);
           } else paintedRing(LB.bookRows, tier, sy, clear, rFace, a0, a1);
         }
@@ -342,7 +344,7 @@ export function* buildVertigo(ctx) {
         if (k < 7) {
           uprightAt.forEach((ua, i) => {
             const a0 = ua + half, a1 = (i + 1 < uprightAt.length ? uprightAt[i + 1] : uprightAt[0] + 360) - half;
-            shelveRing(T, sy, clear, rf, a0, a1, wall);
+            shelveRing(T, sy, clear, rf, a0, a1, wall, 23 + k * SHELVES[T].n + j);
           });
         }
         // (the paint all the way round, behind the uprights)

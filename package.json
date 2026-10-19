@@ -12,7 +12,7 @@
     "check:governor": "node tools/governor-check.mjs",
     "check:selenium": "node tools/selenium/run.mjs",
     "check:walls": "node tools/wall-check.mjs",
-    "check:navigation": "node --test tools/navigation-check.mjs tools/navigation-properties-check.mjs tools/navigation-runner-check.mjs tools/navigation-observations-check.mjs tools/finale-lifecycle-check.mjs tools/probe-check.mjs tools/input-activation-check.mjs tools/spiral-check.mjs",
+    "check:navigation": "node --test tools/navigation-check.mjs tools/navigation-properties-check.mjs tools/navigation-runner-check.mjs tools/navigation-observations-check.mjs tools/finale-lifecycle-check.mjs tools/probe-check.mjs tools/input-activation-check.mjs tools/spiral-check.mjs tools/shelf-hand-check.mjs",
     "check:navigation:browser": "node tools/navigation-browser-check.mjs",
     "check:navigation:smoke": "node tools/navigation-browser-check.mjs --suite=smoke",
     "check:navigation:contracts": "node tools/navigation-browser-check.mjs --suite=contracts",

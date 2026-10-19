@@ -1359,6 +1359,10 @@
   cursor: grabbing;
 }
 
+.entry-map.is-in-room .map-stage.has-book {
+  cursor: pointer;
+}
+
 .room-hud {
   --card-accent: var(--gold-lit);
   position: absolute;

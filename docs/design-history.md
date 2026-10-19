@@ -31,6 +31,21 @@ path, and this document in full (`git show 0857f2a:docs/design-history.md`).
 
 ## 2026-10-19
 
+- **A book taken by hand** (third audit, picked 2026-10-12). The chosen
+  treatment is a shelf spine picked directly, a walk over to it, and the
+  volume itself open at two facing pages. The built spread was only reachable
+  through `?wread` (`57aab0b`); the flag and its room-only catalogue are now
+  removed. An instance carries its actual hexagon, wall, shelf and volume,
+  and its position seeds repeatable contents. Hover warms that spine; an
+  approach uses the walking body's floor and clearance probes, including a
+  route round a well when needed. R takes the spine at the centre of the
+  view for keyboard use. The shelf-mark is said once, below the book; the
+  running head names the story. Pointer/touch opening focuses the return
+  control without a ring; keyboard opening or Tab shows it. The garden's
+  placeholder "Path VII · the novel" was removed: this interaction is with
+  physical Library shelves. Before/after: `.ux-review/shots/book-before-room0.png`
+  and `.ux-review/book-qa/book-pointer.png`.
+
 - **Cherry blossom: a soft cloud on rounded limbs** (audit V·8·3, "blossom
   as popcorn, on sticks": hard-edged flat pink cards, evenly bright, and
   few-sided straight limbs that read as sticks beside the new lawn). Options
