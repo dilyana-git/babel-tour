@@ -245,25 +245,60 @@ export function navigationScenarios(driver, baseUrl, options = {}) {
       await stopped();
       await onStep('resumed after looking around and reached the stair');
     }],
-    ['Vertigo starts down the stairs without pulling toward the broken rail', async () => {
+    ['Vertigo pauses at a rail gap and resumes down the stair', async () => {
       await prepare(3);
       await speed(1);
       const before = (await read()).walk;
       const radius = Math.hypot(before.camera[0] - before.pit.x, before.camera[2] - before.pit.z);
+      const centred = (w) => {
+        assert.equal(w.target, 3, 'Starting down the stairs unexpectedly committed the fall');
+        if (!w.body) return false;
+        const r = Math.hypot(w.body.feet[0] - w.pit.x, w.body.feet[2] - w.pit.z);
+        assert(Math.abs(r - radius) < 2, 'The first stair strides pulled the feet toward the open edge');
+        return true;
+      };
       await key('w');
       try {
         await waitUntil(driver, async () => {
           const w = (await read()).walk;
-          assert.equal(w.target, 3, 'Starting down the stairs unexpectedly committed the fall');
-          if (!w.body) return false;
-          const r = Math.hypot(w.body.feet[0] - w.pit.x, w.body.feet[2] - w.pit.z);
-          assert(Math.abs(r - radius) < 2, 'The first stair strides pulled the feet toward the open edge');
-          return w.body.feet[1] < before.camera[1] - 15 - 16;
+          return centred(w) && w.body.gap?.halted && Math.abs(w.body.speed) < 0.05;
+        }, 'Forward input did not pause beside the missing rail', TIMEOUT);
+        const paused = (await read()).walk;
+        assert(paused.body.feet[1] < before.camera[1] - 15 - 1, 'The feet did not descend before pausing');
+        assert(paused.body.gap.at > 0 && paused.body.gap.at < 1, 'The pause was outside the rail gap');
+        await waitUntil(driver, async () => (await read()).walk.frame >= paused.frame + 18,
+          'No frames rendered during the rail-gap pause', TIMEOUT);
+        const held = (await read()).walk;
+        assert(centred(held));
+        assert.equal(held.hand, 1, 'The pause released the held walking input');
+        assert(held.body.gap.halted, 'Held W resumed without a new press');
+        assert(distance(paused.body.feet, held.body.feet) < 0.4, 'The feet crept through the rail-gap pause');
+        await onStep('held W paused safely at the missing rail');
+      } finally { await key('w', 'keyUp'); }
+      await stopped();
+
+      // Face the descending tangent using real look input, then press W anew.
+      const paused = (await read()).walk;
+      const x = paused.body.feet[0] - paused.pit.x, z = paused.body.feet[2] - paused.pit.z;
+      const r = Math.hypot(x, z), down = [-z / r, x / r];
+      const alignment = (w) => (w.gaze[0] * down[0] + w.gaze[2] * down[1]) / Math.hypot(w.gaze[0], w.gaze[2]);
+      const turn = paused.gaze[0] * down[1] - paused.gaze[2] * down[0];
+      const lookKey = turn > 0 ? 'ArrowRight' : 'ArrowLeft';
+      await key(lookKey);
+      try {
+        await waitUntil(driver, async () => alignment((await read()).walk) > 0.995,
+          'Could not look down the stair after the rail-gap pause', TIMEOUT);
+      } finally { await key(lookKey, 'keyUp'); }
+      await key('w');
+      try {
+        await waitUntil(driver, async () => {
+          const w = (await read()).walk;
+          return centred(w) && !w.body.gap?.halted && w.body.feet[1] < before.camera[1] - 15 - 16;
         }, 'Forward input did not descend the first several treads', TIMEOUT);
       } finally { await key('w', 'keyUp'); }
       await speed(SPEED);
       await stopped();
-      await onStep('W descended the stair centreline and stopped safely after release');
+      await onStep('a deliberate new walk descended the stair centreline and stopped after release');
     }],
     ['held W/S, key release, and blur recovery', async () => {
       await prepare(0);
