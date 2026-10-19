@@ -33,6 +33,7 @@
 // y up — and drawn from the `rng` it is handed, never the world's stream.
 import * as THREE from 'three';
 import { makeRng } from './textures.js';
+import { TreeCurve } from './treeCurve.js';
 
 export const LEAF = { broad: 0, maple: 1, pine: 2, blossom: 3, cedar: 4, willow: 5 };
 
@@ -83,7 +84,11 @@ export class Wood {
     }
     const base = this.pos.length / 3;
     const around = Math.max(1, Math.round((Math.PI * 2 * nodes[0].r) / this.scale));
-    const off = V(), B = V();
+    const off = V(), B = V(), across = V(), surfaceNormal = V();
+    const rings = Array.from({ length: sides + 1 }, (_, k) => {
+      const th = (k / sides) * Math.PI * 2;
+      return { th, cos: Math.cos(th), sin: Math.sin(th), rootCos: Math.cos(th * 5 + 1.3), rootSin: Math.sin(th * 5 + 1.3) };
+    });
     let run = 0;
     for (let i = 0; i < n; i++) {
       if (i) run += nodes[i].p.distanceTo(nodes[i - 1].p);
@@ -93,21 +98,21 @@ export class Wood {
       const slope = organic ? (after.r - before.r) / Math.max(1e-6, after.p.distanceTo(before.p)) : 0;
       // damp and dark at the foot, where the rain splashes the stem
       const foot = 0.62 + 0.38 * Math.min(1, Math.max(0, (p.y - 0.5) / 7));
+      const buttress = flareLength === null ? (i === 0 ? 1 : i === 1 ? 0.25 : 0) : Math.exp(-3 * run / flareLength);
       for (let k = 0; k <= sides; k++) {
-        const th = (k / sides) * Math.PI * 2;
-        off.copy(N[i]).multiplyScalar(Math.cos(th)).addScaledVector(B, Math.sin(th));
+        const { th, cos, sin, rootCos, rootSin } = rings[k];
+        off.copy(N[i]).multiplyScalar(cos).addScaledVector(B, sin);
         const rib = ribs ? Math.cos(ribs.n * th + ribs.spin * run) : 0;
-        const buttress = flareLength === null ? (i === 0 ? 1 : i === 1 ? 0.25 : 0) : Math.exp(-3 * run / flareLength);
-        const root = flareLength === null && i === 1 ? 1 + flare * 0.25 : 1 + flare * buttress * (0.6 + 0.4 * Math.cos(th * 5 + 1.3));
+        const root = flareLength === null && i === 1 ? 1 + flare * 0.25 : 1 + flare * buttress * (0.6 + 0.4 * rootCos);
         const swell = root * (1 + (ribs ? ribs.deep * rib : 0));
         const shade = foot * (ribs ? 0.66 + 0.34 * (0.5 + 0.5 * rib) : 1);
         this.pos.push(p.x + off.x * r * swell, p.y + off.y * r * swell, p.z + off.z * r * swell);
         let normal = off;
         if (organic) {
           const rootSlope = flareLength ? -3 * r * (root - 1) / flareLength : 0;
-          const across = V().copy(N[i]).multiplyScalar(-Math.sin(th)).addScaledVector(B, Math.cos(th));
-          normal = off.clone().addScaledVector(T[i], -(slope * swell + rootSlope))
-            .addScaledVector(across, 2 * flare * buttress * Math.sin(th * 5 + 1.3) / swell).normalize();
+          across.copy(N[i]).multiplyScalar(-sin).addScaledVector(B, cos);
+          normal = surfaceNormal.copy(off).addScaledVector(T[i], -(slope * swell + rootSlope))
+            .addScaledVector(across, 2 * flare * buttress * rootSin / swell).normalize();
         }
         this.nor.push(normal.x, normal.y, normal.z);
         this.uv.push((k / sides) * around, run / this.scale);
@@ -142,7 +147,12 @@ class TreeWood {
   }
 
   tube(nodes, sides, tint, opts = {}) {
-    if (nodes.length > 1) this.limbs.push({ nodes, sides, tint, opts, children: [] });
+    if (nodes.length < 2) return;
+    const paths = (opts.source ? [opts.source, nodes] : [nodes]).map((path) => {
+      const bounds = new THREE.Box3().setFromPoints(path.map((n) => n.p)).expandByScalar(0.01);
+      return { nodes: path, bounds };
+    });
+    this.limbs.push({ nodes, sides, tint, opts, paths, children: [] });
   }
 
   finish() {
@@ -151,9 +161,11 @@ class TreeWood {
     const closest = (nodes, p) => {
       let distance = Infinity, at = 0, radius = 0;
       for (let i = 0; i < nodes.length - 1; i++) {
-        const a = nodes[i], b = nodes[i + 1], edge = b.p.clone().sub(a.p);
-        const t = THREE.MathUtils.clamp(p.clone().sub(a.p).dot(edge) / Math.max(1e-8, edge.lengthSq()), 0, 1);
-        const gap = a.p.clone().addScaledVector(edge, t).distanceToSquared(p);
+        const a = nodes[i], b = nodes[i + 1];
+        const x = b.p.x - a.p.x, y = b.p.y - a.p.y, z = b.p.z - a.p.z;
+        const t = THREE.MathUtils.clamp(((p.x - a.p.x) * x + (p.y - a.p.y) * y + (p.z - a.p.z) * z) / Math.max(1e-8, x * x + y * y + z * z), 0, 1);
+        const dx = a.p.x + x * t - p.x, dy = a.p.y + y * t - p.y, dz = a.p.z + z * t - p.z;
+        const gap = dx * dx + dy * dy + dz * dz;
         if (gap < distance) { distance = gap; at = (i + t) / (nodes.length - 1); radius = a.r + (b.r - a.r) * t; }
       }
       return { distance, at, radius };
@@ -168,8 +180,9 @@ class TreeWood {
       let parent = null, match = { distance: 1e-4, radius: 0 };
       for (let j = 0; j < index; j++) {
         const candidate = limbs[j];
-        for (const path of candidate.opts.source ? [candidate.opts.source, candidate.nodes] : [candidate.nodes]) {
-          const hit = closest(path, start.p);
+        for (const path of candidate.paths) {
+          if (!path.bounds.containsPoint(start.p)) continue;
+          const hit = closest(path.nodes, start.p);
           if (hit.at < 0.04 || hit.radius < start.r * 0.55) continue;
           if (hit.distance < match.distance - 1e-10 || (Math.abs(hit.distance - match.distance) < 1e-10 && hit.radius > match.radius)) {
             parent = candidate; match = hit;
@@ -177,7 +190,7 @@ class TreeWood {
         }
       }
       if (parent) { parent.children.push({ limb, at: match.at }); limb.parent = parent; }
-      const curve = new THREE.CatmullRomCurve3(limb.nodes.map((n) => n.p), false, 'centripetal');
+      const curve = new TreeCurve(limb.nodes.map((n) => n.p));
       const length = curve.getLength(), axis = finish.p.clone().sub(start.p).normalize();
       const side = V().crossVectors(axis, UP);
       if (side.lengthSq() < 0.01) side.copy(heading(range(0, Math.PI * 2), 0));
@@ -315,7 +328,7 @@ function bloomCherry(rng, wood, tint, kept, { S, detail }) {
     if (nodes.length < 3) return nodes;
     const len = nodes.reduce((a, n, i) => a + (i ? n.p.distanceTo(nodes[i - 1].p) : 0), 0);
     const pts = nodes.map((n, i) => n.p.clone().add(V(0, -sag * len * Math.sin((Math.PI * i) / (nodes.length - 1)), 0)));
-    const curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal');
+    const curve = new TreeCurve(pts);
     const seg = Math.max(4, Math.min(18, Math.round(curve.getLength() / 2)));
     const r0 = nodes[0].r, r1 = nodes[nodes.length - 1].r;
     return Array.from({ length: seg + 1 }, (_, i) => {

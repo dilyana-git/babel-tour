@@ -7,6 +7,30 @@ The `profile` field can be saved as a `.cpuprofile` for Chrome or Edge DevTools.
 Use separate names for before and after runs. Avoid concurrent builds or browser
 tests while measuring.
 
+## 2026-10-19: keep the curved trees, reduce repeated work
+
+Baseline: `8160d31`. The new wood refinement rebuilt centripetal spline
+coefficients for every sample, searched unrelated branches, and allocated two
+temporary vectors per bark vertex. Fixed control-point curves now cache their
+coefficients; branch searches reject bounds outside their attachment tolerance;
+ring directions and normal scratch vectors are reused.
+
+On the local Node runtime, a batch of 192 seeded specimens covering all six
+species, distant/near detail, weeping willows and cedar spires improved from
+**576.4 ms to 283.7 ms** (five-run medians, after two warm-ups; 51% less time).
+All 456,361 vertices, 735,424 triangles, geometry attributes and foliage outputs
+have the same SHA-256 hash before and after. Browser startup profiles also show
+`growTree` CPU time falling from 1,020 ms to 640 ms.
+
+The full scene fingerprints have identical geometry for all 1,345 objects and
+the same 414 captured shader sources. The raw comparison reports animated
+uniforms/material values, moving transforms and one animated instance buffer
+as different; it is not a full-state equality result. Total profiled startup
+varied from 22.1 to 32.7 seconds as painting and shader/upload waits changed,
+so these runs do not establish an overall page-load speedup. Raw timings,
+profiles, fingerprints and the reproducible specimen benchmark are retained in
+`.ux-review/qa/performance-2026-10-19/`.
+
 ## 2026-10-13: reduce loading freezes
 
 Baseline: `c75ab94`. Headless Edge, AMD Radeon integrated graphics through

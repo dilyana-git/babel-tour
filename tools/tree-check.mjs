@@ -2,12 +2,35 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
+import * as THREE from 'three';
 import { Wood, growTree } from '../src/world/trees.js';
+import { TreeCurve } from '../src/world/treeCurve.js';
 import { makeRng } from '../src/world/textures.js';
 
 // Growth and leaf-colour draws are shared by established plantings. A wood
 // refinement must leave those draws and the existing foliage untouched.
 const planting = JSON.parse(readFileSync(new URL('./fixtures/tree-planting.json', import.meta.url)));
+
+test('cached tree curves retain three.js positions, lengths and tangents exactly, including repeated controls', () => {
+  const samples = [0.0001, 0.07123, 0.351, 0.9999, ...Array.from({ length: 201 }, (_, i) => i / 200)];
+  const controls = [
+    [[0, 0, 0], [0, 12, 0]],
+    [[0, 0, 0], [0, 0, 0], [1, 9, -3], [1, 9, -3]],
+    [[0, 0, 0], [1e-9, 1e-9, 1e-9], [3, 9, -2], [7, 12, 4]],
+  ];
+  const rng = makeRng(7831);
+  for (let n = 3; n <= 16; n++) controls.push(Array.from({ length: n }, () => [rng() * 70 - 35, rng() * 160, rng() * 70 - 35]));
+  for (const control of controls) {
+    const points = control.map((p) => new THREE.Vector3(...p));
+    const cached = new TreeCurve(points), reference = new THREE.CatmullRomCurve3(points, false, 'centripetal');
+    assert.deepEqual(cached.getLengths(), reference.getLengths());
+    for (const t of samples) {
+      assert.deepEqual(cached.getPoint(t).toArray(), reference.getPoint(t).toArray());
+      assert.deepEqual(cached.getTangent(t).toArray(), reference.getTangent(t).toArray());
+    }
+  }
+});
+
 for (const fixture of planting) {
   const { species, detail, seed, weepingSeed } = fixture;
   test(`${species}, ${weepingSeed ? 'weeping' : fixture.spire ? 'spire' : detail ? 'near' : 'distant'}: wood keeps the established planting stream and foliage`, () => {
