@@ -1,11 +1,8 @@
 // ── Trees ─────────────────────────────────────────────────────────────────────
-// The garden's trees, grown rather than stood up. Each was a seven-sided post
-// run up through a ball of leaf cards — from the Pavilion, a row of telephone
-// poles wearing lollipops, every crown the same blob at the same height, and
-// the flat cards showing as bright streaks wherever one lay edge-on to the eye.
-//
-// A tree now has wood: a trunk that leans and recovers, limbs that fork and
-// taper, and twigs, as tubes (`Wood`) merged per patch of ground. Its leaves
+// The garden's trees have trunks that lean and recover, curved limbs that
+// fork and taper, and fine twigs. Their tubes (`Wood`) are merged per patch
+// of ground; their growth skeletons keep leaf and planting streams stable.
+// The leaves
 // are sprays (crossed cards, effects.js) set where the wood ends, in clumps,
 // so the sky shows between them and the crown has a shape to it. Every spray
 // carries the clump it belongs to (`crown`: centre and radius), and the
@@ -35,7 +32,7 @@
 // Everything is in the tree's own frame — the foot of the trunk at the origin,
 // y up — and drawn from the `rng` it is handed, never the world's stream.
 import * as THREE from 'three';
-import { makeRng } from './textures';
+import { makeRng } from './textures.js';
 
 export const LEAF = { broad: 0, maple: 1, pine: 2, blossom: 3, cedar: 4, willow: 5 };
 
@@ -65,7 +62,7 @@ export class Wood {
   // `nodes`: [{ p, r }] from the base out. `sides` round. `flare` swells the
   // foot of a trunk into buttresses. `ribs` ({ n, deep, spin }): sinews along
   // it, `n` round, turning about the stem as they go, dark between.
-  tube(nodes, sides, tint, { flare = 0, ribs = null } = {}) {
+  tube(nodes, sides, tint, { flare = 0, ribs = null, flareLength = null, organic = false } = {}) {
     const n = nodes.length;
     if (n < 2) return;
     const T = [], N = [];
@@ -92,16 +89,27 @@ export class Wood {
       if (i) run += nodes[i].p.distanceTo(nodes[i - 1].p);
       B.crossVectors(T[i], N[i]);
       const { p, r } = nodes[i];
+      const before = nodes[Math.max(0, i - 1)], after = nodes[Math.min(n - 1, i + 1)];
+      const slope = organic ? (after.r - before.r) / Math.max(1e-6, after.p.distanceTo(before.p)) : 0;
       // damp and dark at the foot, where the rain splashes the stem
       const foot = 0.62 + 0.38 * Math.min(1, Math.max(0, (p.y - 0.5) / 7));
       for (let k = 0; k <= sides; k++) {
         const th = (k / sides) * Math.PI * 2;
         off.copy(N[i]).multiplyScalar(Math.cos(th)).addScaledVector(B, Math.sin(th));
         const rib = ribs ? Math.cos(ribs.n * th + ribs.spin * run) : 0;
-        const swell = (flare && i === 0 ? 1 + flare * (0.6 + 0.4 * Math.cos(th * 5 + 1.3)) : flare && i === 1 ? 1 + flare * 0.25 : 1) * (1 + (ribs ? ribs.deep * rib : 0));
+        const buttress = flareLength === null ? (i === 0 ? 1 : i === 1 ? 0.25 : 0) : Math.exp(-3 * run / flareLength);
+        const root = flareLength === null && i === 1 ? 1 + flare * 0.25 : 1 + flare * buttress * (0.6 + 0.4 * Math.cos(th * 5 + 1.3));
+        const swell = root * (1 + (ribs ? ribs.deep * rib : 0));
         const shade = foot * (ribs ? 0.66 + 0.34 * (0.5 + 0.5 * rib) : 1);
         this.pos.push(p.x + off.x * r * swell, p.y + off.y * r * swell, p.z + off.z * r * swell);
-        this.nor.push(off.x, off.y, off.z);
+        let normal = off;
+        if (organic) {
+          const rootSlope = flareLength ? -3 * r * (root - 1) / flareLength : 0;
+          const across = V().copy(N[i]).multiplyScalar(-Math.sin(th)).addScaledVector(B, Math.cos(th));
+          normal = off.clone().addScaledVector(T[i], -(slope * swell + rootSlope))
+            .addScaledVector(across, 2 * flare * buttress * Math.sin(th * 5 + 1.3) / swell).normalize();
+        }
+        this.nor.push(normal.x, normal.y, normal.z);
         this.uv.push((k / sides) * around, run / this.scale);
         this.col.push(tint.r * shade, tint.g * shade, tint.b * shade);
       }
@@ -122,6 +130,102 @@ export class Wood {
     g.setAttribute('color', new THREE.Float32BufferAttribute(this.col, 3));
     g.setIndex(this.idx);
     return g;
+  }
+}
+
+// Refine the wood after the growth skeleton is complete. The skeleton still
+// owns every attachment and leaf position; this independent stream shapes the
+// wood between them without spending any planting or leaf-colour draws.
+class TreeWood {
+  constructor(wood, species, detail) {
+    Object.assign(this, { wood, species, detail, limbs: [] });
+  }
+
+  tube(nodes, sides, tint, opts = {}) {
+    if (nodes.length > 1) this.limbs.push({ nodes, sides, tint, opts, children: [] });
+  }
+
+  finish() {
+    const { wood, species, detail, limbs } = this;
+    const smooth = (t) => t * t * (3 - 2 * t);
+    const closest = (nodes, p) => {
+      let distance = Infinity, at = 0, radius = 0;
+      for (let i = 0; i < nodes.length - 1; i++) {
+        const a = nodes[i], b = nodes[i + 1], edge = b.p.clone().sub(a.p);
+        const t = THREE.MathUtils.clamp(p.clone().sub(a.p).dot(edge) / Math.max(1e-8, edge.lengthSq()), 0, 1);
+        const gap = a.p.clone().addScaledVector(edge, t).distanceToSquared(p);
+        if (gap < distance) { distance = gap; at = (i + t) / (nodes.length - 1); radius = a.r + (b.r - a.r) * t; }
+      }
+      return { distance, at, radius };
+    };
+    for (const [index, limb] of limbs.entries()) {
+      const start = limb.nodes[0], finish = limb.nodes.at(-1);
+      // The seed comes from this limb's established geometry, never its place
+      // in a draw stream. Every specimen keeps the same detail on each build.
+      const seed = 0x68bc21eb ^ Math.round(start.p.x * 8192) ^ Math.round(start.p.y * 32768)
+        ^ Math.round(start.p.z * 131072) ^ Math.round(finish.p.x * 524288) ^ Math.round(finish.p.z * 2048);
+      const rng = makeRng(seed), range = (a, b) => a + (b - a) * rng();
+      let parent = null, match = { distance: 1e-4, radius: 0 };
+      for (let j = 0; j < index; j++) {
+        const candidate = limbs[j];
+        for (const path of candidate.opts.source ? [candidate.opts.source, candidate.nodes] : [candidate.nodes]) {
+          const hit = closest(path, start.p);
+          if (hit.at < 0.04 || hit.radius < start.r * 0.55) continue;
+          if (hit.distance < match.distance - 1e-10 || (Math.abs(hit.distance - match.distance) < 1e-10 && hit.radius > match.radius)) {
+            parent = candidate; match = hit;
+          }
+        }
+      }
+      if (parent) { parent.children.push({ limb, at: match.at }); limb.parent = parent; }
+      const curve = new THREE.CatmullRomCurve3(limb.nodes.map((n) => n.p), false, 'centripetal');
+      const length = curve.getLength(), axis = finish.p.clone().sub(start.p).normalize();
+      const side = V().crossVectors(axis, UP);
+      if (side.lengthSq() < 0.01) side.copy(heading(range(0, Math.PI * 2), 0));
+      else side.normalize();
+      const lift = UP.clone().addScaledVector(axis, -axis.y).normalize();
+      const phase = range(-0.65, 0.65), sway = range(0.028, 0.055) * length;
+      const weight = { broad: 0.05, pine: -0.06, maple: -0.015, cherry: -0.05, willow: -0.075, cedar: -0.045 }[species];
+      const bow = length * weight * range(0.8, 1.2);
+      const shift = parent ? parent.point(match.at).sub(start.p) : V();
+      const enter = curve.getTangent(0);
+      const tangent = parent ? enter.clone().lerp(parent.tangent(match.at), species === 'pine' || species === 'cedar' ? 0.32 : 0.65).normalize() : enter;
+      const shoulder = tangent.sub(enter).multiplyScalar(length);
+      limb.point = (t) => {
+        const envelope = Math.sin(Math.PI * t) ** 2;
+        return curve.getPoint(t)
+          .addScaledVector(shift, 1 - smooth(Math.min(1, t / 0.55)))
+          .addScaledVector(shoulder, t * (1 - t) ** 3)
+          .addScaledVector(side, sway * envelope * Math.sin(Math.PI * t + phase))
+          .addScaledVector(lift, bow * envelope);
+      };
+      limb.tangent = (t) => limb.point(Math.min(1, t + 0.001)).sub(limb.point(Math.max(0, t - 0.001))).normalize();
+      Object.assign(limb, { length, rng, side });
+    }
+    for (const limb of limbs) {
+      const { nodes, length, tint, opts, rng, side, children } = limb;
+      const r0 = nodes[0].r, originalTip = nodes.at(-1).r;
+      const continuing = children.some(({ at }) => at > 0.93);
+      const r1 = continuing ? originalTip : Math.min(originalTip, r0 > 0.8 ? 0.075 : 0.025);
+      const collar = limb.parent ? Math.min(0.18, r0 / Math.max(0.1, limb.parent.nodes[0].r) * 0.25) : 0;
+      const radius = (t) => (r0 + (r1 - r0) * t ** 0.82) * (1 + collar * Math.exp(-14 * t));
+      const segments = Math.max(nodes.length - 1, Math.min(24, Math.max(5, Math.ceil(length / (r0 > 0.7 ? 2 : 1.6)))));
+      const refined = Array.from({ length: segments + 1 }, (_, i) => ({ p: limb.point(i / segments), r: radius(i / segments) }));
+      const sides = Math.max(limb.sides, r0 > 1.2 ? 12 : r0 > 0.5 ? 10 : r0 > 0.16 ? 8 : 5);
+      wood.tube(refined, sides, tint, { ...opts, organic: true, flareLength: opts.flare ? Math.min(9, length * 0.45) : null });
+
+      // Short unequal forks finish exposed branch tips beneath their existing
+      // leaf clusters. They taper to fine points rather than ending as rods.
+      if (!detail || species === 'cedar' || children.length || length < 5 || r0 < 0.12 || r0 > 0.85) continue;
+      for (const sign of [-1, 1]) {
+        const t = 0.68 + rng() * 0.16, p = limb.point(t), forward = limb.tangent(t);
+        const reach = Math.min(4.5, length * (0.18 + rng() * 0.09));
+        const dir = forward.clone().addScaledVector(side, sign * (0.45 + rng() * 0.35)).addScaledVector(UP, species === 'willow' ? -0.35 : 0.2).normalize();
+        const tip = p.clone().addScaledVector(dir, reach);
+        const twig = new THREE.CubicBezierCurve3(p, p.clone().addScaledVector(forward, reach * 0.45), tip.clone().addScaledVector(dir, -reach * 0.3).addScaledVector(UP, -reach * 0.12), tip);
+        const thick = Math.min(0.09, radius(t) * 0.48);
+        wood.tube(Array.from({ length: 6 }, (_, i) => ({ p: twig.getPoint(i / 5), r: thick + (0.012 - thick) * (i / 5) ** 0.8 })), 5, tint, { organic: true });
+      }
+    }
   }
 }
 
@@ -242,7 +346,7 @@ function bloomCherry(rng, wood, tint, kept, { S, detail }) {
   });
   for (const { nodes, opts, part } of kept) {
     const line = smooth(nodes, part === 'limb' ? 0.07 : part === 'branch' ? 0.05 : 0);
-    wood.tube(line, sides(line[0].r), tint, opts);
+    wood.tube(line, sides(line[0].r), tint, { ...opts, source: nodes });
     if (part !== 'branch') continue;
     const tipEnd = line[line.length - 1];
     const twigs = detail ? 3 : 2;
@@ -291,6 +395,7 @@ export function growTree(species, rng, wood, { H, S, lean = null, detail = true,
   const R = (a, b) => a + (b - a) * rng();
   const tint = new THREE.Color(BARK[species]);
   const sprays = [], whips = [];
+  const form = new TreeWood(wood, species, detail);
   let willow = null, maple = null, cherry = null, tintRng = null;
 
   // A limb from `from` along `dir`: `n` segments over `len`, radius r0 to r1,
@@ -317,7 +422,7 @@ export function growTree(species, rng, wood, { H, S, lean = null, detail = true,
   const wobble = (d, amount) => { d.x += (rng() - 0.5) * amount; d.y += (rng() - 0.5) * amount * 0.6; d.z += (rng() - 0.5) * amount; };
   const end = (nodes) => nodes[nodes.length - 1];
   const sides = (r) => (r > 1.2 ? 8 : r > 0.5 ? 6 : r > 0.22 ? 5 : 4);
-  const tube = (nodes, opts) => wood.tube(nodes, sides(nodes[0].r), tint, opts);
+  const tube = (nodes, opts) => form.tube(nodes, sides(nodes[0].r), tint, opts);
 
   // A clump of leaf: `count` sprays round `c`, `rc` across, flattened by
   // `flat` (1 round, 0.5 a layer). Its crown for the shader sits a little
@@ -630,13 +735,13 @@ export function growTree(species, rng, wood, { H, S, lean = null, detail = true,
     was = sprays.slice();
     tintRng = makeRng(maple.seed);
     sprays.length = 0;
-    sprays.push(...mapleWood(tintRng, wood, { H, S, r0: maple.r0, leaders: maple.leaders, detail }));
+    sprays.push(...mapleWood(tintRng, form, { H, S, r0: maple.r0, leaders: maple.leaders, detail }));
   }
   if (cherry) {
     was = sprays.slice();
     tintRng = makeRng(cherry.seed);
     sprays.length = 0;
-    sprays.push(...bloomCherry(tintRng, wood, tint, cherry.kept, { S, detail }));
+    sprays.push(...bloomCherry(tintRng, form, tint, cherry.kept, { S, detail }));
   }
   if (weeping && willow) {
     const { c, eave, Rd } = willow;
@@ -690,5 +795,6 @@ export function growTree(species, rng, wood, { H, S, lean = null, detail = true,
     for (const sp of sprays) { lo = Math.min(lo, sp.p[1]); hi = Math.max(hi, sp.p[1]); }
     for (const sp of sprays) sp.shade = 0.5 + 0.42 * ((sp.p[1] - lo) / Math.max(1, hi - lo)) + 0.12 * Math.min(1, Math.hypot(sp.p[0] - c.x, sp.p[2] - c.z) / Rd);
   }
+  form.finish();
   return { sprays, whips, was, tintRng };
 }

@@ -1,0 +1,154 @@
+[
+  {
+    "species": "broad",
+    "detail": false,
+    "seed": 12031,
+    "H": 60,
+    "S": 30,
+    "draws": 484,
+    "next": 0.25872425362467766,
+    "foliage": "984c9356dbdd928f9ceaaced3575b7b553aae2ef7b12947f49b0ae09bc5bb7da"
+  },
+  {
+    "species": "broad",
+    "detail": true,
+    "seed": 12031,
+    "H": 60,
+    "S": 30,
+    "draws": 556,
+    "next": 0.3667471408843994,
+    "foliage": "ef47c4a4a6df64a5c67f73db802ad5849a0e675d67f8f4055d9e64034c7dee0b"
+  },
+  {
+    "species": "pine",
+    "detail": false,
+    "seed": 12031,
+    "H": 60,
+    "S": 30,
+    "draws": 374,
+    "next": 0.6671993820928037,
+    "foliage": "26b870f1f5cb60db80b499f14089f6050083a4dfe38b65dd0e190c1da9f2e8b4"
+  },
+  {
+    "species": "pine",
+    "detail": true,
+    "seed": 12031,
+    "H": 60,
+    "S": 30,
+    "draws": 617,
+    "next": 0.23872895492240787,
+    "foliage": "fa0cc810ce0d7774fc05f2f10cd16088a735b0820c5ed2350a768a5861b1cc8b"
+  },
+  {
+    "species": "maple",
+    "detail": false,
+    "seed": 12031,
+    "H": 60,
+    "S": 30,
+    "draws": 540,
+    "next": 0.5421078419312835,
+    "foliage": "686d0c08941904e0b9cf60f21f4ce99246e78625165223843de163ba5161c60c"
+  },
+  {
+    "species": "maple",
+    "detail": true,
+    "seed": 12031,
+    "H": 60,
+    "S": 30,
+    "draws": 692,
+    "next": 0.5038336399011314,
+    "foliage": "9a37599e09837e2921cf62259c36d68e05d5f6ab56daa8a5abe54c62224c8704"
+  },
+  {
+    "species": "cherry",
+    "detail": false,
+    "seed": 12031,
+    "H": 60,
+    "S": 30,
+    "draws": 543,
+    "next": 0.264761321246624,
+    "foliage": "f39d2d7801541c8cd65cb605148ea77d29723c7aff3105035662a72d829ba4d4"
+  },
+  {
+    "species": "cherry",
+    "detail": true,
+    "seed": 12031,
+    "H": 60,
+    "S": 30,
+    "draws": 543,
+    "next": 0.264761321246624,
+    "foliage": "1fd1b82f0551751cf8b91d08e824f3bb0df4b73ec7b32f562fa5dfca30417e4c"
+  },
+  {
+    "species": "willow",
+    "detail": false,
+    "seed": 12031,
+    "H": 60,
+    "S": 30,
+    "draws": 654,
+    "next": 0.11130842892453074,
+    "foliage": "c7d58f64da2960782a13f674c76f862b6e4675a234d3efc0c8cecbbe91f30889"
+  },
+  {
+    "species": "willow",
+    "detail": true,
+    "seed": 12031,
+    "H": 60,
+    "S": 30,
+    "draws": 936,
+    "next": 0.05508561874739826,
+    "foliage": "3cedb26d6e30cdcedb2bc3b96132855d16ce767859e08b527c85633d60da4ba7"
+  },
+  {
+    "species": "cedar",
+    "detail": false,
+    "seed": 12031,
+    "H": 60,
+    "S": 30,
+    "draws": 598,
+    "next": 0.14264882844872773,
+    "foliage": "997e9137968f9b59c776cf857edebb1f3992f01d5b1f587cabcce9af1f8f7ae5"
+  },
+  {
+    "species": "cedar",
+    "detail": true,
+    "seed": 12031,
+    "H": 60,
+    "S": 30,
+    "draws": 598,
+    "next": 0.14264882844872773,
+    "foliage": "997e9137968f9b59c776cf857edebb1f3992f01d5b1f587cabcce9af1f8f7ae5"
+  },
+  {
+    "species": "willow",
+    "detail": true,
+    "seed": 6101,
+    "H": 68,
+    "S": 34,
+    "weepingSeed": 6117,
+    "draws": 936,
+    "next": 0.2685222194995731,
+    "foliage": "6dc28c533de5a523da7c1d758358e239467c8555a039b5bebf36f4b115ff6955"
+  },
+  {
+    "species": "cedar",
+    "detail": true,
+    "seed": 7031,
+    "H": 140,
+    "S": 35,
+    "skirt": 0.08,
+    "spire": {
+      "taper": 0.8,
+      "belly": 0.18,
+      "leaf": 1.2,
+      "step": [
+        2,
+        7
+      ],
+      "close": 0.5
+    },
+    "draws": 1063,
+    "next": 0.6128838898148388,
+    "foliage": "9dff0b09294445c2863d9b5e3172fe530f6b5b32c9cb7b23dcb8bae5f9b57355"
+  }
+]

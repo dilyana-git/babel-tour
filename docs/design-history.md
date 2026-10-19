@@ -27,6 +27,26 @@ path, and this document in full (`git show 0857f2a:docs/design-history.md`).
 
 ## 2026-10-19
 
+- **Trees with curved, tapering wood.** Long limbs still looked like straight
+  spokes. All six species now refine their established growth skeleton into
+  continuous curves, with daughters following their parent's tangent before
+  opening out. The forks follow the parent's curved centre line so branches
+  stay joined. Broad trees lift, pine and cedar boughs bow with rising tips,
+  cherries spread under their blossom, and willows carry heavier arches.
+  Thick wood has 10–12 sides, thinner limbs 5–8, with closer rings, soft
+  collars, fine tapered tips and unequal terminal twigs. Trunk flares shade
+  along their slope and buttresses. The bow factors, as fractions of limb
+  length, are broad .05, pine −.06, maple −.015, cherry −.05, willow −.075,
+  cedar −.045. Detail uses seed `0x68bc21eb` combined with each limb's
+  existing geometry. Growth and colour draws, foliage positions and planting
+  remain unchanged; no seed migration or comparison flags. Commit `93bae0c`
+  holds the previous trees. Bare-wood specimens use seeds 12031, 12043,
+  12049, 12071, 12073 and 12097 in species order. Their before/after images
+  and garden views are in `.ux-review/qa/trees-2026-10-19/` (`before-wood-*`,
+  `final-wood-*`, `final-*-garden`). `check:trees`, included in the quick
+  check, covers attachment, curvature, valid geometry, deterministic detail,
+  and the established growth/foliage outputs, including weeping and spire forms.
+
 - **The Library already open to the garden.** The user liked the revealed
   arcade but disliked watching the wall crumble. The arcade and its gallery
   lanterns now appear from the start and stay when the reader looks away or
