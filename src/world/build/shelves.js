@@ -423,10 +423,9 @@ export function* buildFurniture(ctx) {
     edgeFrame, hallMid, mouldGeo, wallRing, mirrors, LB, posts, links,
     balusters, books, globes, deadGlobes, dust, glows, LAID, roman, hexNumber,
     shelfWall } = ctx;
-  // The galleries' walls onto the garden are the face that goes when it is
-  // looked at (libraryFace.js): their stone is handed over (`facePieces`),
-  // their rail left off, and their cases drawn into nothing — drawn, so the
-  // world's stream is drawn on exactly as before.
+  // The galleries facing the garden open through an arcade (libraryFace.js).
+  // Their footprint is handed over (`facePieces`), their rail left off, and
+  // their cases drawn into nothing to preserve the world's random stream.
   const isFace = faceEdge(ctx), facePieces = [];
   const sink = { add: (g) => { g.dispose?.(); return sink; } };
   const unseen = (fn) => {

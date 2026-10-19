@@ -129,8 +129,7 @@ export function* buildLight(ctx) {
     const live = lightPool.slice(0, budget);
     const lit = new Set(live.filter((s) => s.level > 0.05).map((s) => s.wish));
     const rank = (w) => Math.min(near2(w, eye), far ? near2(w, far) : Infinity) * (lit.has(w) ? 0.55 : 1);
-    // (`gate`: a lamp behind stone that is still up — libraryFace.js — asks
-    // for no light, or it would light the lawn through the wall)
+    // A gated lamp waits until its opening is visible.
     const shut = (w) => w.gate !== undefined && w.gate < 0.01;
     const wanted = eye
       ? lightWishes.filter((w) => !shut(w)).sort((a, b) => (owns(b) - owns(a)) || (rank(a) - rank(b))).slice(0, budget)

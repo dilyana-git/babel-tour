@@ -98,7 +98,7 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
   lightRooms(ctx);
   // (the galleries' face on the garden, and the lanterns behind it: before the
   // Door, whose globes the lanterns' panes are instanced with — libraryFace.js)
-  Object.assign(ctx, buildLibraryFace(ctx));
+  buildLibraryFace(ctx);
   yield 'The Door';
   Object.assign(ctx, buildDoor(ctx));
   yield 'The arch';
@@ -139,10 +139,6 @@ export function* assembleWorld({ light = false, paintings = true, painter = pain
   const world = yield* buildEnding(ctx);
   // (each gallery's stone, wood and metal, on top of every other patch: roomColour.js)
   tintRooms(ctx);
-  // (the face that goes when it is looked at: libraryFace.js)
-  const tick = world.tick;
-  world.tick = (t, eye, gaze, ...rest) => { ctx.libraryFace.tick(t, eye, gaze); return tick(t, eye, gaze, ...rest); };
-  world.face = ctx.libraryFace;
   yield 'The galleries below';
   // (the storeys under the Vestibule's and the Silence's wells, last, so they
   // see every patch on every material: wellsBelow.js)

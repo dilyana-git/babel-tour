@@ -27,6 +27,16 @@ path, and this document in full (`git show 0857f2a:docs/design-history.md`).
 
 ## 2026-10-19
 
+- **The Library already open to the garden.** The user liked the revealed
+  arcade but disliked watching the wall crumble. The arcade and its gallery
+  lanterns now appear from the start and stay when the reader looks away or
+  returns. Removed the gaze timer, cracks, falling stones, dust, reassembly
+  and `wface` bypass; the walking boundary is preserved. Commit `8cd741d`
+  retains the former effect (25 seconds looking to open, 40 looking away to
+  close, 1 back inside). Before/after garden views are in
+  `.ux-review/shots/library-face/`: `before-*` holds the former effect at its
+  completed state; `after-*` shows the permanent arcade without an override.
+
 - **Chosen looks made permanent.** Removed `wflora`, `wendin`, `wnear`,
   `wroof` and their losing code paths. Commit `1483bc8` retains every option.
   The desktop caption comparison remains open. Before/after room views are
