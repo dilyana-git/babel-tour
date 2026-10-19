@@ -39,7 +39,7 @@ import OpenBook from './OpenBook';
 import { LOOK } from './world/mapLook';
 import { POND, MAZE_BOUNDS, FORK, PAVILION_PATH, BRIDGE, PAVILION, SHORE_PATH, MAZE_PATH, MAZE_ENTRY, HEART } from './world/gardenPlan';
 import { ENDING, SKIP } from './world/finaleLook';
-import { ENDIN, ENDIN_LINE, ENDIN_ALONE } from './world/endingIn';
+import { ENDIN_LINE, ENDIN_ALONE } from './world/endingIn';
 import { VOICE_PACE, HEAD_MS, MAP_TALL } from './world/phone';
 import Ending from './Ending';
 import './map.css';
@@ -482,11 +482,11 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
       setEnded(true);
       setFinalePhase(null);
       
-      if (ENDIN) land();
+      land();
       setEnding(1);
     } else {
       setFinalePhase(phase);
-      if (phase === 'leave' && ENDIN && !tall) land();
+      if (phase === 'leave' && !tall) land();
     }
   }, [tall]);
   // The ending's three beats, each after the last has been read; a hand on
@@ -495,7 +495,7 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
     if (ending !== 1 && ending !== 2) return undefined;
     // (the line is left alone for a while from when it stands whole, which
     // may be before the film is done or some seconds after)
-    const hold = ENDIN ? Math.max(0, landedAt.current + (reducedMotion ? 0 : ENDIN_LINE) - performance.now()) + ENDIN_ALONE : ENDING.hold;
+    const hold = Math.max(0, landedAt.current + (reducedMotion ? 0 : ENDIN_LINE) - performance.now()) + ENDIN_ALONE;
     const id = setTimeout(() => setEnding((s) => (s === ending ? s + 1 : s)), ending === 1 ? hold : ENDING.then);
     const hurry = (e) => {
       if (e.type === 'keydown' && (e.key === 'Tab' || e.key === 'Shift' || e.altKey || e.ctrlKey || e.metaKey)) return;
@@ -1279,7 +1279,6 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
         + `${reading !== null && place !== null ? ' is-reading' : ''}`}
       aria-labelledby={worldRooms && place !== null ? 'room-title' : 'map-title'}
       data-caption={quietDesktop ? 'quiet' : undefined}
-      data-endin={(landing && ENDIN) || undefined}
       style={{ '--zoom-origin': origin }}
     >
       <div className="map-stage" ref={stageRef} inert={reading !== null} {...(worldRooms && place !== null ? lookHandlers : {})}>
@@ -1391,7 +1390,7 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
         {epigraphShown && <AssemblyEpigraph driver={inkRef} progress={assembled} ready={liveWorld} reducedMotion={reducedMotion} />}
 
         {(ending > 0 || landing) && (
-          <Ending stage={Math.max(1, ending)} look={landing ? ENDIN : null} reducedMotion={reducedMotion} againRef={againRef} onAgain={walkAgain} onMap={toRooms} />
+          <Ending stage={Math.max(1, ending)} againRef={againRef} onAgain={walkAgain} onMap={toRooms} />
         )}
         <aside ref={cardRef} className={`map-card${isGarden(shown) ? ' is-garden' : ''}`} hidden={ending > 0 || landing}>
           <div className="map-card-kicker">{captionOf(shown)}</div>

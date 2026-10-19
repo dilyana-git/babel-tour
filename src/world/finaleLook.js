@@ -189,7 +189,7 @@ export const CAST = [
 
 // The ending, on the map. The line is held alone for `hold` ms; the
 // colophon comes in, and after `then` ms the ways on.
-export const ENDING = { hold: qn('wfehold', 6500), then: qn('wfethen', 3500) };
+export const ENDING = { then: qn('wfethen', 3500) };
 
 // The way out of the film: `after` ms without a hand on anything it sinks
 // to a trace (map.css, .room-skip.is-trace).

@@ -249,7 +249,7 @@ export function* buildArch(ctx) {
         const beyond = (x0, x1) => new THREE.PlaneGeometry(x1 - x0, 125).translate((x0 + x1) / 2, 62.5, -W);
         const caster = stoneCaster([...portalStone, beyond(-80, -24), beyond(24, 80)]);
         // (the room's side of it, and the cases' ends, for the garden coming in: doorFlora.js)
-        const floraCaster = FLORA ? stoneCaster([...portalStone, ...caseFaces()]) : null;
+        const floraCaster = stoneCaster([...portalStone, ...caseFaces()]);
         portalStone.forEach((g) => g.dispose());
         const ir = makeRng(5521), R = (a, b) => a + (b - a) * ir();
         const opening = (u, v, a) => Math.abs(u) < HW + a && v < PORTAL.soffitAt(u, a) + 0.4;
@@ -266,7 +266,7 @@ export function* buildArch(ctx) {
         const reveal = (sd) => ({
           ray: (u, v, o, d) => { o.set(sd * (HW - 6), v, u); d.set(sd, 0, 0); }, far: 20, drift: 0.3, scale: 0.9,
           light: new THREE.Vector3(0, 0.7, -1).normalize(), max: light ? 200 : 650,
-          allow: (u, v) => u > -W - 0.2 && u < -W + (FLORA?.reveal ?? 15) && v > F - 0.5 && v < 40 - (u + W) * (FLORA ? 0.9 : 1.6),
+          allow: (u, v) => u > -W - 0.2 && u < -W + FLORA.reveal && v > F - 0.5 && v < 40 - (u + W) * 0.9,
           seeds: [[-W + 0.8, F + 0.6, 0.2, R(28, 36), 0.7], [-W + 3, F + 0.6, 0.4, R(22, 30), 0.55], [-W + 6.5, F + 0.6, 0.3, R(14, 22), 0.4], [-W + 9.5, F + 0.6, 0.5, R(8, 14), 0.3]],
         });
         const grown = growIvy(caster, [face, reveal(-1), reveal(1)], ir);
@@ -287,19 +287,17 @@ export function* buildArch(ctx) {
           grown.leaves.push(...hung.leaves);
         }
         caster.dispose();
-        // The garden coming on into the room (doorFlora.js, ?wflora=a|b|c):
-        // up the room's face of the arch and the cases' ends, and hanging
-        // from the arch.
-        if (FLORA) {
+        // The ivy continues up the room's face and hangs from the arch.
+        {
           const fr = makeRng(5611), FR = (a, b) => a + (b - a) * fr();
           // (all of it from the garden: the strands along the soffit from the
           // garden face, the room face's stems along the passage's walls out
           // of the ground beyond it — doorFlora.js, "Rooted in the garden";
           // their own stream. Nothing on the floor.)
-          const gr = makeRng(5661), ends = wallEnds(FLORA, gr);
-          const more = growIvy(floraCaster, roomSheets(FLORA, FR, FLORA.face ? ends : null), fr);
+          const gr = makeRng(5661), ends = wallEnds(gr);
+          const more = growIvy(floraCaster, roomSheets(ends), fr);
           for (const end of ends) {
-            const stem = FLORA.face ? more.stems.find((st) => st[0].u === end.u && st[0].v === end.v) : null;
+            const stem = more.stems.find((st) => st[0].u === end.u && st[0].v === end.v);
             const run = wallRunner(floraCaster, end, stem ? stem[0].r : 0.08, gr);
             if (!run) continue;
             if (stem) stem.unshift(...run.nodes);

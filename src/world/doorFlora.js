@@ -1,42 +1,12 @@
-// The garden coming into the Door (2026-10-15; from a canvas of three the
-// user chose b). The green stopped at the arch: ivy up its garden face and a little
-// way in along the passage. A garden that has broken a wall down does not
-// stop at the line where the wall stood. So the ivy comes on in: up the
-// room's face of the arch; and, in the last of the three, up the ends of the
-// cases beside it.
-//   a  in the cracks       the passage's ivy halfway through
-//   b  over the threshold  the ivy up the room's face of the jambs and piers
-//                          and hanging from the arch, through the passage
-//   c  taken back          over the gable, up the ends of the cases beside
-//                          the arch
-// ?wflora=a|c puts one of the other two in its place. (The runners b and c
-// laid along the cracks were taken up on 2026-10-16: the ivy keeps to the
-// walls — wallRunners, at the end. The grass in the cracks, the moss in the
-// joints and the leaves blown in went the same day: the floor is the
-// Library's, with no green on it.)
-//
-// All of it in the arch's frame (portal.js): x along the wall, y up, z into
-// the room. The cracks' frame (cracks.js) has the same axes, its origin 1.5
-// along: x = along − 1.5, z = into. Drawn from its own streams, never the
-// world's.
+// Ivy grows from the garden, follows the passage's walls and soffit,
+// and climbs the room's face of the arch. Nothing lies on the floor.
+// Coordinates are in the arch's frame: x along the wall, y up, z into
+// the room. Growth uses independent streams.
 import * as THREE from 'three';
 import { PORTAL } from './portal';
 import { growIvy } from './ivy';
 
-const Q = typeof location !== 'undefined' ? new URLSearchParams(location.search) : new URLSearchParams();
-
-// `face`: how high it climbs the room's face of the arch, left and right (0: not at
-// all), and its leaf budget; `reveal`: how far through the passage the
-// garden face's ivy goes (into the room, from the wall's garden face);
-// `cases`: up the case ends either side, how high; `hang`: strands from the
-// arch's inner edge.
-export const FLORAS = {
-  a: { face: null, reveal: 14, cases: 0, hang: 0 },
-  b: { face: { left: 42, right: 30, max: 1500 }, reveal: 25, cases: 0, hang: 5 },
-  c: { face: { left: 104, right: 80, max: 3600 }, reveal: 25, cases: 62, hang: 9 },
-};
-const PICK = Q.get('wflora') ?? 'b';
-export const FLORA = FLORAS[PICK] ?? FLORAS.b;
+export const FLORA = { face: { left: 42, right: 30, max: 1500 }, reveal: 25, hang: 5 };
 
 // Leaves along a run of stem nodes ({ p, n }), as growIvy sets them: on
 // stalks either side, turned out from what the stem lies on and toward
@@ -77,51 +47,25 @@ export function leavesAlong(nodes, rng, { light = new THREE.Vector3(0, 1, 0), sc
 }
 
 // The sheets the ivy grows over on the room's side, for growIvy: the room's
-// face of the arch (cast toward the wall), and the case ends either side.
-export function roomSheets(opt, R, ends = null) {
+// face of the arch, cast toward the wall.
+export function roomSheets(ends) {
   const F = PORTAL.FLOOR, HW = PORTAL.HW;
   const opening = (u, v, a) => Math.abs(u) < HW + a && v < PORTAL.soffitAt(u, a) + 0.4;
-  const sheets = [];
-  if (opt.face) {
-    const { left, right, max } = opt.face;
-    sheets.push({
-      ray: (u, v, o, d) => { o.set(u, v, 40); d.set(0, 0, -1); }, far: 48,
-      light: new THREE.Vector3(0, 1, 0.6).normalize(), max, fork: 0.09,
-      allow: (u, v) => Math.abs(u) < 33 && v > F - 1 && !opening(u, v, 0.8)
-        && v < (u < 0 ? left - Math.max(0, -u - 20) * 0.6 : right - Math.max(0, u - 20) * 0.6),
-      // (from where the passage's stems come round onto it: wallEnds)
-      seeds: ends ? ends.map(({ u, v, th, len, vigour }) => [u, v, th, len, vigour]) : [
-        ...[-14.5, -17, -21, -25.5, -30].map((u) => [u + R(-0.6, 0.6), F + 0.2, R(-0.3, 0.3), left * R(0.8, 1.15), R(0.7, 1)]),
-        ...[14.5, 18, 23, 29].map((u) => [u + R(-0.6, 0.6), F + 0.2, R(-0.3, 0.3), right * R(0.75, 1.1), R(0.55, 0.85)]),
-      ],
-    });
-  }
-  if (opt.cases) {
-    for (const sd of [-1, 1]) {
-      const h = opt.cases * (sd < 0 ? 1 : 0.8);
-      sheets.push({
-        ray: (u, v, o, d) => { o.set(sd * u, v, 40); d.set(0, 0, -1); }, far: 40, scale: 0.9,
-        light: new THREE.Vector3(0, 1, 0.6).normalize(), max: 900, drift: 0.15 * sd,
-        allow: (u, v) => u > 33 && u < 46 && v > F - 1 && v < h - (u - 33) * 1.5,
-        seeds: [34, 37, 41].map((u) => [u + R(-0.5, 0.5), F + 0.2, 0.2, h * R(0.6, 1), R(0.5, 0.8)]),
-      });
-    }
-  }
-  return sheets;
+  const { left, right, max } = FLORA.face;
+  return [{
+    ray: (u, v, o, d) => { o.set(u, v, 40); d.set(0, 0, -1); }, far: 48,
+    light: new THREE.Vector3(0, 1, 0.6).normalize(), max, fork: 0.09,
+    allow: (u, v) => Math.abs(u) < 33 && v > F - 1 && !opening(u, v, 0.8)
+      && v < (u < 0 ? left - Math.max(0, -u - 20) * 0.6 : right - Math.max(0, u - 20) * 0.6),
+    // Continue from where the passage's stems come round onto the room face.
+    seeds: ends.map(({ u, v, th, len, vigour }) => [u, v, th, len, vigour]),
+  }];
 }
 // The cases' ends beside the arch, as stone to grow on (where they stand: 12.7
 // in front of the wall, from 33 out to 46 either side).
 export const caseFaces = () => [-1, 1].map((sd) => new THREE.PlaneGeometry(14, 100).translate(sd * 39.5, 50, 12.7));
 
-// ── Rooted in the garden (2026-10-16) ─────────────────────────────────────────
-// "Those ivy branches look like they grow from the ceiling … I want them to
-// actually come from the garden, not end in the nowhere." What the garden sent
-// in began where it was seen: strands out of the arch's soffit, runners at the
-// door line, the room face's stems at the foot of its plinths. Each is now the
-// far end of a stem that runs back out to the garden: a strand's over the
-// garden face (along the ring of voussoirs, out of the ivy on it) and in along
-// the passage's soffit; the room face's along the passage's walls (wallRunners).
-// Nothing lies on the floor: "they should stay on the wall, not on the floor."
+// Each hanging strand and wall runner connects to ivy rooted in the garden.
 // A stem laid on the stone along a run of rays ([o, d] a step apart), each
 // finding what it lies on.
 function layStem(caster, rays, { far = 30 } = {}) {
@@ -217,9 +161,9 @@ export function joinStrand(feeder, hung) {
 // Where they come round, and the stems that go on from there, left and right:
 // [{ s, u, v, th, len, vigour }] (growIvy's seed, and `s` its side).
 const RUNS = { left: [4, 9.5, 15, 22], right: [5, 12, 19] };
-export function wallEnds(opt, rng) {
+export function wallEnds(rng) {
   const R = (lo, hi) => lo + (hi - lo) * rng();
-  const { HW, FLOOR: F } = PORTAL, { left, right } = opt.face ?? { left: 30, right: 24 };
+  const { HW, FLOOR: F } = PORTAL, { left, right } = FLORA.face;
   const ends = [];
   for (const [s, hs, top] of [[-1, RUNS.left, left], [1, RUNS.right, right]]) {
     for (const h of hs) ends.push({ s, u: s * (HW + 1.6), v: F + h + R(-1.2, 1.2), th: s * R(0.45, 0.85), len: top * R(0.75, 1.1), vigour: s < 0 ? R(0.35, 0.6) : R(0.25, 0.5) });

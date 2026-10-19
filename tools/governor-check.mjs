@@ -18,7 +18,7 @@ const BUDGET = 24;
 let pass = 0, fail = 0
 const is = (name, got, want) => {
   const ok = JSON.stringify(got) === JSON.stringify(want)
-  ok ? pass++ : fail++
+  if (ok) pass++; else fail++;
   console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}${ok ? '' : `\n       got  ${JSON.stringify(got)}\n       want ${JSON.stringify(want)}`}`)
 }
 const run = (medians) => {

@@ -13,98 +13,25 @@
 //   the ways on   to walk it again, from the Vestibule; or to the map as it
 //                 was, a room to choose
 // `stage`: 1, 2, 3. A hand on anything brings all three.
-// `look`: how the line comes in (world/endingIn.js): 'a' whole, 'b' found a
-// letter at a time, 'c' a word at a time, 'd' whole; null, as it was.
-import { useEffect, useRef } from 'react';
 import { STORY } from './voices';
-import { stream } from './ink';
-import { FOUND } from './world/endingIn';
 
 // The walk's last sentence: the Web of Time's first, and what is cut round
 // the armillary's stand.
 const LINE = 'Time forks perpetually toward innumerable futures.';
 const WORDS = LINE.split(' ');
-// Who made the walk, for its maker to sign; unsigned, the colophon gives the year alone.
-const MADE = { by: '', year: 2026 };
-// The Library's alphabet (Assembly.jsx): what a letter not yet found stands in.
-const SYMBOLS = 'abcdefghilmnopqrstuvxyz';
 
-// The line, found (b). Every letter has its own place from the first moment —
-// the true letter holds it, unseen, and what is turned over in the search is
-// laid over it — so the line is set as it will stand and nothing reflows.
-function FoundLine() {
-  const ref = useRef(null);
-  useEffect(() => {
-    const cells = [...ref.current.querySelectorAll('.map-ending-ch')];
-    const rnd = stream(733);
-    const n = cells.length;
-    const t0 = performance.now();
-    // roughly in reading order, as the first sentence was
-    const lockAt = cells.map((_, i) => FOUND.from + FOUND.over * (0.7 * (i / n) + 0.3 * rnd()));
-    const next = new Float64Array(n);
-    const found = new Float64Array(n);
-    let timer = 0;
-    const tick = () => {
-      const now = performance.now(), t = now - t0;
-      let busy = 0;
-      cells.forEach((cell, i) => {
-        if (found[i] < 0) return;
-        busy += 1;
-        if (found[i]) {
-          if (now - found[i] > FOUND.glow) {
-            cell.classList.remove('is-new');
-            found[i] = -1;
-          }
-        } else if (t >= lockAt[i]) {
-          found[i] = now;
-          cell.classList.add('is-found', 'is-new');
-        } else if (now >= next[i]) {
-          cell.lastChild.textContent = SYMBOLS[Math.floor(rnd() * SYMBOLS.length)];
-          next[i] = now + 140 + rnd() * 420;
-        }
-      });
-      if (busy) timer = setTimeout(tick, FOUND.tick);
-    };
-    tick();
-    return () => clearTimeout(timer);
-  }, []);
-  return (
-    <>
-      <p className="map-ending-said">{LINE}</p>
-      <p ref={ref} aria-hidden="true">
-        {WORDS.map((word, w) => (
-          <span key={w}>
-            {w > 0 && ' '}
-            <span className="map-ending-word">
-              {[...word].map((ch, i) => (
-                <span key={i} className={`map-ending-ch${/[a-z]/i.test(ch) ? '' : ' is-found'}`}>
-                  <span>{ch}</span>
-                  <span />
-                </span>
-              ))}
-            </span>
-          </span>
-        ))}
-      </p>
-    </>
-  );
-}
-
-export default function Ending({ stage, look = null, reducedMotion = false, againRef, onAgain, onMap }) {
+export default function Ending({ stage, againRef, onAgain, onMap }) {
   return (
     <section className={`map-ending is-stage-${stage}`} aria-label="The end of the walk">
       <blockquote className="map-ending-line">
-        {look === 'b' && !reducedMotion ? <FoundLine />
-          : look === 'c' ? (
-            <p>
-              {WORDS.map((word, w) => (
-                <span key={w}>
-                  {w > 0 && ' '}
-                  <span className="map-ending-w" style={{ '--i': w }}>{word}</span>
-                </span>
-              ))}
-            </p>
-          ) : <p>{LINE}</p>}
+        <p>
+          {WORDS.map((word, w) => (
+            <span key={w}>
+              {w > 0 && ' '}
+              <span className="map-ending-w" style={{ '--i': w }}>{word}</span>
+            </span>
+          ))}
+        </p>
         <cite>{STORY.garden}</cite>
       </blockquote>
       <div className="map-ending-colophon" aria-hidden={stage < 2 || undefined}>

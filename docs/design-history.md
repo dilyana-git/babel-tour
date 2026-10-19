@@ -24,12 +24,39 @@ path, and this document in full (`git show 0857f2a:docs/design-history.md`).
   walking. Pending the user's look: `.ux-review/qa/2026-10-15-caption/`
   (`*-a.png` default, `*-b.png` quiet). On a pick, remove the other path and
   the flag in the same commit, and record the commit here.
-- **Switches still in the code**, each with its pick as the default:
-  `?wflora=a|c` (picked b, the Door's ivy level), `?wendin=a|b|d` (picked c,
-  the ending's words lit), `?wnear=a|c` (picked b, fulled moorit wool),
-  `?wroof=green|bark` (grey tile). Due the same removal.
 
 ## 2026-10-19
+
+- **Chosen looks made permanent.** Removed `wflora`, `wendin`, `wnear`,
+  `wroof` and their losing code paths. Commit `1483bc8` retains every option.
+  The desktop caption comparison remains open. Before/after room views are
+  `.ux-review/shots/cleanup/before-*.png` and `after-*.png`.
+  - Door ivy: a had no room face, reveal 14, no case growth or hanging
+    strands; **b, picked**, face left/right 42/30, budget 1500, reveal 25,
+    no case growth, five strands; c face 104/80, budget 3600, reveal 25,
+    case growth to 62, nine strands. The floor greenery had already gone.
+  - Ending: a faded in turn (line complete at 4500 ms), b found letters
+    (6400 ms; search from 2600 over 2600, tick 110, glow 520), **c, picked**,
+    lit each word (5000 ms), d drew back (4700 ms). The line stands alone
+    for another 4500 ms in every option.
+  - Near readers: a oatmeal twill, weave [22, .32, 0, .1], wool
+    [[1, .82, .6], .25, .62], face [-.32, .14, .03, .32], skin .45;
+    **b, picked**, fulled moorit, weave [30, .32, 1, .12], wool
+    [[.95, .72, .52], .35, .42], face [-.62, .1, .02, .12], skin .55;
+    c homespun greige, weave [12, .3, 2, .1], wool
+    [[1, .84, .66], .38, .55], face [-.02, .035, .04, .42], skin .5.
+    The `old` bypass and live option switches are removed too.
+  - Roof: **grey tile, picked**, pan/roll RGB [58,62,66]/[88,92,95],
+    roughness/sky/direct .88/.3/.6; green glazed tile
+    [26,50,40]/[42,82,62], .5/.45/.8; bark shingle [58,47,39],
+    .96/.15/.3, without tile rolls and with a 2.4 rather than 1.5 eave board.
+
+- **Deferred preparation waits for a still room.** The map froze briefly
+  and entry flights stuttered when the lower galleries prepared immediately
+  after opening. Their compilation and buffer uploads now wait for 1500 ms
+  without camera movement in a room and pause again during movement. Busy
+  governor windows are discarded. Collision-tree warming stays independent
+  because distant lamp occlusion needs it during entry.
 
 - **Room identity before mobile guidance** (audit VI·11·2). The phone's
   hint stood above the room's name, and passages hid the whole heading.
@@ -246,7 +273,7 @@ path, and this document in full (`git show 0857f2a:docs/design-history.md`).
   face's foot, climb it, turn into the passage, wander its walls (never below
   floor + 2.5) with leafy shoots off them, and come round onto the first
   order's face, where the room face's ivy now grows from their ends (it used
-  to start at the floor by the plinths). The grass in the cracks stays.
+  to start at the floor by the plinths). The floor stays bare.
 - **Garden grass darker, closer.** "Too light and sparse": edge tufts' green
   [0.046, 0.058, 0.014] → [0.019, 0.04, 0.011], straw share 0.1 → 0.04, k
   0.68 → 0.52, tip 1.35 → 1.4, blades [14, 26] → [16, 28] and finer (wide

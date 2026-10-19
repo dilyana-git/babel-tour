@@ -1,31 +1,9 @@
-// The galleries below (2026-10-16). Borges: the air shafts are "surrounded by
-// very low railings, through which one can see, interminably, the floors
-// above and below". The Silence's and the Vestibule's wells were a stone liner
-// going down to a few stars, and from a stand a reader saw only its top
-// courses: a hole showing nothing. Chosen from a canvas of five (A, the
-// galleries below; lamps let down the well; a well of books; black water;
-// pages on the draught): under each of the two, the same hexagon again, and
-// again, each a little further into the dark, its own well opening onto the
-// next.
-//
-// How. Each room's own triangles are lifted out of the world's batches (and
-// its instances out of the instanced meshes) once, at assembly, and laid
-// LEVELS times in one mesh per material. The vertices keep the room's own
-// coordinates: only where they are DRAWN moves, `aBelow` storeys down, in the
-// vertex shader after everything else has run. So every patch on every
-// material (the light model, the room's colour, the lamps' flicker) shades a
-// storey below exactly as it shades the room above, without a light more or a
-// program rebuilt as the reader walks; each storey is darkened by DIM in the
-// fragment shader. The materials are not copied but viewed (`Object.create`):
-// a tint or a uniform changed on the room's own material is changed below.
-//
-// What is left out: the well's own liner and stars (the hole goes through),
-// the shelved books' painted rows (their boxes go down instead, every storey:
-// looked down on, a shelf of painted rows is a bare board), anything walking,
-// the lit air, the mirrors' glass and every shader material. Nothing below is felt (body.js)
-// or culled by distance: the storeys are drawn only while the eye is near
-// their room (`show`), and hung in only once their shaders are ready
-// (`attach`, from World.jsx), after the opening.
+// The Vestibule and Silence repeat below their open wells. Each room's
+// geometry and instances are reused with a shader offset and progressively
+// dimmer light; material views retain the room's live uniforms and patches.
+// Moving figures, lit air, mirror glass and painted shelf rows are excluded.
+// These decorative floors do not collide with the walking body and attach
+// only after their shaders and buffers are ready.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 

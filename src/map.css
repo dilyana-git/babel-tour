@@ -746,73 +746,18 @@
   transition: opacity calc(var(--t-slow) * 2.5) ease-in-out;
 }
 
-/* b, found: the line's letters stand in the Library's alphabet until each is
-   found. A letter's place is its own from the start (the true one holds it,
-   unseen, what is turned over lies on it), so nothing reflows. */
-.map-ending-said {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
-
-.map-ending-word {
-  white-space: nowrap;
-}
-
-.map-ending-ch {
-  position: relative;
-  display: inline-block;
-  transition: color var(--t-slow) var(--arrive);
-}
-
-.map-ending-ch > :first-child {
-  visibility: hidden;
-}
-
-.map-ending-ch > :last-child {
-  position: absolute;
-  top: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  color: color-mix(in srgb, var(--gold) 50%, transparent);
-}
-
-.map-ending-ch.is-found > :first-child {
-  visibility: visible;
-}
-
-.map-ending-ch.is-found > :last-child {
-  display: none;
-}
-
-.map-ending-ch.is-new {
-  color: var(--gold-lit);
-  transition: none;
-}
-
-.entry-map[data-endin='b'] {
-  --in-cite: 5300ms;
-}
-
-.entry-map[data-endin='b'] .map-ending-line p {
-  animation-duration: var(--t);
-}
-
-/* c, lit: the light that ran along the walk runs on along the hairlines, and
+/* The ending: the light that ran along the walk runs on along the hairlines, and
    the title and then each word of the line catch it and cool to ink. */
-.entry-map[data-endin='c'] {
+.entry-map.is-landing {
   --in-cite: 3900ms;
 }
 
-.entry-map[data-endin='c'] .map-title-rule {
+.entry-map.is-landing .map-title-rule {
   position: relative;
   animation-name: map-ending-in;
 }
 
-.entry-map[data-endin='c'] .map-title-rule::after {
+.entry-map.is-landing .map-title-rule::after {
   content: '';
   position: absolute;
   top: -1px;
@@ -824,7 +769,7 @@
   animation: ending-glint calc(var(--t-slow) * 1.6) var(--in-rule) ease-in-out backwards;
 }
 
-.entry-map[data-endin='c'] .map-title-name + .map-title-rule::after {
+.entry-map.is-landing .map-title-name + .map-title-rule::after {
   animation-delay: calc(var(--in-rule) + var(--t));
 }
 
@@ -845,16 +790,16 @@
   }
 }
 
-.entry-map[data-endin='c'] .map-title-name {
+.entry-map.is-landing .map-title-name {
   animation-name: ending-lit;
   animation-timing-function: ease-out;
 }
 
-.entry-map[data-endin='c'] .map-ending-line p {
+.entry-map.is-landing .map-ending-line p {
   animation: none;
 }
 
-.entry-map[data-endin='c'] .map-ending-w {
+.entry-map.is-landing .map-ending-w {
   animation: ending-lit calc(var(--t-slow) * 1.4) calc(var(--in-line) + var(--i) * 170ms) ease-out backwards;
 }
 
@@ -868,31 +813,6 @@
     opacity: 1;
     color: var(--lamp-2);
     text-shadow: 0 0 18px color-mix(in srgb, var(--gold-lit) 70%, transparent), var(--halo);
-  }
-}
-
-/* d, drawn back: the title settles from a wider setting and the line from a
-   little larger, as the camera does. */
-.entry-map[data-endin='d'] .map-title-name {
-  animation: ending-track calc(var(--t-slow) * 2.5) var(--in-title) cubic-bezier(0.16, 0.6, 0.2, 1) backwards;
-}
-
-@keyframes ending-track {
-  from {
-    opacity: 0;
-    letter-spacing: 0.34em;
-  }
-}
-
-.entry-map[data-endin='d'] .map-ending-line p {
-  transform-origin: 0 60%;
-  animation: ending-settle calc(var(--t-slow) * 2.2) var(--in-line) cubic-bezier(0.16, 0.6, 0.2, 1) backwards;
-}
-
-@keyframes ending-settle {
-  from {
-    opacity: 0;
-    transform: scale(1.045);
   }
 }
 

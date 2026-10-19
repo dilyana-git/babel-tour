@@ -36,7 +36,7 @@ for (const name of builtNames) {
 
 if (builtNames.has('index.html')) {
   const html = readFileSync(join(dist, 'index.html'), 'utf8');
-  for (const [, url] of html.matchAll(/(?:src|href)="(\/assets\/[^\"]+)"/g)) {
+  for (const [, url] of html.matchAll(/(?:src|href)="(\/assets\/[^"]+)"/g)) {
     const name = url.slice(1);
     if (!builtNames.has(name)) failures.push(`index.html references missing ${name}`);
   }

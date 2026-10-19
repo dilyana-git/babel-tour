@@ -3186,7 +3186,8 @@ function LiveWorld({
 // ?wsieve=0 no NaN sieve, ?wbloom=on restores the bloom,
 // ?wmsaa=4 multisampling — and read the
 // note over the composer before trusting that last one).
-const DIAL = typeof window === 'undefined' ? new URLSearchParams() : new URLSearchParams(window.location.search);const dialOff = (name) => DIAL.get(name) === '0';
+const DIAL = typeof window === 'undefined' ? new URLSearchParams() : new URLSearchParams(window.location.search);
+const dialOff = (name) => DIAL.get(name) === '0';
 const DPR_DIAL = Number(DIAL.get('wdpr')) || null;
 // Where a walk STARTS: a ceiling guessed before a frame has been drawn.
 // <Governor> measures what it was worth and steps down from here.

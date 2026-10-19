@@ -23,8 +23,6 @@
 // it is known by how far out its hips are there (`q`) and how far across it
 // lies from one hip to the other (`u`).
 //
-// `kind`: 'grey' (grey tile in rolls: the roof it has), 'green' (the same,
-// green-glazed), 'bark' (bark shingle: no rolls, a thick soft edge).
 import * as THREE from 'three';
 import { makeRng } from './textures';
 
@@ -106,9 +104,8 @@ const mix3 = (a, b, k) => [a[0] + b[0] * k, a[1] + b[1] * k, a[2] + b[2] * k];
 // where each corner's scroll ends.
 // `bronze` (gardenProps.js): the hips' curled ends past the eave as a mesh
 // of their own (`horns`), for another metal than the tile's.
-export function tiledRoof({ at, kind = 'grey', light = false, bronze = false }) {
+export function tiledRoof({ at, light = false, bronze = false }) {
   const tiles = gather(true), under = gather(), horns = gather(), tips = [];
-  const rolled = kind !== 'bark';
   const hash = (i, j, k) => { const x = Math.sin(i * 127.1 + j * 311.7 + k * 74.7) * 43758.5453; return x - Math.floor(x); };
   ROOF_TIERS.forEach((t, ti) => {
     const rE = t.r * EAVE;
@@ -154,8 +151,8 @@ export function tiledRoof({ at, kind = 'grey', light = false, bronze = false }) 
         const left = j === 0 ? lines[0] - TILE.gap : bounds[j], col = Math.floor(hash(ti, k, j) * 3);
         const corner = (w, q) => {
           const wc = Math.min(chord(q) / 2, Math.max(-chord(q) / 2, w));
-          const x = rolled ? Math.min(1, Math.max(0, (wc - left) / TILE.gap)) : (wc / TILE.gap) % 1;
-          return { p: W(wc, q), n: N(wc, q), t: [rolled ? (col + 0.04 + 0.92 * x) * 0.2 : wc / (TILE.gap * 4), arc.of(q) / (TILE.len * 4)] };
+          const x = Math.min(1, Math.max(0, (wc - left) / TILE.gap));
+          return { p: W(wc, q), n: N(wc, q), t: [(col + 0.04 + 0.92 * x) * 0.2, arc.of(q) / (TILE.len * 4)] };
         };
         for (let i = 0; i < rows.length - 1; i++) {
           const qa = rows[i], qb = rows[i + 1];
@@ -164,7 +161,7 @@ export function tiledRoof({ at, kind = 'grey', light = false, bronze = false }) 
         }
       }
       // ── the rolls, a tile at a time, and what each ends in at the eave ────
-      if (rolled) {
+      {
         const TH = light ? 3 : 5;
         const ring = (w, q, rad, v) => {
           const c = W(w, q), nn = N(w, q);
@@ -213,7 +210,7 @@ export function tiledRoof({ at, kind = 'grey', light = false, bronze = false }) 
       for (let i = 0; i < qs.length - 1; i++) {
         for (let h = 0; h < NU; h++) under.quad(underAt(h / NU, qs[i]), underAt((h + 1) / NU, qs[i]), underAt((h + 1) / NU, qs[i + 1]), underAt(h / NU, qs[i + 1]));
       }
-      const BOARD = rolled ? 1.5 : 2.4, NE = light ? 8 : 16;
+      const BOARD = 1.5, NE = light ? 8 : 16;
       for (let h = 0; h < NE; h++) {
         const ua = h / NE, ub = (h + 1) / NE;
         for (const side of [1, -1]) {
@@ -295,72 +292,44 @@ export function softenRoofTiles(mat) {
 // by side, the rolls' own strip, and a last one for the round face of a
 // tile-end — four tiles up, each tile's lower edge at the bottom of its cell:
 // a lip the light catches there, and under the tile above it, its shadow.
-const KINDS = {
-  grey: { pan: [58, 62, 66], roll: [88, 92, 95], spread: 9, lichen: [146, 148, 126], moss: [44, 58, 34], lip: 26 },
-  green: { pan: [26, 50, 40], roll: [42, 82, 62], spread: 8, lichen: [120, 136, 104], moss: [30, 44, 26], lip: 34 },
-  bark: { pan: [58, 47, 39], roll: [58, 47, 39], spread: 7, lichen: [112, 110, 88], moss: [46, 58, 32], lip: 12 },
-};
-export function roofTiles(kind = 'grey', size = 512) {
-  const K = KINDS[kind] ?? KINDS.grey, r = makeRng(7741), R = (a, b) => a + (b - a) * r();
+const TILE_COLOUR = { pan: [58, 62, 66], roll: [88, 92, 95], spread: 9, lichen: [146, 148, 126], moss: [44, 58, 34], lip: 26 };
+export function roofTiles(size = 512) {
+  const K = TILE_COLOUR, r = makeRng(7741), R = (a, b) => a + (b - a) * r();
   const c = document.createElement('canvas');
   c.width = c.height = size;
   const g = c.getContext('2d'), cw = size / 5, ch = size / 4;
   const rgb = (v, k = 0, a = 1) => `rgba(${Math.round(v[0] + k)},${Math.round(v[1] + k)},${Math.round(v[2] + k)},${a})`;
-  if (kind === 'bark') {
-    // shingle of bark, laid in thin courses: no columns, many layers, each a
-    // ragged line with the one above it lapping it
-    g.fillStyle = rgb(K.pan);
-    g.fillRect(0, 0, size, size);
-    const layers = 28, lh = size / layers;
-    for (let i = 0; i < layers; i++) {
-      for (let x = 0; x < size; x += R(10, 34)) {
-        const w = R(10, 34), k = R(-K.spread, K.spread);
-        g.fillStyle = rgb(K.pan, k);
-        g.fillRect(x, i * lh, w, lh);
-        g.fillStyle = 'rgba(0,0,0,0.16)';
-        g.fillRect(x, i * lh, 1, lh);
+  for (let col = 0; col < 4; col++) {
+    const roll = col === 3, base = roll ? K.roll : K.pan;
+    for (let row = 0; row < 4; row++) {
+      const x = col * cw, y = row * ch, k = R(-K.spread, K.spread);
+      g.fillStyle = rgb(base, k);
+      g.fillRect(x, y, cw, ch);
+      // across it: a pan is a trough, dark where the rolls beside it shade
+      // it; a roll is round, a little paler along its crown
+      const across = g.createLinearGradient(x, 0, x + cw, 0);
+      if (roll) {
+        across.addColorStop(0, 'rgba(0,0,0,0.3)'); across.addColorStop(0.5, 'rgba(255,255,255,0.07)'); across.addColorStop(1, 'rgba(0,0,0,0.3)');
+      } else {
+        across.addColorStop(0, 'rgba(0,0,0,0.5)'); across.addColorStop(0.3, 'rgba(0,0,0,0.08)'); across.addColorStop(0.7, 'rgba(0,0,0,0.08)'); across.addColorStop(1, 'rgba(0,0,0,0.5)');
       }
-      const grd = g.createLinearGradient(0, i * lh, 0, (i + 1) * lh);
-      grd.addColorStop(0, 'rgba(0,0,0,0.42)');
-      grd.addColorStop(0.35, 'rgba(0,0,0,0)');
-      grd.addColorStop(0.85, 'rgba(255,240,220,0)');
-      grd.addColorStop(1, `rgba(255,240,220,${(K.lip / 255).toFixed(3)})`);
-      g.fillStyle = grd;
-      g.fillRect(0, i * lh, size, lh);
+      g.fillStyle = across;
+      g.fillRect(x, y, cw, ch);
+      // up it: the shadow of the tile above over its top, its own lip below
+      const up = g.createLinearGradient(0, y, 0, y + ch);
+      up.addColorStop(0, 'rgba(0,0,0,0.55)'); up.addColorStop(0.16, 'rgba(0,0,0,0.12)'); up.addColorStop(0.4, 'rgba(0,0,0,0)');
+      up.addColorStop(0.9, 'rgba(255,255,255,0)'); up.addColorStop(0.955, `rgba(235,240,245,${(K.lip / 255).toFixed(3)})`); up.addColorStop(1, 'rgba(0,0,0,0.3)');
+      g.fillStyle = up;
+      g.fillRect(x, y, cw, ch);
     }
-  } else {
-    for (let col = 0; col < 4; col++) {
-      const roll = col === 3, base = roll ? K.roll : K.pan;
-      for (let row = 0; row < 4; row++) {
-        const x = col * cw, y = row * ch, k = R(-K.spread, K.spread);
-        g.fillStyle = rgb(base, k);
-        g.fillRect(x, y, cw, ch);
-        // across it: a pan is a trough, dark where the rolls beside it shade
-        // it; a roll is round, a little paler along its crown
-        const across = g.createLinearGradient(x, 0, x + cw, 0);
-        if (roll) {
-          across.addColorStop(0, 'rgba(0,0,0,0.3)'); across.addColorStop(0.5, 'rgba(255,255,255,0.07)'); across.addColorStop(1, 'rgba(0,0,0,0.3)');
-        } else {
-          across.addColorStop(0, 'rgba(0,0,0,0.5)'); across.addColorStop(0.3, 'rgba(0,0,0,0.08)'); across.addColorStop(0.7, 'rgba(0,0,0,0.08)'); across.addColorStop(1, 'rgba(0,0,0,0.5)');
-        }
-        g.fillStyle = across;
-        g.fillRect(x, y, cw, ch);
-        // up it: the shadow of the tile above over its top, its own lip below
-        const up = g.createLinearGradient(0, y, 0, y + ch);
-        up.addColorStop(0, 'rgba(0,0,0,0.55)'); up.addColorStop(0.16, 'rgba(0,0,0,0.12)'); up.addColorStop(0.4, 'rgba(0,0,0,0)');
-        up.addColorStop(0.9, 'rgba(255,255,255,0)'); up.addColorStop(0.955, `rgba(235,240,245,${(K.lip / 255).toFixed(3)})`); up.addColorStop(1, 'rgba(0,0,0,0.3)');
-        g.fillStyle = up;
-        g.fillRect(x, y, cw, ch);
-      }
-    }
-    // the round face of a tile-end, in the last column: a rim and a boss
-    const ex = 4.5 * cw, ey = size * 0.5, er = 0.085 * size;
-    g.fillStyle = rgb(K.roll, -14);
-    g.fillRect(4 * cw, 0, cw, size);
-    for (const [rad, k] of [[er, -20], [er * 0.84, -8], [er * 0.6, -14], [er * 0.3, -4]]) {
-      g.fillStyle = rgb(K.roll, k);
-      g.beginPath(); g.arc(ex, ey, rad, 0, Math.PI * 2); g.fill();
-    }
+  }
+  // the round face of a tile-end, in the last column: a rim and a boss
+  const ex = 4.5 * cw, ey = size * 0.5, er = 0.085 * size;
+  g.fillStyle = rgb(K.roll, -14);
+  g.fillRect(4 * cw, 0, cw, size);
+  for (const [rad, k] of [[er, -20], [er * 0.84, -8], [er * 0.6, -14], [er * 0.3, -4]]) {
+    g.fillStyle = rgb(K.roll, k);
+    g.beginPath(); g.arc(ex, ey, rad, 0, Math.PI * 2); g.fill();
   }
   // weather over all of it: grain, a little lichen, moss where the wet stays
   for (let i = 0; i < 5200; i++) {
@@ -380,8 +349,4 @@ export function roofTiles(kind = 'grey', size = 512) {
 }
 // what each dressing is as a surface: its roughness, and how much of the sky
 // it gives back (the glass the old roof read as was mostly the second)
-export const ROOF_SURFACE = {
-  grey: { roughness: 0.88, sky: 0.3, direct: 0.6 },
-  green: { roughness: 0.5, sky: 0.45, direct: 0.8 },
-  bark: { roughness: 0.96, sky: 0.15, direct: 0.3 },
-};
+export const ROOF_SURFACE = { roughness: 0.88, sky: 0.3, direct: 0.6 };

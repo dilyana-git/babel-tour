@@ -7,7 +7,7 @@ import { PAVILION_BRIDGE_HALF_WIDTH } from '../pavilionBridge';
 import { makeRng } from '../textures';
 import { WATER_Y } from '../water';
 import { makeKoi } from '../pond';
-import { WAYMARK, LAWN, ROOF_KIND } from '../forkProps';
+import { WAYMARK, LAWN } from '../forkProps';
 import { bracketSet, BRACKET, lotusBud, wornBar, wornPost, CAIHUA, qin, qinCloth } from '../pavilionProps';
 import { ROOF_TIERS, roofProfile, roofTop, ROOF_SURFACE, roofTiles, tiledRoof, softenRoofTiles } from '../pavilionRoof';
 import { signPostGeometry, SIGN, signBoardGeometry, HORN, paintSignName } from '../gardenProps';
@@ -368,12 +368,12 @@ export function* buildFork(ctx) {
       // Tiled (pavilionRoof.js): the slopes with their rolls, tile-ends and
       // hips in one mesh, the soffit and the eave board in another; and
       // between the two tiers, the short wall the upper one stands on.
-      const kind = ROOF_KIND, surface = ROOF_SURFACE[kind];
-      const roofMat = softenRoofTiles(skyDull(Std({ map: tex(roofTiles(kind), [1, 1]), roughness: surface.roughness, side: THREE.DoubleSide }), surface.sky, surface.direct));
+      const surface = ROOF_SURFACE;
+      const roofMat = softenRoofTiles(skyDull(Std({ map: tex(roofTiles(), [1, 1]), roughness: surface.roughness, side: THREE.DoubleSide }), surface.sky, surface.direct));
       // (gardenProps.js: the hips' curled ends in dark bronze — in the rolls'
       // pale grey, on the night, they are horns)
       yield;
-      const roof = tiledRoof({ at: PV, kind, light, bronze: true });
+      const roof = tiledRoof({ at: PV, light, bronze: true });
       const hornMat = roof.horns ? skyDull(Std({ color: HORN.color, roughness: HORN.roughness, metalness: HORN.metalness, side: THREE.DoubleSide }), HORN.sky) : null;
       for (const [geo, material] of [[roof.tiles, roofMat], [roof.under, underside], ...(roof.horns ? [[roof.horns, hornMat]] : [])]) {
         const m = new THREE.Mesh(keep(geo), material);

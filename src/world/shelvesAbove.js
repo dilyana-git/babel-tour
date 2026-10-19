@@ -1,29 +1,7 @@
-// The shelves climb on (2026-10-17). Audit VI·4·3: three audits running, the
-// Echo and the Silence opened onto clouds and stars, and the Silence's lamp
-// chains rose into that sky and hung from nothing, while the galleries below
-// (wellsBelow.js) said the floors go on. Chosen from a canvas of four (the
-// Vestibule's spiral over every room; the floors above, wellsBelow turned
-// upward; these shelves; a black lid), with one condition: every shelf
-// filled. So over each of the two rooms its walls go on up, storey on storey
-// into the dark, and every wall is a whole wall of books, corner to corner,
-// over its hallways too: no arch, no glass, no bare board.
-//
-// How. Not the room's triangles copied (a copy brings its doorways, its pier
-// glasses and the shelves the far view paints, wellsBelow's SKIP) but the
-// room's own shelving drawn again: shelfWall, with the room's bindings, along
-// each of the six edges, once a storey. Its batches are swapped for ones that
-// lift each piece a storey and keep it apart (`raise`, as libraryFace's
-// `unseen` swaps them for a sink), so these walls are the world's materials
-// (no program more to compile) in meshes of their own. shelfWall draws on its
-// own streams, and with `stream: 0` nothing from the world's: the garden stays
-// where it is. Painted rows (detail 1), as every wall the walk does not stand
-// at: the nearest of these is a storey over the eye.
-//
-// Behind the shelves the wall's stone goes up with them, a pale course of the
-// cap stone at every storey's head, and a black lid closes the top. They are
-// lit by the room's own lamps, so each storey is darker than the one below
-// without being told to. Drawn only while the eye is in or at the room (from
-// above, never: the map still looks down into an open hexagon).
+// Full bookcase walls continue above the Echo and Silence. Each storey uses
+// the room's shelving and materials, with stone behind it and a dark lid above.
+// Independent shelf streams preserve the garden's planting. The upper walls
+// draw only near the room and below its wall tops, keeping the map open.
 import * as THREE from 'three';
 import { MASS_H, CAP, TIERS } from './build/common';
 
@@ -46,7 +24,6 @@ const ORDER = 8;
 
 export function* buildShelvesAbove(ctx, { levels = LEVELS } = {}) {
   const { LB, Batch, shelfWall, edgeFrame, wallRing, slabGeo, cellC, rimAt, RC, root, keep } = ctx;
-  // (each like the world's own, which stand aside while shelfWall draws)
   // (each like the world's own, which stand aside while shelfWall draws; a
   // set to a room, so each room's are meshes of its own)
   const own = { ...LB };

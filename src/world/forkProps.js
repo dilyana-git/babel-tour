@@ -42,10 +42,6 @@ export const LAWN = {
   density: qn('wlawndensity', 1), height: qn('wlawnh', 0.62), bank: 13,
 };
 
-// The Pavilion's roof (pavilionRoof.js): which dressing — 'grey', tile in
-// rolls; 'green', the same glazed; 'bark', shingle without rolls.
-export const ROOF_KIND = ['grey', 'green', 'bark'].includes(Q.get('wroof')) ? Q.get('wroof') : 'grey';
-
 // The stand: `back` from the Fork's stone along the pergola's line (at its
 // last frame, under the ends of its rafters, which are over the reader's head
 // and out of the frame), `side` across it (to the walker's left, negative),

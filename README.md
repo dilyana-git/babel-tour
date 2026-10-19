@@ -141,12 +141,13 @@ npm run check:deploy
 ```
 
 Upload the contents of `dist/` to the **site root** on a static host. The build
-is a few megabytes of script and two images; the world is built in the
+is a few megabytes of script, fonts and small static assets; the world is built in the
 browser, not shipped as art. Its asset URLs begin with `/`, so serving it from
 a subdirectory needs a Vite `base` setting and an updated build. `check:deploy`
 lints the source, checks the frame-rate governor, builds the site, and checks
-the output for missing files and stray video. Run the browser checks above
-against the intended source before publishing. A Git-based deployment must
+the output for missing files and stray video. Run `npm run check` before
+publishing, plus `npm run check:navigation:smoke` when navigation, input,
+collision or scene lifecycle changed (see `AGENTS.md`). A Git-based deployment must
 include the new `src/` and `tools/` files in a commit; an uncommitted working
 tree is not what the host will build.
 
@@ -172,8 +173,6 @@ the painting shader from git history.
                       opens with that room lit and offered first
 ?wsound=off           no sound at all (it otherwise starts with the first touch;
                       the strokes top right stop and start it)
-?wread                open the volume of the room stood in (the open book, not
-                      yet taken by hand in the world: src/OpenBook.jsx)
 ?wperf                write what a frame costs, once a second, top left: median
                       milliseconds, pixel ratio, triangles, draw calls, passes
 ?coarse=1 ?thrift=1   force the touch / low-power mesh
