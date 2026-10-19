@@ -534,8 +534,8 @@
 /* --- The ending (Ending.jsx; world/finaleLook.js) ---
    In the caption's place when the film has come down on the map, and in its
    voice, on its pool of shadow: the walk's last line, set as large as an
-   italic may be under the title's capitals; then the colophon, the quietest
-   words on the sheet; then the ways on. All three are laid out from the first
+   italic may be under the title's capitals; then the stories and their
+   translation credits; then the ways on. All three are laid out from the first
    moment and come in where they stand — a fade each, nothing travelling. */
 
 .map-card[hidden] {
@@ -617,8 +617,8 @@
 .map-ending-colophon p {
   max-width: 31rem;
   margin: 0;
-  font: 500 clamp(0.95rem, 0.88vw, 1.02rem) / 1.5 var(--serif);
-  color: var(--ink-3);
+  font: 500 1.0625rem / 1.5 var(--serif);
+  color: rgba(236, 228, 210, 0.8);
   text-wrap: pretty;
 }
 
