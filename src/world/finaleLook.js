@@ -73,9 +73,8 @@ export const STEP = { to: qn('wfstep', 40), aside: 16, from: 1.4, till: 5.0, bob
 // for the inside of the cowl — it is lit beside the jaw and under it, and not
 // up beside the brow or behind the head (lit there, it drew the head on
 // itself as a black egg), `wool` times over: the dye is dark. `weave`: the
-// wool's twill, how many ribs to a unit and how deep (a unit is 9.4 cm: a
-// coarse homespun, so the rib can be told from the face-to-face distance,
-// where a finer one was smoothed to clay); `fleck`
+// fulled wool's nap, how fine its fibres are per unit and their relief
+// (a unit is 9.4 cm); `fleck`
 // how uneven its dye; `matt` how much of the smooth shine is taken off it.
 export const HOOD = {
   fold: qn('wfhfold', 2.4),
@@ -83,7 +82,7 @@ export const HOOD = {
   lining: 0.62,
   fray: [0.03, 0.11], threads: 64,
   lamp: { at: [0, -2.1, 1.35], k: qn('wfhlamp', 4.5), half: 2.2, color: [1.0, 0.7, 0.4], face: qn('wfhface', 0.5), reach: [0.6, 1.2], cloth: [0.85, 1.5], wool: qn('wfhwool', 1.7) },
-  weave: [qn('wfhweave', 9), qn('wfhrib', 1)], fleck: qn('wfhfleck', 0.2), matt: qn('wfhmatt', 0.92),
+  weave: [qn('wfhweave', 26), qn('wfhrib', 0.42)], fleck: qn('wfhfleck', 0.14), matt: qn('wfhmatt', 0.96),
   // `crown`: an empty hood's crown, lying in across the inside (readers.js,
   // `hollow`) — how far below the top of the opening, how far back of the
   // hood's middle it is centred, how much it domes, how near the cloth it

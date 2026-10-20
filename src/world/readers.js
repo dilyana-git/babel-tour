@@ -926,7 +926,7 @@ export const clothShader = (sh, u) => {
   // where both together made the robe's shoulder pale plaster)
   if (!u.uSheen) u.uSheen = { value: 1 };
   // `uWool`: the cloth seen close (finaleLook.js; all 0 for everyone else) —
-  // x how many ribs of its weave to a unit, y how deep they are, z how uneven
+  // x how fine its nap is per unit, y its relief, z how uneven
   // its dye, w how much of the smooth shine every surface has is taken off it.
   // `uHood`: a light inside the hood, where (in the reader's own frame) and
   // how strong; `uHoodTint`: its colour, and the distance it halves over.
@@ -1062,7 +1062,28 @@ export const clothShader = (sh, u) => {
         float k1 = b - a, k2 = c - a, k3 = e - a, k4 = a - b - c + d, k5 = a - c - e + h, k6 = a - b - e + g, k7 = -a + b + c - d + e - g - h + k;
         return vec4(a + k1 * u.x + k2 * u.y + k3 * u.z + k4 * u.x * u.y + k5 * u.y * u.z + k6 * u.z * u.x + k7 * u.x * u.y * u.z,
           du * vec3(k1 + k4 * u.y + k6 * u.z + k7 * u.y * u.z, k2 + k5 * u.z + k4 * u.x + k7 * u.z * u.x, k3 + k6 * u.x + k5 * u.y + k7 * u.x * u.y));
-      }`)
+      }
+      // Fulling softens the weave into an irregular nap. Two fibre scales
+      // and sparse pills keep it fine without a continuous embossed ridge.
+      // Gradients are scaled with each octave; unresolved fibres fade out.
+      vec4 clothNap(vec3 p) {
+        float fw = length(fwidth(p)) * uWool.x;
+        float on1 = 1.0 - smoothstep(0.3, 0.75, fw);
+        float on2 = 1.0 - smoothstep(0.3, 0.75, fw * 2.3);
+        float on3 = 1.0 - smoothstep(0.3, 0.75, fw * 0.45);
+        vec3 s1 = vec3(1.0, 0.65, 1.0), s2 = vec3(1.0, 0.4, 1.0);
+        vec4 n1 = clothNoise(p * uWool.x * s1 + 2.3);
+        vec4 n2 = clothNoise(p * uWool.x * 2.3 * s2 + 8.1);
+        vec4 n3 = clothNoise(p * uWool.x * 0.45 + 11.7);
+        float t = clamp((n3.x - 0.78) / 0.16, 0.0, 1.0);
+        float pill = t * t * (3.0 - 2.0 * t);
+        float dPill = 6.0 * t * (1.0 - t) / 0.16;
+        float h = (n1.x - 0.5) * on1 + 0.45 * (n2.x - 0.5) * on2 + 0.2 * pill * on3;
+        vec3 g = s1 * n1.yzw * on1 + 0.45 * 2.3 * s2 * n2.yzw * on2
+          + 0.2 * 0.45 * dPill * n3.yzw * on3;
+        return vec4(h, g);
+      }
+      vec4 woolDetail = vec4(0.0);`)
     .replace('#include <color_fragment>', `#include <color_fragment>
       // The hem's threads (K.FRAY): the strip cut along its length into
       // threads, each ending where it will; and none of it from further off
@@ -1074,19 +1095,13 @@ export const clothShader = (sh, u) => {
         float fH = fract(sin(dot(fC, vec2(127.1, 311.7))) * 43758.5453);
         if (fW > 0.8 || fH * fH < fT - 0.04) discard;
       }
-      // Wool seen close: woven, a twill's ribs across it, and its dye uneven
-      // — flecked, and in slow patches.
+      // Close wool has a soft nap over small variations in the dye.
       if (uWool.x > 0.0 && vKind < 1.5) {
         float wFw = length(fwidth(vCloth));
-        // (each rib a rounded ridge with a dark groove between it and the
-        // next, and the threads that cross it finer still: a sine's even
-        // stripes read as corduroy)
-        float wPh = dot(vCloth, vec3(0.64, 0.64, 0.43)) * uWool.x;
-        float wRib = (pow(abs(sin(wPh * 3.1415927)), 0.6) - 0.7) * (1.0 - smoothstep(0.2, 0.5, wFw * uWool.x));
-        float wThr = sin(dot(vCloth, vec3(-0.69, 0.69, 0.22)) * uWool.x * 25.1327412) * (1.0 - smoothstep(0.2, 0.5, wFw * uWool.x * 4.0));
+        woolDetail = clothNap(vCloth);
         float wFleck = clothNoise(vCloth * 12.0 + 5.0).x * 0.55 + clothNoise(vCloth * 43.0).x * 0.45 * (1.0 - smoothstep(0.25, 0.6, wFw * 43.0));
         float wPatch = clothNoise(vCloth * vec3(1.7, 0.8, 1.7) + 9.0).x;
-        diffuseColor.rgb *= max(0.0, 1.0 + uWool.z * (2.0 * (wFleck - 0.5) + 1.2 * (wPatch - 0.5)) + uWool.y * (0.22 * wRib + 0.05 * wThr));
+        diffuseColor.rgb *= max(0.0, 1.0 + uWool.z * (2.0 * (wFleck - 0.5) + 1.2 * (wPatch - 0.5)) + 0.28 * woolDetail.x);
       }`)
     .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
       {
@@ -1107,12 +1122,7 @@ export const clothShader = (sh, u) => {
           n = clothNoise(vCloth * sn + 3.7);
           cG += 0.012 * sn * n.yzw * (1.0 - smoothstep(0.25, 0.6, cFw * 9.0));
           if (uWool.x > 0.0) {
-            // the ribs of the weave, the threads across them, and the nap
-            float wF = uWool.x * 6.2831853, wOn = 1.0 - smoothstep(0.2, 0.5, cFw * uWool.x);
-            vec3 wA = vec3(0.64, 0.64, 0.43), wB = vec3(-0.69, 0.69, 0.22);
-            cG += (wA * cos(dot(vCloth, wA) * wF) * 0.34 + wB * cos(dot(vCloth, wB) * wF * 1.6) * 0.2) * uWool.y * wOn;
-            n = clothNoise(vCloth * 38.0 + 1.3);
-            cG += 0.36 * n.yzw * (1.0 - smoothstep(0.25, 0.6, cFw * 38.0));
+            cG = 0.55 * cG + uWool.y * woolDetail.yzw;
           }
           roughnessFactor = 0.95;
         } else if (cLeather) {

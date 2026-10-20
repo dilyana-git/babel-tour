@@ -27,6 +27,18 @@ path, and this document in full (`git show 0857f2a:docs/design-history.md`).
 
 ## 2026-10-20
 
+- **Fulled wool for the final figures.** The close-up's deep, regular
+  diagonal ribs read as embossed rubber rather than wool. Replaced them
+  with an irregular nap at 26 fibres per unit, two fine fibre scales and
+  sparse pills, with relief 0.42, dye variation 0.14 and matte strength 0.96.
+  Broad surface bumps are softened so the finer grain carries the material.
+  An initial nap at 30 fibres and relief 0.24 still read too smooth in the
+  rendered close-up.
+  Subpixel detail fades with distance. The brown dye, cut, folds and hood
+  darkness keep their existing values. Commit `7f2fd24` holds the previous
+  9-rib weave with relief 1. Before and after finale and fabric views are
+  in `.ux-review/qa/finale-wool/`.
+
 - **Gold title lines at the opening.** The opening now shares the ending's
   travelling gold glints on both title hairlines and its warm lettering glow,
   followed by the author credit. The same timing and keyframes serve both
