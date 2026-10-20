@@ -677,7 +677,7 @@
    it dims the rest of the Library last, and slowly, when the film is done.
    --in-*: when each begins, from the entrance's first moment. */
 
-.entry-map.is-landing {
+.entry-map:is(.is-assembling, .is-landing) {
   --in-rule: 300ms;
   --in-title: 500ms;
   --in-author: 1400ms;
@@ -697,16 +697,16 @@
   transition: opacity var(--in-long) var(--arrive);
 }
 
-.entry-map.is-landing .map-title-rule {
+.entry-map:is(.is-assembling, .is-landing) .map-title-rule {
   transform-origin: 0 50%;
   animation: ending-rule-in var(--in-long) var(--in-rule) var(--arrive) backwards;
 }
 
-.entry-map.is-landing .map-title-name + .map-title-rule {
+.entry-map:is(.is-assembling, .is-landing) .map-title-name + .map-title-rule {
   animation-delay: calc(var(--in-rule) + var(--t));
 }
 
-.entry-map.is-landing.is-tall .map-title-rule {
+.entry-map:is(.is-assembling, .is-landing).is-tall .map-title-rule {
   transform-origin: 50% 50%;
 }
 
@@ -717,11 +717,11 @@
   }
 }
 
-.entry-map.is-landing .map-title-name {
+.entry-map:is(.is-assembling, .is-landing) .map-title-name {
   animation: map-ending-in var(--in-long) var(--in-title) var(--arrive) backwards;
 }
 
-.entry-map.is-landing .map-title-line {
+.entry-map:is(.is-assembling, .is-landing) .map-title-line {
   animation: map-ending-in var(--t-slow) var(--in-author) var(--arrive) backwards;
 }
 
@@ -746,18 +746,18 @@
   transition: opacity calc(var(--t-slow) * 2.5) ease-in-out;
 }
 
-/* The ending: the light that ran along the walk runs on along the hairlines, and
-   the title and then each word of the line catch it and cool to ink. */
+/* The opening and ending share a light running along the title's hairlines.
+   The title catches it and cools to ink; the ending's words follow in turn. */
 .entry-map.is-landing {
   --in-cite: 3900ms;
 }
 
-.entry-map.is-landing .map-title-rule {
+.entry-map:is(.is-assembling, .is-landing) .map-title-rule {
   position: relative;
   animation-name: map-ending-in;
 }
 
-.entry-map.is-landing .map-title-rule::after {
+.entry-map:is(.is-assembling, .is-landing) .map-title-rule::after {
   content: '';
   position: absolute;
   top: -1px;
@@ -769,7 +769,7 @@
   animation: ending-glint calc(var(--t-slow) * 1.6) var(--in-rule) ease-in-out backwards;
 }
 
-.entry-map.is-landing .map-title-name + .map-title-rule::after {
+.entry-map:is(.is-assembling, .is-landing) .map-title-name + .map-title-rule::after {
   animation-delay: calc(var(--in-rule) + var(--t));
 }
 
@@ -790,7 +790,7 @@
   }
 }
 
-.entry-map.is-landing .map-title-name {
+.entry-map:is(.is-assembling, .is-landing) .map-title-name {
   animation-name: ending-lit;
   animation-timing-function: ease-out;
 }
@@ -2244,9 +2244,9 @@
     transform: none;
   }
 
-  /* (the ending's entrance is a row of delays: without motion, none of them) */
-  .entry-map.is-landing :is(.map-title-rule, .map-title-name, .map-title-line, .map-ending-w),
-  .entry-map.is-landing .map-title-rule::after,
+  /* The title's entrance has no sweep, glow or delay with reduced motion. */
+  .entry-map:is(.is-assembling, .is-landing) :is(.map-title-rule, .map-title-name, .map-title-line, .map-ending-w),
+  .entry-map:is(.is-assembling, .is-landing) .map-title-rule::after,
   .entry-map.is-landing .map-ending::before,
   .entry-map.is-landing .map-ending-line :is(p, cite) {
     animation: none;

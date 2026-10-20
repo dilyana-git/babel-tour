@@ -27,6 +27,13 @@ path, and this document in full (`git show 0857f2a:docs/design-history.md`).
 
 ## 2026-10-20
 
+- **Gold title lines at the opening.** The opening now shares the ending's
+  travelling gold glints on both title hairlines and its warm lettering glow,
+  followed by the author credit. The same timing and keyframes serve both
+  entrances; reduced motion keeps the title still and immediately readable.
+  Focused before, sweep and settled views are in
+  `.ux-review/qa/opening-gold/`.
+
 - **Finer cherry blossom texture.** Broad halos behind circular flower
   clusters made the pink crowns look like coarse flakes. The blossom atlas
   column now carries small five-petalled flowers and buds along fine twigs,
