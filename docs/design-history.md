@@ -27,6 +27,14 @@ path, and this document in full (`git show 0857f2a:docs/design-history.md`).
 
 ## 2026-10-20
 
+- **An illuminated labyrinth favicon.** The two concentric gold hexagons
+  become a continuous hexagonal passage around a lit doorway. A shaded
+  bronze edge and a pale upper rim give the gold walls depth against the
+  existing dark ground. The broad passage keeps its silhouette at tab size;
+  gradients and the doorway's pool of light add detail at larger sizes.
+  The previous mark is in commit `0c20835`. The focused before/after and
+  16, 32 and 48 px previews are in `.ux-review/qa/favicon/`.
+
 - **Connected crowns, substantial shrubs and matte turf.** The garden still
   read as bare boughs carrying isolated clumps, hollow shrubs and grey lawn.
   Broad trees, maples and cherries now carry adjoining leaf or blossom
