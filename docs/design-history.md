@@ -27,6 +27,15 @@ path, and this document in full (`git show 0857f2a:docs/design-history.md`).
 
 ## 2026-10-20
 
+- **Finer cherry blossom texture.** Broad halos behind circular flower
+  clusters made the pink crowns look like coarse flakes. The blossom atlas
+  column now carries small five-petalled flowers and buds along fine twigs,
+  with crowded tips and open seams between shoots. Pale blush petals have
+  small variations in orientation and shade, with quieter centres; their
+  own alpha forms the edge. Tree shape and the other atlas columns keep
+  their existing draws. Commit `4a4248a` holds the previous texture.
+  Close, garden and atlas views are in `.ux-review/qa/blossom-texture/`.
+
 - **Unequal cherry leaders instead of paired Vs.** Beside one another, the
   flowering trees repeated the same low crotch and two spreading arms. One
   existing stem now continues upward, while the other boughs attach at

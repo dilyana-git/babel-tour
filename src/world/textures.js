@@ -2144,8 +2144,8 @@ export function hedgeLeaves({ size = 1024, seed = 31 } = {}) {
 //   0 broad    leaves in alternate pairs along twigs that radiate from a stem
 //   1 maple    small palmate leaves, five and seven lobed, on fine stalks
 //   2 pine     brushes of needles, the stuff of a cloud-pruned pad
-//   3 blossom  a cherry's flower: one lumpy puff of floret clusters, soft
-//              edged (painted after the others: see the end of this)
+//   3 blossom  fine flowering twigs, small five-petalled flowers and buds
+//              (painted after the others: see the end of this)
 //   4 cedar    cord-like shoots, needled all round, fanning out
 //   5 willow   fine arching shoots, the narrow leaves hanging off them
 //   6 box      a clipped shoot grown out again: short twigs, small oval
@@ -2443,53 +2443,58 @@ export function foliageAtlas({ size = 256, seed = 37 } = {}) {
     }
     c.restore();
   }
-  // The cherry's flower, from where the stream stands after every column has
-  // drawn. Clusters of small florets, close-set and near white, each over a
-  // soft halo of its own colour whose alpha falls to nothing: the foliage
-  // shader's ramp (effects.js, `blossom`) turns that fall into a soft edge.
-  // More of them, and larger, toward the rim, where the twigs end; darker in
-  // the middle, where the puff shades itself.
+  // Small flowers follow branching twigs, with crowded tips and open seams
+  // between shoots. Petals carry the coverage themselves; a broad halo would
+  // join separate flowers into a solid plate when the texture is filtered.
   {
     const x0 = 3 * S, cx = x0 + S / 2, cy = S / 2;
     c.clearRect(x0, 0, S, S);
     c.save();
     c.beginPath(); c.rect(x0 + 5, 5, S - 10, S - 10); c.clip();
-    // a few dark twigs from the middle, mostly hidden, and over them one
-    // puff of clusters, thicker toward its rim, its outline lumpy
-    for (let s = 0; s < 5; s++) stem(shoot(cx, cy, (s / 5) * Math.PI * 2 + rr(-0.4, 0.4), R * rr(0.45, 0.75), 5, 0.5), 1.8, 0.7, 'rgba(46,30,28,1)');
-    const marks = [];
-    for (let k = 0; k < 30; k++) {
-      const a = rnd() * Math.PI * 2, rho = R * 0.74 * Math.pow(rnd(), 0.55);
-      const x = cx + Math.cos(a) * rho, y = cy + Math.sin(a) * rho;
-      marks.push({ x, y, ...place(cx, cy, x, y) });
-    }
-    marks.sort((p, q) => p.out - q.out);
-    for (const m of marks) {
-      const cr = rr(11, 16) * (0.75 + 0.4 * m.out);
-      const hue = rr(338, 356), sat = rr(6, 16), L = 62 + m.out * 18 + m.lit * 10;
-      const halo = c.createRadialGradient(m.x, m.y, 0, m.x, m.y, cr * 1.35);
-      halo.addColorStop(0, `hsla(${hue},${sat}%,${L - 8}%,${0.66 - 0.16 * m.out})`);
-      halo.addColorStop(0.55, `hsla(${hue},${sat}%,${L - 10}%,${0.44 - 0.12 * m.out})`);
-      halo.addColorStop(1, `hsla(${hue},${sat}%,${L - 12}%,0)`);
-      c.fillStyle = halo;
-      c.beginPath(); c.arc(m.x, m.y, cr * 1.35, 0, Math.PI * 2); c.fill();
-      const n = 14 + Math.floor(rnd() * 6);
-      for (let f = 0; f < n; f++) {
-        const a = rnd() * Math.PI * 2, rho = Math.sqrt(rnd()) * cr * 0.85;
-        const fx = m.x + Math.cos(a) * rho, fy = m.y + Math.sin(a) * rho;
-        // lit on the side toward the light, up and to the left
-        const Lf = Math.min(95, L + rr(-5, 7) + ((m.x - fx) + (m.y - fy)) / cr * 5);
-        const pr = rr(1.7, 2.6), rot = rnd() * Math.PI;
-        c.fillStyle = `hsl(${hue + rr(-4, 4)},${sat}%,${Lf}%)`;
-        for (let p = 0; p < 5; p++) {
-          const pa = rot + (p / 5) * Math.PI * 2;
-          c.beginPath();
-          c.ellipse(fx + Math.cos(pa) * pr * 0.6, fy + Math.sin(pa) * pr * 0.6, pr * 0.6, pr * 0.45, pa, 0, Math.PI * 2);
-          c.fill();
-        }
-        c.fillStyle = `hsl(${rr(335, 350)},${sat + 14}%,${Lf - 26}%)`;
-        c.beginPath(); c.arc(fx, fy, pr * 0.26, 0, Math.PI * 2); c.fill();
+    const flowers = [];
+    const knot = (x, y, a, count, spread) => {
+      for (let f = 0; f < count; f++) {
+        const turn = a + rr(-1.8, 1.8), reach = Math.sqrt(rnd()) * spread;
+        flowers.push({ x: x + Math.cos(turn) * reach, y: y + Math.sin(turn) * reach,
+          radius: rr(1.3, 2.2), bud: rnd() < 0.08 });
       }
+    };
+    for (let s = 0; s < 9; s++) {
+      const a = s * 2.399963 + rr(-0.35, 0.35);
+      const pts = shoot(cx, cy, a, R * rr(0.64, 0.94), 9, 0.32);
+      stem(pts, 0.9, 0.3, 'rgba(91,66,60,0.72)');
+      for (let i = 1; i < pts.length; i++) {
+        const [x, y, angle] = pts[i];
+        knot(x, y, angle, 3 + Math.floor(rnd() * 3), rr(4, 7));
+        if (i < 2 || i % 2) continue;
+        const side = (i + s) % 4 ? 1 : -1, branchAngle = angle + side * rr(0.55, 1.1);
+        const reach = R * rr(0.12, 0.24) * (1.15 - i / pts.length * 0.4);
+        const endX = x + Math.cos(branchAngle) * reach, endY = y + Math.sin(branchAngle) * reach;
+        stem([[x, y], [(x + endX) / 2, (y + endY) / 2], [endX, endY]], 0.55, 0.2, 'rgba(106,75,68,0.62)');
+        for (const t of [0.4, 0.75, 1]) knot(x + (endX - x) * t, y + (endY - y) * t,
+          branchAngle, 3 + Math.floor(rnd() * 3), rr(3, 5.5));
+      }
+    }
+    flowers.sort((p, q) => Math.hypot(p.x - cx, p.y - cy) - Math.hypot(q.x - cx, q.y - cy));
+    for (const f of flowers) {
+      const { out, lit } = place(cx, cy, f.x, f.y), hue = rr(342, 357), sat = rr(11, 21);
+      const light = Math.min(94, 74 + out * 14 + lit * 7 + rr(-3, 3));
+      if (f.bud) {
+        c.fillStyle = `hsl(${hue},${sat + 8}%,${light - 13}%)`;
+        c.beginPath(); c.ellipse(f.x, f.y, f.radius * 0.65, f.radius * 0.42, rr(0, Math.PI), 0, Math.PI * 2); c.fill();
+        continue;
+      }
+      const rot = rr(0, Math.PI * 2), face = rr(0.55, 1);
+      c.save(); c.translate(f.x, f.y); c.rotate(rot); c.scale(1, face);
+      for (let p = 0; p < 5; p++) {
+        const a = p / 5 * Math.PI * 2, pr = f.radius * rr(0.9, 1.08);
+        c.fillStyle = `hsl(${hue},${sat}%,${light + Math.cos(a - 2.3) * 3}%)`;
+        c.beginPath();
+        c.ellipse(Math.cos(a) * pr * 0.58, Math.sin(a) * pr * 0.58, pr * 0.66, pr * 0.46, a, 0, Math.PI * 2); c.fill();
+      }
+      c.fillStyle = `hsl(${hue},${sat + 7}%,${light - 14}%)`;
+      c.beginPath(); c.arc(0, 0, f.radius * 0.2, 0, Math.PI * 2); c.fill();
+      c.restore();
     }
     c.restore();
   }

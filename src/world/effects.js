@@ -729,8 +729,8 @@ const foliageAlpha = (shader) => shader.fragmentShader
 // renderOrder). (First tried as a fringe added outside the cut: it filled
 // the gaps in a crown and made the far trees blockier, not softer.)
 // (`blossom`: the blossom's ramp is never narrower than that much alpha, near
-// or far. Its flower is painted over soft halos (textures.js, foliageAtlas),
-// so a cluster has a soft edge close to as well as across the garden.)
+// or far. It keeps the small petals (textures.js, foliageAtlas) softly
+// filtered close to the eye as well as across the garden.)
 const featherCut = (feather, then, blossom = 0) => `
   {
     // (how fast the alpha falls across a pixel here: the ramp is that many
