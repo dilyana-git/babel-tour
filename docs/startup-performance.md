@@ -7,6 +7,37 @@ The `profile` field can be saved as a `.cpuprofile` for Chrome or Edge DevTools.
 Use separate names for before and after runs. Avoid concurrent builds or browser
 tests while measuring.
 
+## 2026-10-20: keep the opening's cadence even through handover
+
+The opening targeted roughly 27 updates a second during construction, then
+deliberately fell to 10 while the hidden world drew its first two frames.
+On a 60 Hz display this made ordinary updates alternate between about 33 and
+50 ms; the handover could leave 116 ms between updates even without a stall.
+It now keeps a 30 Hz deadline throughout, allowing 1 ms of callback timestamp
+jitter and preserving the deadline's phase when callbacks arrive late.
+
+A controlled run of the actual `startInk` driver, with raster calls stubbed
+and callback jitter of up to 0.3 ms, checked 60, 90 and 120 Hz displays. Each
+1.4-second sample produced 42 updates both before and during handover. At
+60 Hz the longest scheduled gap fell from 50.4 to 33.9 ms during construction
+and from 116.4 to 33.9 ms during handover. `inked` and `gone` each fired once,
+and stopping cancelled the pending callback. The measurements are in
+`.ux-review/qa/opening-smoothness/cadence.json`.
+
+These are scheduling checks, not a claim that GPU or main-thread loading
+stalls have disappeared. The opening can now use more GPU time during the
+world's first frames instead of deliberately slowing its own animation.
+Full-motion before/after captures and startup timing records are alongside
+the cadence results. Scene construction and the readiness conditions are
+unchanged.
+
+The full `npm run check` passes on an isolated copy of `2f11773` with this
+ink change applied (`check-2f11773/full-check.log` in the same review folder).
+The shared checkout's check fails in the separate cherry changes committed
+as `4a4248a`: seed 94400, limb 51 is detached by 0.3246 against the existing
+0.15 tolerance. The committed tree baseline passes all 28 tree checks. The
+assertion and the cherry work were left unchanged by this pacing fix.
+
 ## 2026-10-20: batch the opening's green dots
 
 The green forking paths stamped a separate gradient image for every dot on

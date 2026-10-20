@@ -126,11 +126,10 @@ const PIT_RIMMED = 0.9;
 const START = { yaw: -50, elevation: 38, near: 0.3, fov: 38, lensX: -0.12, lensY: 0.2 };
 // After the world is ready, whatever is left is drawn this much faster.
 const RUSH = 4;
-// The drawing's pace, and its pace while the world draws its first frames
-// (measured cold on the AMD integrated GPU: those frames took 2.2 s beside a
-// drawing at thirty a second, 1.5 s beside one at ten, 1.4 s beside four).
-const FRAME_S = 1 / 24 - 0.004;
-const HOLD_S = 0.1;
+// An even thirty updates a second, including the handover to the world.
+// Allow a little animation-frame timestamp jitter without skipping an update.
+const FRAME_S = 1 / 30;
+const FRAME_EARLY_S = 0.001;
 // The last wash of light, out from the Vestibule, and the ink letting go.
 const SWEEP_SPEED = 2600;
 const LET_GO_S = 1.5;
@@ -408,7 +407,7 @@ export function startInk(canvas, { reducedMotion = false, devPace = 0 } = {}, em
   const state = { u: 0, clock: 0 };
   const t0 = performance.now() / 1000;
   let last = t0, inkedAt = -1, shownAt = -1, raf = 0, sentU = -1, stopped = false;
-  let nextPaint = t0, cadence = FRAME_S;
+  let nextPaint = t0;
   // The reader's hand leans the drawing a little while it is being drawn
   // (none of it is left by the time the camera is at rest).
   const lean = { x: 0, y: 0, toX: 0, toY: 0 };
@@ -827,17 +826,11 @@ export function startInk(canvas, { reducedMotion = false, devPace = 0 } = {}, em
     }
     if (!cells) return;
     const now = performance.now() / 1000;
-    // Thirty frames a second; and only a few while the world, under it, draws
-    // its own first frames (it is waited on for two of them, and the two
-    // share one GPU).
-    const hold = input.progress >= 0.99 && !input.ready;
-    const interval = hold ? HOLD_S : FRAME_S;
-    if (interval !== cadence) { cadence = interval; nextPaint = now; }
-    if (again !== true && now < nextPaint) return;
+    if (again !== true && now + FRAME_EARLY_S < nextPaint) return;
     // Keep the cadence's phase when a browser frame arrives slightly late.
     // Restarting from `now` turns a nearly 1/30-second gap into a skipped frame.
-    if (again === true) nextPaint = now + cadence;
-    else nextPaint += (Math.floor(Math.max(0, now - nextPaint) / cadence) + 1) * cadence;
+    if (again === true) nextPaint = now + FRAME_S;
+    else nextPaint += (Math.floor(Math.max(0, now - nextPaint) / FRAME_S) + 1) * FRAME_S;
     if (import.meta.env.DEV) {
       beat.frames += 1;
       beat.worst = Math.max(beat.worst, now - last);
