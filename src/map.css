@@ -717,7 +717,7 @@
   }
 }
 
-.entry-map:is(.is-opening-title, .is-landing) .map-title-name {
+.entry-map.is-landing .map-title-name {
   animation: map-ending-in var(--in-long) var(--in-title) var(--arrive) backwards;
 }
 
@@ -747,11 +747,7 @@
 }
 
 /* The opening and ending share a light running along the title's hairlines.
-   The title catches it and cools to ink; the ending's words follow in turn. */
-.entry-map.is-opening-title {
-  --lit-start-opacity: 1;
-}
-
+   The ending's words catch that light in turn. */
 .entry-map.is-opening-title :is(.map-title-rule, .map-title-line) {
   animation: none;
 }
@@ -798,11 +794,6 @@
   }
 }
 
-.entry-map:is(.is-opening-title, .is-landing) .map-title-name {
-  animation-name: ending-lit;
-  animation-timing-function: ease-out;
-}
-
 .entry-map.is-landing .map-ending-line p {
   animation: none;
 }
@@ -813,7 +804,7 @@
 
 @keyframes ending-lit {
   0% {
-    opacity: var(--lit-start-opacity, 0);
+    opacity: 0;
     color: var(--gold-lit);
   }
 

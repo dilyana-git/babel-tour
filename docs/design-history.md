@@ -50,6 +50,10 @@ path, and this document in full (`git show 0857f2a:docs/design-history.md`).
   The title, rules and author remain readable throughout, and the sweep is
   limited to the first map view. Updated views are in
   `.ux-review/qa/opening-gold-after-map/`.
+  The title lettering's gold flicker was then removed from both entrances:
+  only the two hairlines carry the travelling gold. The opening title stays
+  still; the ending title keeps its plain fade. Views are in
+  `.ux-review/qa/opening-gold-lines-only/`.
 
 - **Finer cherry blossom texture.** Broad halos behind circular flower
   clusters made the pink crowns look like coarse flakes. The blossom atlas
