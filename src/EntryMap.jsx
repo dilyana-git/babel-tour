@@ -1275,6 +1275,7 @@ export default function EntryMap({ leaving, scenes, libraryMax, resumeAt, shared
         + `${liveWorld ? ' is-world' : ''}${flying !== null ? ' is-flying' : ''}`
         + `${worldRooms ? ' is-world-tour' : ''}${worldRooms && !onMap ? ' is-in-room' : ''}`
         + `${worldRooms && !liveWorld ? ' is-assembling' : ''}${ending && onMap ? ' is-ended' : ''}`
+        + `${worldRooms && liveWorld && inkGone && legs === 0 && onMap ? ' is-opening-title' : ''}`
         + `${landing ? ' is-landing' : ''}`
         + `${reading !== null && place !== null ? ' is-reading' : ''}`}
       aria-labelledby={worldRooms && place !== null ? 'room-title' : 'map-title'}

@@ -45,6 +45,11 @@ path, and this document in full (`git show 0857f2a:docs/design-history.md`).
   entrances; reduced motion keeps the title still and immediately readable.
   Focused before, sweep and settled views are in
   `.ux-review/qa/opening-gold/`.
+  The initial timing in `7f2fd24` competed with the drawing. The accents now
+  start after the drawing's final wash has cleared and the map is visible.
+  The title, rules and author remain readable throughout, and the sweep is
+  limited to the first map view. Updated views are in
+  `.ux-review/qa/opening-gold-after-map/`.
 
 - **Finer cherry blossom texture.** Broad halos behind circular flower
   clusters made the pink crowns look like coarse flakes. The blossom atlas
