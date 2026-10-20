@@ -27,6 +27,19 @@ path, and this document in full (`git show 0857f2a:docs/design-history.md`).
 
 ## 2026-10-20
 
+- **Unequal cherry leaders instead of paired Vs.** Beside one another, the
+  flowering trees repeated the same low crotch and two spreading arms. One
+  existing stem now continues upward, while the other boughs attach at
+  staggered heights with unequal reach and irregular bearings. Each bough's
+  smaller branches move with it, keeping the joints and flowers connected.
+  The shape uses the existing cherry seed XOR `0x6272616e`; the planting and
+  original tint budgets stay unchanged. Commit `0c20835` holds the previous
+  shape. An initial leader at .56–.67 of tree height made a narrow column;
+  .36–.43 with spreading upper branches gives a broader crown. Fine twig
+  bases also taper with their parent branches. Saved garden,
+  neighbouring-tree and bare-branch views are in
+  `.ux-review/qa/cherry-shape/`.
+
 - **An illuminated labyrinth favicon.** The two concentric gold hexagons
   become a continuous hexagonal passage around a lit doorway. A shaded
   bronze edge and a pale upper rim give the gold walls depth against the

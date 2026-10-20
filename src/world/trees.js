@@ -312,6 +312,46 @@ function mapleWood(rng, wood, { H, S, r0, leaders, detail }) {
   return sprays;
 }
 
+// Continue one stem through the crown, with unequal boughs attached at
+// different heights. Move each bough's smaller branches with it so every
+// attachment stays joined. Shape draws belong to the cherry's own seed.
+function spreadCherry(kept, rng, { H, S }) {
+  const R = (a, b) => a + (b - a) * rng();
+  const trunk = kept[0], groups = [];
+  for (const limb of kept.slice(1)) {
+    if (limb.part === 'limb') groups.push([]);
+    groups.at(-1).push(limb);
+  }
+  const [leader] = groups.splice(Math.floor(rng() * groups.length), 1);
+  const turn = R(0, Math.PI * 2);
+  const move = (group, from, direction, length, radius) => {
+    const start = group[0].nodes[0], axis = group[0].nodes.at(-1).p.clone().sub(start.p);
+    const scale = length / axis.length(), thick = radius / start.r;
+    const rotation = new THREE.Quaternion().setFromUnitVectors(axis.normalize(), direction);
+    return group.map((limb) => ({ ...limb, nodes: limb.nodes.map((n) => ({
+      p: n.p.clone().sub(start.p).applyQuaternion(rotation).multiplyScalar(scale).add(from),
+      d: n.d.clone().applyQuaternion(rotation), r: n.r * thick,
+    })) }));
+  };
+  const top = trunk.nodes.at(-1);
+  const upright = move(leader, top.p, heading(turn, R(1.12, 1.34)), H * R(0.36, 0.43), top.r * 0.94);
+  for (let i = 1; i < upright.length; i++) {
+    const branch = upright[i], on = branch.nodes[0];
+    upright[i] = move([branch], on.p, heading(turn + i * 2.399963 + R(-0.4, 0.4), R(0.18, 0.5)),
+      S * R(0.28, 0.43), on.r)[0];
+  }
+  const result = [trunk, ...upright], stem = upright[0].nodes;
+  for (const [i, group] of groups.entries()) {
+    const tier = i / Math.max(1, groups.length - 1);
+    const f = (0.1 + tier * 0.62 + R(-0.025, 0.025)) * (stem.length - 1);
+    const j = Math.floor(f), t = f - j, a = stem[j], b = stem[j + 1];
+    const from = a.p.clone().lerp(b.p, t), radius = (a.r + (b.r - a.r) * t) * R(0.46, 0.6);
+    const direction = heading(turn + 1.1 + i * 2.399963 + R(-0.5, 0.5), R(0.12, 0.42));
+    result.push(...move(group, from, direction, S * (0.84 - tier * 0.28) * R(0.86, 1.12), radius));
+  }
+  return result;
+}
+
 // A cherry in flower. `kept`: the wood the cherry grew ({ nodes, opts, part }),
 // drawn here: each limb run through a smooth curve with a node every two
 // units and many sides, bowed under its flower and tapering, and on from
@@ -367,7 +407,7 @@ function bloomCherry(rng, wood, tint, kept, { S, detail }) {
     for (let k = 0; k < twigs; k++) {
       const on = k === 0 ? tipEnd : at(line, R(0.55, 0.85));
       const out = heading(bearingOf(on.d) + R(-1.3, 1.3), R(-0.1, 0.55));
-      const tw = twig(on.p, on.d.clone().lerp(out, 0.6), S * R(0.1, 0.17), Math.max(0.05, Math.min(0.09, on.r)));
+      const tw = twig(on.p, on.d.clone().lerp(out, 0.6), S * R(0.1, 0.17), Math.max(0.015, Math.min(0.09, on.r * 0.6)));
       const tip = tw[tw.length - 1].p, mid = tw[2].p;
       const rc = S * R(0.14, 0.18);
       spray(tip.clone().add(V(0, rc * 0.2, 0)), rc * R(1.7, 2.1), 'tip');
@@ -877,7 +917,8 @@ export function growTree(species, rng, wood, { H, S, lean = null, detail = true,
     was = sprays.slice();
     tintRng = makeRng(cherry.seed);
     sprays.length = 0;
-    sprays.push(...bloomCherry(tintRng, form, tint, cherry.kept, { S, detail }));
+    const crown = spreadCherry(cherry.kept, makeRng(cherry.seed ^ 0x6272616e), { H, S });
+    sprays.push(...bloomCherry(tintRng, form, tint, crown, { S, detail }));
   }
   if (weeping && willow) {
     const { c, eave, Rd } = willow;
