@@ -1023,7 +1023,9 @@ export function bankLit(mat, { grass, gravel, grassColor, gravelColor, grassRepe
       const w = '((1.0 - vShore.x) * (1.0 - vShore.y))';
       sh.fragmentShader = sh.fragmentShader
         .replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
-          ${moonGroundLight(w)}`)
+          ${moonGroundLight(w)}
+          reflectedLight.indirectSpecular *= 1.0 - ${w};
+          reflectedLight.directSpecular *= 1.0 - 0.92 * ${w};`)
         .replace('#include <fog_fragment>', moonGroundFog(w));
     }
   };

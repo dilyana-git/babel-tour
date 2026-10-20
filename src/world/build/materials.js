@@ -1057,6 +1057,16 @@ export function buildMaterials(ctx) {
     flower: keep(makeFlowerMaterial()),
   };
 
+  M.shrub = keep(M.hedge.clone());
+  M.shrub.name = 'shrub-body';
+  M.shrub.color.set('#91b889');
+  M.shrub.onBeforeCompile = (sh, renderer) => {
+    M.hedge.onBeforeCompile(sh, renderer);
+    sh.fragmentShader = sh.fragmentShader.replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
+      reflectedLight.indirectDiffuse += BRDF_Lambert(material.diffuseContribution) * vec3(0.14, 0.18, 0.12);`);
+  };
+  M.shrub.customProgramCacheKey = () => `${M.hedge.customProgramCacheKey()}-shrub`;
+
   // Two stones in the Echo: warm grey masonry, and pale limestone for the
   // carving, the treads and the columns (one stone with the arches and
   // bridges they carry). Keep the shared texture scale

@@ -18,6 +18,21 @@
 import * as THREE from 'three';
 import { makeRng } from './textures';
 
+// A shared tuft of short, bent blades for the open sward.
+export function turfTuft() {
+  const rng = makeRng(0x626c6164), pos = [], col = [], nor = [], lit = [];
+  const plant = clumpOf(rng, { ground: 0, height: 0.45,
+    clump: { blades: [9, 12], spread: [0.1, 1.0], wide: [0.025, 0.045], tip: 1.1,
+      k: 0.45, green: [0.025, 0.05, 0.015], dry: 0.025, straw: [0.045, 0.047, 0.019] },
+    out: { pos, col, nor, lit }, lamp: [0, 0, 0, 0] });
+  plant(0, 0, 0.5);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  return geo;
+}
+
 // One clump of bent blades (gardenProps.js), drawn from `r` into `out`; each
 // vertex carries `lamp` ([x, y, z, k]) unless the call gives its own.
 function clumpOf(r, { ground, height, clump, out, lamp }) {
@@ -308,10 +323,19 @@ export function bladeLit(mat, color = '#ffb46a', ground = 3.95) {
         varying vec3 vBladeW;`)
       .replace('#include <begin_vertex>', `#include <begin_vertex>
         vLamp = aLamp;
-        vBladeW = (modelMatrix * vec4(transformed, 1.0)).xyz;
+        vec4 bladeAt = vec4(transformed, 1.0);
+        #ifdef USE_INSTANCING
+          bladeAt = instanceMatrix * bladeAt;
+        #endif
+        vBladeW = (modelMatrix * bladeAt).xyz;
         // far off a blade is finer than a pixel and only glitters as the eye
         // moves: there it lies down into the lawn it is painted on
-        transformed.y = mix(transformed.y, ${ground.toFixed(2)}, smoothstep(70.0, 130.0, distance(vBladeW, cameraPosition)));`);
+        float bladeFar = smoothstep(70.0, 130.0, distance(vBladeW, cameraPosition));
+        #ifdef USE_INSTANCING
+          transformed.y *= 1.0 - bladeFar;
+        #else
+          transformed.y = mix(transformed.y, ${ground.toFixed(2)}, bladeFar);
+        #endif`);
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>
         uniform vec3 uLampColor;

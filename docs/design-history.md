@@ -25,6 +25,35 @@ path, and this document in full (`git show 0857f2a:docs/design-history.md`).
   (`*-a.png` default, `*-b.png` quiet). On a pick, remove the other path and
   the flag in the same commit, and record the commit here.
 
+## 2026-10-20
+
+- **Connected crowns, substantial shrubs and matte turf.** The garden still
+  read as bare boughs carrying isolated clumps, hollow shrubs and grey lawn.
+  Broad trees, maples and cherries now carry adjoining leaf or blossom
+  billows at four stations along their spreading boughs. This fills the
+  middle and lower crown without moving trunks or changing the established
+  growth and tint budgets; the fixtures still assert those original budgets.
+
+  Shrubs have irregular hemispherical bodies rooted below the turf, with
+  dense small leaves over the surface and a low skirt at the foot. Three
+  body shapes use seed `0x62757368`; their leaf detail keeps the independent
+  planting seeds. Leaf texture, soft diffuse fill and greens shared with the
+  tree planting keep the body and outer shoots together. Companion stones
+  sit beside the shrubs rather than underneath their leaf skirts.
+  The core is tucked inside a dense ground-level skirt: exposed, its warm
+  lantern lighting read as a stone pedestal under the green shoots.
+
+  The grass's persistent grey cast came from sky reflection overwhelming its
+  dark albedo at grazing angles. Turf and grass blades now keep no sky gloss
+  and only .08 of direct specular light; the grassy share of the pond bank
+  receives the same treatment. The lawn uses linear RGB .032, .055, .015,
+  gain .42, softer fine variation and more neutral moonlight. Short bent
+  blades now cover the lawn in irregular patches, instanced from seed
+  `0x626c6164` and placed with seed `0x73776172`; taller growth remains at the
+  edges. Commit `9af9ef1` holds the previous planting. Close tree, shrub and
+  turf comparisons are in `.ux-review/qa/garden-forms/`, including the red
+  surface check that confirmed the grass's albedo patch was active.
+
 ## 2026-10-19
 
 - **A fuller, more coherent garden.** Sparse tip-only crowns, pale mottled

@@ -332,13 +332,13 @@ export const FEATHER = { on: true, near: qn('wfeathernear', 70), far: qn('wfeath
 // texture's light and dark is kept (its colour is not). `macro`: the sizes of
 // the patches, in units (a unit is 9.4 cm), and `k` how far apart in value.
 export const SWARD = {
-  color: new THREE.Color().setRGB(qn('wswr', 0.046), qn('wswg', 0.048), qn('wswb', 0.004)),
-  deep: new THREE.Color().setRGB(0.023, 0.03, 0.003),
-  dry: new THREE.Color().setRGB(0.053, 0.052, 0.008),
-  detail: qn('wswdetail', 0.8),
+  color: new THREE.Color().setRGB(qn('wswr', 0.032), qn('wswg', 0.055), qn('wswb', 0.015)),
+  deep: new THREE.Color().setRGB(0.018, 0.033, 0.009),
+  dry: new THREE.Color().setRGB(0.045, 0.052, 0.014),
+  detail: qn('wswdetail', 0.6),
   macro: [13, 41, 113],
-  k: qn('wswmacro', 0.24),
-  gain: qn('wswgain', 0.28),
+  k: qn('wswmacro', 0.18),
+  gain: qn('wswgain', 0.42),
   // and the lantern's light off the cut grass (its `sward`),
   // which was set for the near-black lawn and over this one glowed mustard
   lampSward: qn('wswlamp', 0.17),
@@ -350,7 +350,7 @@ export const SWARD = {
 // lawn's fog goes from the night's teal toward a grey of its own value.
 // `mist`: the mist sheets' colour, a moonlit grey for the cyan they were.
 export const MOON_GROUND = {
-  light: new THREE.Vector3(qn('wmglr', 1.5), 1.0, qn('wmglb', 0.28)),
+  light: new THREE.Vector3(qn('wmglr', 1.1), 1.0, qn('wmglb', 0.8)),
   fog: qn('wmgfog', 1),
   fogTint: new THREE.Vector3(1.25, 1.12, 0.6),
   mist: '#b6b8b0',
@@ -375,7 +375,7 @@ export const SWARD_GLSL = /* glsl */ `
   }
   vec3 swardColor(vec3 tex, vec3 mean, vec2 xz) {
     float y = dot(tex, vec3(0.2126, 0.7152, 0.0722)), my = max(dot(mean, vec3(0.2126, 0.7152, 0.0722)), 1e-4);
-    float detail = clamp(y / my, 0.5, 1.7);
+    float detail = clamp(y / my, 0.7, 1.3);
     xz += vec2(gnNoise(xz / 39.0 + 13.0), gnNoise(xz / 33.0 + 61.0)) * 9.0;
     // three sizes of patch, the larger the stronger (the eye finds those first)
     float tone = (gnNoise(xz / ${SWARD.macro[0].toFixed(1)}) - 0.5) * 0.5
@@ -384,9 +384,8 @@ export const SWARD_GLSL = /* glsl */ `
     vec3 c = mix(uSward, uSwardDeep, smoothstep(0.0, -0.5, tone));
     c = mix(c, uSwardDry, smoothstep(0.18, 0.65, tone) * 0.35);
     c *= 1.0 + tone * uSwardK.y;
-    float nap = gnNoise(xz * vec2(8.0, 14.0)) * 0.55
-      + gnNoise(xz * vec2(17.0, 11.0) + 13.0) * 0.45;
-    c *= mix(1.0, 0.65 + nap * 0.7, 1.0 - smoothstep(0.2, 1.2, length(fwidth(xz))));
+    float nap = gnNoise(xz * 14.0) + gnNoise(xz * 29.0 + 13.0) * 0.4;
+    c *= mix(1.0, 0.9 + nap * 0.14, 1.0 - smoothstep(0.2, 1.2, length(fwidth(xz))));
     return c * mix(1.0, detail, uSwardK.x) * uSwardK.z;
   }
 `;
@@ -457,7 +456,9 @@ export function swardLawn(mat) {
       diffuseColor.rgb = swardColor(sampledDiffuseColor.rgb, textureLod(map, vMapUv, 12.0).rgb, vSwardW.xz);`);
     
     f = f.replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
-      ${moonGroundLight()}`)
+      ${moonGroundLight()}
+      reflectedLight.indirectSpecular *= 0.0;
+      reflectedLight.directSpecular *= 0.08;`)
       .replace('#include <fog_fragment>', moonGroundFog());
     sh.fragmentShader = f;
   });
@@ -474,7 +475,9 @@ export function moonBlades(mat) {
         uniform float uMoonFog;
         uniform vec3 uMoonFogTint;`)
       .replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
-        ${moonGroundLight()}`)
+        ${moonGroundLight()}
+        reflectedLight.indirectSpecular *= 0.0;
+        reflectedLight.directSpecular *= 0.08;`)
       .replace('#include <fog_fragment>', moonGroundFog());
   });
 }

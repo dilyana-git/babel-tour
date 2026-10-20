@@ -13,7 +13,7 @@ import { WATER_Y } from '../water';
 import { lilyFlowerGeometry, lilyBudGeometry } from '../pond';
 import { WAYMARK, FINIALS, LAWN } from '../forkProps';
 import { WILLOW } from '../pavilionProps';
-import { lawnBlades, swardLit, lawnSward, edgeTufts } from '../lawn';
+import { lawnBlades, swardLit, lawnSward, edgeTufts, turfTuft } from '../lawn';
 import { MIST_COLOR, TUFTS, trackMist, SWARD, GRASS, paintSward, FEATHER } from '../gardenProps';
 import { SCREEN, screenPlaces, GATE as WEB_GATE, FLIES, BELT, closeBelt, SPIRE, inCourtView } from '../webProps';
 import { pondShore, rockVariants, guardStones } from '../shore';
@@ -23,23 +23,50 @@ const GARDEN_GREEN = ['#4c6541', '#435d3f', '#546d46', '#3e553b', '#496343'];
 
 // Small-leaved, overlapping mounds share the trees' greens. Their skirt
 // starts in the turf and their irregular shoots break the dome's edge.
-function shrubMound(foliage, sprig, seed, light) {
+function shrubMound(foliage, bodies, sprig, seed, light) {
   const rng = makeRng(seed), R = (a, b) => a + (b - a) * rng();
   const [x, , z] = sprig.p, radius = sprig.s[0] * R(0.4, 0.52);
   const height = Math.max(3.2, sprig.p[1] - 4 + radius * 0.3);
   const crown = [x, 4 + height * 0.32, z, Math.max(radius, height) * 1.12];
-  const count = light ? 11 : 18, turn = R(0, Math.PI * 2);
+  const count = light ? 22 : 42, turn = R(0, Math.PI * 2);
+  bodies.push({ p: [x, 3.8, z], s: [radius * 0.84, height * 0.98, radius * R(0.74, 0.88)],
+    rot: [0, turn, 0], v: Math.abs(seed % 3) });
   const tint = new THREE.Color(), deep = new THREE.Color('#293e2b');
   for (let k = 0; k < count; k++) {
     const f = Math.sqrt((k + 0.5) / count), a = turn + k * 2.399963 + R(-0.24, 0.24);
     const r = radius * f * R(0.88, 1.1), up = Math.sqrt(1 - f * f);
     const y = 4.15 + height * up * R(0.82, 1.04);
-    const w = Math.min(radius * 0.95, R(3.4, 5.3));
+    const w = Math.min(radius * 0.85, R(3.2, 4.6));
     tint.set(GARDEN_GREEN[Math.floor(rng() * GARDEN_GREEN.length)]).lerp(deep, (1 - up) * 0.32);
     foliage.push({ p: [x + Math.cos(a) * r, y, z + Math.sin(a) * r],
       s: [w, w * R(0.72, 1.05), w], rot: [R(-0.45, 0.45), R(0, Math.PI * 2), R(-0.45, 0.45)],
       kind: 6, color: tint.getHex(), k: 0.65 + up * 0.36, crown });
   }
+  for (let k = 0; k < (light ? 16 : 26); k++) {
+    const a = turn + k * 2.399963, r = radius * R(0.9, 1.05), w = R(3.6, 4.6);
+    foliage.push({ p: [x + Math.cos(a) * r, 4.25 + height * R(0.03, 0.12), z + Math.sin(a) * r],
+      s: [w, w * 0.8, w], rot: [R(-0.3, 0.3), a, R(-0.3, 0.3)], kind: 6,
+      color: GARDEN_GREEN[k % GARDEN_GREEN.length], k: 0.72, crown });
+  }
+}
+
+// The foliage has a dense, irregular heart, with fine sprigs around it.
+// Instancing these non-box shapes keeps the decorative shrubs unfelt.
+function shrubGeometry(seed) {
+  const geo = new THREE.SphereGeometry(1, 22, 14, 0, Math.PI * 2, 0, Math.PI / 2), p = geo.attributes.position, uv = geo.attributes.uv;
+  const color = new Float32Array(p.count * 3);
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i), y = p.getY(i), z = p.getZ(i), up = Math.max(0, y);
+    const swell = 1 + 0.1 * Math.sin(x * 6.2 + seed) * Math.sin(z * 5.6 + y * 3.1)
+      + 0.07 * Math.sin(x * 3.4 + z * 4.1 + seed);
+    p.setXYZ(i, x * swell, up * (0.94 + 0.06 * Math.sin(x * 4 + z * 3 + seed)), z * swell);
+    uv.setXY(i, uv.getX(i) * 42, uv.getY(i) * 18);
+    const shade = 0.35 + 0.65 * Math.sqrt(up);
+    color.set([shade * 0.95, shade, shade * 0.9], i * 3);
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(color, 3));
+  geo.computeVertexNormals();
+  return geo;
 }
 
 export function* buildTrees(ctx) {
@@ -49,6 +76,7 @@ export function* buildTrees(ctx) {
   // ── Trees (trees.js) ──────────────────────────────────────────────────────
   // (the cedars behind the maze, in a group of their own: webProps.js)
   let beltGroup = null;
+  const shrubBodies = [];
   // Where they stand is drawn from the world's stream, which this spends to the
   // draw exactly as the first trees did, so the shrubs, the mist and everything
   // after keep their places. What each tree IS comes from a stream of its own,
@@ -237,8 +265,8 @@ export function* buildTrees(ctx) {
             const sprig = { p: [q[0], range(7, 10), q[1]], rot: [0, range(0, Math.PI * 2), 0],
               s: [size, size * 0.8, size], color: choose(TINT.broad), k: range(0.7, 0.9),
               crown: [q[0], 5, q[1], size * 0.75] };
-            shrubMound(foliage, sprig, 0x73687262 ^ Math.round(q[0] * 1024) ^ Math.round(q[1] * 4096), light);
-            ctx.rocks.push({ p: [q[0] + 4, 4.5, q[1] - 3], rot: [0, range(0, 3), 0],
+            shrubMound(foliage, shrubBodies, sprig, 0x73687262 ^ Math.round(q[0] * 1024) ^ Math.round(q[1] * 4096), light);
+            ctx.rocks.push({ p: [q[0] + size * 0.68, 4.5, q[1] - size * 0.38], rot: [0, range(0, 3), 0],
               s: [range(2.5, 4), range(1.5, 2.5), range(2, 3.5)], color: '#aaa293' });
           }
         }
@@ -309,8 +337,8 @@ export function* buildTrees(ctx) {
             const size = range(10, 18);
             const sprig = { p: [q[0], range(7, 11), q[1]], rot: [0, range(0, Math.PI * 2), 0],
               s: [size, size * 0.8, size], color: choose(TINT.broad), k: range(0.7, 0.9), crown: [q[0], 5, q[1], size * 0.75] };
-            shrubMound(foliage, sprig, 0x73687262 ^ Math.round(q[0] * 1024) ^ Math.round(q[1] * 4096), light);
-            if (k === 0) ctx.rocks.push({ p: [q[0] + 5, 4.4, q[1] - 3], rot: [0, range(0, 3), 0],
+            shrubMound(foliage, shrubBodies, sprig, 0x73687262 ^ Math.round(q[0] * 1024) ^ Math.round(q[1] * 4096), light);
+            if (k === 0) ctx.rocks.push({ p: [q[0] + size * 0.68, 4.4, q[1] - size * 0.38], rot: [0, range(0, 3), 0],
               s: [range(2.5, 4), range(1.5, 2.5), range(2, 3.5)], color: '#aaa293' });
           }
         }
@@ -414,9 +442,13 @@ export function* buildTrees(ctx) {
       const gone = wayDist(p) < 16 || (NORTH_OPEN && onNorthBridge(p, 12)) || boundaryDist(p) < 12;
       for (let s2 = 0; s2 < 3; s2++) {
         const sprig = { p: [p[0] + rr(-4, 4), rr(7, 12), p[1] + rr(-4, 4)], rot: [0, rr(0, 6.28), 0], s: Array(3).fill(size * rr(0.55, 0.75)), color: tint, k: rr(0.6, 0.85), crown: [p[0], 4, p[1], size * 0.75] };
-        if (!gone) shrubMound(foliage, sprig, 0x73687262 ^ Math.round(sprig.p[0] * 1024) ^ Math.round(sprig.p[2] * 4096), light);
+        if (!gone) shrubMound(foliage, shrubBodies, sprig, 0x73687262 ^ Math.round(sprig.p[0] * 1024) ^ Math.round(sprig.p[2] * 4096), light);
       }
     }
+  }
+  for (let v = 0; v < 3; v++) {
+    instances(shrubGeometry(0x62757368 + v * 17), M.shrub, shrubBodies.filter((b) => b.v === v),
+      { chunked: true, name: 'shrubs' });
   }
   return { beltGroup };
 }
@@ -618,6 +650,28 @@ export function* buildMist(ctx) {
         yield;
       }
     }
+    // Low sward across the lawn, in patches, under trees as well as by paths.
+    // The shared tuft is instanced; its blades carry their nearest lantern.
+    const turfRng = makeRng(0x73776172), T = (a, b) => a + (b - a) * turfRng();
+    const sward = [], turfLamp = (x, z) => {
+      let nearest = null, gap = Infinity;
+      for (const lamp of lawnLamps) {
+        const d = Math.hypot(x - lamp.p[0], z - lamp.p[1]);
+        if (d < lamp.reach && d < gap) { gap = d; nearest = lamp; }
+      }
+      return nearest ? [nearest.p[0], nearest.y, nearest.p[1], nearest.k] : [0, 0, 0, 0];
+    };
+    const step = light ? 3.7 : 2.65;
+    for (let x = 850; x < 1590; x += step) {
+      for (let z = -430; z < 620; z += step) {
+        const p = [x + T(-0.48, 0.48) * step, z + T(-0.48, 0.48) * step];
+        const patch = 0.58 + 0.24 * Math.sin(p[0] * 0.035 + Math.sin(p[1] * 0.06)) * Math.cos(p[1] * 0.047);
+        if (turfRng() > patch || !ok(p) || !offMaze(p)) continue;
+        sward.push({ p: [p[0], 4.01, p[1]], rot: [0, T(0, Math.PI * 2), 0],
+          s: [T(0.8, 1.25), T(0.7, 1.45), T(0.8, 1.25)], lamp: turfLamp(...p) });
+      }
+    }
+    instances(turfTuft(), M.lawnBlade, sward, { chunked: true, cast: false, name: 'lawnBlades', attrs: { aLamp: (it) => it.lamp } });
     for (const g of TUFTS.on ? [] : lawnBlades({ lamps: lawnLamps, ok, ground: 4, density: LAWN.density * (light ? 0.5 : 1), height: LAWN.height, clump })) {
       const m = new THREE.Mesh(keep(g), M.lawnBlade);
       m.receiveShadow = true;

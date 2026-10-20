@@ -412,6 +412,28 @@ function fillCrown(species, rng, form, limbs, sprays, { H, detail }) {
         kind: sp.kind, shade: sp.shade * R(0.85, 1.05) });
     }
   }
+  if (species === 'broad' || species === 'maple' || species === 'cherry') {
+    // Clothe the boughs between the trunk and their terminal clusters.
+    // Interlocking small billows make a connected crown with uneven edges.
+    const native = species === 'cherry' ? LEAF.blossom : LEAF[species];
+    for (const nodes of limbs.slice(1)) {
+      const axis = nodes.at(-1).p.clone().sub(nodes[0].p), length = axis.length();
+      if (nodes[0].r < 0.18 || length < H * 0.12 || Math.hypot(axis.x, axis.z) < length * 0.24) continue;
+      for (const t of [0.28, 0.48, 0.68, 0.88]) {
+        const f = t * (nodes.length - 1), i = Math.floor(f), u = f - i;
+        const on = nodes[i].p.clone().lerp(nodes[i + 1].p, u);
+        const w = Math.max(4.5, Math.min(H * R(0.17, 0.23), length * 0.65));
+        const c = on.clone().add(V(0, w * 0.27, 0)), crown = [c.x, c.y - w * 0.12, c.z, w * 0.85];
+        for (let k = 0; k < 2; k++) {
+          const a = R(0, Math.PI * 2), green = species === 'cherry' && t === 0.48 && k === 0;
+          const width = w * R(0.9, 1.16);
+          sprays.push({ p: [c.x + Math.cos(a) * w * 0.2, c.y + R(-0.12, 0.14) * w, c.z + Math.sin(a) * w * 0.2],
+            s: [width, width * R(0.75, 1.02), width], rot: [R(-0.25, 0.25), a, R(-0.25, 0.25)],
+            kind: green ? LEAF.broad : native, crown, shade: R(0.85, 1.06), ...(green ? { tint: '#4c6541' } : {}) });
+        }
+      }
+    }
+  }
   const tint = new THREE.Color(BARK[species]);
   const leafyShoot = (on, forward, dir, reach, r0, w, bough = false) => {
     const tip = on.clone().addScaledVector(dir, reach);
